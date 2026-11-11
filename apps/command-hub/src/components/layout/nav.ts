@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import { Bot, BookOpen, History, House, KeyRound } from 'lucide-react'
+import { Bot, BookOpen, History, House, KeyRound, LayoutGrid } from 'lucide-react'
 
-import { allApps } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
 import type { ExtensionList } from '@/extensions/types'
 import { allModules } from '@/modules/registry'
@@ -25,15 +24,15 @@ export interface NavSection {
  * theirs from `src/modules/registry.ts`, and installed extensions add theirs
  * through the same registries (src/extensions).
  */
-function coreSections(list: ExtensionList): NavSection[] {
+function coreSections(): NavSection[] {
   return [
     {
-      items: [{ path: '/', label: 'Home', icon: House }],
-    },
-    {
-      // Apps open full screen (src/apps); each one is listed from the app registry.
-      heading: 'Apps',
-      items: allApps(list).map((a) => ({ path: a.path, label: a.title, icon: a.icon })),
+      // Apps is one destination: the Apps page shows every app (built in and
+      // from extensions) as a card, and each app opens full screen.
+      items: [
+        { path: '/', label: 'Home', icon: House },
+        { path: '/apps', label: 'Apps', icon: LayoutGrid },
+      ],
     },
     {
       heading: 'Workspace',
@@ -55,7 +54,7 @@ function coreSections(list: ExtensionList): NavSection[] {
 
 /** Merge module nav entries into sections. New module sections go before "Configure". */
 export function buildNavSections(list: ExtensionList): NavSection[] {
-  const sections = coreSections(list).filter((s) => s.items.length > 0 || s.heading === 'Configure')
+  const sections = coreSections().filter((s) => s.items.length > 0 || s.heading === 'Configure')
   const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
   for (const m of sorted) {
     let section = sections.find((s) => s.heading === m.nav.section)

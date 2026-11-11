@@ -15,8 +15,8 @@ import type { IconComponent } from '@/modules/types'
  *
  *   1. Create `src/apps/<id>/index.ts` exporting an `AppDefinition` with
  *      `path: '/apps/<id>'`.
- *   2. Add it to the list in `src/apps/registry.ts`. The "Apps" nav section
- *      and the router pick it up.
+ *   2. Add it to the list in `src/apps/registry.ts`. The Apps page (one card
+ *      per app, behind the single "Apps" nav item) and the router pick it up.
  *   3. If it needs local data, create `electron/apps/<id>/index.cjs` exporting
  *      a backend (same shape as a module backend) and add it to
  *      `electron/apps/index.cjs`. Call it with `invokeApp(id, method, args)`.
