@@ -11,6 +11,10 @@ const { setupUserData } = require('./userData.cjs')
 // Before anything touches userData: moves the old data folder to %APPDATA%\MonoRail once.
 setupUserData(app)
 
+const { registerExtensionScheme } = require('./extensions/index.cjs')
+// The monorail-ext:// scheme (extension UIs) must be registered before 'ready'.
+registerExtensionScheme()
+
 const { registerModuleBackends } = require('./modules/index.cjs')
 
 const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
@@ -39,6 +43,13 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  // Extension pages run in iframes and must stay on their own monorail-ext://
+  // origin: a frame can't navigate itself to the web (which could leak data).
+  win.webContents.on('will-frame-navigate', (event) => {
+    if (event.isMainFrame) return
+    if (!event.url.startsWith('monorail-ext://') && event.url !== 'about:blank') event.preventDefault()
   })
 
   if (isDev) {

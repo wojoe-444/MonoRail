@@ -38,6 +38,7 @@
     }
   ],
   "asarUnpack": [
-    "node_modules/@ccusage/**"
+    "node_modules/@ccusage/**",
+    "electron/extensions/runner.cjs"
   ]
 }

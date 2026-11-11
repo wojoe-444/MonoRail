@@ -4,17 +4,19 @@ import { AppFrame } from '@/apps/AppFrame'
 import { findAppByPath } from '@/apps/registry'
 import { appEntryPath, rememberHubPath } from '@/apps/session'
 
-import { allNavItems } from '@/components/layout/nav'
+import { useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { extensionsLoaded, useExtensionList } from '@/extensions/store'
+import { isDesktop } from '@/modules/client'
 import { useRoute } from '@/lib/router'
 import { useTheme } from '@/lib/theme'
 import { findModuleByPath } from '@/modules/registry'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 
-function RouteView({ path }: { path: string }) {
+function RouteView({ path, navItems }: { path: string; navItems: NavItem[] }) {
   const mod = findModuleByPath(path)
   if (mod) {
     const Page = mod.component
@@ -25,13 +27,17 @@ function RouteView({ path }: { path: string }) {
     )
   }
   if (path === '/') return <HomePage />
-  const item = allNavItems.find((i) => i.path === path)
+  // Extension pages are known once the installed list has loaded.
+  if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
+  const item = navItems.find((i) => i.path === path)
   return <PlaceholderPage title={item?.label ?? 'Not found'} />
 }
 
 export default function App() {
   const [path, navigate] = useRoute()
-  const activeApp = findAppByPath(path)
+  const extensionList = useExtensionList()
+  const navItems = useNavSections().flatMap((s) => s.items)
+  const activeApp = findAppByPath(path, extensionList)
   const [collapsed, setCollapsed] = useState(false)
   const [theme, toggleTheme] = useTheme()
 
@@ -49,7 +55,7 @@ export default function App() {
     [navigate],
   )
 
-  const current = allNavItems.find((i) => i.path === path)
+  const current = navItems.find((i) => i.path === path)
 
   if (activeApp) {
     return (
@@ -72,7 +78,7 @@ export default function App() {
           <TopBar title={current?.label ?? 'Not found'} dark={theme === 'dark'} onToggleDark={toggleTheme} />
           {/* Content container: MUI Container maxWidth="xl" with 24/32px gutters */}
           <main className="mx-auto w-full max-w-[1440px] px-6 py-8 lg:px-8">
-            <RouteView path={path} />
+            <RouteView path={path} navItems={navItems} />
           </main>
         </div>
       </div>

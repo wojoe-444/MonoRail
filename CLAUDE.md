@@ -85,6 +85,7 @@ major/minor in `package.json` by hand; never publish from a local machine.
 - `pages/` built-in pages (Home and placeholders).
 - `modules/` feature modules (see below). `modules/registry.ts` lists them.
 - `apps/` full-screen apps (see below). `apps/registry.ts` lists them.
+- `extensions/` the renderer half of installed extensions (store, frame host, contributions).
 - `components/charts/` data-viz primitives: series palette, `StatTile`,
   `Legend`, `ChartTooltipContent`. Charts use Recharts.
 - `lib/router.ts` tiny hash router (`useRoute`, `navigate`); hash routes work
@@ -113,7 +114,8 @@ To add a module:
    fictional sample data for that case.
 
 The renderer stays sandboxed: `electron/preload.cjs` exposes only
-`window.commandHub.invoke(moduleId, method, args)`.
+`window.commandHub.invoke(moduleId, method, args)` and `on(channel, cb)` for
+the two extension push channels.
 
 `claude-stats` is the reference module: its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
@@ -195,6 +197,85 @@ already syncs). Each backup is a verified `git bundle --all` file, written as
 runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
+
+## Extensions: modules and apps from other repositories
+
+The third building block. An **extension** is a module and/or app built and
+released in its own repository and installed into a running copy of the app
+without rebuilding it (e.g. a Minecraft bot as its own repo). Built-in modules
+and apps stay in this repo; anything user- or situation-specific should be an
+extension. The user-facing name is MonoRail.
+
+**Package.** A folder or `.zip` with `monorail.json` at its root:
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "minecraft-bot",
+  "name": "Minecraft Bot",
+  "version": "0.3.0",
+  "publisher": "wojoe-444",
+  "repository": "wojoe-444/minecraft-bot",
+  "engines": { "monorail": "^1.0.0" },
+  "icon": "icon.svg",
+  "ui": "ui",
+  "contributes": {
+    "modules": [{ "id": "status", "title": "Bot status", "entry": "index.html#/status", "nav": { "section": "Minecraft" } }],
+    "apps": [{ "id": "console", "title": "Bot console", "entry": "index.html#/console" }]
+  },
+  "backend": { "main": "backend/index.cjs", "activation": "onDemand" },
+  "permissions": { "network": ["*.mojang.com", "localhost:25565"], "process": ["java"], "filesystem": { "read": ["~/.minecraft"], "pickFolders": true } }
+}
+```
+
+Rules live in `electron/extensions/manifest.cjs` (with tests). Routes are
+`/x/<ext>/<module>` for modules and `/apps/<ext>.<app>` for apps; the nav,
+router and `AppFrame` pick them up through `allModules()` / `allApps()` in
+the registries, fed by `src/extensions/store.ts`.
+
+**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.0.0) covers
+the manifest, the backend `ctx`, and bridge protocol 1. Extensions declare
+`engines.monorail`; a non-matching extension stays installed but is not loaded.
+Adding things is a minor bump; changing or removing anything an extension can
+see is a major bump. Keep all three in step with `packages/extension-sdk`.
+
+**UI isolation.** Extension pages are static files served from the
+extension's `ui` folder over `monorail-ext://<id>/` (registered in
+`main.cjs` before ready) into a sandboxed iframe (`src/extensions/ExtensionFrame.tsx`).
+Each extension is its own origin with a strict CSP: no inline scripts, no
+network (`connect-src 'self'`), no remote assets, and `will-frame-navigate`
+keeps frames on their origin. A page only reaches the hub through
+postMessage, and the hub only forwards: call its own backend, ask the user for
+a folder, open an https link. Module pages sit under a hub `PageHeader` and
+report their height; apps fill the window under the hub bar.
+
+**Backend sandbox.** Each backend runs in its own child process
+(`host.cjs` forks `runner.cjs` with MonoRail's own executable in
+`ELECTRON_RUN_AS_NODE` mode), never in the main process. Node's permission
+model confines it: read its own files, read/write
+`%APPDATA%\<app>\extension-data\<id>` (`ctx.dataDir`), plus exactly the
+folders the manifest or the user granted; `--allow-child-process` only with
+the `process` permission; no workers, addons or WASI. Node does not police the
+network, so `runner.cjs` gates `Socket#connect` (covers net, tls, http(s),
+fetch, WebSocket), UDP and DNS against `permissions.network`. The child gets
+a minimal environment (no inherited tokens). `process` is full trust (a
+spawned program is not sandboxed) and the UI says so. `runner.cjs` must stay
+self-contained: it is `asarUnpack`ed and is the only app file the child may
+read. Backends crash in isolation; 3 crashes in a minute stop it until reload.
+
+**Install, update, remove** (`manager.cjs`, `install.cjs`). Sources: a
+folder (copied), a `.zip`, the latest GitHub release of `owner/name` (the
+`*.monorail.zip` asset; its manifest `repository` must match), or a
+development folder loaded in place (Reload picks up a rebuild). Everything is
+staged in `extensions/.staging` and validated (zip-slip, size limits) and
+nothing runs until the user approves the permissions in the consent dialog.
+Installed files live in `%APPDATA%\<app>\extensions\<id>`, state (enabled,
+source, granted permissions and folders) in `extensions/state.json`. An
+update or reload that asks for more permissions turns the extension off
+(`needs-approval`) until approved. Removing keeps its data unless the user
+ticks "Also delete its data". The UI is Settings > Extensions
+(`src/modules/extensions`). Tests: `electron/extensions/extensions.test.cjs`
+(runs the real sandbox under Node).
 
 ## Design guidance
 
