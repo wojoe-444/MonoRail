@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # The mochi crew
 
 Every subagent in MonoRail gets a small character, so loops of agents are easier to follow. The characters are in the same family as the app icon, K1 Mochi: a soft dough gumdrop with dot eyes and no mouth.

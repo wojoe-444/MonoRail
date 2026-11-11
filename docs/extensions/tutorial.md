@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Tutorial: your first extension
 
 This walks from the starter to a released extension. You need Node 22+, Git,

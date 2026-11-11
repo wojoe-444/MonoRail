@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Agent access (MCP server)
 
 MonoRail includes a Model Context Protocol (MCP) server, so Claude Code and other agents can read what MonoRail knows: what your agents cost, your recent agent chats, local issues in GitHub+ and Jira+, and whether your account connections still work. With your OK, per agent, they can also raise and comment on local issues. The agent starts the server itself when it needs it, and MonoRail does not have to be open.

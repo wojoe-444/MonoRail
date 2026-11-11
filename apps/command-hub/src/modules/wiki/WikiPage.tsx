@@ -2,9 +2,33 @@ import { Children, isValidElement, useEffect, useMemo, useRef, useState, type Re
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import { ArrowLeft, ArrowRight, ExternalLink, FileText, Search, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookA,
+  Bot,
+  ChartLine,
+  CircleHelp,
+  Compass,
+  ExternalLink,
+  FileText,
+  FolderGit2,
+  KeyRound,
+  MessagesSquare,
+  PlugZap,
+  Plus,
+  Puzzle,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,8 +36,8 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
-import { findPage, groups, pages, plainText, resolveLink, slug, type WikiPage as Page } from './content'
-import { showWikiPage, useWikiLocation } from './store'
+import { findPage, groups, pages, plainText, resolveLink, slug, type Audience, type WikiPage as Page } from './content'
+import { setWikiAudience, showWikiPage, useWikiAudience, useWikiLocation, type AudienceFilter } from './store'
 import './wiki.css'
 
 const REPO_DOCS = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/'
@@ -44,7 +68,10 @@ export default function WikiPage() {
     ;(target ?? top.current)?.scrollIntoView({ block: 'start' })
   }, [location])
 
+  const audience = useWikiAudience()
+  const visible = (p: Page) => shows(audience, p)
   const results = useMemo(() => search(query), [query])
+  const shown = results.filter((r) => shows(audience, r.page))
 
   function open(id: string | undefined, anchor?: string) {
     setQuery('')
@@ -56,7 +83,7 @@ export default function WikiPage() {
       <PageHeader
         eyebrow="Help"
         title={page ? page.title : 'Wiki'}
-        description={page ? groupTitle(page.group) : 'Documentation for this version of MonoRail. The same pages are in the repository under docs/.'}
+        description={page ? groupTitle(page.group) : 'Guides and reference for this version of MonoRail. The same pages are in the repository under docs/.'}
         actions={
           page && (
             <Button variant="outline" onClick={() => openExternal(`${REPO_DOCS}${page.id}.md`)}>
@@ -78,6 +105,7 @@ export default function WikiPage() {
                 </button>
               )}
             </div>
+            <AudiencePicker value={audience} />
             <nav className="flex flex-col gap-4" aria-label="Wiki pages">
               <button
                 type="button"
@@ -86,10 +114,14 @@ export default function WikiPage() {
               >
                 Wiki home
               </button>
-              {groups.map((g) => (
+              {groups.map((g) => {
+                // The open page stays listed even when the filter hides it.
+                const list = g.pages.filter((p) => visible(p) || p.id === opened?.id)
+                if (!list.length) return null
+                return (
                 <div key={g.id} className="flex flex-col gap-1">
                   <div className="px-3 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">{g.title}</div>
-                  {g.pages.map((p) => (
+                  {list.map((p) => (
                     <button
                       key={p.id}
                       type="button"
@@ -103,17 +135,19 @@ export default function WikiPage() {
                     </button>
                   ))}
                 </div>
-              ))}
+                )
+              })}
             </nav>
+            <HiddenNote audience={audience} count={pages.filter((p) => !visible(p)).length} />
           </CardContent>
         </Card>
 
         {query ? (
-          <SearchResults query={query} results={results} onOpen={open} />
+          <SearchResults query={query} results={shown} hidden={results.length - shown.length} onOpen={open} />
         ) : page ? (
           <Article page={page} onOpen={open} />
         ) : (
-          <WikiHome onOpen={open} />
+          <WikiHome audience={audience} onOpen={open} />
         )}
       </div>
     </div>
@@ -130,10 +164,124 @@ function navLabel(p: Page) {
   return p.title.replace(/\s*\(.*\)\s*$/, '').replace(/^Extensions roadmap$/, 'Roadmap').replace(/^Tutorial: .*/, 'Tutorial')
 }
 
-function WikiHome({ onOpen }: { onOpen: (id: string) => void }) {
+function shows(filter: AudienceFilter, page: Page) {
+  return filter === 'all' || page.audience.includes(filter)
+}
+
+const AUDIENCE_META: Record<Audience, { label: string; icon: LucideIcon; variant: 'success' | 'info'; hint: string }> = {
+  human: { label: 'For people', icon: UserRound, variant: 'success', hint: 'Plain-language guide: no code needed to follow it.' },
+  ai: { label: 'For agents', icon: Bot, variant: 'info', hint: 'Dense reference for agents and developers: exact names, paths and contracts.' },
+}
+
+function AudiencePicker({ value }: { value: AudienceFilter }) {
+  const options: { id: AudienceFilter; label: string }[] = [
+    { id: 'human', label: 'People' },
+    { id: 'ai', label: 'Agents' },
+    { id: 'all', label: 'All' },
+  ]
   return (
-    <div className="flex flex-col gap-6">
-      {groups.map((g) => (
+    <div className="flex flex-col gap-1.5">
+    <div className="px-1 text-xs text-muted-foreground">Show pages written for</div>
+    <div role="radiogroup" aria-label="Show pages written for" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          onClick={() => setWikiAudience(o.id)}
+          className={cn(
+            'rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground',
+            value === o.id && 'bg-card text-foreground shadow-elevation-1',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+    </div>
+  )
+}
+
+function HiddenNote({ audience, count }: { audience: AudienceFilter; count: number }) {
+  if (audience === 'all' || count === 0) return null
+  return (
+    <p className="px-3 text-xs text-muted-foreground">
+      {count} page{count === 1 ? '' : 's'} written {audience === 'human' ? 'for agents' : 'for people'} hidden.{' '}
+      <button type="button" className="font-medium text-primary hover:underline" onClick={() => setWikiAudience('all')}>
+        Show all
+      </button>
+    </p>
+  )
+}
+
+export function AudienceBadges({ audience, className }: { audience: Audience[]; className?: string }) {
+  return (
+    <span className={cn('inline-flex flex-wrap gap-1.5', className)}>
+      {audience.map((a) => {
+        const m = AUDIENCE_META[a]
+        return (
+          <Badge key={a} variant={m.variant} title={m.hint}>
+            <m.icon /> {m.label}
+          </Badge>
+        )
+      })}
+    </span>
+  )
+}
+
+/** Icons for the guide cards on the wiki's home page. */
+const GUIDE_ICONS: Record<string, LucideIcon> = {
+  'guide/README': Sparkles,
+  'guide/first-ten-minutes': Compass,
+  'guide/private-data': ShieldCheck,
+  'guide/chat': MessagesSquare,
+  'guide/create-an-agent': Plus,
+  'guide/browse-repos': FolderGit2,
+  'guide/connections': PlugZap,
+  'guide/spend': ChartLine,
+  'guide/agent-access': KeyRound,
+  'guide/backups-and-updates': RefreshCw,
+  'guide/extensions': Puzzle,
+  'guide/glossary': BookA,
+  'guide/faq': CircleHelp,
+}
+
+function WikiHome({ audience, onOpen }: { audience: AudienceFilter; onOpen: (id: string) => void }) {
+  const guides = groups.find((g) => g.id === 'guide')?.pages.filter((p) => shows(audience, p)) ?? []
+  const rest = groups.filter((g) => g.id !== 'guide').map((g) => ({ ...g, pages: g.pages.filter((p) => shows(audience, p)) })).filter((g) => g.pages.length)
+  return (
+    <div className="flex flex-col gap-8">
+      {guides.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Start here</h2>
+            <p className="text-sm text-muted-foreground">Short guides in plain language. Pick whatever you are about to do.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {guides.map((p) => {
+              const Icon = GUIDE_ICONS[p.id] ?? FileText
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onOpen(p.id)}
+                  className="group flex items-start gap-4 rounded-xl bg-card p-5 text-left ring-1 ring-foreground/10 transition-shadow hover:shadow-elevation-3"
+                >
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                    <Icon className="size-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-medium">{p.title}</span>
+                    <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">{p.summary}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+      {rest.map((g) => (
         <Card key={g.id}>
           <CardHeader>
             <CardTitle>{g.title}</CardTitle>
@@ -146,10 +294,11 @@ function WikiHome({ onOpen }: { onOpen: (id: string) => void }) {
                 <li key={p.id}>
                   <button type="button" onClick={() => onOpen(p.id)} className="flex w-full items-start gap-4 px-6 py-4 text-left hover:bg-accent/60">
                     <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{p.title}</span>
                       {p.summary && <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">{p.summary}</span>}
                     </span>
+                    <AudienceBadges audience={p.audience} className="hidden shrink-0 sm:inline-flex" />
                   </button>
                 </li>
               ))}
@@ -185,13 +334,22 @@ function search(query: string): Hit[] {
   return hits.sort((a, b) => b.score - a.score)
 }
 
-function SearchResults({ query, results, onOpen }: { query: string; results: Hit[]; onOpen: (id: string) => void }) {
+function SearchResults({ query, results, hidden, onOpen }: { query: string; results: Hit[]; hidden: number; onOpen: (id: string) => void }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Search</CardTitle>
         <CardDescription>
           {results.length === 0 ? `Nothing matches “${query}”.` : `${results.length} page${results.length === 1 ? '' : 's'} match “${query}”.`}
+          {hidden > 0 && (
+            <>
+              {' '}
+              {hidden} more in pages the filter hides.{' '}
+              <button type="button" className="font-medium text-primary hover:underline" onClick={() => setWikiAudience('all')}>
+                Show all
+              </button>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       {results.length > 0 && (
@@ -205,6 +363,7 @@ function SearchResults({ query, results, onOpen }: { query: string; results: Hit
                     <span className="text-sm font-medium">
                       {r.page.title} <span className="font-normal text-muted-foreground">· {groupTitle(r.page.group)}</span>
                     </span>
+                    <AudienceBadges audience={r.page.audience} />
                     <span className="text-sm text-muted-foreground">{r.snippet}</span>
                   </button>
                 </li>
@@ -266,6 +425,7 @@ function Article({ page, onOpen }: { page: Page; onOpen: (id: string, anchor?: s
     <div className="flex min-w-0 flex-col gap-6">
       <Card>
         <CardContent className="px-6 py-6 lg:px-8">
+          <AudienceBadges audience={page.audience} className="mb-6" />
           <article className="wiki-md">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={components}>
               {page.markdown}

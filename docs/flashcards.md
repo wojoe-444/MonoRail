@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Flashcards
 
 **Workspace > Flashcards** keeps spaced repetition decks: each card comes back

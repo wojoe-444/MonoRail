@@ -1,3 +1,7 @@
+---
+audience: ai
+---
+
 # Caching in MonoRail
 
 Every cache in MonoRail goes through one shared primitive in

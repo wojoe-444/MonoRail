@@ -3,6 +3,18 @@
  * at build time (Vite import.meta.glob with ?raw), so nothing is fetched at
  * runtime. A page's id is its path under docs/ without ".md", e.g.
  * "extensions/manifest". Its title is its first "# " heading.
+ *
+ * Every page starts with a small front matter block that says who it is
+ * written for (a test fails on a page without one):
+ *
+ *   ---
+ *   audience: human, ai
+ *   summary: One line for the wiki's home page (optional).
+ *   ---
+ *
+ * "human" pages are plain-language guides anyone can read; "ai" pages are
+ * dense reference written for agents and developers (exact names, paths,
+ * contracts). A page may be both. The wiki filters on it.
  */
 
 const files = import.meta.glob<string>(['../../../../../docs/**/*.md', '!../../../../../docs/extensions.md'], {
@@ -10,6 +22,9 @@ const files = import.meta.glob<string>(['../../../../../docs/**/*.md', '!../../.
   import: 'default',
   eager: true,
 })
+
+export type Audience = 'human' | 'ai'
+export const AUDIENCES: Audience[] = ['human', 'ai']
 
 export interface WikiPage {
   /** Path under docs/ without .md: "extensions/backend-api". */
@@ -19,6 +34,9 @@ export interface WikiPage {
   title: string
   /** First paragraph, as plain text: shown on the wiki's home page and in search. */
   summary: string
+  /** Who the page is written for, from its front matter. */
+  audience: Audience[]
+  /** The page without its front matter. */
   markdown: string
 }
 
@@ -30,10 +48,35 @@ export interface WikiGroup {
 
 /** Reading order within a group; files not listed follow, by title. */
 const ORDER: Record<string, string[]> = {
+  guide: ['README', 'first-ten-minutes', 'private-data', 'chat', 'create-an-agent', 'browse-repos', 'connections', 'spend', 'agent-access', 'backups-and-updates', 'extensions', 'glossary', 'faq'],
   extensions: ['README', 'concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'non-node-runtimes', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
 }
 
-const GROUP_TITLES: Record<string, string> = { '': 'MonoRail', extensions: 'Extensions' }
+const GROUP_TITLES: Record<string, string> = { guide: 'Guides', '': 'Features in depth', extensions: 'Extensions' }
+/** Group order; groups not listed follow, by name. */
+const GROUP_ORDER = ['guide', '', 'extensions']
+
+function groupRank(g: string) {
+  const i = GROUP_ORDER.indexOf(g)
+  return i < 0 ? GROUP_ORDER.length : i
+}
+
+/** Split "---\nkey: value\n---" off the top of a page. */
+export function frontMatter(text: string): { meta: Record<string, string>; body: string } {
+  const m = /^---\n([\s\S]*?)\n---\n?/.exec(text)
+  if (!m) return { meta: {}, body: text }
+  const meta: Record<string, string> = {}
+  for (const line of m[1].split('\n')) {
+    const kv = /^([a-z]+):\s*(.*)$/i.exec(line.trim())
+    if (kv) meta[kv[1].toLowerCase()] = kv[2].trim()
+  }
+  return { meta, body: text.slice(m[0].length) }
+}
+
+export function parseAudience(value: string | undefined): Audience[] {
+  const words = (value ?? '').replace(/[[\]]/g, '').toLowerCase().split(/[\s,]+/)
+  return AUDIENCES.filter((a) => words.includes(a))
+}
 
 /** Markdown to plain text, roughly: enough for summaries and search. */
 export function plainText(md: string): string {
@@ -51,11 +94,11 @@ function parse(file: string, markdown: string): WikiPage {
   const id = file.replace(/^.*?\/docs\//, '').replace(/\.md$/, '')
   const slash = id.lastIndexOf('/')
   const group = slash < 0 ? '' : id.slice(0, slash)
-  const text = markdown.replace(/\r\n/g, '\n')
+  const { meta, body: text } = frontMatter(markdown.replace(/\r\n/g, '\n'))
   const title = /^# (.+)$/m.exec(text)?.[1].replace(/`/g, '').trim() ?? id
   const body = text.replace(/^# .+$/m, '')
   const para = body.split(/\n\s*\n/).find((p) => p.trim() && !/^\s*(#|```|\||[-*] |\d+\. )/.test(p)) ?? ''
-  return { id, group, title, summary: plainText(para), markdown: text }
+  return { id, group, title, summary: meta.summary || plainText(para), audience: parseAudience(meta.audience), markdown: text }
 }
 
 function rank(page: WikiPage): number {
@@ -66,7 +109,7 @@ function rank(page: WikiPage): number {
 
 export const pages: WikiPage[] = Object.entries(files)
   .map(([file, md]) => parse(file, md))
-  .sort((a, b) => a.group.localeCompare(b.group) || rank(a) - rank(b) || a.title.localeCompare(b.title))
+  .sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.group.localeCompare(b.group) || rank(a) - rank(b) || a.title.localeCompare(b.title))
 
 export const groups: WikiGroup[] = [...new Set(pages.map((p) => p.group))].map((g) => ({
   id: g,

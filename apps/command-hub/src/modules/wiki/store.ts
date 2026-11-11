@@ -50,3 +50,41 @@ export function openWiki(id?: string, anchor?: string) {
   showWikiPage(id, anchor)
   navigate('/wiki')
 }
+
+/**
+ * Which pages the wiki lists: written for people, for agents, or all. Kept in
+ * localStorage; people see the plain-language guides first.
+ */
+export type AudienceFilter = 'human' | 'ai' | 'all'
+const AUDIENCE_KEY = 'commandHub.wiki.audience'
+let audience: AudienceFilter = readAudience()
+const audienceListeners = new Set<() => void>()
+
+function readAudience(): AudienceFilter {
+  try {
+    const v = localStorage.getItem(AUDIENCE_KEY)
+    return v === 'ai' || v === 'all' ? v : 'human'
+  } catch {
+    return 'human'
+  }
+}
+
+export function setWikiAudience(next: AudienceFilter) {
+  audience = next
+  try {
+    localStorage.setItem(AUDIENCE_KEY, next)
+  } catch {
+    /* storage unavailable */
+  }
+  for (const l of audienceListeners) l()
+}
+
+export function useWikiAudience() {
+  return useSyncExternalStore(
+    (cb) => {
+      audienceListeners.add(cb)
+      return () => audienceListeners.delete(cb)
+    },
+    () => audience,
+  )
+}

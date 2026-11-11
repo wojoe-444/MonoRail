@@ -1,3 +1,7 @@
+---
+audience: human
+---
+
 # Storage Manager
 
 **Utilities > Storage** shows how full each drive is and what takes up the

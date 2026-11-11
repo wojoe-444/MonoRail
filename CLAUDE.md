@@ -792,6 +792,16 @@ GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
 there. Open a page from elsewhere with `openWiki(id, anchor)` from
 `modules/wiki/store.ts`.
 
+**Audience tags.** Every doc starts with front matter `---\naudience: human, ai\n---`
+(one or both; `summary:` optional). `human` pages are plain-language guides
+(no code needed); `ai` pages are dense reference for agents and developers.
+The wiki filters on it (People / Agents / All, `commandHub.wiki.audience`,
+default People) and badges each page. `docs/guide/` holds the human guides,
+shown as "Start here" cards (icons in `GUIDE_ICONS`, order in `ORDER.guide`);
+Home's "Get started" cards open them. `electron/docs.test.cjs` fails on a doc
+without an audience, a broken link between docs, or a guide missing from
+`ORDER.guide`. Guides must not contain personal paths or names.
+
 ## Design guidance
 
 The visual direction is **the Bot Dashboard from `wojoe-444/MC-Player`**

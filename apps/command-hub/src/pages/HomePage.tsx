@@ -20,6 +20,7 @@ import { Separator } from '@/components/ui/separator'
 import { sampleActivity, sampleAgents, type AgentStatus } from '@/data/sample'
 import { cn } from '@/lib/utils'
 import { ClaudeStatsHomeWidget } from '@/modules/claude-stats/HomeWidget'
+import { openWiki } from '@/modules/wiki/store'
 
 const statusMeta: Record<AgentStatus, { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }> = {
   running: { label: 'Running', variant: 'success' },
@@ -188,25 +189,36 @@ export function HomePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold tracking-tight">Get started</h2>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Get started</h2>
+            <p className="text-sm text-muted-foreground">Short guides from the wiki, in plain language.</p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => openWiki()}>
+            All guides <ArrowRight />
+          </Button>
+        </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <QuickLink
             icon={Plus}
             tone="bg-primary text-primary-foreground"
             title="Create an agent"
-            body="Add a new agent definition to the MonoRail repository."
+            body="Set up a subagent or skill so Claude Code can hand work to it."
+            onClick={() => openWiki('guide/create-an-agent')}
           />
           <QuickLink
             icon={FolderGit2}
             tone="bg-highlight text-highlight-foreground"
-            title="Browse the repo"
-            body="See every agent stored in wojoe-444/MonoRail."
+            title="Browse your repos"
+            body="See the code, history and issues of the repositories on this computer."
+            onClick={() => openWiki('guide/browse-repos')}
           />
           <QuickLink
             icon={ShieldCheck}
             tone="bg-success text-white"
             title="Private data stays local"
             body="Keys and personal data live in your AppData folder, never in git."
+            onClick={() => openWiki('guide/private-data')}
           />
         </div>
       </section>
@@ -217,9 +229,20 @@ export function HomePage() {
   )
 }
 
-function QuickLink({ icon: Icon, tone, title, body }: { icon: LucideIcon; tone: string; title: string; body: string }) {
+function QuickLink({ icon: Icon, tone, title, body, onClick }: { icon: LucideIcon; tone: string; title: string; body: string; onClick: () => void }) {
   return (
-    <Card className="group cursor-pointer gap-0 py-5 transition-shadow hover:shadow-elevation-3">
+    <Card
+      role="link"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className="group cursor-pointer gap-0 py-5 transition-shadow outline-none hover:shadow-elevation-3 focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <CardContent className="flex items-start gap-4 px-5">
         <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg shadow-elevation-1', tone)}>
           <Icon className="size-5" />
