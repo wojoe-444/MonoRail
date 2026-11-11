@@ -8,6 +8,8 @@ MonoRail can copy your local work to a folder on this computer on a schedule,
 for example a folder that OneDrive already syncs. MonoRail itself never uploads
 anything: it only writes files into the folder you pick.
 
+The short version is in [backups and updates](guide/setup/backups-and-updates.md); this page has every detail.
+
 ## The global backup folder
 
 **Settings > Backups** sets one folder and one frequency for the whole app:

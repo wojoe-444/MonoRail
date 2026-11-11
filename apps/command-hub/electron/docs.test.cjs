@@ -35,25 +35,70 @@ test('every doc has a "# " title after its front matter', () => {
   assert.deepEqual(bad, [])
 })
 
-test('links between docs point at existing files', () => {
-  const broken = []
-  for (const file of files) {
-    const text = fs.readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '')
-    for (const [, href] of text.matchAll(/\]\(([^)\s]+)\)/g)) {
-      if (/^[a-z]+:/i.test(href) || href.startsWith('#')) continue
-      const rel = href.split('#')[0]
-      if (!rel.endsWith('.md')) continue
-      if (!fs.existsSync(path.resolve(path.dirname(file), rel))) broken.push(`${path.relative(DOCS, file)} -> ${href}`)
-    }
-  }
+/** GitHub's heading anchors, as the wiki makes them (content.ts slug). */
+function slug(text) {
+  return text.toLowerCase().trim().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-')
+}
+
+function anchorsOf(file) {
+  const text = fs.readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '')
+  return new Set([...text.matchAll(/^#{1,6} (.+)$/gm)].map((m) => slug(m[1].replace(/`/g, ''))))
+}
+
+/** Every link from one doc to another: [{ from, href, to, anchor }]. */
+const links = files.flatMap((file) => {
+  const text = fs.readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '')
+  return [...text.matchAll(/\]\(([^)\s]+)\)/g)].flatMap(([, href]) => {
+    if (/^[a-z]+:/i.test(href) || href.startsWith('#')) return []
+    const [rel, anchor] = href.split('#')
+    if (!rel.endsWith('.md')) return []
+    return [{ from: file, href, to: path.resolve(path.dirname(file), rel), anchor }]
+  })
+})
+
+const rel = (f) => path.relative(DOCS, f).replace(/\\/g, '/')
+
+test('links between docs point at existing files and headings', () => {
+  const broken = links
+    .filter((l) => !fs.existsSync(l.to) || (l.anchor && !anchorsOf(l.to).has(l.anchor)))
+    .map((l) => `${rel(l.from)} -> ${l.href}`)
   assert.deepEqual(broken, [])
 })
 
-test('guides are listed in the wiki reading order', () => {
-  const content = fs.readFileSync(path.join(__dirname, '..', 'src', 'modules', 'wiki', 'content.ts'), 'utf8')
-  const order = /guide:\s*\[([^\]]*)\]/.exec(content)
-  assert.ok(order, 'ORDER.guide in content.ts')
-  const listed = [...order[1].matchAll(/'([^']+)'/g)].map((m) => m[1])
-  const guides = fs.readdirSync(path.join(DOCS, 'guide')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3))
-  assert.deepEqual(guides.filter((g) => !listed.includes(g)), [], 'add new guides to ORDER.guide (and an icon to GUIDE_ICONS in WikiPage.tsx)')
+// The wiki is read by following links, like a linked notebook: every page is
+// reachable from another page, and every guide links on to several others.
+// (docs/extensions.md is a redirect stub the wiki leaves out; guide/README is
+// the front door.)
+const ENTRY = new Set(['extensions.md', 'guide/README.md'])
+
+test('every doc is linked from at least one other doc', () => {
+  const linked = new Set(links.filter((l) => l.to !== l.from).map((l) => rel(l.to)))
+  const orphans = files.map(rel).filter((f) => !ENTRY.has(f) && !linked.has(f))
+  assert.deepEqual(orphans, [], 'link these pages from a related page')
+})
+
+test('every guide links to at least four other pages', () => {
+  const MIN = 4
+  const thin = files
+    .filter((f) => rel(f).startsWith('guide/'))
+    .map((f) => [rel(f), new Set(links.filter((l) => l.from === f && l.to !== f).map((l) => l.to)).size])
+    .filter(([, n]) => n < MIN)
+    .map(([f, n]) => `${f} (${n})`)
+  assert.deepEqual(thin, [], `guides should link to at least ${MIN} other pages`)
+})
+
+test("every openWiki('<page>') in the app names an existing doc", () => {
+  const src = path.join(__dirname, '..', 'src')
+  const walkSrc = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = path.join(dir, e.name)
+      return e.isDirectory() ? walkSrc(p) : /\.tsx?$/.test(e.name) ? [p] : []
+    })
+  const missing = walkSrc(src).flatMap((file) =>
+    [...fs.readFileSync(file, 'utf8').matchAll(/openWiki\('([^']+)'/g)]
+      .map((m) => m[1])
+      .filter((id) => !fs.existsSync(path.join(DOCS, `${id}.md`)))
+      .map((id) => `${path.relative(src, file)}: ${id}`),
+  )
+  assert.deepEqual(missing, [])
 })

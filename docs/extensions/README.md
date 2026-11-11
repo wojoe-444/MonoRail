@@ -1,5 +1,6 @@
 ---
 audience: human, ai
+folder: Extensions
 ---
 
 # Building MonoRail extensions

@@ -6,6 +6,8 @@ audience: human, ai
 
 Every subagent in MonoRail gets a small character, so loops of agents are easier to follow. The characters are in the same family as the app icon, K1 Mochi: a soft dough gumdrop with dot eyes and no mouth.
 
+To give an agent a character, [create an agent](guide/agents/create-an-agent.md): its name picks the role.
+
 You'll see them on the **Agents** page next to each subagent definition, in **Chat** on tool rows where Claude hands work to a subagent, and on the pinned Coordinator entry. **Agents > Characters** shows the whole crew, every flavor, and lets you try a name.
 
 ## A character is a role plus a flavor

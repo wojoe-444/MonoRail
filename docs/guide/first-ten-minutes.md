@@ -1,57 +1,58 @@
 ---
 audience: human
-summary: A short tour of the pages worth opening first, and what to set up.
+summary: A short tour of the pages worth opening first, and what to set up on day one.
 ---
 
 # Your first ten minutes
 
 A tour of the handful of things worth doing on day one. None of them is
-required; MonoRail works without any setup and only does more once you ask it
-to.
+required: MonoRail works without any setup and only does more once you ask
+it to, because [nothing runs until you ask](private-data.md#nothing-runs-until-you-ask).
 
 ## 1. Pick a look
 
 Open **Settings > Appearance** and choose a color scheme and light or dark
-mode. The default is Sand & Ink in light mode. Your choice is remembered on
-this computer.
+mode. [Make it look right](setup/appearance.md) shows the choices.
 
 ## 2. Open Chat
 
 Go to **Agents > Chat**. If you have used Claude Code or pi on this computer,
 your recent conversations are listed on the left.
 
-The first time, the list may be empty: MonoRail only shows chats from folders
-you have allowed. By default that is any git repository directly inside the
-`Repos` folder in your home folder. Use **Folders** on the Chat page to add
-others. See [Chat with your agents](chat.md).
+The first time, the list may be empty: Chat only shows chats from
+[allowed folders](agents/chat.md#which-chats-are-listed). By default that is
+any git [repository](glossary.md#repository) directly inside the `Repos`
+folder in your home folder. [Chat with your agents](agents/chat.md) covers the
+rest, including the difference between **Ask** and **Agent** mode.
 
 ## 3. Connect the accounts you use
 
 **Configure > Connections** is where MonoRail signs in to things: your Claude
-login, GitHub, Jira (Atlassian), Google Cloud, pi and more. Nothing there runs
-until you add it, so add only the ones you use. See
-[connect your accounts](connections.md).
+login, GitHub, Jira, Google Cloud, pi and more. Add only the ones you use;
+[connect your accounts](setup/connections.md) explains each one, and
+[private data stays local](private-data.md#passwords-and-tokens-are-encrypted)
+explains what happens to the passwords.
 
 ## 4. Look at your spending
 
-**Insights > Claude Stats** reads the usage logs Claude Code and other agents
-already keep on this computer and charts them. The first report takes a
-moment to build; after that it refreshes on its own every 15 minutes. See
-[keep an eye on spending](spend.md).
+**Insights > Claude Stats** reads the usage logs your agents already keep and
+charts them. [Keep an eye on spending](agents/spend.md) explains the charts
+and the one number worth watching.
 
 ## 5. Open a repository
 
 **Workspace > GitHub+** opens any git repository on your computer in a
-GitHub-style view. Try one you know. See [browse your repos](browse-repos.md).
+GitHub-style view. Try one you know: [browse your repos](workspace/browse-repos.md).
 
-## 6. Turn on backups (optional)
+## 6. Turn on backups
 
-**Settings > Backups** picks one folder, for example one that OneDrive
-already syncs, and copies your local work there on a schedule. See
-[backups and updates](backups-and-updates.md).
+**Settings > Backups** copies your local work to a folder of your choice, for
+example one OneDrive already syncs. It takes a minute:
+[backups and updates](setup/backups-and-updates.md).
 
-## That's it
+## Where next
 
-Everything else can wait until you need it. When it does, this wiki is under
-**Help > Wiki**, and the search box at the top of the page list searches every
-page.
+- Make a helper of your own: [create an agent](agents/create-an-agent.md).
+- Let Claude Code use what MonoRail knows: [agent access](agents/agent-access.md).
+- Everything else, by area: [agents](agents/README.md),
+  [your workspace](workspace/README.md) and [setup](setup/README.md).

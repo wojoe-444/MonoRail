@@ -204,14 +204,14 @@ export function HomePage() {
             tone="bg-primary text-primary-foreground"
             title="Create an agent"
             body="Set up a subagent or skill so Claude Code can hand work to it."
-            onClick={() => openWiki('guide/create-an-agent')}
+            onClick={() => openWiki('guide/agents/create-an-agent')}
           />
           <QuickLink
             icon={FolderGit2}
             tone="bg-highlight text-highlight-foreground"
             title="Browse your repos"
             body="See the code, history and issues of the repositories on this computer."
-            onClick={() => openWiki('guide/browse-repos')}
+            onClick={() => openWiki('guide/workspace/browse-repos')}
           />
           <QuickLink
             icon={ShieldCheck}

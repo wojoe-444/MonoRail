@@ -5,10 +5,10 @@ summary: Add pages and apps that other people build, and what an extension is al
 
 # Add extensions
 
-An **extension** adds something to MonoRail without changing MonoRail
-itself: a new page in the menu, a full-screen app, or new tools for your
-agents. Extensions are built and released in their own repositories, by
-anyone.
+An [extension](../glossary.md#extension) adds something to MonoRail without
+changing MonoRail itself: a new page in the menu, a full-screen app, or new
+tools for your agents. Extensions are built and released in their own
+repositories, by anyone.
 
 ## Install one
 
@@ -32,6 +32,11 @@ for your OK.
   it starts is not sealed in. MonoRail warns you about that one.
 - An update that asks for more turns the extension off until you approve
   again.
+- Tools it offers to agents always need your OK, per agent, on
+  [agent access](../agents/agent-access.md#extensions-add-tools).
+
+The developer view of the same rules is [permissions and
+security](../../extensions/permissions.md).
 
 ## Remove one
 
@@ -40,6 +45,12 @@ its data**.
 
 ## Build your own
 
-Start with [Building MonoRail extensions](../extensions/README.md). The
-concepts page and the tutorial are readable without prior knowledge; the
-reference pages are written for developers and agents.
+Start with [building MonoRail extensions](../../extensions/README.md). The
+[concepts](../../extensions/concepts.md) page and the
+[tutorial](../../extensions/tutorial.md) are readable without prior
+knowledge; the reference pages are written for developers and agents. If
+something goes wrong, try [troubleshooting](../../extensions/troubleshooting.md).
+
+## Related
+
+- The rest of [setup](README.md).

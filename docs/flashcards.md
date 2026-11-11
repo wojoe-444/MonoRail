@@ -8,6 +8,8 @@ audience: human, ai
 just before you would forget it, so a few minutes a day is enough to remember
 it for years.
 
+Flashcards is one of the pages in [your workspace](guide/workspace/README.md); agents can add cards through [agent access](guide/agents/agent-access.md).
+
 ## Decks and cards
 
 - **New deck** asks for a name, how many new cards to introduce per day

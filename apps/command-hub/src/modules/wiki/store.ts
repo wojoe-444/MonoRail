@@ -88,3 +88,37 @@ export function useWikiAudience() {
     () => audience,
   )
 }
+
+/** Which folders of the wiki's page tree the user opened or closed, by path. */
+const FOLDERS_KEY = 'commandHub.wiki.open'
+let folders: Record<string, boolean> = readFolders()
+const folderListeners = new Set<() => void>()
+
+function readFolders(): Record<string, boolean> {
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? '{}') as unknown
+    return v && typeof v === 'object' ? (v as Record<string, boolean>) : {}
+  } catch {
+    return {}
+  }
+}
+
+export function setWikiFolderOpen(path: string, open: boolean) {
+  folders = { ...folders, [path]: open }
+  try {
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders))
+  } catch {
+    /* storage unavailable */
+  }
+  for (const l of folderListeners) l()
+}
+
+export function useWikiFolders() {
+  return useSyncExternalStore(
+    (cb) => {
+      folderListeners.add(cb)
+      return () => folderListeners.delete(cb)
+    },
+    () => folders,
+  )
+}

@@ -9,6 +9,8 @@ Every cache in MonoRail goes through one shared primitive in
 `electron/cache/declared.cjs`. This page lists the rules and how to use the
 primitive. The rules are numbered so code and tests can point at them.
 
+For what this means for your data, read [private data stays local](guide/private-data.md).
+
 ## Rules for caches
 
 **A1. Every cache is rebuildable and declared.** Deleting a cache file loses
