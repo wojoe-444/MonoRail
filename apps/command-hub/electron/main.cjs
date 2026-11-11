@@ -7,6 +7,8 @@
 const path = require('node:path')
 const { app, BrowserWindow, shell } = require('electron')
 
+const { registerModuleBackends } = require('./modules/index.cjs')
+
 const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
 
 function createWindow() {
@@ -23,6 +25,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   })
 
@@ -42,6 +45,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerModuleBackends()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

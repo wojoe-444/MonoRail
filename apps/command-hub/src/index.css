@@ -68,6 +68,21 @@
   --sidebar-accent-foreground: oklch(0.98 0.01 265);
   --sidebar-border: oklch(0.31 0.04 268);
   --sidebar-ring: oklch(0.72 0.13 268);
+
+  /*
+   * Data-viz categorical series, assigned in this fixed order and never cycled.
+   * Validated for color-vision deficiency (adjacent pairs) on the card surface.
+   * Slots 3-5 are under 3:1 on white, so charts always ship legends + tables.
+   */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #6250d6;
+  --series-other: #a3a9b6;
+  --chart-grid: oklch(0.93 0.008 258);
+  --chart-axis: oklch(0.84 0.012 258);
 }
 
 .dark {
@@ -115,6 +130,16 @@
   --sidebar-accent-foreground: oklch(0.98 0.01 265);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.72 0.13 268);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
+  --series-other: #5f6676;
+  --chart-grid: oklch(1 0 0 / 7%);
+  --chart-axis: oklch(1 0 0 / 16%);
 }
 
 @theme inline {

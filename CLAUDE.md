@@ -53,9 +53,51 @@ portable `.exe` on a Windows runner as a downloadable artifact.
   environment.
 - `components/layout/` app shell: `SideNav`, `TopBar`, `PageHeader`, and
   `nav.ts` (the single list of navigation items).
-- `pages/` one component per nav destination.
+- `pages/` built-in pages (Home and placeholders).
+- `modules/` feature modules (see below). `modules/registry.ts` lists them.
+- `components/charts/` data-viz primitives: series palette, `StatTile`,
+  `Legend`, `ChartTooltipContent`. Charts use Recharts.
+- `lib/router.ts` tiny hash router (`useRoute`, `navigate`); hash routes work
+  with Electron's `file://` loading.
 - `data/` fictional sample data only.
 - `index.css` all design tokens (light and dark).
+
+## Modules: the main building block
+
+New features ship as **modules**. A module owns one nav entry, one route, one
+page and, optionally, a backend that reads local data in the Electron main
+process. The contract is `ModuleDefinition` in `src/modules/types.ts`.
+
+To add a module:
+
+1. `src/modules/<id>/index.ts` exports a `ModuleDefinition` (id, title,
+   description, icon, `path`, `nav.section`, lazy `component`).
+2. Add it to `src/modules/registry.ts`. The nav, router and top bar pick it up.
+3. If it needs local data, write `electron/modules/<id>.cjs` exporting
+   `{ id, methods: { name: async (ctx, args) => result } }` and add it to
+   `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
+   (`%APPDATA%\Command Hub\modules\<id>`); keep caches and settings there.
+4. In the page, call it with `useModuleQuery(id, method)` or
+   `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
+   browser dev server there is no backend (`isDesktop()` is false), so ship
+   fictional sample data for that case.
+
+The renderer stays sandboxed: `electron/preload.cjs` exposes only
+`window.commandHub.invoke(moduleId, method, args)`.
+
+`claude-stats` is the reference module: its backend runs the bundled
+`ccusage` binary (native packages are unpacked from the asar via
+`asarUnpack`), caches the JSON report in its data folder, and the page
+normalizes it into day x project x model facts in `transform.ts`.
+
+### Charts
+
+Follow the data-viz rules already encoded in `components/charts/`: series
+colors come from `--series-1..6` in fixed order (never cycled; extra series
+fold into "Other"), rank entities on the full dataset so filters never
+repaint them, one y-axis per chart, a legend for 2+ series, a table view
+beside every chart, thin marks (bars <= 24px, 2px lines), and one hero
+figure per page.
 
 ## Design guidance
 

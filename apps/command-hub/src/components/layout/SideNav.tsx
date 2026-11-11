@@ -4,11 +4,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-import { navSections, type PageId } from './nav'
+import { navSections } from './nav'
 
 interface SideNavProps {
-  current: PageId
-  onNavigate: (page: PageId) => void
+  current: string
+  onNavigate: (path: string) => void
   collapsed: boolean
   onToggleCollapsed: () => void
 }
@@ -53,12 +53,12 @@ export function SideNav({ current, onNavigate, collapsed, onToggleCollapsed }: S
             {section.heading && collapsed && <div className="mx-3 mb-2 h-px bg-sidebar-border" />}
             <ul className="flex flex-col gap-1">
               {section.items.map((item) => {
-                const active = item.id === current
+                const active = item.path === current
                 const Icon = item.icon
                 const button = (
                   <button
                     type="button"
-                    onClick={() => onNavigate(item.id)}
+                    onClick={() => onNavigate(item.path)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
                       'group relative flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
@@ -86,7 +86,7 @@ export function SideNav({ current, onNavigate, collapsed, onToggleCollapsed }: S
                   </button>
                 )
                 return (
-                  <li key={item.id}>
+                  <li key={item.path}>
                     {collapsed ? (
                       <Tooltip>
                         <TooltipTrigger asChild>{button}</TooltipTrigger>
