@@ -9,6 +9,7 @@ import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useRoute } from '@/lib/router'
+import { useTheme } from '@/lib/theme'
 import { findModuleByPath } from '@/modules/registry'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -32,11 +33,7 @@ export default function App() {
   const [path, navigate] = useRoute()
   const activeApp = findAppByPath(path)
   const [collapsed, setCollapsed] = useState(false)
-  const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-  }, [dark])
+  const [theme, toggleTheme] = useTheme()
 
   // Remember the hub page, so leaving an app comes back to it.
   useEffect(() => {
@@ -72,7 +69,7 @@ export default function App() {
           onToggleCollapsed={() => setCollapsed((c) => !c)}
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-          <TopBar title={current?.label ?? 'Not found'} dark={dark} onToggleDark={() => setDark((d) => !d)} />
+          <TopBar title={current?.label ?? 'Not found'} dark={theme === 'dark'} onToggleDark={toggleTheme} />
           {/* Content container: MUI Container maxWidth="xl" with 24/32px gutters */}
           <main className="mx-auto w-full max-w-[1440px] px-6 py-8 lg:px-8">
             <RouteView path={path} />

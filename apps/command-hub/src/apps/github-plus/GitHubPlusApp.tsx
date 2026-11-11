@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 
+import InitOffer from './components/InitOffer'
 import { RepoProvider } from './RepoContext'
 import BackupsPage from './pages/BackupsPage'
 import BlobPage from './pages/BlobPage'
@@ -38,6 +39,7 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <InitOffer />
         </RepoProvider>
       </HashRouter>
     </div>

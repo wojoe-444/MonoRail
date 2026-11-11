@@ -120,3 +120,29 @@ export interface BackupState {
   /** Backups of this repo in the destination folder, newest first. */
   files: BackupFile[]
 }
+
+/** What making a plain folder into a repo would snapshot. Nothing has been written yet. */
+export interface FolderPreview {
+  path: string
+  name: string
+  fileCount: number
+  totalBytes: number
+  /** True when the scan stopped early (very large folder). */
+  truncated: boolean
+  large: { path: string; size: number }[]
+  sensitive: string[]
+  /** Folders such as node_modules that are skipped and ignored by default. */
+  skippedDirs: string[]
+  hasGitignore: boolean
+  largeThresholdBytes: number
+}
+
+export interface InitOptions {
+  excludeLarge: boolean
+  excludeSensitive: boolean
+}
+
+export interface GitHubPlusSettings {
+  /** Make plain folders into repos without asking. Off by default. */
+  autoInitFolders: boolean
+}

@@ -167,10 +167,37 @@ const reschedule = (b: BackupState): BackupState => ({
 
 const wait = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 60))
 
+// A plain (non-git) folder, so the browser preview can show "Make this a git repo".
+const PLAIN = 'C:/Users/sample/Documents/Job search'
+let plainIsRepo = false
+let settings = { autoInitFolders: false }
+
 export const sampleApi: RepoApi = {
   pickRepoFolder: () => wait(REPO.path),
-  openRepo: () => wait(REPO),
-  getRecents: () => wait([REPO.path]),
+  async openRepo(dir) {
+    if (dir === PLAIN && !plainIsRepo) throw new Error(`"${dir}" is not inside a git repository`)
+    return wait(dir === PLAIN ? { ...REPO, path: PLAIN, name: 'Job search' } : REPO)
+  },
+  previewFolder: (dir) =>
+    wait({
+      path: dir,
+      name: dir.split('/').pop() ?? dir,
+      fileCount: 37,
+      totalBytes: 212_000_000,
+      truncated: false,
+      large: [{ path: 'Interview recordings/mock-interview.mp4', size: 184_000_000 }],
+      sensitive: ['.env'],
+      skippedDirs: [],
+      hasGitignore: false,
+      largeThresholdBytes: 50 * 1024 * 1024,
+    }),
+  async initRepo(dir) {
+    plainIsRepo = true
+    return this.openRepo(dir)
+  },
+  getSettings: () => wait(settings),
+  saveSettings: async (s) => wait((settings = { ...s })),
+  getRecents: () => wait([REPO.path, PLAIN]),
   removeRecent: () => wait([]),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {
