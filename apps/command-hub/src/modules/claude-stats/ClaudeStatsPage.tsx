@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
-import { formatCount, formatRelative, formatUSD } from '@/lib/format'
+import { formatCount, formatPercent, formatRelative, formatUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -18,7 +18,10 @@ import { CostPerMChart } from './components/CostPerMChart'
 import { StackedTimeChart } from './components/StackedTimeChart'
 import { sampleReport } from './sample'
 import {
+  comboOrder,
   groupBy,
+  groupCombos,
+  normalizePartners,
   inWindow,
   isoDate,
   normalize,
@@ -53,6 +56,7 @@ export default function ClaudeStatsPage() {
   const model = useMemo(() => {
     if (!report) return undefined
     const { facts, sessions } = normalize(report)
+    const partners = normalizePartners(report)
     const order = seriesOrder(facts)
     const w = windowFor(range, facts)
     const current = inWindow(facts, w)
@@ -68,7 +72,26 @@ export default function ClaudeStatsPage() {
       window: w,
       now: totals(current),
       prev: previous ? totals(previous) : undefined,
-      series: timeSeries(current, w, order, metric, bucket),
+      series: timeSeries(current, w, order, (f) => f.model, metric, bucket),
+      partners: (() => {
+        const corder = comboOrder(partners.facts)
+        const pf = inWindow(partners.facts, w)
+        const phasesBySession = new Map<string, typeof partners.phases>()
+        for (const ph of partners.phases) {
+          const list = phasesBySession.get(ph.sessionId) ?? []
+          list.push(ph)
+          phasesBySession.set(ph.sessionId, list)
+        }
+        return {
+          available: !!report.partners && !report.partners.error,
+          error: report.partners?.error,
+          idleGapMinutes: report.partners?.idleGapMinutes ?? 120,
+          order: corder,
+          series: timeSeries(pf, w, corder, (f) => f.combo, metric, bucket),
+          rows: groupCombos(pf, corder),
+          phasesBySession,
+        }
+      })(),
       byModel: groupBy(current, (f) => seriesOf(f.model, order)),
       byProject: groupBy(current, (f) => f.project),
       sessions: sessionsInRange.sort((a, b) => b.outputTokens - a.outputTokens),
@@ -258,6 +281,53 @@ export default function ClaudeStatsPage() {
 
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
+              <CardTitle>Session partners</CardTitle>
+              <CardDescription>
+                Which models worked together. Each session is split into phases: one driver model on the main thread
+                plus the models its subagents ran on. A new phase starts when the driver changes or after{' '}
+                {Math.round(model.partners.idleGapMinutes / 60)} idle hours, so earlier work in a resumed session
+                isn't counted as a partner.
+              </CardDescription>
+            </CardHeader>
+            {model.partners.available ? (
+              <>
+                <CardContent className="flex flex-col gap-4 border-b px-6 py-5">
+                  <Legend
+                    items={model.partners.order.map((s) => ({ key: s, color: colorForSeries(model.partners.order, s) }))}
+                  />
+                  <StackedTimeChart
+                    points={model.partners.series}
+                    series={model.partners.order}
+                    metric={metric}
+                    bucket={model.bucket}
+                  />
+                </CardContent>
+                <CardContent className="px-0 py-1">
+                  <BreakdownTable
+                    rows={model.partners.rows}
+                    label="Partners (driver first)"
+                    colorOf={(k) => colorForSeries(model.partners.order, k)}
+                    extra={{
+                      header: 'Subagent share · phases',
+                      value: (r) => {
+                        const c = r as (typeof model.partners.rows)[number]
+                        return `${formatPercent(c.subagentShare)} · ${formatCount(c.phases)}`
+                      },
+                    }}
+                  />
+                </CardContent>
+              </>
+            ) : (
+              <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
+                {model.partners.error
+                  ? `Couldn't read session phases from the Claude Code logs: ${model.partners.error}`
+                  : 'Refresh to read session phases from your Claude Code logs.'}
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="gap-0 py-0">
+            <CardHeader className="border-b px-6 py-5">
               <CardTitle>By project</CardTitle>
               <CardDescription>The folders your Claude Code sessions ran in.</CardDescription>
             </CardHeader>
@@ -279,7 +349,7 @@ export default function ClaudeStatsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-0 py-1">
-              <SessionsTable sessions={model.sessions.slice(0, 15)} />
+              <SessionsTable sessions={model.sessions.slice(0, 15)} phasesBySession={model.partners.phasesBySession} />
             </CardContent>
           </Card>
         </div>
@@ -288,7 +358,13 @@ export default function ClaudeStatsPage() {
   )
 }
 
-function SessionsTable({ sessions }: { sessions: ReturnType<typeof normalize>['sessions'] }) {
+function SessionsTable({
+  sessions,
+  phasesBySession,
+}: {
+  sessions: ReturnType<typeof normalize>['sessions']
+  phasesBySession: Map<string, ReturnType<typeof normalizePartners>['phases']>
+}) {
   if (!sessions.length) return <p className="px-6 py-8 text-center text-sm text-muted-foreground">No sessions in this range.</p>
   return (
     <div className="overflow-x-auto">
@@ -296,7 +372,7 @@ function SessionsTable({ sessions }: { sessions: ReturnType<typeof normalize>['s
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
             <th className="py-2.5 pr-4 pl-6 font-medium">Project</th>
-            <th className="px-4 py-2.5 font-medium">Models</th>
+            <th className="px-4 py-2.5 font-medium">Partners, by phase</th>
             <th className="px-4 py-2.5 font-medium">Last active</th>
             <th className="px-4 py-2.5 text-right font-medium">Output</th>
             <th className="px-4 py-2.5 text-right font-medium">API cost</th>
@@ -310,12 +386,21 @@ function SessionsTable({ sessions }: { sessions: ReturnType<typeof normalize>['s
                 {s.project}
               </td>
               <td className="px-4 py-2.5">
-                <div className="flex flex-wrap gap-1">
-                  {s.models.map((m) => (
-                    <Badge key={m} variant="secondary">
-                      {m}
-                    </Badge>
-                  ))}
+                <div className="flex flex-wrap items-center gap-1">
+                  {(phasesBySession.get(s.id) ?? []).length
+                    ? phasesBySession.get(s.id)!.map((p, i) => (
+                        <span key={p.key} className="flex items-center gap-1">
+                          {i > 0 && <span className="text-xs text-muted-foreground">then</span>}
+                          <Badge variant="secondary" title={`${formatCount(p.outputTokens)} output · ${formatUSD(p.cost)}`}>
+                            {p.combo}
+                          </Badge>
+                        </span>
+                      ))
+                    : s.models.map((m) => (
+                        <Badge key={m} variant="secondary">
+                          {m}
+                        </Badge>
+                      ))}
                 </div>
               </td>
               <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">

@@ -8,8 +8,11 @@ const { execFile } = require('node:child_process')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
+const { collectPhases } = require('./claude-stats-phases.cjs')
+
 const CACHE_FILE = 'usage.json'
 const CACHE_MAX_AGE_MS = 10 * 60 * 1000
+const REPORT_VERSION = 2
 
 /** Path to the native ccusage binary installed with the app, if present. */
 function bundledBinary() {
@@ -74,16 +77,21 @@ async function readCache(file) {
 }
 
 async function collect(ctx) {
-  const [byProjectDay, bySession] = await Promise.all([
+  const [byProjectDay, bySession, partners] = await Promise.all([
     ccusage(['daily', '--instances'], ctx.log),
     ccusage(['session'], ctx.log),
+    collectPhases().catch((e) => {
+      ctx.log('session partner parsing failed:', e.message)
+      return { error: e.message, phases: [] }
+    }),
   ])
   return {
-    version: 1,
+    version: REPORT_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'ccusage',
     daily: byProjectDay,
     sessions: bySession,
+    partners,
   }
 }
 
@@ -98,7 +106,7 @@ module.exports = {
     async getUsage(ctx, args) {
       const file = path.join(ctx.dataDir, CACHE_FILE)
       const cached = await readCache(file)
-      const fresh = cached && Date.now() - Date.parse(cached.generatedAt) < CACHE_MAX_AGE_MS
+      const fresh = cached?.version === REPORT_VERSION && Date.now() - Date.parse(cached.generatedAt) < CACHE_MAX_AGE_MS
       if (cached && fresh && !args?.refresh) return cached
 
       try {

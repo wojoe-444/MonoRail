@@ -184,11 +184,12 @@ export interface TimePoint {
 
 export type Metric = 'outputTokens' | 'cost'
 
-/** Dense time series (every bucket present, zero-filled) split by model series. */
-export function timeSeries(
-  facts: UsageFact[],
+/** Dense time series (every bucket present, zero-filled) split into series. */
+export function timeSeries<T extends { date: string; outputTokens: number; cost: number }>(
+  rows: T[],
   w: { start: string; end: string },
   order: string[],
+  seriesKey: (row: T) => string,
   metric: Metric,
   bucket: Bucket,
 ): TimePoint[] {
@@ -205,15 +206,15 @@ export function timeSeries(
       costPerMOutput: undefined,
     })
   }
-  for (const f of facts) {
-    const p = points.get(keyOf(f.date))
+  for (const r of rows) {
+    const p = points.get(keyOf(r.date))
     if (!p) continue
-    const s = seriesOf(f.model, order)
-    const v = metric === 'cost' ? f.cost : f.outputTokens
-    p.values[s] = (p.values[s] ?? 0) + v
+    const k = seriesOf(seriesKey(r), order)
+    const v = metric === 'cost' ? r.cost : r.outputTokens
+    p.values[k] = (p.values[k] ?? 0) + v
     p.total += v
-    p.outputTokens += f.outputTokens
-    p.cost += f.cost
+    p.outputTokens += r.outputTokens
+    p.cost += r.cost
   }
   for (const p of points.values()) p.costPerMOutput = perM(p.cost, p.outputTokens)
   return [...points.values()]
@@ -222,4 +223,173 @@ export function timeSeries(
 export function pctChange(curr: number | undefined, prev: number | undefined): number | undefined {
   if (curr === undefined || prev === undefined || prev === 0) return undefined
   return (curr - prev) / prev
+}
+
+// ---------------------------------------------------------------- session partners
+
+/** A day x phase x model slice of a session phase, priced. */
+export interface PartnerFact {
+  date: string
+  phaseKey: string
+  sessionId: string
+  combo: string
+  model: string
+  role: 'driver' | 'subagent'
+  outputTokens: number
+  cost: number
+}
+
+export interface PhaseSummary {
+  key: string
+  sessionId: string
+  project: string
+  combo: string
+  driver?: string
+  subagents: string[]
+  effort?: string
+  start: string
+  end: string
+  outputTokens: number
+  cost: number
+}
+
+/**
+ * The partner label for a phase: the driver first, then the distinct models
+ * its subagents ran on. "Sonnet 5.5 solo" when no subagents ran.
+ */
+export function comboLabel(driver: string | undefined, subagents: string[]): string {
+  if (!driver) return 'Subagents only'
+  if (!subagents.length) return `${driver} solo`
+  const others = subagents.filter((s) => s !== driver)
+  return others.length ? [driver, ...others].join(' + ') : `${driver} + own subagents`
+}
+
+/**
+ * Price phase tokens with ccusage's own numbers. Each model's API-equivalent
+ * cost per output token is taken from the same session (most precise), else
+ * the same day, else the model's overall average, then applied to the phase's
+ * output for that model.
+ */
+function rateTables(report: UsageReport) {
+  const session = new Map<string, number>()
+  const daily = new Map<string, number>()
+  const overall = new Map<string, { cost: number; output: number }>()
+  const add = (m: Map<string, number>, k: string, cost: number, output: number) => {
+    if (output > 0) m.set(k, cost / output)
+  }
+  for (const s of report.sessions.sessions ?? []) {
+    for (const b of s.modelBreakdowns ?? []) add(session, `${s.sessionId}|${b.modelName}`, b.cost, b.outputTokens)
+  }
+  const dayAgg = new Map<string, { cost: number; output: number }>()
+  const groups = report.daily.projects ?? { all: report.daily.daily ?? [] }
+  for (const rows of Object.values(groups)) {
+    for (const r of rows) {
+      for (const b of r.modelBreakdowns ?? []) {
+        for (const [map, key] of [
+          [dayAgg, `${r.date}|${b.modelName}`],
+          [overall, b.modelName],
+        ] as const) {
+          const a = map.get(key) ?? { cost: 0, output: 0 }
+          a.cost += b.cost
+          a.output += b.outputTokens
+          map.set(key, a)
+        }
+      }
+    }
+  }
+  for (const [k, a] of dayAgg) add(daily, k, a.cost, a.output)
+  return (sessionId: string, date: string, model: string) => {
+    const o = overall.get(model)
+    return (
+      session.get(`${sessionId}|${model}`) ??
+      daily.get(`${date}|${model}`) ??
+      (o && o.output > 0 ? o.cost / o.output : 0)
+    )
+  }
+}
+
+export function normalizePartners(report: UsageReport): { facts: PartnerFact[]; phases: PhaseSummary[] } {
+  const raw = report.partners?.phases ?? []
+  const rate = rateTables(report)
+  const facts: PartnerFact[] = []
+  const phases: PhaseSummary[] = []
+  raw.forEach((p, i) => {
+    const driver = p.driver ? modelLabel(p.driver) : undefined
+    const subagents = [...new Set(p.facts.filter((f) => f.role === 'subagent').map((f) => modelLabel(f.model)))].sort()
+    const combo = comboLabel(driver, subagents)
+    const key = `${p.sessionId}#${i}`
+    let outputTokens = 0
+    let cost = 0
+    for (const f of p.facts) {
+      const c = f.output * rate(p.sessionId, f.date, f.model)
+      outputTokens += f.output
+      cost += c
+      facts.push({
+        date: f.date,
+        phaseKey: key,
+        sessionId: p.sessionId,
+        combo,
+        model: modelLabel(f.model),
+        role: f.role,
+        outputTokens: f.output,
+        cost: c,
+      })
+    }
+    phases.push({
+      key,
+      sessionId: p.sessionId,
+      project: projectLabel(p.project),
+      combo,
+      driver,
+      subagents,
+      effort: p.effort,
+      start: p.start,
+      end: p.end,
+      outputTokens,
+      cost,
+    })
+  })
+  return { facts, phases }
+}
+
+export interface ComboRow extends GroupRow {
+  phases: number
+  sessions: number
+  /** Share of the combo's output produced by subagents. */
+  subagentShare: number
+}
+
+export function groupCombos(facts: PartnerFact[], order: string[]): ComboRow[] {
+  const map = new Map<string, { output: number; cost: number; sub: number; phases: Set<string>; sessions: Set<string> }>()
+  for (const f of facts) {
+    const k = seriesOf(f.combo, order)
+    let a = map.get(k)
+    if (!a) map.set(k, (a = { output: 0, cost: 0, sub: 0, phases: new Set(), sessions: new Set() }))
+    a.output += f.outputTokens
+    a.cost += f.cost
+    if (f.role === 'subagent') a.sub += f.outputTokens
+    a.phases.add(f.phaseKey)
+    a.sessions.add(f.sessionId)
+  }
+  return [...map.entries()]
+    .map(([key, a]) => ({
+      key,
+      outputTokens: a.output,
+      inputTokens: 0,
+      cacheTokens: 0,
+      cost: a.cost,
+      costPerMOutput: perM(a.cost, a.output),
+      phases: a.phases.size,
+      sessions: a.sessions.size,
+      subagentShare: a.output ? a.sub / a.output : 0,
+    }))
+    .sort((a, b) => b.outputTokens - a.outputTokens)
+}
+
+/** Top combos by all-time output keep a color; the rest fold into "Other". */
+export function comboOrder(facts: PartnerFact[], max = 5): string[] {
+  const totals = new Map<string, number>()
+  for (const f of facts) totals.set(f.combo, (totals.get(f.combo) ?? 0) + f.outputTokens)
+  const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k)
+  return ranked.length <= max ? ranked : [...ranked.slice(0, max), OTHER]
 }
