@@ -6,7 +6,9 @@
   "description": "The starter extension: a page, a full-screen app and a small backend that keeps notes.",
   "publisher": "MonoRail",
   "repository": "wojoe-444/MonoRail",
-  "engines": { "monorail": "^1.1.0" },
+  "engines": {
+    "monorail": "^1.1.0"
+  },
   "icon": "icon.svg",
   "ui": "ui",
   "contributes": {
@@ -16,7 +18,10 @@
         "title": "Hello",
         "description": "Notes kept by an extension backend, live events and folder access.",
         "entry": "index.html",
-        "nav": { "section": "Extensions", "order": 100 }
+        "nav": {
+          "section": "Extensions",
+          "order": 100
+        }
       }
     ],
     "apps": [
@@ -28,8 +33,31 @@
       }
     ]
   },
-  "backend": { "main": "backend/index.cjs", "activation": "onDemand" },
+  "backend": {
+    "main": "backend/index.cjs",
+    "activation": "onDemand"
+  },
   "permissions": {
-    "filesystem": { "pickFolders": true }
-  }
+    "filesystem": {
+      "pickFolders": true
+    }
+  },
+  "settings": [
+    {
+      "key": "greeting",
+      "type": "string",
+      "title": "Greeting",
+      "description": "Shown on the Hello page.",
+      "default": "Hello from MonoRail"
+    },
+    {
+      "key": "maxNotes",
+      "type": "number",
+      "title": "Most notes to keep",
+      "description": "Older notes are dropped when you add more.",
+      "min": 1,
+      "max": 500,
+      "default": 100
+    }
+  ]
 }

@@ -35,3 +35,12 @@ test('migrate runs after an update', async (t) => {
   t.after(() => b.close())
   assert.ok(b.logs.some((l) => l.line.includes('last used by 0.9.0')))
 })
+
+test('keeps at most maxNotes notes (a setting)', async (t) => {
+  const b = await loadBackend({ settings: { maxNotes: 2 } })
+  t.after(() => b.close())
+  for (const text of ['a', 'b', 'c']) await b.invoke('addNote', { text })
+  assert.equal((await b.invoke('listNotes')).length, 2)
+  await b.changeSettings({ maxNotes: 1 })
+  assert.ok(b.logs.some((l) => l.line.includes('at most 1 notes')))
+})

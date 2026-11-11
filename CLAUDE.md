@@ -416,6 +416,14 @@ before `start()` when the version that last used the data folder changed
 (`state.json` `dataVersions`); `ctx.emit` is fire and forget (dropped with no
 page open, JSON under 1 MB). Program names in `permissions.process` match
 without `.exe`/`.cmd`/`.bat`/`.com` on both sides.
+Settings (`settings.cjs`, API 1.1): the manifest's `settings` list (string,
+text, number, boolean, select, secret) becomes a generated form in Settings >
+Extensions (`modules/extensions/SettingsDialog.tsx`). MonoRail validates and
+stores values in `extension-settings/<id>.json`, secret fields encrypted in
+`extension-secrets/<id>.settings.json`; backends read `ctx.settings.get()`,
+pages `monorail.getSettings()` (no secret values) and get
+`monorail.onSettings` via the reserved `monorail.settings` event channel. On
+save a backend's `settingsChanged(ctx, values)` runs, or it is restarted.
 
 **Install, update, remove** (`manager.cjs`, `install.cjs`). Sources: a
 folder (copied), a `.zip`, the latest GitHub release of `owner/name` (the

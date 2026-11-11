@@ -68,8 +68,10 @@ class BackendHost {
    * @param {(id: string) => void} [opts.onStatus] called when a backend's status changes
    * @param {(id: string, version: string) => void} [opts.onMigrated] the backend's data folder is now at this version
    * @param {(id: string) => import('./secrets.cjs').ExtensionSecrets} [opts.secrets] secret storage for one extension
+   * @param {(id: string) => Promise<object>} [opts.settings] an extension's settings values, for ctx.settings.get()
    */
-  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, onMigrated = () => {}, secrets, apiVersion } = {}) {
+  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, onMigrated = () => {}, secrets, settings, apiVersion } = {}) {
+    this.settings = settings
     this.execPath = execPath
     this.onEmit = onEmit
     this.onStatus = onStatus
@@ -194,6 +196,7 @@ class BackendHost {
     if (!msg || typeof msg !== 'object') return
     switch (msg.type) {
       case 'ready':
+        proc.hooks = msg.hooks && typeof msg.hooks === 'object' ? msg.hooks : {}
         proc.settleStart?.(null, Array.isArray(msg.methods) ? msg.methods : [])
         break
       case 'fatal':
@@ -249,6 +252,9 @@ class BackendHost {
         case 'secrets.list':
           value = await store.list()
           break
+        case 'settings.get':
+          value = this.settings ? await this.settings(id) : {}
+          break
         default:
           throw new ExtensionCallError('EXT_HOST_ERROR', `Unknown host request ${String(msg.op)}`)
       }
@@ -261,6 +267,24 @@ class BackendHost {
     } catch {
       /* the backend exited meanwhile */
     }
+  }
+
+  /**
+   * Settings were saved. A running backend that exports settingsChanged gets
+   * the new values and true is returned; otherwise false (the caller restarts
+   * it, so the next start reads the new values).
+   */
+  async settingsChanged(id, values) {
+    const proc = this.procs.get(id)
+    if (!proc) return true // not running: it reads fresh values when it starts
+    try {
+      await proc.ready
+    } catch {
+      return true
+    }
+    if (!proc.hooks?.settingsChanged || !proc.child.connected) return false
+    proc.child.send({ type: 'settings', values: await values() })
+    return true
   }
 
   async invoke(spec, method, args) {
