@@ -11,12 +11,24 @@ export interface AppStatus {
   latestVersion?: string
   releaseDate?: string
   releaseNotes?: string
+  /** Every release between the installed and the latest version, newest first. */
+  changes?: ReleaseChanges[]
   progress?: { percent: number; transferred: number; total: number; bytesPerSecond: number }
   error?: string
   lastChecked?: string
 }
 
+/** One release's "What's new" notes (electron/release-notes.cjs). Old releases have no items. */
+export interface ReleaseChanges {
+  version: string
+  date?: string
+  items: { title: string; text: string; pr?: number }[]
+}
+
 export type BackupUnit = 'hour' | 'day' | 'week'
+
+/** Pages the global schedule backs up itself (GLOBAL_ITEMS in electron/backups/global.cjs). */
+export type GlobalItem = 'jira-plus' | 'flashcards' | 'notes'
 
 /** The global backup folder (electron/backups/global.cjs). */
 export interface GlobalBackupSettings {
@@ -26,7 +38,7 @@ export interface GlobalBackupSettings {
   unit: BackupUnit
   keep: number
   /** Pages the global schedule backs up itself. */
-  items: { 'jira-plus': boolean; flashcards: boolean }
+  items: Record<GlobalItem, boolean>
 }
 
 export type BackupResult =
@@ -34,7 +46,7 @@ export type BackupResult =
   | { ok: false; at: string; error: string }
 
 export interface BackupPageStatus {
-  id: 'github-plus' | 'jira-plus' | 'flashcards'
+  id: 'github-plus' | GlobalItem
   title: string
   what: string
   /** <folder>/<id> while the global folder is on, else null. */

@@ -1,7 +1,13 @@
+---
+audience: human, ai
+---
+
 # Agent Catalog
 
 **Agents > Catalog** lists every subagent on this computer, explains each one
 in plain language, and lets you create, edit, duplicate and delete them.
+For what a subagent is and how to write one by hand, see
+[Create an agent](guide/agents/create-an-agent.md).
 
 ## Where subagents come from
 

@@ -77,6 +77,26 @@ installer on a Windows runner as a downloadable artifact. On every push to
 GitHub release; the Settings page (`modules/settings`, backed by
 `electron-updater`) checks those releases and installs updates in place. Bump
 major/minor in `package.json` by hand; never publish from a local machine.
+The settings backend also checks on its own (`start()`: 30 s after startup,
+then every 4 hours), and `src/modules/settings/UpdateToast.tsx` shows a
+lower-right pop-up when an update is available: "Download and Restart",
+"Ignore for six hours" (kept in `commandHub.updateSnoozeUntil`) and X (hidden
+until the next check). It is self-contained, so it moves with Settings.
+
+**Release notes.** Each release's body is its "What's new" list, written by
+`scripts/release-notes.cjs` in the publish step from the PRs merged since the
+previous release (format and parser: `electron/release-notes.cjs`). Every PR
+description therefore gets a `## What's new` section (see
+`.github/pull_request_template.md`): one bullet per user-visible change,
+`- **Short title**: one plain sentence`, written for people using the app, not
+developers (no file names, no internals); without it the PR title is used.
+Release notes are public: no personal paths, names or test-user details (the
+script also strips home-folder paths and emails). When an update is
+available, the settings backend reads the public release list once
+(api.github.com) and keeps every release between the installed and the latest
+version (`changes`); `src/modules/settings/WhatsNew.tsx` shows them in Settings
+and, briefly, in the pop-up. The "Release notes" workflow (manual) rewrites
+older releases' notes.
 
 ## Code layout (`apps/command-hub/src`)
 
@@ -464,6 +484,16 @@ cards per day (default 20); the page shows each rating's next interval from
 style it after any other product. MCP: `list_flashcard_decks`,
 `list_flashcards` (read) and `add_flashcards` (write, consent per agent).
 
+`notes` (**Notes**, a subpage of Home; docs: `docs/notes.md`) is an
+unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
+line = title) in a local git repo in its data folder (`repo/`), via
+isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
+writes the file; commits are batched (a minute of quiet, leaving the note, or
+the next start), a blank new note is never committed, and a note's file
+follows its title only until its first commit. The repo never gets a remote.
+GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
+item (`notes`, bundle).
+
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
 a collapsible tree (plain rows on a guide line, current page tinted; open/closed
@@ -798,10 +828,49 @@ code does today: update them in the same PR as any change to the manifest,
 `wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
 is bundled at build time (`import.meta.glob` `?raw` in
 `src/modules/wiki/content.ts`, so it is offline and matches the installed
-version). Links between docs open in the wiki, other repo paths open on
-GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
-there. Open a page from elsewhere with `openWiki(id, anchor)` from
-`modules/wiki/store.ts`.
+version). Open a page from elsewhere with `openWiki(id, anchor)` from
+`modules/wiki/store.ts` (a test checks every `openWiki('<id>')` exists).
+
+### The wiki is a linked notebook (Obsidian-style): write docs that way
+
+The owner wants the wiki read by **hopping between linked pages**, not by
+hunting in the page list: if a reader has to use the nav panel, the docs have
+failed. Treat every doc as a node in a web of knowledge:
+
+- **Link heavily, inline.** Every time a page mentions an idea another page
+  explains (a feature, a term from `docs/guide/glossary.md`, a rule, a
+  setting), link it, to the heading if there is one (`page.md#heading`).
+  Use normal relative Markdown links so they also work on GitHub; the wiki
+  turns them into in-app links with a hover preview. Link both ways: when you
+  add a page, also add links *to* it from the pages that mention its topic.
+- **No orphans, no dead ends.** `electron/docs.test.cjs` fails when a doc has
+  no audience tag, a link points at a missing file or heading, a doc is
+  linked from nowhere, or a guide links to fewer than four other pages.
+- **Folders nest to any depth.** The page list is a collapsible tree built
+  from the folders under `docs/` (open state in `commandHub.wiki.open`; the
+  folders around the open page always open). A folder's `README.md` is its
+  index page: it introduces the section and links each page in it; the wiki
+  adds an "In this section" grid below it. Give it front matter `folder:
+  <short name>` for the tree. Order inside a folder is `ORDER` in
+  `content.ts` (optional; unlisted pages follow by title). Prefer a new
+  subfolder over a long flat folder.
+- **Every page shows its neighbours**: clickable breadcrumbs (folder index
+  pages), "Linked from" (backlinks) and "Links on this page", plus
+  previous/next in reading order. Keep pages short and focused so they link
+  rather than repeat.
+
+**Audience tags.** Every doc starts with front matter
+`---\naudience: human, ai\n---` (one or both; optional `summary:` for cards
+and previews, `folder:` on a README). `human` pages are plain-language guides
+anyone can follow without code; `ai` pages are dense reference for agents and
+developers (exact files, contracts, rules). The wiki filters on it (People /
+Agents / All, `commandHub.wiki.audience`, default People) and badges each
+page. `docs/guide/` holds the human guides, in subfolders (`agents/`,
+`workspace/`, `setup/`), shown as "Start here" cards (icons in `ICONS` in
+`WikiPage.tsx`); Home's "Get started" cards open them. A user-facing feature
+should get a guide page (or a section in one) in the same PR, linked from its
+folder index and from the pages that mention it. Guides must not contain
+personal paths, names or test-user details.
 
 ## Design guidance
 

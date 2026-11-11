@@ -1,5 +1,5 @@
 // The global backup schedule: backs up the pages that have no schedule of their
-// own (Jira+ private projects, Flashcards) into <global folder>/<page id>/ at
+// own (Jira+ private projects, Flashcards, Notes) into <global folder>/<page id>/ at
 // the global frequency. GitHub+ repos run on GitHub+'s own per-repo scheduler
 // (electron/apps/github-plus/backup.cjs), which reads the same settings.
 //
@@ -36,6 +36,23 @@ const ITEMS = {
     },
     async write(src, file) {
       // Every branch and the full history; restore with `git clone <file>`.
+      await require('../apps/github-plus/git.cjs').createBundle(src, file)
+    },
+  },
+  notes: {
+    prefix: 'notes-',
+    suffix: '.bundle',
+    async source(userData) {
+      const dir = path.join(userData, 'modules', 'notes', 'repo')
+      try {
+        await fs.access(path.join(dir, '.git'))
+        return dir
+      } catch {
+        return null
+      }
+    },
+    async write(src, file) {
+      // Text saved in the last minute may not be committed yet; the next backup has it.
       await require('../apps/github-plus/git.cjs').createBundle(src, file)
     },
   },

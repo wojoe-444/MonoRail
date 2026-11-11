@@ -132,6 +132,7 @@ const DATA_FILES = Object.freeze({
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
+  'modules/notes': ['repo/'],
   'modules/backups': ['settings.json', 'state.json'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
@@ -148,6 +149,7 @@ const NOT_CACHED = Object.freeze({
   'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached. Links between tasks and repositories (repo-links.json) keep issue keys, repo folders and repo names only, never ticket text.',
   'modules/agent-catalog': 'Subagent files are read in place on every call and never cached. Before the user edits or deletes one, a copy of that file goes to backups/ (newest 200 kept) so it can be brought back; nothing else is stored.',
   'modules/backups': 'The global backup folder setting (folder, frequency, which pages are included) and the last result per page (time, file name, size or error). Backups themselves go to the folder the user picked, never into AppData.',
+  'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 

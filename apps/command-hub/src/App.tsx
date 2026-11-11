@@ -13,6 +13,7 @@ import { isDesktop } from '@/modules/client'
 import { currentPath, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { findModuleByPath } from '@/modules/registry'
+import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
@@ -75,6 +76,7 @@ export default function App() {
     return (
       <TooltipProvider>
         <AppFrame key={activeApp.id} app={activeApp} />
+        <UpdateToast />
       </TooltipProvider>
     )
   }
@@ -109,6 +111,7 @@ export default function App() {
           )}
         </div>
       </div>
+      <UpdateToast />
     </TooltipProvider>
   )
 }

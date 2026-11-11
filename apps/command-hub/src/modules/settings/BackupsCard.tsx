@@ -12,7 +12,7 @@ import { formatBytes, formatIn, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
-import type { BackupPageStatus, BackupStatus, BackupUnit, GlobalBackupSettings } from './types'
+import type { BackupPageStatus, BackupStatus, BackupUnit, GlobalBackupSettings, GlobalItem } from './types'
 
 const MODULE_ID = 'backups'
 const UNITS: BackupUnit[] = ['hour', 'day', 'week']
@@ -20,11 +20,12 @@ const UNITS: BackupUnit[] = ['hour', 'day', 'week']
 /** Browser dev server: fictional, kept in memory. */
 const SAMPLE_FOLDER = 'C:\\Users\\sample\\OneDrive\\MonoRail backups'
 let sample: BackupStatus = {
-  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true } },
+  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true, notes: true } },
   pages: [
     { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.', folder: null, repos: 1 },
     { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
   ],
 }
 function sampleSave(s: GlobalBackupSettings): BackupStatus {
@@ -54,7 +55,7 @@ const call = <T,>(method: string, args?: unknown): Promise<T> =>
 
 const same = (a: GlobalBackupSettings, b: GlobalBackupSettings) =>
   a.enabled === b.enabled && a.folder === b.folder && a.times === b.times && a.unit === b.unit && a.keep === b.keep &&
-  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards
+  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards && a.items.notes === b.items.notes
 
 const clamp = (v: string, max: number) => Math.max(1, Math.min(max, Math.trunc(Number(v)) || 1))
 const joinPath = (folder: string, id: string) => `${folder.replace(/[\\/]+$/, '')}${folder.includes('/') && !folder.includes('\\') ? '/' : '\\'}${id}`
@@ -216,7 +217,7 @@ export function BackupsCard({ className }: { className?: string }) {
 function PageRow({ page, form, onInclude }: { page: BackupPageStatus; form: GlobalBackupSettings; onInclude: (v: boolean) => void }) {
   const preview = form.folder ? joinPath(form.folder, page.id) : `[backup folder]\\${page.id}`
   const githubPlus = page.id === 'github-plus'
-  const included = githubPlus || form.items[page.id as 'jira-plus' | 'flashcards']
+  const included = githubPlus || form.items[page.id as GlobalItem]
   const last = page.lastResult
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3', !included && 'opacity-60')}>
