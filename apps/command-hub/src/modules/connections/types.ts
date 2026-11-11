@@ -47,7 +47,8 @@ export interface ConnectionStatus {
   /** Claude only: how the login is billed. */
   account?: ClaudeAccount
   added: boolean
-  checkedAt: string
+  /** Unset when nothing has been checked (a connector that is not set up). */
+  checkedAt?: string
 }
 
 export interface ConnectionJob {

@@ -306,7 +306,17 @@ entry; Agents > Characters is the gallery.
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
 `ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
-again" that run as polled jobs, and an optional `credentials()`. Other
+again" that run as polled jobs, and an optional `credentials()`. **Opt-in, always:** a
+connector runs nothing (no `status()`, action, process, file probe or network
+call) until the user sets it up; test users must never have MonoRail probing
+tools or accounts they did not ask about. `createConnections` enforces it
+centrally (a check of a connector that is not added returns a "not set up"
+status without calling `status()`, `runAction` and `getCredentials` refuse,
+`claudeAccount()` is undefined), there is no startup check, and the page
+checks only added connections (on open, Check, Check all, and on window focus
+only after a sign-in started there). New connectors need nothing extra, but
+must not run code outside `status()`, actions, `credentials()`, `afterSave`
+and `afterRemove`. Other
 backends get credentials with `require('../connections/index.cjs').getCredentials(kind)`
 in the main process; the page never receives secrets. Secret fields are
 encrypted with safeStorage in `%APPDATA%\MonoRail\modules\connections`

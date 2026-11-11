@@ -235,6 +235,44 @@ test('checks are reused until forced or the connection changes', async () => {
   assert.equal(calls.at(-1).url, 'https://e.atlassian.net/rest/api/3/myself')
 })
 
+test('opt-in: nothing runs for a connector the user has not set up', async () => {
+  const { CONNECTORS } = require('./index.cjs')
+  const ran = []
+  const saved = CONNECTORS.map((c) => ({ c, status: c.status, credentials: c.credentials, runs: c.actions.map((a) => a.run) }))
+  for (const c of CONNECTORS) {
+    c.status = async () => ran.push(`${c.kind}.status`)
+    if (c.credentials) c.credentials = async () => ran.push(`${c.kind}.credentials`)
+    for (const a of c.actions) a.run = async () => ran.push(`${c.kind}.${a.id}`)
+  }
+  try {
+    const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { fetch: fakeFetch(ran) } })
+    for (const c of CONNECTORS) {
+      const s = await svc.check(c.kind)
+      assert.equal(s.added, false)
+      assert.equal(s.state, 'needs-setup')
+      assert.equal((await svc.check(c.kind, { force: true })).added, false, 'Check button too')
+      for (const a of c.actions) await assert.rejects(svc.runAction({ kind: c.kind, action: a.id }), /Set up/)
+      if (c.credentials) await assert.rejects(svc.getCredentials(c.kind), /Set up/)
+    }
+    assert.equal(await svc.claudeAccount(), undefined)
+    assert.deepEqual(ran, [], 'no status(), action or credentials() ran')
+    // Setting one up is the opt-in: only that one runs.
+    await svc.save({ kind: 'git' })
+    assert.deepEqual(ran, ['git.status'])
+  } finally {
+    for (const { c, status, credentials, runs } of saved) {
+      c.status = status
+      if (credentials) c.credentials = credentials
+      c.actions.forEach((a, i) => (a.run = runs[i]))
+    }
+  }
+})
+
+test('opt-in: the Connections backend checks nothing on startup', () => {
+  const backend = require('../modules/connections.cjs')
+  assert.equal(backend.start, undefined)
+})
+
 // ---------- pi ----------
 
 const pi = require('./connectors/pi.cjs')._internal
