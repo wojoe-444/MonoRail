@@ -158,11 +158,11 @@ describe('MonoRail read tools', () => {
     server = createServer({ rootDir: root })
   })
 
-  it('marks every tool read-only', async () => {
+  it('marks every read tool read-only', async () => {
     const r = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     assert.ok(r.result.tools.length >= 9)
     for (const t of r.result.tools) {
-      assert.equal(t.annotations.readOnlyHint, true, t.name)
+      assert.equal(t.annotations.readOnlyHint, !/^(create|comment)_/.test(t.name), t.name)
       assert.equal(t.inputSchema.type, 'object', t.name)
       assert.match(t.name, /^[a-z_]+$/)
     }
@@ -242,6 +242,75 @@ describe('MonoRail read tools', () => {
     const r = await call(server, 'list_chat_sessions', {})
     assert.equal(r.isError, false, r.text)
     assert.ok(Array.isArray(r.value.sessions))
+  })
+})
+
+describe('write tools and consent', () => {
+  const access = require('./access.cjs')
+  let server
+  const init = (srv, name) => srv.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name, version: '1.2.3' } } })
+
+  before(async () => {
+    server = createServer({ rootDir: root })
+    await init(server, 'test-agent')
+  })
+
+  it('lists write tools as not read-only', async () => {
+    const r = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    const create = r.result.tools.find((t) => t.name === 'create_github_plus_issue')
+    assert.equal(create.annotations.readOnlyHint, false)
+  })
+
+  it('records a new agent with nothing allowed and refuses its writes', async () => {
+    const a = await access.readAccess(root)
+    assert.deepEqual(a.agents['test-agent'].allow, {})
+    assert.equal(a.agents['test-agent'].version, '1.2.3')
+    const r = await call(server, 'create_github_plus_issue', { repo: 'demo-repo', title: 'From an agent' })
+    assert.equal(r.isError, true)
+    assert.match(r.text, /has not allowed "test-agent"/)
+    assert.equal((await issues.listIssues(repo, 'all')).length, 2)
+  })
+
+  it('runs a write the user allowed, for that agent and tool only', async () => {
+    await access.setAllowed(root, 'test-agent', 'create_github_plus_issue', true)
+    const r = await call(server, 'create_github_plus_issue', { repo: 'demo-repo', title: 'From an agent', body: 'Hello' })
+    assert.equal(r.isError, false, r.text)
+    assert.equal(r.value.number, 3)
+    // Another tool, and another agent, are still refused.
+    assert.equal((await call(server, 'comment_github_plus_issue', { repo: 'demo-repo', number: 3, body: 'x' })).isError, true)
+    const other = createServer({ rootDir: root })
+    await init(other, 'other-agent')
+    assert.equal((await call(other, 'create_github_plus_issue', { repo: 'demo-repo', title: 'Nope' })).isError, true)
+    // Turning it off applies at once.
+    await access.setAllowed(root, 'test-agent', 'create_github_plus_issue', false)
+    assert.equal((await call(server, 'create_github_plus_issue', { repo: 'demo-repo', title: 'Again' })).isError, true)
+  })
+
+  it('writes Jira+ local issues and comments when allowed', async () => {
+    await access.setAllowed(root, 'test-agent', 'create_jira_plus_issue', true)
+    await access.setAllowed(root, 'test-agent', 'comment_jira_plus_issue', true)
+    const created = await call(server, 'create_jira_plus_issue', { project: 'ME', summary: 'Agent task', type: 'Bug' })
+    assert.equal(created.value.key, 'ME-3')
+    assert.equal((await call(server, 'comment_jira_plus_issue', { key: 'ME-3', body: 'Done soon.' })).isError, false)
+    assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no local Jira\+ project/)
+    assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no local Jira\+ issue/)
+  })
+
+  it('logs every call with what a write did, and no arguments', async () => {
+    const log = await access.readAudit(root)
+    const ok = log.find((e) => e.tool === 'create_github_plus_issue' && e.ok)
+    assert.equal(ok.agent, 'test-agent')
+    assert.equal(ok.write, true)
+    assert.match(ok.did, /Created issue #3 "From an agent" in demo-repo/)
+    assert.ok(log.some((e) => e.tool === 'create_github_plus_issue' && !e.ok && /not allowed/.test(e.error)))
+    assert.ok(log.some((e) => e.tool === 'usage_summary' && e.write === false))
+    assert.doesNotMatch(fs.readFileSync(path.join(root, 'modules', 'mcp', 'audit.jsonl'), 'utf8'), /Hello/)
+  })
+
+  it('keeps agent names tidy', () => {
+    assert.equal(access.cleanName(''), 'unknown agent')
+    assert.equal(access.cleanName('a\u0000b'), 'ab')
+    assert.equal(access.cleanName('x'.repeat(500)).length, 100)
   })
 })
 

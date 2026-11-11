@@ -10,10 +10,10 @@ import type { ModuleDefinition } from '../types'
 export const mcpModule: ModuleDefinition = {
   id: 'mcp',
   title: 'Agent access',
-  description: 'Let Claude Code and other agents read MonoRail through its MCP server.',
+  description: 'Let Claude Code and other agents use MonoRail through its MCP server.',
   icon: Plug,
   path: '/mcp',
   nav: { section: 'Configure', order: 110 },
   component: lazy(() => import('./McpPage')),
-  dataMethods: ['getSetup'],
+  dataMethods: ['getSetup', 'getAccess', 'setAllowed', 'forgetAgent', 'getAudit', 'clearAudit'],
 }

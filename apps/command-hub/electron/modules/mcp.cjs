@@ -1,11 +1,13 @@
 // Agent access backend: what the page needs to connect an agent to MonoRail's
 // MCP server (electron/mcp): the command to run, ready-made config for common
-// agents, and the tools the server offers. Nothing here runs the server; the
-// agent starts it as its own subprocess.
+// agents, the tools the server offers, which write tools each agent may use
+// (access.json) and the log of calls (audit.jsonl). Nothing here runs the
+// server; the agent starts it as its own subprocess.
 
 const path = require('node:path')
 
-const { readTools } = require('../mcp/tools.cjs')
+const access = require('../mcp/access.cjs')
+const { readTools, writeTools } = require('../mcp/tools.cjs')
 const { SERVER } = require('../mcp/launch.cjs')
 
 /**
@@ -31,6 +33,17 @@ function snippets({ command, args, env }) {
   }
 }
 
+async function accessView(ctx) {
+  const { agents } = await access.readAccess(ctx.rootDir)
+  const writes = writeTools({ rootDir: ctx.rootDir }).map((t) => ({ name: t.name, title: t.title }))
+  return {
+    writeTools: writes,
+    agents: Object.entries(agents)
+      .map(([name, a]) => ({ name, title: a.title, version: a.version, firstSeen: a.firstSeen, allow: writes.filter((t) => a.allow?.[t.name] === true).map((t) => t.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }
+}
+
 module.exports = {
   id: 'mcp',
   methods: {
@@ -42,7 +55,7 @@ module.exports = {
         serverFile: path.basename(SERVER),
         dataDir: ctx.rootDir,
         snippets: snippets(launch),
-        tools: readTools({ rootDir: ctx.rootDir }).map((t) => ({
+        tools: [...readTools({ rootDir: ctx.rootDir }), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
           name: t.name,
           title: t.title,
           description: t.description,
@@ -50,6 +63,20 @@ module.exports = {
         })),
       }
     },
+    /** Agents that have connected, and which write tools each may use. */
+    getAccess: (ctx) => accessView(ctx),
+    async setAllowed(ctx, args) {
+      const tools = new Set(writeTools({ rootDir: ctx.rootDir }).map((t) => t.name))
+      if (typeof args?.agent !== 'string' || !tools.has(args?.tool)) throw new Error('Unknown agent or tool')
+      await access.setAllowed(ctx.rootDir, args.agent, args.tool, !!args.allowed)
+      return accessView(ctx)
+    },
+    async forgetAgent(ctx, args) {
+      if (typeof args?.agent === 'string') await access.forgetAgent(ctx.rootDir, args.agent)
+      return accessView(ctx)
+    },
+    getAudit: (ctx, args) => access.readAudit(ctx.rootDir, { limit: Math.min(Math.max(Number(args?.limit) || 200, 1), 1000) }),
+    clearAudit: (ctx) => access.clearAudit(ctx.rootDir),
   },
-  _internal: { launchCommand, snippets },
+  _internal: { launchCommand, snippets, accessView },
 }

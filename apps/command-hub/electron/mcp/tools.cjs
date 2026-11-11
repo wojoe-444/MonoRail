@@ -12,8 +12,15 @@
 //   get_jira_plus_issue
 //   connection_status        Connections' last check per account (no secrets)
 //
-// Rules: nothing here returns a secret or a token, writes a file, or makes a
-// network request. Repos and folders are the ones the user already allowed in
+// Write tools (writeTools below) are off for every agent until the user turns
+// them on per agent on the Agent access page (access.cjs), and every call is
+// in the audit log:
+//
+//   create_github_plus_issue, comment_github_plus_issue
+//   create_jira_plus_issue, comment_jira_plus_issue
+//
+// Rules: nothing here returns a secret or a token or makes a network request,
+// and no read tool writes a file. Repos and folders are the ones the user already allowed in
 // MonoRail (GitHub+ recents, Chat's allowed folders); an agent cannot name
 // another path.
 
@@ -314,4 +321,114 @@ function readTools({ rootDir }) {
   ]
 }
 
-module.exports = { readTools, folders }
+const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+const NOTE = ' Off until the user allows it for this agent in MonoRail (Configure > Agent access); every call is logged there.'
+
+/** The write tools. The server checks consent before each call (protocol.cjs authorize). */
+function writeTools({ rootDir }) {
+  const dir = folders(rootDir)
+
+  return [
+    {
+      name: 'create_github_plus_issue',
+      title: 'Raise a GitHub+ local issue',
+      description: 'Create a local issue in a GitHub+ repo (stored in the repo under refs/local-issues, never pushed). Markdown body.' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo: { type: 'string', maxLength: 1024, description: 'Repo folder name or full path.' },
+          title: { type: 'string', maxLength: 256 },
+          body: { type: 'string', maxLength: 65536, description: 'Markdown.' },
+        },
+        required: ['repo', 'title'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ repo, title, body = '' }, ctx) {
+        const p = await githubRepo(dir.githubPlus, repo)
+        const issue = await issues.createIssue(p, { title, body })
+        ctx.did(`Created issue #${issue.number} "${issue.title}" in ${path.basename(p)}`)
+        return { repo: p, number: issue.number, title: issue.title, state: issue.state }
+      },
+    },
+    {
+      name: 'comment_github_plus_issue',
+      title: 'Comment on a GitHub+ local issue',
+      description: 'Add a comment to a local issue in a GitHub+ repo. Markdown body.' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo: { type: 'string', maxLength: 1024, description: 'Repo folder name or full path.' },
+          number: { type: 'integer', minimum: 1 },
+          body: { type: 'string', maxLength: 65536, description: 'Markdown.' },
+        },
+        required: ['repo', 'number', 'body'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ repo, number, body }, ctx) {
+        const p = await githubRepo(dir.githubPlus, repo)
+        await issues.addComment(p, number, { body })
+        ctx.did(`Commented on issue #${number} in ${path.basename(p)}`)
+        return { repo: p, number, commented: true }
+      },
+    },
+    {
+      name: 'create_jira_plus_issue',
+      title: 'Raise a Jira+ local issue',
+      description: 'Create an issue in one of the user\'s private local Jira+ projects (never team Jira).' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', maxLength: 10, description: 'Project key, e.g. "ME".' },
+          summary: { type: 'string', maxLength: 256 },
+          description: { type: 'string', maxLength: 65536 },
+          type: { type: 'string', enum: ['Task', 'Bug', 'Story', 'Spike'] },
+          priority: { type: 'string', enum: ['Highest', 'High', 'Medium', 'Low', 'Lowest'] },
+        },
+        required: ['project', 'summary'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ project, summary, description = '', type, priority }, ctx) {
+        const key = project.toUpperCase()
+        if (!JIRA_PROJECT.test(key)) throw new Error('Project keys are 2 to 10 letters or digits and start with a letter.')
+        const store = jiraStore(dir.jiraPlus)
+        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', key, 'project.json'))) throw new Error(`There is no local Jira+ project ${key}.`)
+        const issue = await store.createIssue({ projectKey: key, summary, description, type, priority })
+        ctx.did(`Created ${issue.key} "${issue.summary}"`)
+        return { key: issue.key, summary: issue.summary, status: issue.status, type: issue.type, priority: issue.priority }
+      },
+    },
+    {
+      name: 'comment_jira_plus_issue',
+      title: 'Comment on a Jira+ local issue',
+      description: 'Add a comment to an issue in a local Jira+ project.' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', maxLength: 20, description: 'Issue key, e.g. "ME-4".' },
+          body: { type: 'string', maxLength: 65536 },
+        },
+        required: ['key', 'body'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ key, body }, ctx) {
+        const k = key.toUpperCase()
+        if (!JIRA_ISSUE.test(k)) throw new Error('Issue keys look like ME-4.')
+        const store = jiraStore(dir.jiraPlus)
+        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', k.split('-')[0], 'issues', `${k}.json`))) throw new Error(`There is no local Jira+ issue ${k}.`)
+        await store.addComment({ key: k, body })
+        ctx.did(`Commented on ${k}`)
+        return { key: k, commented: true }
+      },
+    },
+  ]
+}
+
+module.exports = { readTools, writeTools, folders }

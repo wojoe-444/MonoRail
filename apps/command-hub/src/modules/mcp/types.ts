@@ -16,3 +16,30 @@ export interface McpSetup {
   snippets: { claudeCode: string; json: string }
   tools: McpTool[]
 }
+
+/** One agent that has connected to the server (access.json). */
+export interface McpAgent {
+  name: string
+  title?: string
+  version?: string
+  firstSeen: string
+  /** Write tools this agent may use. */
+  allow: string[]
+}
+
+export interface McpAccess {
+  writeTools: { name: string; title: string }[]
+  agents: McpAgent[]
+}
+
+/** One line of the audit log (audit.jsonl), newest first. */
+export interface McpAuditEntry {
+  at: string
+  agent: string
+  tool: string
+  write: boolean
+  ok: boolean
+  ms: number
+  error?: string
+  did?: string
+}

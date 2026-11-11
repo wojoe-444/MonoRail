@@ -5,9 +5,13 @@
 // Spec: https://modelcontextprotocol.io/specification (2025-06-18, with the
 // two earlier versions still accepted).
 //
-// A tool is { name, title, description, inputSchema, annotations?, handler }.
-// handler(args) returns any JSON value; it is sent back as JSON text. A thrown
-// error becomes a tool result with isError, so the agent sees the message.
+// A tool is { name, title, description, inputSchema, annotations?, write?, handler }.
+// handler(args, ctx) returns any JSON value; it is sent back as JSON text. A
+// thrown error becomes a tool result with isError, so the agent sees the
+// message. ctx = { agent, did(text) }: agent is the name the client gave in
+// initialize (after onInitialize), did() records a one-line description of
+// what a write changed, for the audit log. authorize({ tool, agent }) runs
+// before every write tool and throws to refuse it.
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 const MAX_RESULT_CHARS = 400_000
@@ -58,9 +62,12 @@ function textResult(value, isError = false) {
 }
 
 /**
- * @param {{ name: string, version: string, instructions?: string, tools: any[], onCall?: (info: { tool: string, ok: boolean, ms: number, error?: string }) => void }} opts
+ * @param {{ name: string, version: string, instructions?: string, tools: any[],
+ *   onCall?: (info: { tool: string, agent: string, write: boolean, ok: boolean, ms: number, error?: string, did?: string }) => void | Promise<void>,
+ *   onInitialize?: (clientInfo: unknown) => Promise<string> | string,
+ *   authorize?: (info: { tool: string, agent: string }) => Promise<void> | void }} opts
  */
-function createMcpServer({ name, version, instructions, tools, onCall = () => {} }) {
+function createMcpServer({ name, version, instructions, tools, onCall = () => {}, onInitialize, authorize }) {
   const byName = new Map(tools.map((t) => [t.name, t]))
   if (byName.size !== tools.length) throw new Error('Duplicate MCP tool name')
 
@@ -72,24 +79,42 @@ function createMcpServer({ name, version, instructions, tools, onCall = () => {}
     ...(annotations ? { annotations } : {}),
   }))
 
+  let agent = 'unknown agent'
+
+  /** onCall may be async (the audit log); its failure never changes the result. */
+  async function report(info) {
+    try {
+      await onCall(info)
+    } catch {
+      // logged by the caller's own handler, if at all
+    }
+  }
+
   async function callTool(params) {
     const tool = typeof params?.name === 'string' && byName.has(params.name) ? byName.get(params.name) : undefined
     if (!tool) throw Object.assign(new Error(`Unknown tool: ${params?.name}`), { code: ERR.invalidParams })
     const started = Date.now()
+    const write = !!tool.write
+    let did
     try {
       const args = checkArgs(tool.inputSchema, params.arguments)
-      const value = await tool.handler(args)
-      onCall({ tool: tool.name, ok: true, ms: Date.now() - started })
+      if (write) {
+        if (!authorize) throw new Error('Write tools are turned off.')
+        await authorize({ tool: tool.name, agent })
+      }
+      const value = await tool.handler(args, { agent, did: (text) => (did = String(text).slice(0, 300)) })
+      await report({ tool: tool.name, agent, write, ok: true, ms: Date.now() - started, did })
       return textResult(value)
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      onCall({ tool: tool.name, ok: false, ms: Date.now() - started, error: message })
+      await report({ tool: tool.name, agent, write, ok: false, ms: Date.now() - started, error: message })
       return textResult(message, true)
     }
   }
 
   const methods = {
-    initialize: (params) => {
+    initialize: async (params) => {
+      if (onInitialize) agent = (await onInitialize(params?.clientInfo)) || agent
       const asked = params?.protocolVersion
       return {
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
