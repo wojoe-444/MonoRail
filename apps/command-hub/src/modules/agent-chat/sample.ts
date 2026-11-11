@@ -163,6 +163,7 @@ export const sampleComposer: ComposerInfo = {
     { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
   ],
   efforts: ['default', 'low', 'medium', 'high', 'xhigh', 'max'],
+  coordinator: { ready: false, reason: 'Sending works in the desktop app.' },
   repos: sampleFolders.repos.map((r) => ({ name: r.name, path: r.path })),
 }
 

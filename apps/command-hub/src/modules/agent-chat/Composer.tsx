@@ -80,6 +80,7 @@ export function Composer({
   prefs,
   source,
   isNew,
+  coordinator,
   repo,
   onRepo,
   branch,
@@ -95,6 +96,8 @@ export function Composer({
   /** The chat's SDK; a chat that has started keeps it. */
   source: SessionSource
   isNew: boolean
+  /** A coordinator chat: delegate and workflow only, on Claude. */
+  coordinator?: boolean
   repo?: string
   onRepo?: (path: string) => void
   branch?: string
@@ -136,7 +139,9 @@ export function Composer({
       ? (sdk?.reason ?? 'Sending is not available.')
       : isNew && !repo
         ? 'Pick a project for this chat first.'
-        : prefs.mode === 'ask'
+        : coordinator
+          ? 'Tell the coordinator what you need. It can only delegate to subagents and run workflows.'
+          : prefs.mode === 'ask'
           ? 'Ask about this repo. Ask mode only reads files.'
           : source === 'pi'
             ? 'Tell pi what to do. It can read, edit and write files inside this repo.'
@@ -204,7 +209,11 @@ export function Composer({
 
         {/* Status bar */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
-          {isNew ? (
+          {coordinator ? (
+            <span className="inline-flex items-center gap-1 rounded-md bg-primary-soft px-2 py-0.5 text-primary-soft-foreground">
+              Coordinator: delegate and workflow only
+            </span>
+          ) : isNew ? (
             <NativeSelect
               aria-label="Project"
               value={repo ?? ''}
@@ -227,17 +236,19 @@ export function Composer({
               </span>
             )
           )}
-          <SdkToggle info={info} source={source} locked={!isNew} onChange={prefs.setNewSdk} />
-          <Segmented<ChatMode>
-            aria-label="Mode"
-            value={prefs.mode}
-            onChange={prefs.setMode}
-            className="h-7 [&>button]:h-5 [&>button]:px-2 [&>button]:text-xs"
-            options={[
-              { value: 'ask', label: 'Ask' },
-              { value: 'agent', label: 'Agent' },
-            ]}
-          />
+          {!coordinator && <SdkToggle info={info} source={source} locked={!isNew} onChange={prefs.setNewSdk} />}
+          {!coordinator && (
+            <Segmented<ChatMode>
+              aria-label="Mode"
+              value={prefs.mode}
+              onChange={prefs.setMode}
+              className="h-7 [&>button]:h-5 [&>button]:px-2 [&>button]:text-xs"
+              options={[
+                { value: 'ask', label: 'Ask' },
+                { value: 'agent', label: 'Agent' },
+              ]}
+            />
+          )}
           <Segmented<ChatView>
             aria-label="View"
             value={prefs.view}
@@ -411,7 +422,17 @@ export function TurnFooter({ turn }: { turn: LiveTurn }) {
   )
 }
 
-export function NewChatEmpty({ repoName, sdk }: { repoName?: string; sdk: SessionSource }) {
+export function NewChatEmpty({ repoName, sdk, coordinator }: { repoName?: string; sdk: SessionSource; coordinator?: boolean }) {
+  if (coordinator) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="font-medium">New coordinator chat</div>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Runs your coordinator subagent in MonoRail&apos;s own folder. It can only delegate to subagents and run workflows, with no MCP servers.
+        </p>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">

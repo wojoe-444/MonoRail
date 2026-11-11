@@ -225,6 +225,15 @@ folder from the main process, external diff/textconv/fsmonitor off, diff cut
 at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
 "Open in new tab" going to the system browser.
 
+**Coordinator** (pinned above the chat list): opens the latest coordinator
+chat or starts one. It runs the user's `coordinator` subagent
+(`~/.claude/agents/coordinator.md`, found by `findCoordinator`) with the
+`agent` option, in the module's own `coordinator` folder in its data folder,
+with tools limited to `Agent` and `Workflow`, `dontAsk` and no MCP servers.
+Claude only: pi has no subagents, so a coordinator job on pi is refused. Its
+chats are listed apart, first. Without the subagent the entry is greyed out
+with the reason.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
