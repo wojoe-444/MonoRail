@@ -53,7 +53,7 @@ Every tool returns JSON text. Read tools are always available; write tools need 
 | `list_jira_plus_projects` | Your private local Jira+ projects | Jira+'s local repo in the data folder |
 | `list_jira_plus_issues` | Issues of one local project, optionally by status category | Jira+'s local repo |
 | `get_jira_plus_issue` | One local issue with comments and history | Jira+'s local repo |
-| `connection_status` | State and one-line summary of each connection, and when it was checked | Connections' last check, saved after every check and once at startup |
+| `connection_status` | State and one-line summary of each connection, and when it was checked | Connections' last check, saved after every check. Only connections the user has set up are ever checked; nothing is checked at startup |
 | `check_coordinator_reply` | The coordinator's reply to an `ask_coordinator` call that was still running | Only turns this same connection started |
 
 Results that come from a cache say when they were built. A repo is named by its folder name or by the full path `list_github_plus_repos` returns. Team Jira Cloud issues are not available through the server.

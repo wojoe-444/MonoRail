@@ -28,6 +28,13 @@
 //
 // Other backends reach a connection through getCredentials(kind) below, in
 // the main process. The page only ever sees describe-level data.
+//
+// Opt-in: a connector runs nothing (no status(), no actions, no process, no
+// file probe, no network call) until the user sets it up on the page. A
+// check of a connector that is not added returns NOT_ADDED without calling
+// status(), runAction refuses, and nothing checks connections on startup.
+// Test users must never have MonoRail probing tools or accounts they did
+// not ask it to look at.
 
 const path = require('node:path')
 
@@ -46,6 +53,17 @@ const CONNECTORS = [
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
 const OUTPUT_LIMIT = 8_000
+
+/** The status of a connector the user has not set up. Nothing was run to make it. */
+function notAdded() {
+  return {
+    state: 'needs-setup',
+    summary: 'Not set up. MonoRail checks nothing until you set it up.',
+    details: [],
+    added: false,
+    checkedAt: undefined,
+  }
+}
 
 function connectorOf(kind) {
   const c = typeof kind === 'string' ? byKind.get(kind) : undefined
@@ -89,6 +107,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
   async function check(kind, { force = false } = {}) {
     const c = connectorOf(kind)
     const conn = await store.get(kind)
+    if (!conn) return notAdded()
     const definition = { added: !!conn, values: conn?.values ?? {} }
     const result = await checks.get(
       kind,
@@ -195,6 +214,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       const running = jobs.get(kind)
       if (running?.state === 'running') return publicJob(running)
       const conn = await store.get(kind)
+      if (!conn) throw new Error(`Set up ${c.title} first. MonoRail runs nothing for a connection you have not added.`)
       const job = {
         id: ++jobSeq,
         kind,
@@ -250,8 +270,11 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
      * with the user's override applied. Anything that shows Claude costs
      * should use it: Enterprise and API logins bill at API prices, a
      * subscription does not bill per token. Reuses a recent check.
+     * Undefined until the user has set up the Claude connection: nothing is
+     * run to find out otherwise.
      */
     async claudeAccount() {
+      if (!(await store.get('claude'))) return undefined
       const s = await check('claude')
       return s.account
     },
@@ -260,7 +283,9 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
     async getCredentials(kind) {
       const c = connectorOf(kind)
       if (typeof c.credentials !== 'function') throw new Error(`${c.title} does not provide credentials.`)
-      return c.credentials(await store.get(kind), deps)
+      const conn = await store.get(kind)
+      if (!conn) throw new Error(`Set up ${c.title} on the Connections page first.`)
+      return c.credentials(conn, deps)
     },
 
     /** Generic Credential Manager entries (names only), for the entry picker. */
@@ -301,4 +326,4 @@ function claudeAccount() {
   return connections().claudeAccount()
 }
 
-module.exports = { connections, getCredentials, claudeAccount, createConnections, CONNECTORS }
+module.exports = { connections, getCredentials, claudeAccount, createConnections, CONNECTORS, notAdded }

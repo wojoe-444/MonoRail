@@ -98,10 +98,12 @@ export default function ConnectionsPage() {
     }
   }, [desktop])
 
-  // First load: list, then check every connector (added ones show their
-  // status, the others show what was detected before they are added).
+  // First load: list, then check the connections the user has set up (a
+  // recent result is reused). Connectors that are not set up are never
+  // checked: MonoRail runs nothing for a tool or account the user has not
+  // asked it to look at.
   useEffect(() => {
-    void load().then((l) => l?.connectors.forEach((c) => void check(c.kind)))
+    void load().then((l) => l?.connections.forEach((c) => void check(c.kind)))
   }, [load, check])
 
   // Poll running jobs (sign-ins) and re-check when one finishes.
@@ -122,16 +124,22 @@ export default function ConnectionsPage() {
     return () => clearInterval(t)
   }, [runningKinds, check])
 
-  // Coming back to the window (e.g. after signing in in a terminal or the
-  // browser) re-checks whatever was not connected.
+  // Coming back to the window after a sign-in the user started here (in a
+  // terminal or the browser) re-checks that connection while it is not
+  // connected. Nothing else is re-checked on focus.
   const statusesRef = useRef(statuses)
+  const signingIn = useRef(new Set<string>())
   useEffect(() => {
     statusesRef.current = statuses
   })
   useEffect(() => {
     if (!desktop) return
     const onFocus = () => {
-      for (const [kind, s] of Object.entries(statusesRef.current)) if (s.state !== 'ok') void check(kind, true)
+      for (const kind of signingIn.current) {
+        const s = statusesRef.current[kind]
+        if (s?.state === 'ok' || !s?.added) signingIn.current.delete(kind)
+        else void check(kind, true)
+      }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -139,6 +147,7 @@ export default function ConnectionsPage() {
 
   async function runAction(kind: string, action: string) {
     if (!desktop) return
+    signingIn.current.add(kind)
     try {
       const job = await invokeModule<ConnectionJob>(MODULE_ID, 'runAction', { kind, action })
       setJobs((all) => ({ ...all, [kind]: job }))
@@ -174,6 +183,7 @@ export default function ConnectionsPage() {
   const yours = topLevel.filter((c) => added.has(c.kind))
   const available = topLevel.filter((c) => !added.has(c.kind))
   const addedSubs = (list?.connectors ?? []).filter((c) => c.parent && added.has(c.kind))
+  const addedKinds = [...yours, ...addedSubs].map((c) => c.kind)
   const needsAttention = [...yours, ...addedSubs].filter((c) => statuses[c.kind] && statuses[c.kind].state !== 'ok').length
 
   /** A connector's subconnectors, drawn inside its card. */
@@ -195,7 +205,6 @@ export default function ConnectionsPage() {
         <AvailableCard
           key={c.kind}
           connector={c}
-          detected={statuses[c.kind]}
           busy={!!checking[c.kind]}
           nested={nested}
           onAdd={() => (c.fields.length ? setEditing(c) : void addWithoutFields(c.kind))}
@@ -231,7 +240,12 @@ export default function ConnectionsPage() {
         title="Connections"
         description="Accounts MonoRail signs in with, and whether each one still works. Secrets stay encrypted on this PC."
         actions={
-          <Button variant="outline" onClick={() => list?.connectors.forEach((c) => void check(c.kind, true))} disabled={!desktop || Object.values(checking).some(Boolean)}>
+          <Button
+            variant="outline"
+            onClick={() => addedKinds.forEach((kind) => void check(kind, true))}
+            disabled={!desktop || !addedKinds.length || Object.values(checking).some(Boolean)}
+            title="Checks the connections you have set up"
+          >
             <RefreshCw className={cn(Object.values(checking).some(Boolean) && 'animate-spin')} /> Check all
           </Button>
         }
@@ -264,6 +278,9 @@ export default function ConnectionsPage() {
       {available.length > 0 && (
         <section className="flex flex-col gap-4">
           <SectionHeading title={yours.length ? 'Add a connection' : 'Set up a connection'} />
+          <p className="-mt-2 text-sm text-muted-foreground">
+            MonoRail does not look for these tools or accounts on this PC until you set one up. Setting up runs its check; nothing runs for the others.
+          </p>
           <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 2xl:grid-cols-3">
             {available.map((c) => renderCard(c))}
           </div>
@@ -309,8 +326,8 @@ export default function ConnectionsPage() {
                   setLoadError(message(e))
                 }
                 setStatuses(({ [kind]: _gone, ...rest }) => rest)
+                signingIn.current.delete(kind)
                 await load()
-                void check(kind, true)
               }}
             >
               <Trash2 /> Remove
@@ -463,10 +480,12 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
               </dl>
             )}
           </>
-        ) : (
+        ) : checking ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Checking…
           </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Not checked yet.</div>
         )}
 
         {job && <JobPanel job={job} onCancel={onCancel} />}
@@ -587,16 +606,14 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
 
 interface AvailableCardProps {
   connector: Connector
-  detected?: ConnectionStatus
   busy: boolean
   onAdd: () => void
   nested?: boolean
   children?: React.ReactNode
 }
 
-function AvailableCard({ connector, detected, busy, onAdd, nested, children }: AvailableCardProps) {
-  // For detect-only connectors (no fields) and subconnectors, show what was found on this PC.
-  const showDetected = detected && (connector.fields.length === 0 || detected.account || nested)
+/** A connector that is not set up. Nothing has been checked for it, so it shows no status. */
+function AvailableCard({ connector, busy, onAdd, nested, children }: AvailableCardProps) {
   return (
     <Card className={cn('gap-4', nested && NESTED_CARD)}>
       <CardContent className="flex flex-col gap-4">
@@ -607,14 +624,6 @@ function AvailableCard({ connector, detected, busy, onAdd, nested, children }: A
             <div className="mt-1 text-sm text-muted-foreground">{connector.description}</div>
           </div>
         </div>
-        {showDetected && (
-          <div className="flex items-center gap-2 text-sm">
-            <StateBadge status={detected} checking={busy} />
-            {detected.account && <ClaudeAccountBadge account={detected.account} />}
-            <span className="min-w-0 truncate text-muted-foreground">{detected.summary}</span>
-          </div>
-        )}
-        {showDetected && detected.account && <p className="text-xs text-muted-foreground">{detected.account.billing} Set up to change the account type.</p>}
         <div>
           <Button onClick={onAdd} disabled={busy || !isDesktop()}>
             {busy ? <Loader2 className="animate-spin" /> : <Plus />} Set up
