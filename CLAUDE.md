@@ -424,9 +424,12 @@ folders, install and updater cache; Claude Code, Claude desktop, pi, Repos;
 npm/pnpm/Yarn/Bun/pip/Playwright/Electron caches; Temp, Downloads,
 hiberfil/pagefile), all built from environment folders. Folders are measured
 only when the user presses Scan (45 s per folder, links and junctions never
-followed) and the result is kept in memory only. It is **read-only**: it never
-deletes, moves, renames or copies anything (a test greps the backend for write
-calls); actions only open a folder in Explorer by location id or the Windows
+followed). Each finished scan, and a drives-only sample every 6 hours while the
+app runs (`start(ctx)`), is saved to the `storage.history` cache
+(`history.json`, newest 500) for the "Over time" card and the per-folder change
+since the previous scan; after a restart the last saved scan is shown. It
+never deletes, moves, renames or copies anything it measures (a test greps the
+backend for write calls; history goes through the cache primitive); actions only open a folder in Explorer by location id or the Windows
 storage settings. Any future cleanup must be explicit, confirmed per item, and
 limited to caches marked safe.
 
