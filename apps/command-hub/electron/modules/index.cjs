@@ -20,6 +20,7 @@ const path = require('node:path')
 const { app, ipcMain } = require('electron')
 
 const moduleBackends = [
+  require('./agent-catalog.cjs'),
   require('./agent-chat.cjs'),
   require('./agents.cjs'),
   require('./backups.cjs'),

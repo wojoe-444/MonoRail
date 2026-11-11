@@ -286,11 +286,27 @@ files: it reuses Agent Chat's session list, composer info and running turns
 in process, reads the Claude Stats summary (never builds a report), and lists
 agent definitions (`agents-definitions.cjs`: Claude Code subagents in
 `.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
-`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+`~/.pi/agent/skills` / `.pi/skills`, pi subagents in `~/.pi/agent/agents` /
+`.pi/agents`, from the home folder and each allowed
 repo; frontmatter only, bodies on demand by id, never a path). Archived chats
 are left out. Quick launch and "Open" hand over to Chat with
 `openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
 handed-over prompt is prefilled in the composer, never sent by itself.
+
+**Agent Catalog** (`agent-catalog`, Agents > Catalog, docs:
+`docs/agent-catalog.md`): Claude Code subagents (`~/.claude/agents`,
+`<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
+`<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
+folder and Chat's allowed repos, plus the built-in coordinator (read-only,
+"Make my own copy"). A plain-language explainer per subagent
+(`src/modules/agent-catalog/explain.ts`: tools in words, strength, "It
+cannot") and create / edit / duplicate / delete
+(`electron/modules/agent-catalog.cjs`). The page names subagents by id and a
+save place as `user` or an allowed repo's name, never a path; the agents
+folder must resolve inside its base; edits refuse a file changed on disk since
+it was opened and never touch a linked file; unknown header fields are kept.
+Every edit or delete first copies the file to `backups/` in the module's data
+folder (newest 200). Nothing is cached.
 
 **Mochi crew** (`src/components/mochi/`, docs: `docs/mochi-crew.md`): agent
 characters in the K1 Mochi app-icon family (dough body, dot eyes, never a

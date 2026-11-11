@@ -9,7 +9,9 @@ const DAY = 24 * 60 * 60 * 1000
 export function sampleCatalog(now = Date.now()): CatalogData {
   return {
     generatedAt: now,
-    repos: ['demo-app', 'garden-planner', 'notes'],
+    truncated: false,
+    piExtension: true,
+    repos: ['demo-app', 'garden-planner', 'notes'].map((name) => ({ name, path: `/sample/${name}` })),
     subagents: sampleDetails(now).map(({ prompt: _prompt, ...s }) => s),
   }
 }
@@ -18,6 +20,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
   return [
     {
       id: 'sub_1',
+      tool: 'claude',
+      extraFields: [],
       scope: 'user',
       name: 'code-reviewer',
       description: 'Reviews a diff for correctness bugs and missing tests before a PR goes up. Use it after finishing a change.',
@@ -29,6 +33,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
     },
     {
       id: 'sub_2',
+      tool: 'claude',
+      extraFields: [],
       scope: 'project',
       repo: 'demo-app',
       name: 'test-writer',
@@ -41,6 +47,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
     },
     {
       id: 'sub_3',
+      tool: 'claude',
+      extraFields: [],
       scope: 'project',
       repo: 'garden-planner',
       name: 'migration-checker',
@@ -52,6 +60,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
     },
     {
       id: 'sub_4',
+      tool: 'claude',
+      extraFields: [],
       scope: 'user',
       name: 'docs-writer',
       description: 'Updates the README and docs after a feature lands, in plain language.',
@@ -63,6 +73,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
     },
     {
       id: 'sub_5',
+      tool: 'claude',
+      extraFields: [],
       scope: 'user',
       name: 'web-researcher',
       description: 'Looks up library docs and release notes online and reports back with links.',
@@ -74,6 +86,8 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
     },
     {
       id: 'sub_6',
+      tool: 'claude',
+      extraFields: [],
       scope: 'project',
       repo: 'notes',
       name: 'release-planner',
@@ -84,7 +98,34 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
       prompt: 'Plan the release as a numbered list of tasks.',
     },
     {
+      id: 'sub_7',
+      tool: 'pi',
+      extraFields: [],
+      scope: 'user',
+      name: 'scout',
+      description: 'Fast codebase recon that returns compressed context for handoff to other agents.',
+      model: 'claude-haiku-5-5',
+      tools: ['read', 'grep', 'find', 'ls'],
+      location: '~/.pi/agent/agents/scout.md',
+      updatedAt: now - 4 * DAY,
+      prompt: 'You are a scout. Quickly investigate a codebase and return structured findings that another agent can use without re-reading everything.',
+    },
+    {
+      id: 'sub_8',
+      tool: 'pi',
+      extraFields: [],
+      scope: 'project',
+      repo: 'garden-planner',
+      name: 'worker',
+      description: 'General-purpose helper with full capabilities, for well-scoped changes.',
+      location: '.pi/agents/worker.md',
+      updatedAt: now - 8 * DAY,
+      prompt: 'Make the change you are given, run the tests, and report what you changed.',
+    },
+    {
       id: 'builtin:coordinator',
+      tool: 'claude',
+      extraFields: [],
       scope: 'builtin',
       name: 'coordinator',
       description: "Coordinates your other agent chats from MonoRail. Used when you have no coordinator of your own.",

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ArrowLeft, Check, CircleSlash, Copy, FolderGit2, Lock, MessageSquarePlus, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2, User, Users } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, ArrowLeft, Check, CircleSlash, Copy, FolderGit2, FolderOpen, Loader2, Lock, MessageSquarePlus, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, User, Users, X } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { MOCHI_ROLES, AgentMochi, mochiRoleFor } from '@/components/mochi'
@@ -14,77 +14,125 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { Segmented } from '@/components/ui/segmented'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { isDesktop } from '@/modules/client'
 import { ChatMarkdown } from '@/modules/agent-chat/ChatMarkdown'
+import { openInChat } from '@/modules/agent-chat/handoff'
 
-import { EDITOR_TOOLS, MODEL_OPTIONS, NAME_RE, POWER_LABEL, TOOL_PRESETS, cannotDo, humanName, modelInfo, powerOf, toolInfo } from './explain'
-import { sampleDetails } from './sample'
-import type { SubagentDetail, SubagentDraft } from './types'
+import { createSubagent, getSubagent, openBackups, removeSubagent, updateSubagent, useCatalog } from './api'
+import { EDITOR_TOOLS, MODEL_OPTIONS, NAME_RE, POWER_LABEL, TOOL_LABEL, TOOL_PRESETS, cannotDo, humanName, modelInfo, powerOf, toolInfo } from './explain'
+import type { CatalogData, Subagent, SubagentDetail, SubagentDraft, SubagentTool } from './types'
 
 type View = { kind: 'list' } | { kind: 'detail'; id: string } | { kind: 'edit'; id?: string; copyOf?: string }
 type ScopeFilter = 'all' | 'user' | 'project' | 'builtin'
-
-const REPOS = ['demo-app', 'garden-planner', 'notes']
+type ToolFilter = 'all' | SubagentTool
 
 function ago(ms: number): string {
   const d = Math.round((Date.now() - ms) / 86_400_000)
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`
 }
 
-export default function CatalogPage() {
-  // Prototype: fictional subagents, kept in memory.
-  const [items, setItems] = useState<SubagentDetail[]>(() => sampleDetails())
-  const [view, setView] = useState<View>({ kind: 'list' })
-  const [deleting, setDeleting] = useState<SubagentDetail>()
-
-  const current = view.kind !== 'list' ? items.find((s) => s.id === (view.kind === 'edit' ? (view.id ?? view.copyOf) : view.id)) : undefined
-
-  function save(draft: SubagentDraft, id?: string) {
-    const next: SubagentDetail = {
-      id: id ?? `sub_${Date.now()}`,
-      scope: draft.saveTo === 'user' ? 'user' : 'project',
-      repo: draft.saveTo === 'user' ? undefined : draft.saveTo,
-      name: draft.name,
-      description: draft.description,
-      model: draft.model,
-      tools: draft.tools ?? undefined,
-      prompt: draft.prompt,
-      location: draft.saveTo === 'user' ? `~/.claude/agents/${draft.name}.md` : `.claude/agents/${draft.name}.md`,
-      updatedAt: Date.now(),
+/** Loads one subagent's full text when the explainer or editor needs it. */
+function useDetail(id: string | undefined, version: number) {
+  const [state, setState] = useState<{ id?: string; detail?: SubagentDetail; error?: string }>({})
+  useEffect(() => {
+    if (!id) return
+    let live = true
+    getSubagent(id).then(
+      (detail) => live && setState({ id, detail }),
+      (e: unknown) => live && setState({ id, error: e instanceof Error ? e.message : String(e) }),
+    )
+    return () => {
+      live = false
     }
-    setItems((all) => (id ? all.map((s) => (s.id === id ? next : s)) : [...all, next]))
-    setView({ kind: 'detail', id: next.id })
+  }, [id, version])
+  return state.id === id ? state : {}
+}
+
+export default function CatalogPage() {
+  const catalog = useCatalog()
+  const [view, setView] = useState<View>({ kind: 'list' })
+  const [version, setVersion] = useState(0)
+  const [deleting, setDeleting] = useState<SubagentDetail>()
+  const [notice, setNotice] = useState<string>()
+
+  const openId = view.kind === 'detail' ? view.id : view.kind === 'edit' ? (view.id ?? view.copyOf) : undefined
+  const { detail, error } = useDetail(openId, version)
+  const data = catalog.data
+
+  async function save(tool: SubagentTool, draft: SubagentDraft) {
+    const id = view.kind === 'edit' && view.id && detail ? await updateSubagent(detail, draft) : await createSubagent(tool, draft)
+    await catalog.refresh()
+    setVersion((v) => v + 1)
+    setView({ kind: 'detail', id })
   }
+
+  async function confirmDelete() {
+    if (!deleting) return
+    await removeSubagent(deleting.id)
+    setNotice(`${humanName(deleting.name)} was deleted. A copy is kept in MonoRail’s backups.`)
+    setDeleting(undefined)
+    setView({ kind: 'list' })
+    await catalog.refresh()
+  }
+
+  const waiting = openId && !detail && (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {error ? (
+        <>
+          <AlertTriangle className="size-4 text-destructive" /> {error}
+          <Button variant="link" onClick={() => setView({ kind: 'list' })}>
+            Back to the catalog
+          </Button>
+        </>
+      ) : (
+        <>
+          <Loader2 className="size-4 animate-spin" /> Loading…
+        </>
+      )}
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-8">
-      {view.kind === 'list' && <CatalogList items={items} onOpen={(id) => setView({ kind: 'detail', id })} onNew={() => setView({ kind: 'edit' })} />}
-      {view.kind === 'detail' && current && (
+      {view.kind === 'list' && (
+        <CatalogList
+          data={data}
+          loading={catalog.loading}
+          fetching={catalog.fetching}
+          error={catalog.error?.message}
+          notice={notice}
+          onDismiss={() => setNotice(undefined)}
+          onRefresh={() => void catalog.refresh()}
+          onOpen={(id) => {
+            setNotice(undefined)
+            setView({ kind: 'detail', id })
+          }}
+          onNew={() => setView({ kind: 'edit' })}
+        />
+      )}
+      {view.kind !== 'list' && waiting}
+      {view.kind === 'detail' && detail && (
         <Explainer
-          s={current}
+          s={detail}
+          data={data}
           onBack={() => setView({ kind: 'list' })}
-          onEdit={() => setView({ kind: 'edit', id: current.id })}
-          onCopy={() => setView({ kind: 'edit', copyOf: current.id })}
-          onDelete={() => setDeleting(current)}
+          onEdit={() => setView({ kind: 'edit', id: detail.id })}
+          onCopy={() => setView({ kind: 'edit', copyOf: detail.id })}
+          onDelete={() => setDeleting(detail)}
         />
       )}
-      {view.kind === 'edit' && (
+      {view.kind === 'edit' && (!openId || detail) && (
         <Editor
-          base={current}
+          key={`${view.id ?? ''}:${view.copyOf ?? ''}`}
+          base={detail}
           isCopy={!!view.copyOf}
-          taken={items.filter((s) => s.id !== view.id).map((s) => `${s.scope === 'user' ? 'user' : s.repo}/${s.name}`)}
-          onCancel={() => setView(current && !view.copyOf ? { kind: 'detail', id: current.id } : { kind: 'list' })}
-          onSave={(d) => save(d, view.copyOf ? undefined : view.id)}
+          repos={data?.repos.map((r) => r.name) ?? []}
+          taken={(data?.subagents ?? []).filter((s) => s.id !== view.id && s.scope !== 'builtin').map((s) => `${s.tool}/${s.scope === 'user' ? 'user' : s.repo}/${s.name}`)}
+          onCancel={() => setView(detail && !view.copyOf ? { kind: 'detail', id: detail.id } : { kind: 'list' })}
+          onSave={save}
         />
       )}
-      <DeleteDialog
-        s={deleting}
-        onClose={() => setDeleting(undefined)}
-        onConfirm={() => {
-          setItems((all) => all.filter((s) => s.id !== deleting?.id))
-          setDeleting(undefined)
-          setView({ kind: 'list' })
-        }}
-      />
+      <DeleteDialog s={deleting} onClose={() => setDeleting(undefined)} onConfirm={confirmDelete} />
     </div>
   )
 }
@@ -92,58 +140,111 @@ export default function CatalogPage() {
 // ---------------------------------------------------------------------------
 // Catalog list
 
-function CatalogList({ items, onOpen, onNew }: { items: SubagentDetail[]; onOpen: (id: string) => void; onNew: () => void }) {
+function CatalogList({
+  data,
+  loading,
+  fetching,
+  error,
+  notice,
+  onDismiss,
+  onRefresh,
+  onOpen,
+  onNew,
+}: {
+  data?: CatalogData
+  loading: boolean
+  fetching: boolean
+  error?: string
+  notice?: string
+  onDismiss: () => void
+  onRefresh: () => void
+  onOpen: (id: string) => void
+  onNew: () => void
+}) {
   const [q, setQ] = useState('')
   const [scope, setScope] = useState<ScopeFilter>('all')
-  const counts = useMemo(
-    () => ({
-      all: items.length,
-      user: items.filter((s) => s.scope === 'user').length,
-      project: items.filter((s) => s.scope === 'project').length,
-      builtin: items.filter((s) => s.scope === 'builtin').length,
-    }),
-    [items],
-  )
+  const [tool, setTool] = useState<ToolFilter>('all')
+  const items = useMemo(() => data?.subagents ?? [], [data])
+  const byTool = useMemo(() => items.filter((s) => tool === 'all' || s.tool === tool), [items, tool])
+  const count = (sc: ScopeFilter) => byTool.filter((s) => sc === 'all' || s.scope === sc).length
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return items
+    return byTool
       .filter((s) => (scope === 'all' || s.scope === scope) && (!needle || `${s.name} ${s.description} ${s.repo ?? ''}`.toLowerCase().includes(needle)))
       .sort((a, b) => (a.scope === 'builtin' ? 1 : 0) - (b.scope === 'builtin' ? 1 : 0) || a.name.localeCompare(b.name))
-  }, [items, q, scope])
+  }, [byTool, q, scope])
+  const hasPi = items.some((s) => s.tool === 'pi')
 
   return (
     <>
       <PageHeader
         eyebrow="Agents"
         title="Agent Catalog"
-        description="Every Claude Code subagent on this computer: yours, your repos', and MonoRail's built-in ones. Open one to see what it does."
+        description="Every Claude Code and pi subagent on this computer: yours, your repos', and MonoRail's built-in ones. Open one to see what it does."
         actions={
-          <Button onClick={onNew}>
-            <Plus /> New subagent
-          </Button>
+          <>
+            {isDesktop() && (
+              <Button variant="outline" onClick={onRefresh} disabled={fetching}>
+                <RefreshCw className={cn(fetching && 'animate-spin')} /> Refresh
+              </Button>
+            )}
+            <Button onClick={onNew}>
+              <Plus /> New subagent
+            </Button>
+          </>
         }
       />
+      {notice && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-soft-foreground">
+          <Check className="size-4" /> <span className="flex-1">{notice}</span>
+          {isDesktop() && (
+            <Button size="sm" variant="outline" onClick={() => void openBackups()}>
+              <FolderOpen /> Open backups folder
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="size-8" aria-label="Dismiss" onClick={onDismiss}>
+            <X />
+          </Button>
+        </div>
+      )}
+      {hasPi && data && !data.piExtension && <PiExtensionNote />}
       <Card className="gap-0 py-0">
         <CardHeader className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search subagents" aria-label="Search subagents" className="w-64 pl-9" />
           </div>
+          <Segmented<ToolFilter>
+            aria-label="Agent"
+            value={tool}
+            onChange={setTool}
+            options={[
+              { value: 'all', label: 'All agents' },
+              { value: 'claude', label: 'Claude Code' },
+              { value: 'pi', label: 'pi' },
+            ]}
+          />
           <Segmented<ScopeFilter>
             aria-label="Where"
             value={scope}
             onChange={setScope}
             options={[
-              { value: 'all', label: `All ${counts.all}` },
-              { value: 'user', label: `Yours ${counts.user}` },
-              { value: 'project', label: `In repos ${counts.project}` },
-              { value: 'builtin', label: `Built in ${counts.builtin}` },
+              { value: 'all', label: `All ${count('all')}` },
+              { value: 'user', label: `Yours ${count('user')}` },
+              { value: 'project', label: `In repos ${count('project')}` },
+              { value: 'builtin', label: `Built in ${count('builtin')}` },
             ]}
           />
         </CardHeader>
         <CardContent className="px-6 py-6">
-          {visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing matches that filter.</p>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Looking for subagents…
+            </div>
+          ) : error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{items.length === 0 ? 'No subagents yet. Create one with New subagent.' : 'Nothing matches that filter.'}</p>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {visible.map((s) => (
@@ -151,13 +252,29 @@ function CatalogList({ items, onOpen, onNew }: { items: SubagentDetail[]; onOpen
               ))}
             </div>
           )}
+          {data?.truncated && <p className="mt-4 text-xs text-muted-foreground">Showing the first 300 subagents.</p>}
+          <p className="mt-6 text-xs text-muted-foreground">
+            Looks in <code className="font-mono">~/.claude/agents</code> and <code className="font-mono">~/.pi/agent/agents</code>, and in{' '}
+            <code className="font-mono">.claude/agents</code> and <code className="font-mono">.pi/agents</code> of the repos you allowed on the Chat page.
+          </p>
         </CardContent>
       </Card>
     </>
   )
 }
 
-function ScopeBadge({ s }: { s: SubagentDetail }) {
+function PiExtensionNote() {
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-soft-foreground">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+      <span>
+        pi has no subagents of its own: its <b>subagent extension</b> runs these files. MonoRail did not find it in pi’s extensions or packages, so pi may not use them yet.
+      </span>
+    </div>
+  )
+}
+
+function ScopeBadge({ s }: { s: Subagent }) {
   if (s.scope === 'builtin')
     return (
       <Badge variant="primary">
@@ -177,8 +294,8 @@ function ScopeBadge({ s }: { s: SubagentDetail }) {
   )
 }
 
-function SubagentTile({ s, onOpen }: { s: SubagentDetail; onOpen: () => void }) {
-  const power = POWER_LABEL[powerOf(s.tools)]
+function SubagentTile({ s, onOpen }: { s: Subagent; onOpen: () => void }) {
+  const power = POWER_LABEL[powerOf(s.tools, s.tool)]
   return (
     <button
       type="button"
@@ -191,13 +308,22 @@ function SubagentTile({ s, onOpen }: { s: SubagentDetail; onOpen: () => void }) 
           <div className="truncate font-semibold">{humanName(s.name)}</div>
           <div className="truncate font-mono text-xs text-muted-foreground">{s.name}</div>
         </div>
-        <ScopeBadge s={s} />
+        <div className="flex flex-col items-end gap-1">
+          <ScopeBadge s={s} />
+          <Badge variant="outline">{TOOL_LABEL[s.tool]}</Badge>
+        </div>
       </div>
       <p className="line-clamp-2 text-sm text-muted-foreground">{s.description || 'No description.'}</p>
       <div className="mt-auto flex items-center gap-2 text-xs text-muted-foreground">
         <Badge variant={power.variant}>{power.label}</Badge>
-        <span>{modelInfo(s.model).label}</span>
-        <span className="ml-auto">{s.scope === 'builtin' ? 'Ships with MonoRail' : `Edited ${ago(s.updatedAt)}`}</span>
+        {s.problem ? (
+          <Badge variant="destructive">
+            <AlertTriangle /> Skipped
+          </Badge>
+        ) : (
+          <span className="truncate">{modelInfo(s.model).label}</span>
+        )}
+        <span className="ml-auto shrink-0">{s.scope === 'builtin' ? 'Ships with MonoRail' : `Edited ${ago(s.updatedAt)}`}</span>
       </div>
     </button>
   )
@@ -206,13 +332,19 @@ function SubagentTile({ s, onOpen }: { s: SubagentDetail; onOpen: () => void }) 
 // ---------------------------------------------------------------------------
 // Explainer
 
-function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail; onBack: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
+function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail; data?: CatalogData; onBack: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
   const role = mochiRoleFor(s.name, s.description)
-  const power = powerOf(s.tools)
+  const power = powerOf(s.tools, s.tool)
   const model = modelInfo(s.model)
-  const cannot = cannotDo(s.tools)
+  const cannot = cannotDo(s.tools, s.tool)
   const builtin = s.scope === 'builtin'
-  const tools = s.tools ? [...new Map(s.tools.map((t) => [toolInfo(t).label, toolInfo(t)])).values()] : []
+  const pi = s.tool === 'pi'
+  const tools = s.tools ? [...new Map(s.tools.map((t) => [toolInfo(t, s.tool).label, toolInfo(t, s.tool)])).values()] : []
+  const repoPath = s.scope === 'project' ? data?.repos.find((r) => r.name === s.repo)?.path : data?.repos[0]?.path
+
+  function useInChat() {
+    openInChat({ newChat: { repo: repoPath, sdk: s.tool, prompt: pi ? `Use ${s.name} to ` : `Use the ${s.name} subagent to ` } })
+  }
 
   return (
     <>
@@ -228,7 +360,7 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
           <AgentMochi name={s.name} description={s.description} size={112} className="-my-2" />
           <div className="min-w-0 flex-1">
             <div className="mb-1 text-xs font-semibold tracking-[0.08em] text-primary uppercase">
-              {MOCHI_ROLES[role].label} · Subagent
+              {MOCHI_ROLES[role].label} · {TOOL_LABEL[s.tool]} subagent
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">{humanName(s.name)}</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{s.description}</p>
@@ -239,9 +371,11 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
             </div>
           </div>
           <div className="flex items-center gap-2 self-start">
-            <Button variant="outline">
-              <MessageSquarePlus /> Use in a new chat
-            </Button>
+            {!builtin && (
+              <Button variant="outline" onClick={useInChat} disabled={!repoPath} title={repoPath ? undefined : 'Allow a repo on the Chat page first'}>
+                <MessageSquarePlus /> Use in a new chat
+              </Button>
+            )}
             {builtin ? (
               <Button onClick={onCopy}>
                 <Copy /> Make my own copy
@@ -273,20 +407,35 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
         </CardContent>
       </Card>
 
+      {s.problem && (
+        <div className="flex items-start gap-3 rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive-soft-foreground">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {s.problem} Edit it to fix that.
+        </div>
+      )}
+      {pi && data && !data.piExtension && <PiExtensionNote />}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
-              <CardTitle>When Claude uses it</CardTitle>
-              <CardDescription>Claude reads the description above and calls this subagent when a task fits</CardDescription>
+              <CardTitle>{pi ? 'When pi uses it' : 'When Claude uses it'}</CardTitle>
+              <CardDescription>{pi ? 'pi’s subagent tool reads the description above to pick a subagent' : 'Claude reads the description above and calls this subagent when a task fits'}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 px-6 py-5 text-sm">
-              <p>
-                In any Claude Code chat {s.scope === 'project' ? <>in <b>{s.repo}</b></> : s.scope === 'builtin' ? 'started from MonoRail’s Coordinator' : 'on this computer'}, Claude can hand a job to{' '}
-                <b>{humanName(s.name)}</b> on its own when the job matches. It works in its own fresh context and hands back a summary, so the main chat stays short.
-              </p>
-              <p className="text-muted-foreground">You can also ask for it by name:</p>
-              <div className="rounded-lg bg-muted/60 px-4 py-3 font-mono text-xs">Use the {s.name} subagent to …</div>
+              {pi ? (
+                <p>
+                  In pi {s.scope === 'project' ? <>chats in <b>{s.repo}</b></> : 'chats on this computer'}, the subagent tool can hand a job to <b>{humanName(s.name)}</b>. It runs as a separate pi process with
+                  its own fresh context and hands back the result.
+                  {s.scope === 'project' && ' Subagents that live in a repo run only after you confirm them, unless pi trusts the repo.'}
+                </p>
+              ) : (
+                <p>
+                  In any Claude Code chat {s.scope === 'project' ? <>in <b>{s.repo}</b></> : s.scope === 'builtin' ? 'started from MonoRail’s Coordinator' : 'on this computer'}, Claude can hand a job to{' '}
+                  <b>{humanName(s.name)}</b> on its own when the job matches. It works in its own fresh context and hands back a summary, so the main chat stays short.
+                </p>
+              )}
+              <p className="text-muted-foreground">{pi ? 'Ask for it by name:' : 'You can also ask for it by name:'}</p>
+              <div className="rounded-lg bg-muted/60 px-4 py-3 font-mono text-xs">{pi ? `Use ${s.name} to …` : `Use the ${s.name} subagent to …`}</div>
             </CardContent>
           </Card>
 
@@ -315,6 +464,10 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
                     </div>
                   ))}
                 </div>
+              ) : pi ? (
+                <p className="text-sm">
+                  This subagent has no tool list, so it gets <b>pi’s default tools</b>: read, edit, write and bash, which runs commands. Give it a tool list in Edit to limit it.
+                </p>
               ) : (
                 <p className="text-sm">
                   This subagent has no tool list, so it can use <b>every tool</b> the chat that calls it has, including running commands. Give it a tool list in Edit to limit it.
@@ -341,7 +494,7 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
               <CardDescription>What it is told every time it starts, written by {builtin ? 'MonoRail' : 'you'}</CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-5 text-sm">
-              <ChatMarkdown text={s.prompt} />
+              {s.prompt.trim() ? <ChatMarkdown text={s.prompt} /> : <span className="text-muted-foreground">No instructions below the header.</span>}
             </CardContent>
           </Card>
         </div>
@@ -353,7 +506,8 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
             </CardHeader>
             <CardContent className="px-6 py-2">
               <dl className="divide-y text-sm">
-                <Fact label="Model" value={model.label} hint={model.detail} />
+                <Fact label="Runs in" value={TOOL_LABEL[s.tool]} hint={pi ? 'Through pi’s subagent extension.' : undefined} />
+                <Fact label="Model" value={model.label} hint={pi && !s.model ? 'Uses the model pi is set to.' : model.detail} />
                 <Fact
                   label="Who gets it"
                   value={s.scope === 'user' ? 'Only you, in every repo' : s.scope === 'project' ? `Everyone working in ${s.repo}` : 'MonoRail’s Coordinator'}
@@ -362,6 +516,7 @@ function Explainer({ s, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail;
                 />
                 <Fact label="Where it lives" value={<span className="font-mono text-xs">{s.location}</span>} />
                 <Fact label="Last edited" value={builtin ? 'Ships with MonoRail' : ago(s.updatedAt)} />
+                {s.extraFields.length > 0 && <Fact label="Other settings in the file" value={<span className="font-mono text-xs">{s.extraFields.join(', ')}</span>} hint="Kept as they are when you edit here." />}
               </dl>
             </CardContent>
           </Card>
@@ -400,53 +555,100 @@ function Fact({ label, value, hint, icon: Icon }: { label: string; value: React.
 // ---------------------------------------------------------------------------
 // Editor
 
-function presetOf(tools: string[] | null): string {
+function presetOf(tool: SubagentTool, tools: string[] | null): string {
   const key = (t: string[] | null) => (t ? [...t].sort().join(',') : '*')
-  return TOOL_PRESETS.find((p) => key(p.tools) === key(tools))?.id ?? 'custom'
+  return TOOL_PRESETS[tool].find((p) => key(p.tools) === key(tools))?.id ?? 'custom'
 }
 
-function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDetail; isCopy: boolean; taken: string[]; onCancel: () => void; onSave: (d: SubagentDraft) => void }) {
+function Editor({
+  base,
+  isCopy,
+  repos,
+  taken,
+  onCancel,
+  onSave,
+}: {
+  base?: SubagentDetail
+  isCopy: boolean
+  repos: string[]
+  taken: string[]
+  onCancel: () => void
+  onSave: (tool: SubagentTool, d: SubagentDraft) => Promise<void>
+}) {
+  const builtinCopy = isCopy && base?.scope === 'builtin'
+  const [tool, setTool] = useState<SubagentTool>(base?.tool ?? 'claude')
   const [draft, setDraft] = useState<SubagentDraft>(() => ({
-    name: base ? (isCopy ? `${base.name}-copy` : base.name) : '',
+    name: base ? (isCopy && !builtinCopy ? `${base.name}-copy` : base.name) : '',
     description: base?.description ?? '',
-    model: base?.model ?? 'inherit',
-    tools: base ? (base.tools ?? null) : ['Read', 'Grep', 'Glob'],
+    model: base?.model ?? (tool === 'claude' ? 'inherit' : ''),
+    tools: base ? (base.tools ?? null) : TOOL_PRESETS.claude[0].tools,
     prompt: base?.prompt ?? '',
-    saveTo: base?.scope === 'project' && base.repo ? base.repo : 'user',
+    saveTo: base?.scope === 'project' && base.repo && repos.includes(base.repo) ? base.repo : 'user',
   }))
+  const [busy, setBusy] = useState(false)
+  const [saveError, setSaveError] = useState<string>()
   const set = (patch: Partial<SubagentDraft>) => setDraft((d) => ({ ...d, ...patch }))
-  const preset = presetOf(draft.tools)
-  const nameError = !draft.name ? undefined : !NAME_RE.test(draft.name) ? 'Use lowercase letters, numbers and hyphens, starting with a letter.' : taken.includes(`${draft.saveTo}/${draft.name}`) ? 'There is already a subagent with this name there.' : undefined
-  const ok = !!draft.name && !nameError && draft.description.trim().length > 0 && draft.prompt.trim().length > 0
-  const editing = base && !isCopy
+  const preset = presetOf(tool, draft.tools)
+  const editing = !!base && !isCopy
+  const nameError = !draft.name ? undefined : !NAME_RE.test(draft.name) ? 'Use lowercase letters, numbers and hyphens, starting with a letter.' : !editing && taken.includes(`${tool}/${draft.saveTo}/${draft.name}`) ? 'There is already a subagent with this name there.' : undefined
+  const ok = !!draft.name && !nameError && draft.description.trim().length > 0 && draft.prompt.trim().length > 0 && (draft.tools === null || draft.tools.length > 0)
+  const piDir = (where: string) => (where === 'user' ? '~/.pi/agent/agents' : '.pi/agents')
+  const claudeDir = (where: string) => (where === 'user' ? '~/.claude/agents' : '.claude/agents')
+  const dir = (where: string) => (tool === 'pi' ? piDir(where) : claudeDir(where))
+  const modelChoices = draft.model && !MODEL_OPTIONS.some((m) => m.id === draft.model) ? [...MODEL_OPTIONS, { id: draft.model, label: draft.model, detail: 'A specific model id.' }] : MODEL_OPTIONS
+
+  function switchTool(next: SubagentTool) {
+    setTool(next)
+    set({ tools: TOOL_PRESETS[next][0].tools, model: next === 'claude' ? 'inherit' : '' })
+  }
 
   function toggleTool(t: string) {
-    const cur = draft.tools ?? [...EDITOR_TOOLS]
+    const cur = draft.tools ?? [...EDITOR_TOOLS[tool]]
     set({ tools: cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t] })
+  }
+
+  async function submit() {
+    setBusy(true)
+    setSaveError(undefined)
+    try {
+      await onSave(tool, draft)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
+      setBusy(false)
+    }
   }
 
   return (
     <>
       <div>
         <Button variant="ghost" size="sm" className="-ml-2" onClick={onCancel}>
-          <ArrowLeft /> {editing ? humanName(base.name) : 'Agent Catalog'}
+          <ArrowLeft /> {base && !builtinCopy ? humanName(base.name) : 'Agent Catalog'}
         </Button>
       </div>
       <PageHeader
         eyebrow="Agent Catalog"
-        title={editing ? `Edit ${humanName(base.name)}` : isCopy ? `Copy of ${humanName(base!.name)}` : 'New subagent'}
-        description="Saved as a Markdown file Claude Code reads. Before an existing file is changed or deleted, MonoRail keeps a backup copy in its data folder."
+        title={editing ? `Edit ${humanName(base.name)}` : builtinCopy ? 'Your own coordinator' : isCopy && base ? `Copy of ${humanName(base.name)}` : 'New subagent'}
+        description={
+          builtinCopy
+            ? 'Saved as ~/.claude/agents/coordinator.md. Once it exists, the Coordinator uses yours instead of the built-in one.'
+            : 'Saved as a Markdown file the agent reads. Before an existing file is changed or deleted, MonoRail keeps a backup copy in its data folder.'
+        }
         actions={
           <>
-            <Button variant="outline" onClick={onCancel}>
+            <Button variant="outline" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
-            <Button disabled={!ok} onClick={() => onSave(draft)}>
-              <Check /> {editing ? 'Save changes' : 'Create subagent'}
+            <Button disabled={!ok || busy} onClick={() => void submit()}>
+              {busy ? <Loader2 className="animate-spin" /> : <Check />} {editing ? 'Save changes' : 'Create subagent'}
             </Button>
           </>
         }
       />
+      {saveError && (
+        <div className="flex items-start gap-3 rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive-soft-foreground">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {saveError}
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card className="gap-0 py-0">
@@ -454,19 +656,34 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
               <CardTitle>Basics</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-5 px-6 py-5">
+              {!editing && !builtinCopy && (
+                <div className="flex flex-col gap-2">
+                  <Label>Runs in</Label>
+                  <Segmented<SubagentTool>
+                    aria-label="Runs in"
+                    value={tool}
+                    onChange={switchTool}
+                    options={[
+                      { value: 'claude', label: 'Claude Code' },
+                      { value: 'pi', label: 'pi' },
+                    ]}
+                  />
+                  {tool === 'pi' && <p className="text-xs text-muted-foreground">pi runs subagents through its subagent extension.</p>}
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="sa-name">Name</Label>
-                  <Input id="sa-name" value={draft.name} onChange={(e) => set({ name: e.target.value.toLowerCase() })} placeholder="code-reviewer" className="font-mono" disabled={!!editing} />
+                  <Input id="sa-name" value={draft.name} onChange={(e) => set({ name: e.target.value.toLowerCase() })} placeholder="code-reviewer" className="font-mono" disabled={editing || builtinCopy} />
                   <p className={cn('text-xs', nameError ? 'text-destructive' : 'text-muted-foreground')}>{nameError ?? (editing ? 'Duplicate it to use another name.' : 'Lowercase, with hyphens. Also the file name.')}</p>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="sa-where">Save to</Label>
-                  <NativeSelect id="sa-where" value={draft.saveTo} onChange={(e) => set({ saveTo: e.target.value })} disabled={!!editing}>
-                    <option value="user">Just me, every repo (~/.claude/agents)</option>
-                    {REPOS.map((r) => (
+                  <NativeSelect id="sa-where" value={draft.saveTo} onChange={(e) => set({ saveTo: e.target.value })} disabled={editing || builtinCopy}>
+                    <option value="user">Just me, every repo ({dir('user')})</option>
+                    {repos.map((r) => (
                       <option key={r} value={r}>
-                        Repo {r} (.claude/agents)
+                        Repo {r} ({dir(r)})
                       </option>
                     ))}
                   </NativeSelect>
@@ -474,9 +691,9 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="sa-desc">When should Claude use it?</Label>
+                <Label htmlFor="sa-desc">{tool === 'pi' ? 'When should pi use it?' : 'When should Claude use it?'}</Label>
                 <Textarea id="sa-desc" rows={2} value={draft.description} onChange={(e) => set({ description: e.target.value })} placeholder="Reviews a diff for bugs before a PR goes up. Use it after finishing a change." />
-                <p className="text-xs text-muted-foreground">Claude reads this to decide when to call it. Say what it does and when.</p>
+                <p className="text-xs text-muted-foreground">The agent reads this to decide when to call it. Say what it does and when.</p>
               </div>
             </CardContent>
           </Card>
@@ -487,7 +704,12 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
               <CardDescription>What it is told every time it starts. Markdown.</CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-5">
-              <Textarea rows={12} value={draft.prompt} onChange={(e) => set({ prompt: e.target.value })} className="font-mono text-xs" placeholder={'You are a careful code reviewer.\n\n1. Read the diff.\n2. List bugs, most severe first.'} />
+              <Textarea rows={14} value={draft.prompt} onChange={(e) => set({ prompt: e.target.value })} className="font-mono text-xs" placeholder={'You are a careful code reviewer.\n\n1. Read the diff.\n2. List bugs, most severe first.'} />
+              {base && base.extraFields.length > 0 && !isCopy && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Other settings in the file are kept as they are: <span className="font-mono">{base.extraFields.join(', ')}</span>.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -498,7 +720,7 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
               <CardTitle>What it may do</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 px-6 py-5">
-              {TOOL_PRESETS.map((p) => (
+              {TOOL_PRESETS[tool].map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -512,9 +734,9 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
               <div className={cn('mt-2 rounded-lg px-3 py-2.5 ring-1', preset === 'custom' ? 'bg-primary-soft ring-primary/40' : 'ring-foreground/10')}>
                 <div className="mb-2 text-sm font-medium">Pick tools</div>
                 <div className="grid grid-cols-1 gap-1.5">
-                  {EDITOR_TOOLS.map((t) => {
-                    const info = toolInfo(t)
-                    const on = draft.tools === null || draft.tools.includes(t)
+                  {EDITOR_TOOLS[tool].map((t) => {
+                    const info = toolInfo(t, tool)
+                    const on = draft.tools === null ? tool === 'claude' || ['read', 'edit', 'write', 'bash'].includes(t) : draft.tools.includes(t)
                     return (
                       <label key={t} className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={on} onChange={() => toggleTool(t)} className="accent-[var(--primary)]" />
@@ -523,6 +745,12 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
                     )
                   })}
                 </div>
+                {draft.tools?.some((t) => !EDITOR_TOOLS[tool].includes(t)) && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Also kept: <span className="font-mono">{draft.tools.filter((t) => !EDITOR_TOOLS[tool].includes(t)).join(', ')}</span>
+                  </p>
+                )}
+                {draft.tools?.length === 0 && <p className="mt-2 text-xs text-destructive">Pick at least one tool.</p>}
               </div>
             </CardContent>
           </Card>
@@ -531,14 +759,23 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
               <CardTitle>Model</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 px-6 py-5">
-              <NativeSelect value={draft.model} onChange={(e) => set({ model: e.target.value })}>
-                {MODEL_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </NativeSelect>
-              <p className="text-xs text-muted-foreground">{modelInfo(draft.model).detail}</p>
+              {tool === 'claude' ? (
+                <>
+                  <NativeSelect value={draft.model || 'inherit'} onChange={(e) => set({ model: e.target.value })}>
+                    {modelChoices.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <p className="text-xs text-muted-foreground">{modelInfo(draft.model).detail}</p>
+                </>
+              ) : (
+                <>
+                  <Input value={draft.model} onChange={(e) => set({ model: e.target.value.trim() })} placeholder="Same as pi" className="font-mono" aria-label="Model id" />
+                  <p className="text-xs text-muted-foreground">A pi model id such as claude-haiku-5-5, or leave it empty to use pi’s current model.</p>
+                </>
+              )}
             </CardContent>
           </Card>
           <Card className="py-0">
@@ -565,7 +802,20 @@ function Editor({ base, isCopy, taken, onCancel, onSave }: { base?: SubagentDeta
 // ---------------------------------------------------------------------------
 // Delete
 
-function DeleteDialog({ s, onClose, onConfirm }: { s?: SubagentDetail; onClose: () => void; onConfirm: () => void }) {
+function DeleteDialog({ s, onClose, onConfirm }: { s?: SubagentDetail; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  async function run() {
+    setBusy(true)
+    setError(undefined)
+    try {
+      await onConfirm()
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -574,16 +824,17 @@ function DeleteDialog({ s, onClose, onConfirm }: { s?: SubagentDetail; onClose: 
             <DialogHeader>
               <DialogTitle>Delete {humanName(s.name)}?</DialogTitle>
               <DialogDescription>
-                Claude Code will stop using it. The file <span className="font-mono">{s.location}</span>
+                {TOOL_LABEL[s.tool]} will stop using it. The file <span className="font-mono">{s.location}</span>
                 {s.repo ? ` in ${s.repo}` : ''} is removed, and a copy is kept in MonoRail’s backups so you can bring it back.
               </DialogDescription>
             </DialogHeader>
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="outline" onClick={onClose} disabled={busy}>
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={onConfirm}>
-                <Trash2 /> Delete
+              <Button variant="destructive" onClick={() => void run()} disabled={busy}>
+                {busy ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
               </Button>
             </DialogFooter>
           </>

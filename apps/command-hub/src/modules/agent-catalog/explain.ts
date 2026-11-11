@@ -1,7 +1,9 @@
 // Plain-language descriptions of a subagent's header, for the explainer page.
 
 import type { LucideIcon } from 'lucide-react'
-import { Bot, FilePen, FilePlus2, FileSearch, FolderSearch, Globe, ListChecks, NotebookPen, Plug, Search, SquareTerminal, TextSearch, Workflow } from 'lucide-react'
+
+import type { SubagentTool } from './types'
+import { Bot, FilePen, FolderTree, FilePlus2, FileSearch, FolderSearch, Globe, ListChecks, NotebookPen, Plug, Search, SquareTerminal, TextSearch, Workflow } from 'lucide-react'
 
 export interface ToolInfo {
   label: string
@@ -27,17 +29,39 @@ export const TOOL_INFO: Record<string, ToolInfo> = {
   Workflow: { label: 'Run workflows', detail: 'Runs multi-step workflows of subagents.', icon: Workflow, power: 'run' },
 }
 
+/** pi's built-in tools, by their lowercase names. */
+export const PI_TOOL_INFO: Record<string, ToolInfo> = {
+  read: TOOL_INFO.Read,
+  grep: TOOL_INFO.Grep,
+  find: TOOL_INFO.Glob,
+  ls: { label: 'List folders', detail: 'Lists what is in a folder.', icon: FolderTree, power: 'read' },
+  edit: TOOL_INFO.Edit,
+  write: TOOL_INFO.Write,
+  bash: TOOL_INFO.Bash,
+}
+
 /** Tools offered as checkboxes in the editor, in this order. */
-export const EDITOR_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash', 'WebSearch', 'WebFetch', 'TodoWrite', 'Agent'] as const
+export const EDITOR_TOOLS: Record<SubagentTool, readonly string[]> = {
+  claude: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash', 'WebSearch', 'WebFetch', 'TodoWrite', 'Agent'],
+  pi: ['read', 'grep', 'find', 'ls', 'edit', 'write', 'bash'],
+}
 
-export const TOOL_PRESETS: { id: string; label: string; detail: string; tools: string[] | null }[] = [
-  { id: 'read', label: 'Look only', detail: 'Reads and searches files. Changes nothing.', tools: ['Read', 'Grep', 'Glob'] },
-  { id: 'edit', label: 'Can edit files', detail: 'Also changes and creates files. Runs no commands.', tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'] },
-  { id: 'all', label: 'Everything', detail: 'Every tool the main chat has, including commands.', tools: null },
-]
+export const TOOL_PRESETS: Record<SubagentTool, { id: string; label: string; detail: string; tools: string[] | null }[]> = {
+  claude: [
+    { id: 'read', label: 'Look only', detail: 'Reads and searches files. Changes nothing.', tools: ['Read', 'Grep', 'Glob'] },
+    { id: 'edit', label: 'Can edit files', detail: 'Also changes and creates files. Runs no commands.', tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write'] },
+    { id: 'all', label: 'Everything', detail: 'Every tool the main chat has, including commands.', tools: null },
+  ],
+  pi: [
+    { id: 'read', label: 'Look only', detail: 'Reads, searches and lists files. Changes nothing.', tools: ['read', 'grep', 'find', 'ls'] },
+    { id: 'edit', label: 'Can edit files', detail: 'Also changes and creates files. Runs no commands.', tools: ['read', 'grep', 'find', 'ls', 'edit', 'write'] },
+    { id: 'all', label: 'pi’s defaults', detail: 'pi’s default tools: read, edit, write and bash.', tools: null },
+  ],
+}
 
-export function toolInfo(name: string): ToolInfo {
-  if (TOOL_INFO[name]) return TOOL_INFO[name]
+export function toolInfo(name: string, tool: SubagentTool = 'claude'): ToolInfo {
+  if (tool === 'pi' && PI_TOOL_INFO[name]) return PI_TOOL_INFO[name]
+  if (tool === 'claude' && TOOL_INFO[name]) return TOOL_INFO[name]
   const mcp = /^mcp__([^_]+(?:_[^_]+)*)__(.+)$/.exec(name)
   if (mcp) return { label: `${mcp[2].replace(/_/g, ' ')}`, detail: `A tool from the ${mcp[1]} MCP server.`, icon: Plug, power: 'run' }
   return { label: name, detail: 'A tool MonoRail does not know by name.', icon: Plug, power: 'run' }
@@ -46,9 +70,9 @@ export function toolInfo(name: string): ToolInfo {
 export type Power = 'read' | 'write' | 'run' | 'all'
 
 /** The strongest thing the subagent may do. */
-export function powerOf(tools?: string[]): Power {
-  if (!tools) return 'all'
-  const ps = tools.map((t) => toolInfo(t).power)
+export function powerOf(tools: string[] | undefined, tool: SubagentTool = 'claude'): Power {
+  if (!tools) return tool === 'pi' ? 'run' : 'all'
+  const ps = tools.map((t) => toolInfo(t, tool).power)
   return ps.includes('run') ? 'run' : ps.includes('write') ? 'write' : 'read'
 }
 
@@ -56,21 +80,22 @@ export const POWER_LABEL: Record<Power, { label: string; detail: string; variant
   read: { label: 'Look only', detail: 'It can read and search, but cannot change anything.', variant: 'success' },
   write: { label: 'Can edit files', detail: 'It can change files in the repo, but cannot run commands.', variant: 'info' },
   run: { label: 'Can run commands', detail: 'It can run programs or reach the web.', variant: 'warning' },
-  all: { label: 'Every tool', detail: 'No tool list, so it gets every tool the main chat has.', variant: 'warning' },
+  all: { label: 'Every tool', detail: 'No tool list, so it gets every tool the chat that calls it has.', variant: 'warning' },
 }
 
 /** What it cannot do, from the tools it lacks. */
-export function cannotDo(tools?: string[]): string[] {
-  if (!tools) return []
-  const has = new Set(tools.map((t) => toolInfo(t).label))
+export function cannotDo(tools: string[] | undefined, tool: SubagentTool = 'claude'): string[] {
+  if (!tools) return tool === 'pi' ? ['Go online', 'Hand work to other subagents'] : []
+  const has = new Set(tools.map((t) => toolInfo(t, tool).label))
   const out: string[] = []
   if (!has.has('Change files') && !has.has('Create files')) out.push('Change or create files')
   if (!has.has('Run terminal commands')) out.push('Run commands or tests')
-  if (!has.has('Search the web') && !has.has('Open web pages')) out.push('Go online')
-  if (!has.has('Start other subagents')) out.push('Hand work to other subagents')
+  if (tool === 'pi' || (!has.has('Search the web') && !has.has('Open web pages'))) out.push('Go online')
+  if (tool === 'pi' || !has.has('Start other subagents')) out.push('Hand work to other subagents')
   return out
 }
 
+/** Claude Code's model aliases. pi takes a model id instead (free text). */
 export const MODEL_OPTIONS = [
   { id: 'inherit', label: 'Same as the chat', detail: 'Uses whatever model the chat that calls it is using.' },
   { id: 'haiku', label: 'Haiku', detail: 'Fastest and cheapest. Good for simple, well-defined jobs.' },
@@ -79,10 +104,14 @@ export const MODEL_OPTIONS = [
 ]
 
 export function modelInfo(model?: string): { label: string; detail: string } {
-  const m = (model ?? 'inherit').toLowerCase()
+  if (!model || model === 'inherit') return MODEL_OPTIONS[0]
+  const m = model.toLowerCase()
   const known = MODEL_OPTIONS.find((o) => o.id === m) ?? MODEL_OPTIONS.find((o) => o.id !== 'inherit' && m.includes(o.id))
-  return known ?? { label: model ?? 'Same as the chat', detail: 'A specific model id.' }
+  if (known && known.id === m) return known
+  return { label: model, detail: known ? `A specific model id. ${known.detail}` : 'A specific model id.' }
 }
+
+export const TOOL_LABEL: Record<SubagentTool, string> = { claude: 'Claude Code', pi: 'pi' }
 
 /** "code-reviewer" -> "Code reviewer". */
 export function humanName(name: string): string {

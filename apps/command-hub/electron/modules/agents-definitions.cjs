@@ -3,6 +3,7 @@
 //   Claude Code subagents  ~/.claude/agents/*.md          <repo>/.claude/agents/*.md
 //   Claude Code skills     ~/.claude/skills/*/SKILL.md    <repo>/.claude/skills/*/SKILL.md
 //   pi skills              ~/.pi/agent/skills/*/SKILL.md  <repo>/.pi/skills/*/SKILL.md
+//   pi subagents           ~/.pi/agent/agents/*.md        <repo>/.pi/agents/*.md
 //
 // Repos are the Chat page's allowed repos (agent-chat-folders.cjs). Files are
 // read in place on demand and never copied or cached to disk. The page names
@@ -23,6 +24,8 @@ const LOCATIONS = [
   { tool: 'claude', kind: 'subagent', user: ['.claude', 'agents'], project: ['.claude', 'agents'], layout: 'files' },
   { tool: 'claude', kind: 'skill', user: ['.claude', 'skills'], project: ['.claude', 'skills'], layout: 'skill-dirs' },
   { tool: 'pi', kind: 'skill', user: ['.pi', 'agent', 'skills'], project: ['.pi', 'skills'], layout: 'skill-dirs' },
+  // pi has no subagents of its own; these are the files its subagent extension reads.
+  { tool: 'pi', kind: 'subagent', user: ['.pi', 'agent', 'agents'], project: ['.pi', 'agents'], layout: 'files' },
 ]
 
 function claudeHome(env, home) {
@@ -75,7 +78,15 @@ function parseFrontmatter(text) {
 }
 
 function unquote(v) {
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1)
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+    // A double-quoted YAML string; JSON covers its common escapes (\" \\ \n \uXXXX).
+    try {
+      return JSON.parse(v)
+    } catch {
+      return v.slice(1, -1)
+    }
+  }
+  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1).replace(/''/g, "'")
   return v
 }
 
