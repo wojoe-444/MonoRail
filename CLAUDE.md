@@ -63,6 +63,7 @@ Run from `apps/command-hub/`:
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server in the browser |
+| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. Extension UIs (`monorail-ext://`) don't load in the browser. |
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |

@@ -20,7 +20,12 @@ const moduleBackends = [require('./claude-stats.cjs'), require('./jira.cjs'), re
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 
-function registerModuleBackends() {
+/**
+ * Start every backend and return invoke(moduleId, method, args), the router the
+ * IPC handler below uses. The browser dev bridge (electron/dev-bridge.cjs)
+ * calls it over HTTP instead. Call once, after app 'ready'.
+ */
+function startModuleBackends() {
   const extensionsBackend = setupExtensions()
   const byId = new Map([
     [extensionsBackend.id, { backend: extensionsBackend, dataDir: ['modules', extensionsBackend.id] }],
@@ -39,8 +44,7 @@ function registerModuleBackends() {
     }
   }
 
-  ipcMain.handle('module:invoke', async (_event, payload) => {
-    const { moduleId, method, args } = payload ?? {}
+  return async function invoke(moduleId, method, args) {
     if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
     const entry = byId.get(moduleId)
     if (!entry) throw new Error(`Unknown module: ${moduleId}`)
@@ -48,6 +52,14 @@ function registerModuleBackends() {
     if (typeof fn !== 'function') throw new Error(`Unknown method ${moduleId}.${method}`)
 
     return fn(makeCtx(moduleId, entry), args)
+  }
+}
+
+function registerModuleBackends() {
+  const invoke = startModuleBackends()
+  ipcMain.handle('module:invoke', async (_event, payload) => {
+    const { moduleId, method, args } = payload ?? {}
+    return invoke(moduleId, method, args)
   })
 }
 
@@ -61,4 +73,4 @@ function makeCtx(key, entry) {
   }
 }
 
-module.exports = { registerModuleBackends }
+module.exports = { registerModuleBackends, startModuleBackends }

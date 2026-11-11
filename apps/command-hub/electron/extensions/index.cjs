@@ -64,9 +64,25 @@ function registerExtensionScheme() {
 
 let manager
 
+// Extra receivers for push events besides windows (the browser dev bridge).
+const broadcastListeners = new Set()
+
+/** Also receive every push event as (channel, payload). Returns an unsubscribe. */
+function onBroadcast(fn) {
+  broadcastListeners.add(fn)
+  return () => broadcastListeners.delete(fn)
+}
+
 function broadcast(channel, payload) {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+  for (const fn of broadcastListeners) {
+    try {
+      fn(channel, payload)
+    } catch (err) {
+      console.error('[extensions] broadcast listener failed', err)
+    }
   }
 }
 
@@ -238,4 +254,4 @@ function invokeExtension(id, method, args) {
   return manager.invoke(id, method, args)
 }
 
-module.exports = { registerExtensionScheme, setupExtensions, invokeExtension, SCHEME }
+module.exports = { registerExtensionScheme, setupExtensions, invokeExtension, onBroadcast, SCHEME }

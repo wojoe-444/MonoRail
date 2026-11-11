@@ -8,7 +8,8 @@
     "dist/**/*",
     "electron/**/*",
     "!electron/**/*.test.cjs",
-    "package.json"
+    "package.json",
+    "!electron/dev-bridge*.cjs"
   ],
   "win": {
     "target": [
