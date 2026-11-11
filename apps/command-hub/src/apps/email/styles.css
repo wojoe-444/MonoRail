@@ -1,0 +1,298 @@
+/*
+ * Email app styles. Its own look (warm paper neutrals, deep ink text, a
+ * marine-blue accent) rather than the MonoRail tokens. Everything is nested
+ * under .eml (the app root) so nothing leaks into the hub. Light by default;
+ * dark under .dark, which MonoRail's theme toggle sets.
+ */
+.eml {
+  --bg: #fbfaf7; --panel: #ffffff; --side: #f3f1ec; --line: #e6e2da; --line2: #d9d4c9;
+  --fg: #1d2230; --muted: #6b6f7b; --faint: #9a9ca5;
+  --accent: #1f5fbf; --accent-fg: #ffffff; --accent-soft: #e5eefb; --accent-ink: #174a96;
+  --unread: #11151f; --hover: #f1eee8; --active: #e5eefb; --danger: #c03a2b; --danger-soft: #fbe9e6;
+  --warn-soft: #fdf3dc; --warn-ink: #7a5600; --star: #e0a100; --frame: #ffffff;
+  --shadow: 0 1px 2px rgba(29,34,48,.06), 0 8px 24px rgba(29,34,48,.08);
+  --shadow-lg: 0 12px 40px rgba(29,34,48,.22);
+  color-scheme: light;
+
+  .dark & {
+    --bg: #15171c; --panel: #1b1e24; --side: #121418; --line: #2a2e36; --line2: #353a44;
+    --fg: #e7e8ec; --muted: #9a9fab; --faint: #6d727d;
+    --accent: #5b9bff; --accent-fg: #0d1526; --accent-soft: #1d2a40; --accent-ink: #9cc2ff;
+    --unread: #ffffff; --hover: #22262e; --active: #1d2a40; --danger: #ff7b6b; --danger-soft: #3a1f1c;
+    --warn-soft: #3a3020; --warn-ink: #f0c66b; --star: #f5c04a; --frame: #f7f7f5;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.3);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.55);
+    color-scheme: dark;
+  }
+
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  position: relative;
+
+  svg { width: 16px; height: 16px; flex-shrink: 0; }
+  a { color: var(--accent); }
+  code { font: 12.5px ui-monospace, 'Cascadia Code', Consolas, monospace; background: var(--hover); padding: 1px 5px; border-radius: 4px; }
+  h1, h2 { margin: 0; }
+  input, textarea { font: inherit; color: inherit; }
+
+  /* ---- shared bits ---- */
+  .eml-grow { flex: 1; min-width: 0; }
+  .eml-min0 { min-width: 0; }
+  .eml-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .eml-muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .eml-strong { font-weight: 600; display: block; }
+  .eml-error { color: var(--danger); margin: 0; font-size: 13px; }
+  .eml-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .eml-center { height: 100%; display: grid; place-content: center; justify-items: center; gap: 16px; color: var(--muted); }
+
+  .eml-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+    border-radius: 8px; border: 1px solid var(--line2); background: var(--panel); color: var(--fg);
+    font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: background .12s, border-color .12s;
+    &:hover:not(:disabled) { background: var(--hover); }
+    &:disabled { opacity: .5; cursor: default; }
+    &:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    &.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+    &.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+    &.ghost { border-color: transparent; background: transparent; }
+    &.ghost:hover:not(:disabled) { background: var(--hover); }
+    &.small { height: 28px; padding: 0 10px; font-size: 12px; }
+    &.google { background: var(--panel); border-color: var(--line2); padding-left: 10px; }
+  }
+  .eml-icon-btn {
+    display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px;
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    &:hover { background: var(--hover); color: var(--fg); }
+    &.small { width: 24px; height: 24px; svg { width: 14px; height: 14px; } }
+  }
+  .eml-link-btn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0 4px; &:hover { text-decoration: underline; } }
+  .eml-google { width: 18px; height: 18px; }
+
+  .eml-avatar {
+    display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 50%;
+    background: hsl(var(--h) 55% 88%); color: hsl(var(--h) 45% 28%); font-weight: 700; letter-spacing: .02em;
+    .dark & { background: hsl(var(--h) 30% 26%); color: hsl(var(--h) 60% 82%); }
+  }
+
+  .eml-spinner { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line2); border-top-color: var(--accent); animation: eml-spin .8s linear infinite; }
+  .eml-spin { animation: eml-spin .9s linear infinite; }
+
+  .eml-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+  .eml-brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-fg); svg { width: 17px; height: 17px; } }
+
+  .eml-banner {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; font-size: 13px; margin: 8px 12px;
+    &.warn { background: var(--warn-soft); color: var(--warn-ink); }
+    &.error { background: var(--danger-soft); color: var(--danger); justify-content: space-between; }
+  }
+
+  .eml-toast {
+    position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow-lg);
+  }
+
+  /* ---- three-pane shell ---- */
+  .eml-shell { display: grid; grid-template-columns: 240px minmax(300px, 380px) 1fr; height: 100%; }
+
+  .eml-side { background: var(--side); border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .eml-side .eml-brand { padding: 0 6px; }
+  .eml-account { position: relative; }
+  .eml-account-btn {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; font-size: 13px; text-align: left;
+    &:hover { border-color: var(--line2); }
+    > svg:last-child { color: var(--muted); }
+  }
+  .eml-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
+    button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; background: none; color: var(--fg); border-radius: 6px; cursor: pointer; font-size: 13px; text-align: left; }
+    button:hover, button.active { background: var(--hover); }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  }
+  .eml-compose-btn {
+    display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 12px; border: 0;
+    background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: var(--shadow);
+    &:hover { filter: brightness(1.08); }
+  }
+  .eml-folders { display: flex; flex-direction: column; gap: 1px; }
+  .eml-folder {
+    display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 10px; border-radius: 8px;
+    color: var(--fg); text-decoration: none; font-size: 13.5px;
+    svg { color: var(--muted); }
+    &:hover { background: var(--hover); }
+    &.active { background: var(--active); color: var(--accent-ink); font-weight: 600; svg { color: var(--accent-ink); } }
+  }
+  .eml-count { font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+  .eml-side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .eml-side-note { padding: 0 10px; margin: 0; }
+  .eml-side-error { display: flex; gap: 6px; color: var(--danger); font-size: 12px; margin: 0; padding: 0 6px; }
+
+  /* ---- thread list ---- */
+  .eml-list { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+  .eml-search {
+    display: flex; align-items: center; gap: 8px; margin: 12px 12px 0; padding: 0 8px 0 12px; height: 38px;
+    border-radius: 10px; background: var(--side); border: 1px solid transparent; color: var(--muted);
+    &:focus-within { border-color: var(--accent); background: var(--panel); }
+    input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 13px; }
+  }
+  .eml-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px 8px 16px; h2 { font-size: 15px; font-weight: 700; } }
+  .eml-threads { list-style: none; margin: 0; padding: 0; }
+  .eml-thread {
+    display: flex; gap: 12px; width: 100%; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line);
+    background: transparent; color: var(--fg); text-align: left; cursor: pointer; font: inherit; position: relative;
+    &:hover { background: var(--hover); }
+    &.active { background: var(--active); }
+    &.unread::before { content: ''; position: absolute; left: 5px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--accent); }
+    &.unread .eml-thread-from, &.unread .eml-thread-subject { color: var(--unread); font-weight: 700; }
+  }
+  .eml-thread-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .eml-thread-top { display: flex; align-items: center; gap: 6px; }
+  .eml-thread-from { flex: 1; font-weight: 500; }
+  .eml-thread-date { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+  .eml-thread-subject { font-size: 13px; }
+  .eml-thread-snippet { font-size: 12.5px; }
+  .eml-star { color: var(--star); fill: var(--star); width: 13px !important; height: 13px !important; }
+  .eml-clip { color: var(--muted); width: 13px !important; height: 13px !important; }
+  .eml-empty { display: grid; justify-items: center; gap: 4px; padding: 48px 16px; color: var(--muted); svg { width: 28px; height: 28px; color: var(--faint); } p { margin: 0; } }
+  .eml-more { margin: 12px auto 20px; }
+
+  /* ---- reader ---- */
+  .eml-reader { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--bg); }
+  .eml-reader-empty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 8px; svg { width: 36px; height: 36px; color: var(--faint); } p { margin: 0; } }
+  .eml-toolbar { display: flex; align-items: center; gap: 2px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  .eml-tool {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 8px;
+    border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 13px; cursor: pointer;
+    svg { color: var(--muted); }
+    &:hover { background: var(--hover); }
+    &.starred svg { color: var(--star); fill: var(--star); }
+  }
+  .eml-reader-scroll { flex: 1; overflow-y: auto; padding: 24px 32px 48px; }
+  .eml-subject { font-size: 22px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; margin-bottom: 8px; }
+  .eml-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .eml-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 600;
+    button { display: grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer; border-radius: 50%; width: 18px; height: 18px; padding: 0; }
+    button:hover { background: rgba(0,0,0,.08); }
+    svg { width: 12px; height: 12px; }
+  }
+  .eml-messages { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .eml-msg {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    > header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+    > header:hover { background: var(--hover); }
+    &.open { box-shadow: var(--shadow); }
+  }
+  .eml-msg-from { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; .eml-muted { font-size: 12px; } }
+  .eml-msg-body { padding: 0 16px 16px 60px; }
+  .eml-plain { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
+  .eml-html {
+    iframe { display: block; width: 100%; border: 0; background: var(--frame); }
+    .dark & .eml-frame { padding: 12px; background: var(--frame); border-radius: 8px; }
+  }
+  .eml-images-note { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 8px; border-radius: 6px; background: var(--side); color: var(--muted); font-size: 12px; }
+  .eml-attachments {
+    list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px;
+    li { display: flex; align-items: center; gap: 6px; max-width: 260px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+    svg { color: var(--muted); }
+  }
+  .eml-reply-actions { margin-top: 16px; padding-left: 60px; }
+  .eml-reply { margin: 16px 0 0 60px; background: var(--panel); border: 1px solid var(--line2); border-radius: 12px; padding: 4px 16px 12px; box-shadow: var(--shadow); }
+
+  /* ---- drafts (composer + reply) ---- */
+  .eml-draft {
+    display: flex; flex-direction: column;
+    textarea { min-height: 180px; resize: vertical; border: 0; outline: 0; background: transparent; padding: 12px 0; font-size: 14px; line-height: 1.6; }
+  }
+  .eml-draft-line {
+    display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); min-height: 38px;
+    > span { width: 52px; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+    input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 13.5px; height: 36px; }
+  }
+  .eml-composer {
+    position: absolute; right: 24px; bottom: 0; z-index: 25; width: min(560px, calc(100% - 48px));
+    background: var(--panel); border: 1px solid var(--line2); border-bottom: 0; border-radius: 12px 12px 0 0; box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column; max-height: calc(100% - 24px);
+    > header { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 16px; background: var(--fg); color: var(--bg); border-radius: 12px 12px 0 0; font-weight: 600; font-size: 13px; cursor: default; }
+    > header .eml-icon-btn { color: inherit; opacity: .8; }
+    > header .eml-icon-btn:hover { background: rgba(127,127,127,.25); opacity: 1; }
+    form { padding: 0 16px 12px; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+    footer { display: flex; align-items: center; gap: 12px; padding-top: 8px; }
+    &.min { width: 300px; > header { cursor: pointer; } }
+  }
+  .eml-from { font-size: 12px; color: var(--muted); padding: 10px 0 4px; }
+
+  /* ---- label picker ---- */
+  .eml-pop-wrap { position: relative; }
+  .eml-pop {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 240px; padding: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column; gap: 2px; max-height: 340px; overflow-y: auto;
+    input[type='text'], > input { height: 32px; border: 1px solid var(--line2); border-radius: 6px; padding: 0 8px; background: var(--bg); outline: 0; margin-bottom: 4px; }
+    > input:focus { border-color: var(--accent); }
+    p { margin: 4px; }
+    .eml-btn { margin-top: 6px; align-self: flex-end; }
+  }
+  .eml-check {
+    display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    &:hover { background: var(--hover); }
+    input { position: absolute; opacity: 0; pointer-events: none; }
+    .eml-box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--line2); flex-shrink: 0; svg { width: 12px; height: 12px; opacity: 0; } }
+    input:checked + .eml-box { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); svg { opacity: 1; } }
+    input:focus-visible + .eml-box { outline: 2px solid var(--accent); outline-offset: 1px; }
+  }
+
+  /* ---- setup ---- */
+  .eml-setup { min-height: 100%; }
+  .eml-setup-head { display: flex; align-items: center; gap: 16px; height: 64px; padding: 0 32px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .eml-setup-body {
+    max-width: 760px; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 24px;
+    h1 { font-size: 28px; font-weight: 650; letter-spacing: -.015em; }
+  }
+  .eml-lede { margin: -16px 0 0; color: var(--muted); }
+  .eml-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; box-shadow: var(--shadow); h2 { font-size: 15px; margin-bottom: 12px; } }
+  .eml-accounts { list-style: none; margin: 0; padding: 0; li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); } li:first-child { border-top: 0; } }
+  .eml-connectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .eml-connector {
+    display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 10px; border: 1.5px solid var(--line);
+    background: var(--panel); color: var(--fg); text-align: left; font: inherit; cursor: pointer;
+    > span { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+    > svg { width: 22px; height: 22px; margin-top: 2px; }
+    &:hover { border-color: var(--line2); }
+    &.active { border-color: var(--accent); background: var(--accent-soft); }
+    &.disabled { cursor: default; opacity: .6; svg { color: var(--muted); } }
+  }
+  .eml-gmail { margin-top: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .eml-steps-toggle { align-self: flex-start; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; &:hover { text-decoration: underline; } }
+  .eml-steps {
+    margin: 0; padding: 16px 16px 16px 40px; list-style: decimal; background: var(--side); border-radius: 10px; display: flex; flex-direction: column; gap: 10px;
+    li { padding-left: 4px; }
+    li.eml-muted { list-style: none; margin-left: -20px; font-size: 13px; }
+    a { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; svg { width: 12px; height: 12px; } }
+  }
+  .eml-form { display: flex; flex-direction: column; gap: 12px; }
+  .eml-step-title { display: flex; align-items: center; gap: 8px; font-weight: 600; svg { color: var(--muted); } }
+  .eml-field {
+    display: flex; flex-direction: column; gap: 4px;
+    > span { font-size: 12.5px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+    input { height: 38px; border: 1px solid var(--line2); border-radius: 8px; padding: 0 12px; background: var(--bg); outline: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 13px; }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  }
+  .eml-saved { display: inline-flex; align-items: center; gap: 3px; font-style: normal; color: var(--accent-ink); font-weight: 600; svg { width: 12px; height: 12px; } }
+  .eml-signin { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; > .eml-muted { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } }
+}
+
+@keyframes eml-spin { to { transform: rotate(360deg); } }
+
+/* Narrow windows: the reader replaces the list. */
+@media (max-width: 1180px) {
+  .eml .eml-shell { grid-template-columns: 220px 1fr; }
+  .eml .eml-shell.reading .eml-list { display: none; }
+  .eml .eml-shell:not(.reading) .eml-reader { display: none; }
+}
