@@ -165,3 +165,32 @@ export const sampleComposer: ComposerInfo = {
   efforts: ['default', 'low', 'medium', 'high', 'xhigh', 'max'],
   repos: sampleFolders.repos.map((r) => ({ name: r.name, path: r.path })),
 }
+
+/** Fictional git status and diff for the browser preview's Changes panel. */
+export const sampleChanges = {
+  branch: 'feature/dark-mode...origin/feature/dark-mode [ahead 1]',
+  files: [
+    { code: ' M', path: 'src/pages/Settings.tsx' },
+    { code: '??', path: 'src/lib/theme.test.ts' },
+  ],
+  moreFiles: 0,
+  diff: [
+    ' src/pages/Settings.tsx | 3 ++-',
+    ' 1 file changed, 2 insertions(+), 1 deletion(-)',
+    '',
+    'diff --git a/src/pages/Settings.tsx b/src/pages/Settings.tsx',
+    'index 1a2b3c4..5d6e7f8 100644',
+    '--- a/src/pages/Settings.tsx',
+    '+++ b/src/pages/Settings.tsx',
+    '@@ -12,7 +12,8 @@ export function Settings() {',
+    '   return (',
+    '     <Card title="Appearance">',
+    '-      <p>Theme follows the app default.</p>',
+    '+      <Switch checked={dark} onCheckedChange={(v) => setMode(v ? "dark" : "light")} />',
+    '+      <p>Follows the system setting until you choose.</p>',
+    '     </Card>',
+    '',
+  ].join('\n'),
+  diffCut: false,
+  noHead: false,
+}

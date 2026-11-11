@@ -221,3 +221,25 @@ test('the pi SDK is found behind the pi command', () => {
   assert.equal(found?.version, '9.9.9')
   assert.equal(opts.findPiSdk({ PATH: path.join(base, 'nowhere') }, base), undefined)
 })
+
+// ---------------------------------------------------------------------------
+// Changes panel
+
+test('the changes panel reads git status and the diff against HEAD', async () => {
+  const { execFileSync } = require('node:child_process')
+  const changes = require('./agent-chat-changes.cjs')
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-changes-'))
+  const g = (...a) => execFileSync('git', a, { cwd: repo, stdio: 'pipe' })
+  g('init', '-q', '-b', 'main')
+  g('-c', 'user.email=demo@example.com', '-c', 'user.name=Demo', 'commit', '-q', '--allow-empty', '-m', 'init')
+  fs.writeFileSync(path.join(repo, 'a.txt'), 'one\n')
+  g('add', 'a.txt')
+  g('-c', 'user.email=demo@example.com', '-c', 'user.name=Demo', 'commit', '-q', '-m', 'a')
+  fs.writeFileSync(path.join(repo, 'a.txt'), 'two\n')
+  fs.writeFileSync(path.join(repo, 'new file.txt'), 'x\n')
+  const r = await changes.changes(repo)
+  assert.match(r.branch, /^main/)
+  assert.deepEqual(r.files.map((f) => [f.code, f.path]).sort(), [[' M', 'a.txt'], ['??', 'new file.txt']])
+  assert.match(r.diff, /-one\n\+two/)
+  assert.equal(r.diffCut, false)
+})

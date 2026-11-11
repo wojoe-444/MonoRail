@@ -20,6 +20,7 @@ const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, real } = requi
 const options = require('./agent-chat-options.cjs')
 const turnsApi = require('./agent-chat-turns.cjs')
 const chatState = require('./agent-chat-state.cjs')
+const changesApi = require('./agent-chat-changes.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -721,6 +722,25 @@ async function startTurn(ctx, args = {}) {
   })
 }
 
+/** git status and diff for a chat's folder (or a new chat's repo), re-checked against the allowed folders. */
+async function getChanges(ctx, args = {}) {
+  const folders = await allowedRepos(ctx.dataDir)
+  let dir
+  if (typeof args.chatId === 'string') {
+    if (!known.has(args.chatId)) await listSessions({ dataDir: ctx.dataDir })
+    const entry = known.get(args.chatId)
+    if (!entry) throw new Error('Session not found')
+    dir = entry.cwd ? await real(entry.cwd) : undefined
+    if (!dir || !(await repoFor(folders.repos, dir))) throw new Error("This chat's folder is not in an allowed repo any more.")
+  } else {
+    const wanted = typeof args.repo === 'string' ? await real(args.repo) : undefined
+    const repo = wanted && folders.repos.find((r) => r.path === wanted)
+    if (!repo) throw new Error('Pick one of your allowed repos.')
+    dir = repo.path
+  }
+  return changesApi.changes(dir)
+}
+
 module.exports = {
   id: 'agent-chat',
   start(ctx) {
@@ -733,6 +753,7 @@ module.exports = {
   },
   methods: {
     getComposer: async (ctx) => getComposer(ctx),
+    getChanges: async (ctx, args) => getChanges(ctx, args),
     startTurn: async (ctx, args) => startTurn(ctx, args),
     pollTurn: async (_ctx, args) => turnsApi.pollTurn(args?.turnId, args?.after),
     stopTurn: async (_ctx, args) => turnsApi.stopTurn(args?.turnId),
