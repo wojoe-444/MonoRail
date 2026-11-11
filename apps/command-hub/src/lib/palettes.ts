@@ -35,8 +35,11 @@ export interface Palette {
   tune?: (dark: boolean) => Record<string, string>
   /** `pill`: fully rounded inputs, buttons and selects, rounder cards (CSS keyed off `data-shape` on <html>). */
   shape?: 'pill'
-  /** `leaf`: a faint frond drawn in the drawer (CSS keyed off `data-texture` on <html>). */
-  texture?: 'leaf'
+  /**
+   * A faint frond drawn in the drawer (CSS keyed off `data-texture` on <html>):
+   * `leaf` in white for a dark or bold drawer, `leaf-ink` in green ink for a light one.
+   */
+  texture?: 'leaf' | 'leaf-ink'
 }
 
 export const DEFAULT_PALETTE = 'sand-ink'
@@ -79,6 +82,25 @@ export const PALETTES: Palette[] = [
     texture: 'leaf',
     tune: (dark) => botanicalTune(dark),
   },
+  {
+    id: 'botanical-linen',
+    name: 'Botanical Linen',
+    blurb: 'Cream linen, muted sage accent, clay highlight, light drawer',
+    ph: 148, pc: 0.06, nh: 88, nc: 0.012, sidebar: 'light',
+    neutral: true,
+    texture: 'leaf-ink',
+    tune: (dark) => botanicalLinenTune(dark),
+  },
+  {
+    id: 'botanical-sand',
+    name: 'Botanical Sand',
+    blurb: 'Sand & Ink paper with the Botanical forest drawer and pill inputs',
+    ph: 145, pc: 0.08, nh: 85, nc: 0.01, sidebar: 'bold', sh: 148,
+    neutral: true,
+    shape: 'pill',
+    texture: 'leaf',
+    tune: (dark) => botanicalSandTune(dark),
+  },
 ]
 
 /** Display groups, in PALETTES order. */
@@ -86,7 +108,7 @@ export const PALETTE_GROUPS: { label: string; from: number; to: number }[] = [
   { label: 'Set 1', from: 0, to: 12 },
   { label: 'Set 2', from: 12, to: 24 },
   { label: 'Neutrals (no blue or purple cast)', from: 24, to: 28 },
-  { label: 'Nature', from: 28, to: 29 },
+  { label: 'Nature', from: 28, to: 31 },
 ]
 
 export function findPalette(id: string | null | undefined): Palette {
@@ -290,6 +312,146 @@ function botanicalTune(dark: boolean): Record<string, string> {
         ring: o(0.55, 0.09, 145, 0.5),
         sidebar: o(0.42, 0.075, 148),
         'sidebar-accent': o(0.48, 0.075, 148),
+        'sidebar-primary-foreground': o(0.32, 0.075, 148),
+      }
+}
+
+/**
+ * Botanical Linen: the quieter, office-ready sibling of Botanical. Light mode
+ * is warm cream linen with near-white cards, a light linen drawer, a muted
+ * sage primary and a soft clay highlight; standard corners, and the frond is
+ * a faint green ink in the drawer. Dark mode is warm espresso-olive with the
+ * same sage and clay, lifted for contrast.
+ */
+function botanicalLinenTune(dark: boolean): Record<string, string> {
+  return dark
+    ? {
+        background: o(0.2, 0.011, 85),
+        card: o(0.235, 0.013, 85),
+        popover: o(0.25, 0.013, 85),
+        foreground: o(0.94, 0.014, 90),
+        'card-foreground': o(0.94, 0.014, 90),
+        'popover-foreground': o(0.94, 0.014, 90),
+        muted: o(0.27, 0.013, 85),
+        'muted-foreground': o(0.72, 0.02, 100),
+        secondary: o(0.29, 0.015, 88),
+        'secondary-foreground': o(0.94, 0.014, 90),
+        input: o(0.9, 0.03, 90, 0.14),
+        primary: o(0.75, 0.07, 145),
+        'primary-foreground': o(0.2, 0.03, 150),
+        'primary-soft': o(0.31, 0.035, 145),
+        'primary-soft-foreground': o(0.87, 0.05, 140),
+        accent: o(0.3, 0.02, 125),
+        'accent-foreground': o(0.94, 0.02, 120),
+        highlight: o(0.75, 0.085, 62),
+        'highlight-foreground': o(0.2, 0.03, 60),
+        'highlight-soft': o(0.31, 0.04, 62),
+        'highlight-soft-foreground': o(0.86, 0.06, 65),
+        ring: o(0.7, 0.06, 145, 0.5),
+        sidebar: o(0.18, 0.011, 85),
+        'sidebar-foreground': o(0.85, 0.015, 90),
+        'sidebar-muted-foreground': o(0.64, 0.018, 100),
+        'sidebar-primary': o(0.75, 0.07, 145),
+        'sidebar-primary-foreground': o(0.2, 0.03, 150),
+        'sidebar-accent': o(0.26, 0.02, 130),
+        'sidebar-accent-foreground': o(0.96, 0.012, 90),
+        'sidebar-ring': o(0.7, 0.06, 145, 0.5),
+      }
+    : {
+        background: o(0.968, 0.012, 88),
+        card: o(0.993, 0.005, 90),
+        popover: o(0.995, 0.004, 90),
+        foreground: o(0.27, 0.022, 150),
+        'card-foreground': o(0.27, 0.022, 150),
+        'popover-foreground': o(0.27, 0.022, 150),
+        muted: o(0.945, 0.013, 88),
+        'muted-foreground': o(0.5, 0.022, 120),
+        secondary: o(0.935, 0.016, 90),
+        'secondary-foreground': o(0.32, 0.035, 145),
+        border: o(0.9, 0.015, 88),
+        input: o(0.885, 0.017, 88),
+        primary: o(0.46, 0.06, 150),
+        'primary-foreground': o(0.985, 0.008, 90),
+        'primary-soft': o(0.93, 0.024, 138),
+        'primary-soft-foreground': o(0.38, 0.06, 150),
+        accent: o(0.93, 0.02, 115),
+        'accent-foreground': o(0.34, 0.045, 145),
+        highlight: o(0.6, 0.09, 58),
+        'highlight-foreground': o(0.99, 0.01, 70),
+        'highlight-soft': o(0.94, 0.028, 68),
+        'highlight-soft-foreground': o(0.44, 0.08, 55),
+        ring: o(0.55, 0.06, 150, 0.5),
+        sidebar: o(0.952, 0.016, 88),
+        'sidebar-foreground': o(0.36, 0.028, 140),
+        'sidebar-muted-foreground': o(0.54, 0.024, 115),
+        'sidebar-primary': o(0.46, 0.06, 150),
+        'sidebar-primary-foreground': o(0.985, 0.008, 90),
+        'sidebar-accent': o(0.915, 0.022, 115),
+        'sidebar-accent-foreground': o(0.27, 0.03, 150),
+        'sidebar-border': o(0.895, 0.016, 88),
+        'sidebar-ring': o(0.55, 0.06, 150, 0.5),
+      }
+}
+
+/**
+ * Botanical Sand: Sand & Ink meets Botanical. The page, cards and text are
+ * Sand & Ink's cream paper and warm ink; the drawer, pill shape and leaf frond
+ * are Botanical's, with a forest green primary and Sand & Ink's khaki as the
+ * highlight. Dark mode is warm ink with a deep forest drawer.
+ */
+function botanicalSandTune(dark: boolean): Record<string, string> {
+  return dark
+    ? {
+        background: o(0.185, 0.012, 80),
+        card: o(0.22, 0.014, 80),
+        popover: o(0.235, 0.014, 80),
+        foreground: o(0.95, 0.012, 85),
+        'card-foreground': o(0.95, 0.012, 85),
+        'popover-foreground': o(0.95, 0.012, 85),
+        muted: o(0.26, 0.014, 80),
+        'muted-foreground': o(0.72, 0.02, 85),
+        secondary: o(0.28, 0.016, 80),
+        input: o(0.9, 0.03, 85, 0.15),
+        primary: o(0.74, 0.11, 142),
+        'primary-foreground': o(0.2, 0.04, 150),
+        'primary-soft': o(0.31, 0.045, 145),
+        'primary-soft-foreground': o(0.88, 0.06, 140),
+        accent: o(0.3, 0.025, 120),
+        highlight: o(0.78, 0.08, 82),
+        'highlight-foreground': o(0.2, 0.03, 80),
+        'highlight-soft': o(0.31, 0.035, 82),
+        'highlight-soft-foreground': o(0.87, 0.05, 82),
+        ring: o(0.7, 0.09, 142, 0.5),
+        sidebar: o(0.26, 0.05, 150),
+        'sidebar-accent': o(0.32, 0.055, 150),
+        'sidebar-primary-foreground': o(0.27, 0.06, 150),
+      }
+    : {
+        background: o(0.97, 0.01, 85),
+        card: o(0.995, 0.003, 85),
+        popover: o(0.995, 0.003, 85),
+        foreground: o(0.25, 0.03, 90),
+        'card-foreground': o(0.25, 0.03, 90),
+        'popover-foreground': o(0.25, 0.03, 90),
+        muted: o(0.945, 0.012, 85),
+        'muted-foreground': o(0.5, 0.025, 85),
+        secondary: o(0.94, 0.015, 85),
+        'secondary-foreground': o(0.3, 0.035, 90),
+        border: o(0.91, 0.013, 85),
+        input: o(0.925, 0.014, 85),
+        primary: o(0.42, 0.08, 145),
+        'primary-foreground': o(0.985, 0.01, 90),
+        'primary-soft': o(0.93, 0.03, 140),
+        'primary-soft-foreground': o(0.38, 0.075, 145),
+        accent: o(0.93, 0.02, 100),
+        'accent-foreground': o(0.34, 0.05, 120),
+        highlight: o(0.52, 0.07, 80),
+        'highlight-foreground': o(0.985, 0.01, 85),
+        'highlight-soft': o(0.94, 0.025, 82),
+        'highlight-soft-foreground': o(0.42, 0.06, 80),
+        ring: o(0.55, 0.08, 145, 0.5),
+        sidebar: o(0.4, 0.07, 148),
+        'sidebar-accent': o(0.47, 0.07, 148),
         'sidebar-primary-foreground': o(0.32, 0.075, 148),
       }
 }

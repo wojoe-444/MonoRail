@@ -694,7 +694,7 @@ numbers in JetBrains Mono Variable (`font-mono`). Use the primitives in
 Colors are OKLCH CSS variables mapped to Tailwind via `@theme inline` in
 `src/index.css`. Use tokens, never raw hex values in components.
 
-- **Palettes.** `src/lib/palettes.ts` holds the 28 color schemes ported from
+- **Palettes.** `src/lib/palettes.ts` holds the color schemes ported from
   the Bot Dashboard (Set 1, Set 2, Neutrals). Each is a few numbers (primary
   hue/chroma, neutral hue/chroma, drawer style dark/light/bold) that
   `tokens()` expands into every token for light and dark. `lib/theme.ts`
