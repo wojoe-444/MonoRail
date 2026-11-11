@@ -13,6 +13,7 @@ import {
   RefreshCw,
   RotateCw,
   ScrollText,
+  Settings2,
   ShieldCheck,
   Trash2,
   X,
@@ -36,12 +37,14 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { extensionIcon } from '@/extensions/ExtensionIcon'
-import { refreshExtensions, useExtensionList } from '@/extensions/store'
+import { refreshExtensions, takePendingSettings, useExtensionList } from '@/extensions/store'
 import type { ExtensionList, ExtensionSource, ExtensionSummary, InstallPreview, LogLine, PermissionLine } from '@/extensions/types'
 import { formatRelative } from '@/lib/format'
 import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
+
+import { SettingsDialog } from './SettingsDialog'
 
 const BACKEND = 'extensions'
 const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions.md'
@@ -76,6 +79,13 @@ const sampleList: ExtensionList = {
       },
       backend: { activation: 'onDemand', state: 'stopped' },
       update: { version: '1.1.0' },
+      settings: [
+        { key: 'greeting', type: 'string', title: 'Greeting', description: 'Shown at the top of the page.', default: 'Hello', required: true },
+        { key: 'refreshSeconds', type: 'number', title: 'Refresh every (seconds)', description: '', min: 5, max: 3600, default: 30 },
+        { key: 'compact', type: 'boolean', title: 'Compact list', description: 'Smaller rows.', default: false },
+        { key: 'apiToken', type: 'secret', title: 'API token', description: 'Stored encrypted on this computer.' },
+      ],
+      settingsMissing: [],
       dataDir: '%APPDATA%\\MonoRail\\extension-data\\hello-monorail',
       extensionDir: '%APPDATA%\\MonoRail\\extensions\\hello-monorail',
     },
@@ -98,6 +108,15 @@ export default function ExtensionsPage() {
   const [checkedAt, setCheckedAt] = useState<string>()
   const [removing, setRemoving] = useState<ExtensionSummary>()
   const [logsFor, setLogsFor] = useState<ExtensionSummary>()
+  const [settingsId, setSettingsId] = useState<string | undefined>(takePendingSettings)
+  const settingsFor = list.extensions.find((e) => e.id === settingsId)
+
+  // An extension page asked for its settings (monorail.openSettings()) while this page is open.
+  useEffect(() => {
+    const onOpen = () => setSettingsId(takePendingSettings())
+    window.addEventListener('monorail:open-extension-settings', onOpen)
+    return () => window.removeEventListener('monorail:open-extension-settings', onOpen)
+  }, [])
 
   async function run<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
     if (!desktop) {
@@ -194,6 +213,7 @@ export default function ExtensionsPage() {
                     onRevokeFolder={(path) => void call('revokeFolder', { id: ext.id, path })}
                     onOpenFolder={(which) => void call('openFolder', { id: ext.id, which })}
                     onLogs={() => setLogsFor(ext)}
+                    onSettings={() => setSettingsId(ext.id)}
                     onRemove={() => setRemoving(ext)}
                   />
                 ))}
@@ -244,6 +264,15 @@ export default function ExtensionsPage() {
       )}
 
       {logsFor && <LogsDialog ext={logsFor} onClose={() => setLogsFor(undefined)} />}
+      {settingsFor && settingsFor.settings.length > 0 && (
+        <SettingsDialog
+          ext={settingsFor}
+          onClose={() => {
+            setSettingsId(undefined)
+            void refreshExtensions()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -324,10 +353,11 @@ interface RowProps {
   onRevokeFolder: (path: string) => void
   onOpenFolder: (which: 'data' | 'extension') => void
   onLogs: () => void
+  onSettings: () => void
   onRemove: () => void
 }
 
-function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRevokeFolder, onOpenFolder, onLogs, onRemove }: RowProps) {
+function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRevokeFolder, onOpenFolder, onLogs, onSettings, onRemove }: RowProps) {
   const status = STATUS[ext.status]
   const pages = ext.contributes.modules.length
   const apps = ext.contributes.apps.length
@@ -357,6 +387,11 @@ function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRe
           {ext.update && ext.status !== 'broken' && (
             <Button size="sm" onClick={onUpdate} disabled={!!busy}>
               <Download /> Update to {ext.update.version}
+            </Button>
+          )}
+          {ext.settings.length > 0 && (
+            <Button size="sm" variant="outline" onClick={onSettings} disabled={ext.status === 'broken'}>
+              <Settings2 /> Settings
             </Button>
           )}
           {ext.source.type === 'dev' && (
@@ -410,6 +445,14 @@ function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRe
       {ext.backend?.error && ext.status === 'active' && (
         <Notice tone="warning">
           <span className="break-words">Backend: {ext.backend.error}</span>
+        </Notice>
+      )}
+      {ext.settingsMissing.length > 0 && ext.status === 'active' && (
+        <Notice tone="warning">
+          <span className="flex-1">Needs setup: {ext.settingsMissing.join(', ')}.</span>
+          <Button size="sm" onClick={onSettings}>
+            <Settings2 /> Open settings
+          </Button>
         </Notice>
       )}
       {ext.status === 'needs-approval' && (

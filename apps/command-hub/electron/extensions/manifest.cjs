@@ -173,6 +173,97 @@ function normalizePermissions(p = {}) {
   return out
 }
 
+// -------------------------------------------------------------- settings --
+
+const SETTING_KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,39}$/
+const SETTING_TYPES = ['string', 'text', 'number', 'boolean', 'select', 'secret']
+const MAX_SETTINGS = 50
+
+/**
+ * Normalize the settings block (API 1.1): a list of fields MonoRail turns into
+ * a form under Settings > Extensions. Values are stored by MonoRail, read by
+ * the backend with ctx.settings.get() and by pages with monorail.getSettings().
+ *
+ *   { "key": "server", "type": "string", "title": "Server", "default": "localhost" }
+ *   types: string, text (multi-line), number (min/max/step), boolean,
+ *          select (options: [{ value, label }]), secret (encrypted, never shown)
+ */
+function normalizeSettings(list) {
+  if (list === undefined) return []
+  if (!Array.isArray(list)) throw new ManifestError('settings must be a list')
+  if (list.length > MAX_SETTINGS) throw new ManifestError(`settings can have at most ${MAX_SETTINGS} fields`)
+  const keys = new Set()
+  return list.map((f, i) => {
+    const where = `settings[${i}]`
+    if (!f || typeof f !== 'object' || Array.isArray(f)) throw new ManifestError(`${where} must be an object`)
+    const key = str(f, 'key', where, { max: 40 })
+    if (!SETTING_KEY_RE.test(key)) throw new ManifestError(`${where}.key must start with a letter and use only letters, digits and _`)
+    if (keys.has(key)) throw new ManifestError(`Two settings use the key "${key}"`)
+    keys.add(key)
+    const type = f.type ?? 'string'
+    if (!SETTING_TYPES.includes(type)) throw new ManifestError(`${where}.type must be one of ${SETTING_TYPES.join(', ')}`)
+    const out = {
+      key,
+      type,
+      title: str(f, 'title', where, { max: 60 }),
+      description: str(f, 'description', where, { required: false, max: 300 }) ?? '',
+    }
+    if (type !== 'boolean') out.required = f.required === true
+    if (type === 'string' || type === 'text' || type === 'secret') {
+      out.placeholder = str(f, 'placeholder', where, { required: false, max: 100 }) ?? ''
+      const cap = type === 'text' ? 10000 : type === 'secret' ? 65536 : 1000
+      out.maxLength = Number.isInteger(f.maxLength) && f.maxLength > 0 ? Math.min(f.maxLength, cap) : cap
+    }
+    if (type === 'number') {
+      for (const k of ['min', 'max', 'step'])
+        if (f[k] !== undefined && !Number.isFinite(f[k])) throw new ManifestError(`${where}.${k} must be a number`)
+      if (f.min !== undefined) out.min = f.min
+      if (f.max !== undefined) out.max = f.max
+      if (f.step !== undefined) out.step = f.step
+      if (out.min !== undefined && out.max !== undefined && out.min > out.max) throw new ManifestError(`${where}.min is larger than max`)
+    }
+    if (type === 'select') {
+      if (!Array.isArray(f.options) || f.options.length === 0 || f.options.length > 50)
+        throw new ManifestError(`${where}.options must be a list of 1-50 { value, label }`)
+      out.options = f.options.map((o, j) => {
+        if (typeof o === 'string') return { value: o, label: o }
+        if (!o || typeof o !== 'object') throw new ManifestError(`${where}.options[${j}] must be { value, label }`)
+        const value = str(o, 'value', `${where}.options[${j}]`, { max: 100 })
+        return { value, label: str(o, 'label', `${where}.options[${j}]`, { required: false, max: 100 }) ?? value }
+      })
+    }
+    if (f.default !== undefined) {
+      if (type === 'secret') throw new ManifestError(`${where}: a secret cannot have a default`)
+      const err = settingValueError(out, f.default)
+      if (err) throw new ManifestError(`${where}.default: ${err}`)
+      out.default = f.default
+    }
+    return out
+  })
+}
+
+/** Why `value` is not valid for the field, or undefined when it is. Empty values are checked by the caller. */
+function settingValueError(field, value) {
+  switch (field.type) {
+    case 'string':
+    case 'text':
+    case 'secret':
+      if (typeof value !== 'string') return 'must be text'
+      if (value.length > field.maxLength) return `must be at most ${field.maxLength} characters`
+      return undefined
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'must be a number'
+      if (field.min !== undefined && value < field.min) return `must be at least ${field.min}`
+      if (field.max !== undefined && value > field.max) return `must be at most ${field.max}`
+      return undefined
+    case 'boolean':
+      return typeof value === 'boolean' ? undefined : 'must be true or false'
+    case 'select':
+      return field.options.some((o) => o.value === value) ? undefined : `must be one of ${field.options.map((o) => o.value).join(', ')}`
+  }
+  return 'has an unknown type'
+}
+
 /** Stable string form, used to tell whether an update asks for new permissions. */
 function permissionsKey(p) {
   return JSON.stringify(p)
@@ -260,6 +351,7 @@ function validateManifest(raw) {
     contributes: { modules, apps },
     backend,
     permissions: normalizePermissions(raw.permissions),
+    settings: normalizeSettings(raw.settings),
   }
 }
 
@@ -282,6 +374,8 @@ module.exports = {
   ManifestError,
   validateManifest,
   normalizePermissions,
+  normalizeSettings,
+  settingValueError,
   describePermissions,
   addedPermissions,
   permissionsKey,

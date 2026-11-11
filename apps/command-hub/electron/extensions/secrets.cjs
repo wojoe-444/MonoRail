@@ -31,22 +31,23 @@ class SecretStore {
     this.cipher = cipher
   }
 
-  file(id) {
-    return path.join(this.root, `${id}.json`)
+  /** ctx.secrets live in <id>.json, secret settings in <id>.settings.json (ids have no dots). */
+  file(id, bucket) {
+    return path.join(this.root, bucket ? `${id}.${bucket}.json` : `${id}.json`)
   }
 
-  read(id) {
+  read(id, bucket) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(this.file(id), 'utf8'))
+      const parsed = JSON.parse(fs.readFileSync(this.file(id, bucket), 'utf8'))
       return parsed && typeof parsed.secrets === 'object' ? parsed.secrets : {}
     } catch {
       return {}
     }
   }
 
-  write(id, secrets) {
+  write(id, secrets, bucket) {
     fs.mkdirSync(this.root, { recursive: true })
-    const file = this.file(id)
+    const file = this.file(id, bucket)
     const tmp = `${file}.tmp`
     fs.writeFileSync(tmp, JSON.stringify({ version: 1, secrets }, null, 2), { mode: 0o600 })
     fs.renameSync(tmp, file)
@@ -57,8 +58,8 @@ class SecretStore {
       throw new ExtensionCallError('EXT_SECRETS_UNAVAILABLE', 'This computer offers no encryption for stored secrets, so MonoRail will not save them')
   }
 
-  /** The ctx.secrets API for one extension. */
-  forExtension(id) {
+  /** The ctx.secrets API for one extension (or, with bucket "settings", its secret settings). */
+  forExtension(id, bucket) {
     const checkName = (name) => {
       if (typeof name !== 'string' || !NAME_RE.test(name))
         throw new ExtensionCallError('EXT_INVALID_SECRET', 'A secret name is 1-100 characters of A-Z, a-z, 0-9, ".", "_" and "-"')
@@ -66,7 +67,7 @@ class SecretStore {
     return {
       get: async (name) => {
         checkName(name)
-        const all = this.read(id)
+        const all = this.read(id, bucket)
         if (!Object.hasOwn(all, name)) return null
         this.requireCipher()
         return this.cipher.decrypt(Buffer.from(all[name], 'base64'))
@@ -76,26 +77,27 @@ class SecretStore {
         if (typeof value !== 'string' || value.length > MAX_VALUE)
           throw new ExtensionCallError('EXT_INVALID_SECRET', 'A secret value is a string of at most 64 KB')
         this.requireCipher()
-        const all = this.read(id)
+        const all = this.read(id, bucket)
         if (!Object.hasOwn(all, name) && Object.keys(all).length >= MAX_SECRETS)
           throw new ExtensionCallError('EXT_INVALID_SECRET', `An extension can keep at most ${MAX_SECRETS} secrets`)
         all[name] = this.cipher.encrypt(value).toString('base64')
-        this.write(id, all)
+        this.write(id, all, bucket)
       },
       delete: async (name) => {
         checkName(name)
-        const all = this.read(id)
+        const all = this.read(id, bucket)
         if (!Object.hasOwn(all, name)) return
         delete all[name]
-        this.write(id, all)
+        this.write(id, all, bucket)
       },
-      list: async () => Object.keys(this.read(id)).sort(),
+      list: async () => Object.keys(this.read(id, bucket)).sort(),
     }
   }
 
   /** Forget every secret of an extension (on "Remove" with "Also delete its data"). */
   clear(id) {
     fs.rmSync(this.file(id), { force: true })
+    fs.rmSync(this.file(id, 'settings'), { force: true })
   }
 }
 

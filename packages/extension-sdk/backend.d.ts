@@ -30,6 +30,7 @@ export type MonoRailErrorCode =
   | 'EXT_FS_DENIED'
   | 'EXT_SECRETS_UNAVAILABLE'
   | 'EXT_INVALID_SECRET'
+  | 'EXT_INVALID_SETTINGS'
   | 'EXT_HOST_ERROR'
 
 export interface Secrets {
@@ -71,6 +72,11 @@ export interface BackendContext {
   fail(code: string, message: string, details?: unknown): never
   /** Tokens and passwords, encrypted by MonoRail with the system key store (API 1.1). */
   readonly secrets: Secrets
+  /** The settings declared in monorail.json, filled in by the user (API 1.1). */
+  readonly settings: {
+    /** Every field: saved value, else default, else null (false for booleans). Secret fields decrypted. */
+    get<V extends Record<string, unknown> = Record<string, unknown>>(): Promise<V>
+  }
 }
 
 export type BackendMethod<A = any, R = unknown> = (ctx: BackendContext, args: A) => R | Promise<R>
@@ -85,6 +91,11 @@ export interface Backend {
    */
   migrate?(ctx: BackendContext, fromVersion: string | null): void | Promise<void>
   start?(ctx: BackendContext): void | Promise<void>
+  /**
+   * The user saved new settings. Without this hook MonoRail restarts the
+   * backend instead, so start() reads the new values. API 1.1.
+   */
+  settingsChanged?(ctx: BackendContext, values: Record<string, unknown>): void | Promise<void>
   stop?(ctx: BackendContext): void | Promise<void>
   methods: Record<string, BackendMethod>
 }

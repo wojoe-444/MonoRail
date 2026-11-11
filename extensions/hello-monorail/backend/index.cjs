@@ -49,6 +49,11 @@ module.exports = {
     clearInterval(timer)
   },
 
+  // Settings were saved. Without this hook MonoRail would restart the backend.
+  async settingsChanged(ctx, values) {
+    ctx.log(`Settings changed: keep at most ${values.maxNotes} notes`)
+  },
+
   methods: {
     async getInfo(ctx) {
       return {
@@ -68,7 +73,9 @@ module.exports = {
       // The page receives this as error.code === 'EMPTY_NOTE'.
       if (!clean) ctx.fail('EMPTY_NOTE', 'A note needs some text')
       const note = { id: Date.now().toString(36), text: clean, createdAt: new Date().toISOString() }
-      return writeNotes(ctx, [note, ...readNotes(ctx)])
+      // Settings declared in monorail.json, filled in under Settings > Extensions.
+      const { maxNotes } = await ctx.settings.get()
+      return writeNotes(ctx, [note, ...readNotes(ctx)].slice(0, maxNotes))
     },
 
     async deleteNote(ctx, { id }) {

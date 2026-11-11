@@ -3,7 +3,10 @@ import { AlertTriangle } from 'lucide-react'
 
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+import { navigate } from '@/lib/router'
 import { invokeModule } from '@/modules/client'
+
+import { requestExtensionSettings } from './store'
 
 import type { ExtensionSummary } from './types'
 
@@ -17,7 +20,7 @@ import type { ExtensionSummary } from './types'
  * Bridge protocol v1 (see packages/extension-sdk/client.js):
  *   frame -> hub  { monorail: 1, type: 'hello' }
  *   hub -> frame  { monorail: 1, type: 'init', theme, apiVersion, extension, contribution }
- *   frame -> hub  { monorail: 1, type: 'request', id, op: 'invoke' | 'pickFolder' | 'openExternal', ... }
+ *   frame -> hub  { monorail: 1, type: 'request', id, op: 'invoke' | 'pickFolder' | 'openExternal' | 'getSettings' | 'openSettings', ... }
  *   hub -> frame  { monorail: 1, type: 'response', id, ok, value | error }   error = { code, message, details? }
  *   frame -> hub  { monorail: 1, type: 'resize', height }   (modules only: page height)
  *   hub -> frame  { monorail: 1, type: 'theme', theme } | { monorail: 1, type: 'event', channel, payload }
@@ -112,6 +115,13 @@ export function ExtensionFrame({ ext, contribution, kind, apiVersion }: Extensio
           value = await invokeModule('extensions', 'requestFolder', { id, write: msg.write === true })
         } else if (msg.op === 'openExternal') {
           value = await invokeModule('extensions', 'openExternal', { url: msg.url })
+        } else if (msg.op === 'getSettings') {
+          const snap = await invokeModule<{ values: unknown; secrets: unknown }>('extensions', 'getSettings', { id })
+          value = { values: snap.values, secrets: snap.secrets }
+        } else if (msg.op === 'openSettings') {
+          requestExtensionSettings(id)
+          navigate('/settings/extensions')
+          value = null
         } else throw new Error(`Unknown request ${String(msg.op)}`)
         post({ type: 'response', id: msg.id, ok: true, value })
       } catch (err) {
