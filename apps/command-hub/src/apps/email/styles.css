@@ -286,6 +286,44 @@
   }
   .eml-saved { display: inline-flex; align-items: center; gap: 3px; font-style: normal; color: var(--accent-ink); font-weight: 600; svg { width: 12px; height: 12px; } }
   .eml-signin { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; > .eml-muted { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } }
+
+  /* ---- Outlook: folder tree, filters, read-only, stores ---- */
+  .eml-twisty { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: -8px; border-radius: 4px; flex-shrink: 0; svg { width: 14px; height: 14px; } &[role='button']:hover { background: var(--line); } }
+  .eml-ro { width: 13px !important; height: 13px !important; color: var(--muted); }
+  .eml-ro-note { display: inline-flex; align-items: center; gap: 6px; svg { width: 13px; height: 13px; } }
+  .eml-side-error { align-items: flex-start; .eml-icon-btn { color: var(--danger); } }
+  .eml-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 0; }
+  .eml-select select {
+    height: 28px; border: 1px solid var(--line2); border-radius: 999px; padding: 0 10px; background: var(--panel); color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer;
+    &:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  }
+  .eml-chip-btn {
+    display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line2);
+    background: var(--panel); color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+    svg { width: 13px; height: 13px; }
+    &:hover { background: var(--hover); }
+    &.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    &:disabled { opacity: .6; cursor: default; }
+  }
+  .eml-list-note { margin: -4px 16px 6px; }
+  .eml-thread-where { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .eml-tag { flex-shrink: 0; padding: 0 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11.5px; font-weight: 600; }
+  .eml-accounts li.eml-account-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .eml-account-main { gap: 12px; }
+  .eml-skip {
+    display: flex; flex-direction: column; gap: 8px; padding: 12px; margin-left: 44px; border-radius: 10px; background: var(--side);
+    textarea { border: 1px solid var(--line2); border-radius: 8px; padding: 8px 12px; background: var(--bg); outline: 0; font: 13px ui-monospace, 'Cascadia Code', Consolas, monospace; resize: vertical; }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .eml-field > span { font-weight: 500; }
+  }
+  .eml-stores {
+    list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px;
+    li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--line); }
+    li:first-child { border-top: 0; }
+    li.added { opacity: .65; }
+    .eml-check > span:last-child { display: flex; flex-direction: column; font-size: 13px; }
+    .eml-check.small { font-size: 12.5px; color: var(--muted); }
+  }
 }
 
 @keyframes eml-spin { to { transform: rotate(360deg); } }

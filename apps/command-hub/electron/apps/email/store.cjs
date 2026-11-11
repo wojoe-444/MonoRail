@@ -2,8 +2,9 @@
 //
 //   config.json    per-connector setup (e.g. the Google OAuth client). Secret
 //                  fields are encrypted.
-//   accounts.json  connected inboxes. Each account's credentials (refresh
-//                  token) are encrypted.
+//   accounts.json  connected inboxes: kind, key (address or Outlook StoreID),
+//                  name, readOnly, settings (folders to skip). Credentials
+//                  (refresh token) are encrypted; Outlook accounts have none.
 //
 // Encryption is Electron safeStorage (Windows DPAPI, key in the userData
 // folder's Local State). If it is unavailable nothing secret is written:
@@ -87,28 +88,50 @@ function createStore(dataDir, cipher) {
       return Array.isArray(list) ? list.map(({ credentials: _c, ...a }) => a) : []
     },
 
+    /** Decrypted credentials, or null for an account that has none (Outlook). */
     async getCredentials(accountId) {
       const list = await readJson(ACCOUNTS_FILE, [])
       const a = list.find((x) => x.id === accountId)
       if (!a) throw new Error('That inbox is no longer connected.')
-      return JSON.parse(decrypt(a.credentials))
+      return a.credentials == null ? null : JSON.parse(decrypt(a.credentials))
     },
 
-    /** Add, or replace credentials of an account with the same kind and address. */
-    async upsertAccount({ kind, address, name }, credentials) {
+    /**
+     * Add an account, or update the one with the same kind and key (Gmail:
+     * the address; Outlook: the StoreID). Accounts saved before keys existed
+     * match by address. credentials may be null (nothing to encrypt).
+     */
+    async upsertAccount({ kind, key, address, name, readOnly, detail }, credentials) {
       const list = await readJson(ACCOUNTS_FILE, [])
-      const enc = encrypt(JSON.stringify(credentials))
-      const existing = list.find((a) => a.kind === kind && a.address?.toLowerCase() === String(address).toLowerCase())
+      const enc = credentials == null ? null : encrypt(JSON.stringify(credentials))
+      const k = key != null ? String(key) : String(address ?? '').toLowerCase()
+      const existing = list.find((a) => a.kind === kind && (a.key != null ? a.key === k : String(a.address ?? '').toLowerCase() === k.toLowerCase()))
+      const fields = { key: k, address: address ?? '', name: name || address || 'Inbox', ...(detail ? { detail } : {}) }
       let account
       if (existing) {
-        Object.assign(existing, { name, credentials: enc, updatedAt: new Date().toISOString() })
+        Object.assign(existing, fields, { credentials: enc, updatedAt: new Date().toISOString() })
         account = existing
       } else {
-        account = { id: crypto.randomUUID(), kind, address, name, addedAt: new Date().toISOString(), credentials: enc }
+        account = { id: crypto.randomUUID(), kind, ...fields, readOnly: !!readOnly, settings: {}, addedAt: new Date().toISOString(), credentials: enc }
         list.push(account)
       }
       await writeJson(ACCOUNTS_FILE, list)
       const { credentials: _c, ...safe } = account
+      return safe
+    },
+
+    /** Per-account settings the user may change: readOnly, and the folders to skip. */
+    async updateAccount(accountId, { readOnly, skipFolders } = {}) {
+      const list = await readJson(ACCOUNTS_FILE, [])
+      const a = list.find((x) => x.id === accountId)
+      if (!a) throw new Error('That inbox is no longer connected.')
+      if (typeof readOnly === 'boolean') a.readOnly = readOnly
+      if (Array.isArray(skipFolders)) {
+        const clean = [...new Set(skipFolders.filter((x) => typeof x === 'string').map((x) => x.trim().replace(/^\\+|\\+$/g, '')).filter(Boolean))].slice(0, 200)
+        a.settings = { ...(a.settings ?? {}), skipFolders: clean }
+      }
+      await writeJson(ACCOUNTS_FILE, list)
+      const { credentials: _c, ...safe } = a
       return safe
     },
 

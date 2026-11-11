@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Archive, ArrowLeft, Inbox, MailOpen, Paperclip, Reply, ReplyAll, Send, Star, X } from 'lucide-react'
+import { Archive, ArrowLeft, Flag, Inbox, Lock, MailOpen, Paperclip, Reply, ReplyAll, Send, Star, X } from 'lucide-react'
 
 import { api, ReauthError } from '../api'
 import { useMail } from '../MailContext'
-import type { Draft, Message, Thread, ThreadSummary } from '../types'
+import type { Account, Draft, Message, Thread, ThreadSummary } from '../types'
 import { addressOf, formatSize, fullDate, htmlToText, nameOf, quote, replySubject } from '../util'
 import { Avatar } from './Avatar'
 import DraftFields from './DraftFields'
@@ -12,6 +12,8 @@ import LabelMenu from './LabelMenu'
 import MessageBody from './MessageBody'
 
 interface Props {
+  /** The account the thread belongs to (a search over several inboxes may open another one's). */
+  account: Account
   threadId: string
   onClose: () => void
   /** Keep the list in step with what happened here. */
@@ -21,19 +23,23 @@ interface Props {
   folderId: string
 }
 
-export default function ThreadView({ threadId, onClose, onPatch, onRemoved, folderId }: Props) {
-  const { account, folders, notify, reloadFolders } = useMail()
+export default function ThreadView({ account, threadId, onClose, onPatch, onRemoved, folderId }: Props) {
+  const { account: current, folders, notify, reloadFolders, connectorOf } = useMail()
+  const caps = connectorOf(account)?.capabilities ?? {}
+  const readOnly = !!account.readOnly
+  // Labels belong to the account shown in the sidebar.
+  const showLabels = !!caps.labels && current?.id === account.id
   const [thread, setThread] = useState<Thread | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [reply, setReply] = useState<Draft | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
-  const accountId = account?.id
+  const accountId = account.id
   // Latest callbacks, so the load effect re-runs only for a new thread.
-  const after = useRef({ onPatch, reloadFolders })
+  const after = useRef({ onPatch, reloadFolders, readOnly })
   useLayoutEffect(() => {
-    after.current = { onPatch, reloadFolders }
+    after.current = { onPatch, reloadFolders, readOnly }
   })
 
   useEffect(() => {
@@ -46,9 +52,11 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
       (t) => {
         if (!live) return
         setThread(t)
+        // The mail moved and was found again under a new id: keep the list in step.
+        if (t.id !== threadId) after.current.onPatch(threadId, { id: t.id })
         const last = t.messages.at(-1)
         setExpanded(new Set(t.messages.filter((m) => m.unread || m === last).map((m) => m.id)))
-        if (t.labelIds.includes('UNREAD')) {
+        if (t.labelIds.includes('UNREAD') && !after.current.readOnly) {
           api.markRead(accountId, t.id, true).then(
             () => {
               after.current.onPatch(t.id, { unread: false })
@@ -65,7 +73,6 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
     }
   }, [accountId, threadId])
 
-  if (!account) return null
   if (error) {
     return (
       <section className="eml-reader">
@@ -78,18 +85,21 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
   }
   if (!thread) return <section className="eml-reader"><div className="eml-reader-empty"><span className="eml-spinner" aria-label="Loading" /></div></section>
 
-  const me = addressOf(account.address)
+  const me = addressOf(account.address || '')
   const last = thread.messages.at(-1)!
   const has = (l: string) => thread.labelIds.includes(l)
-  const userLabels = folders.filter((f) => f.kind === 'user' && has(f.id))
+  const userLabels = showLabels ? folders.filter((f) => f.kind === 'user' && has(f.id)) : []
 
   const modify = async (add: string[], remove: string[], done?: string) => {
     try {
-      await api.modifyThread(account.id, thread.id, add, remove)
+      const r = await api.modifyThread(account.id, thread.id, add, remove)
       const next = [...new Set([...thread.labelIds.filter((l) => !remove.includes(l)), ...add])]
-      setThread({ ...thread, labelIds: next })
-      onPatch(thread.id, { labelIds: next, starred: next.includes('STARRED') })
-      if (remove.includes(folderId)) onRemoved(thread.id)
+      // Outlook: moving mail gives it a new id.
+      const id = r.id || thread.id
+      setThread({ ...thread, id, labelIds: next })
+      onPatch(thread.id, { id, labelIds: next, starred: next.includes('STARRED') })
+      // Folders, not labels (Outlook): moving to the Inbox takes it out of this folder.
+      if (remove.includes(folderId) || (!caps.labels && add.includes('INBOX') && folderId !== 'INBOX')) onRemoved(thread.id)
       if (done) notify(done)
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e))
@@ -98,12 +108,12 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
 
   const archive = async () => {
     try {
-      await api.archive(account.id, thread.id)
+      const r = await api.archive(account.id, thread.id)
       notify('Archived')
       onRemoved(thread.id)
       reloadFolders()
       if (folderId === 'INBOX') onClose()
-      else setThread({ ...thread, labelIds: thread.labelIds.filter((l) => l !== 'INBOX') })
+      else setThread({ ...thread, id: r.id || thread.id, labelIds: thread.labelIds.filter((l) => l !== 'INBOX') })
     } catch (e) {
       notify(e instanceof Error ? e.message : String(e))
     }
@@ -111,8 +121,8 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
 
   const markUnread = async () => {
     try {
-      await api.markRead(account.id, thread.id, false)
-      onPatch(thread.id, { unread: true })
+      const r = await api.markRead(account.id, thread.id, false)
+      onPatch(thread.id, { unread: true, id: r.id || thread.id })
       reloadFolders()
       onClose()
     } catch (e) {
@@ -159,16 +169,22 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
     <section className="eml-reader">
       <div className="eml-toolbar">
         <button className="eml-tool" title="Close" onClick={onClose}><ArrowLeft /></button>
-        {has('INBOX') ? (
+        {readOnly ? (
+          <span className="eml-muted small eml-ro-note" title="Turn read-only off under Manage inboxes"><Lock /> {account.name || account.address} is read-only</span>
+        ) : has('INBOX') ? (
           <button className="eml-tool" title="Archive (remove from Inbox)" onClick={() => void archive()}><Archive /> <span>Archive</span></button>
         ) : (
           <button className="eml-tool" title="Move to Inbox" onClick={() => void modify(['INBOX'], [], 'Moved to Inbox')}><Inbox /> <span>Move to Inbox</span></button>
         )}
-        <LabelMenu labelIds={thread.labelIds} onApply={(add, remove) => void modify(add, remove, 'Labels updated')} />
-        <button className="eml-tool" title="Mark as unread" onClick={() => void markUnread()}><MailOpen /> <span>Unread</span></button>
-        <button className={`eml-tool${has('STARRED') ? ' starred' : ''}`} title={has('STARRED') ? 'Unstar' : 'Star'} onClick={() => void (has('STARRED') ? modify([], ['STARRED']) : modify(['STARRED'], []))}>
-          <Star />
-        </button>
+        {!readOnly && (
+          <>
+            {showLabels && <LabelMenu labelIds={thread.labelIds} onApply={(add, remove) => void modify(add, remove, 'Labels updated')} />}
+            <button className="eml-tool" title="Mark as unread" onClick={() => void markUnread()}><MailOpen /> <span>Unread</span></button>
+            <button className={`eml-tool${has('STARRED') ? ' starred' : ''}`} title={has('STARRED') ? (caps.labels ? 'Unstar' : 'Clear flag') : caps.labels ? 'Star' : 'Flag'} onClick={() => void (has('STARRED') ? modify([], ['STARRED']) : modify(['STARRED'], []))}>
+              {caps.labels ? <Star /> : <Flag />}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="eml-reader-scroll">
@@ -189,6 +205,7 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
             <MessageCard
               key={m.id}
               message={m}
+              attachmentsHint={caps.attachmentsHint}
               open={expanded.has(m.id)}
               toggle={() =>
                 setExpanded((s) => {
@@ -202,7 +219,7 @@ export default function ThreadView({ threadId, onClose, onPatch, onRemoved, fold
           ))}
         </div>
 
-        {reply ? (
+        {readOnly ? null : reply ? (
           <form
             className="eml-reply"
             onSubmit={(e) => {
@@ -239,14 +256,14 @@ function splitList(s: string): string[] {
     .filter(Boolean)
 }
 
-function MessageCard({ message: m, open, toggle }: { message: Message; open: boolean; toggle: () => void }) {
+function MessageCard({ message: m, open, toggle, attachmentsHint }: { message: Message; open: boolean; toggle: () => void; attachmentsHint?: string }) {
   return (
     <article className={`eml-msg${open ? ' open' : ''}`}>
       <header onClick={toggle}>
         <Avatar from={m.from} />
         <div className="eml-grow eml-min0">
           <div className="eml-msg-from">
-            <b>{nameOf(m.from)}</b> <span className="eml-muted">&lt;{addressOf(m.from)}&gt;</span>
+            <b>{nameOf(m.from)}</b> {m.from.includes('@') && <span className="eml-muted">&lt;{addressOf(m.from)}&gt;</span>}
           </div>
           {open ? (
             <div className="eml-muted small eml-ellipsis">to {m.to}{m.cc ? `, cc ${m.cc}` : ''}</div>
@@ -262,7 +279,7 @@ function MessageCard({ message: m, open, toggle }: { message: Message; open: boo
           {m.attachments.length > 0 && (
             <ul className="eml-attachments">
               {m.attachments.map((a) => (
-                <li key={`${a.id}-${a.filename}`} title="Open the message in Gmail to download attachments">
+                <li key={`${a.id}-${a.filename}`} title={attachmentsHint}>
                   <Paperclip /> <span className="eml-ellipsis">{a.filename}</span> <span className="eml-muted small">{formatSize(a.size)}</span>
                 </li>
               ))}

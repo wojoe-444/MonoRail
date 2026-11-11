@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { api } from './api'
-import type { Account, Draft, EmailState, Folder } from './types'
+import type { Account, ConnectorCapabilities, ConnectorInfo, Draft, EmailState, Folder } from './types'
 
 const ACCOUNT_KEY = 'monorail.email.account'
 
@@ -18,7 +18,13 @@ interface MailContextValue {
   account: Account | null
   selectAccount: (id: string) => void
   folders: Folder[]
-  foldersError: string | null
+  foldersError: Error | null
+  /** The folder walk stopped early (slow mailbox). */
+  foldersTimedOut: boolean
+  /** The connector of an account (current one by default). */
+  connectorOf: (a?: Account | null) => ConnectorInfo | undefined
+  /** Capabilities of the current account's connector. */
+  caps: ConnectorCapabilities
   reloadFolders: () => void
   /** Bumped after a change (send, archive, label) so lists refetch. */
   version: number
@@ -45,7 +51,8 @@ export function MailProvider({ children }: { children: ReactNode }) {
   const [stateError, setStateError] = useState<string | null>(null)
   const [accountId, setAccountId] = useState<string | null>(() => localStorage.getItem(ACCOUNT_KEY))
   const [folders, setFolders] = useState<Folder[]>([])
-  const [foldersError, setFoldersError] = useState<string | null>(null)
+  const [foldersError, setFoldersError] = useState<Error | null>(null)
+  const [foldersTimedOut, setFoldersTimedOut] = useState(false)
   const [version, setVersion] = useState(0)
   const [compose, setCompose] = useState<ComposeRequest | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -79,11 +86,12 @@ export function MailProvider({ children }: { children: ReactNode }) {
   const reloadFolders = useCallback(() => {
     if (!account) return
     api.listFolders(account.id).then(
-      (f) => {
-        setFolders(f)
+      (r) => {
+        setFolders(r.folders)
+        setFoldersTimedOut(r.timedOut)
         setFoldersError(null)
       },
-      (e) => setFoldersError(errText(e)),
+      (e) => setFoldersError(e instanceof Error ? e : new Error(String(e))),
     )
   }, [account])
 
@@ -91,6 +99,8 @@ export function MailProvider({ children }: { children: ReactNode }) {
     setFolders([])
     reloadFolders()
   }, [reloadFolders, version])
+
+  const connectorOf = useCallback((a?: Account | null) => state?.connectors.find((c) => c.kind === (a ?? account)?.kind), [state, account])
 
   const notify = useCallback((msg: string) => {
     setToast(msg)
@@ -106,6 +116,9 @@ export function MailProvider({ children }: { children: ReactNode }) {
     selectAccount,
     folders,
     foldersError,
+    foldersTimedOut,
+    connectorOf,
+    caps: connectorOf()?.capabilities ?? {},
     reloadFolders,
     version,
     bump: () => setVersion((v) => v + 1),

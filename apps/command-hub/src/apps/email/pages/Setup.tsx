@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, ExternalLink, KeyRound, Lock, Mail, RefreshCw, Server, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, ExternalLink, FolderMinus, KeyRound, Laptop, Lock, Mail, RefreshCw, Search, Server, Trash2 } from 'lucide-react'
 
 import { api } from '../api'
 import { Avatar } from '../components/Avatar'
 import { useMail } from '../MailContext'
-import type { ConnectorInfo } from '../types'
+import type { Account, ConnectorInfo, DiscoverResult } from '../types'
+import { accountAvatar, accountLabel } from '../util'
 
-/** "Add an inbox": connector setup (the Google OAuth client) and connected accounts. */
+/** "Add an inbox": connector setup (the Google OAuth client, Outlook's stores) and connected accounts. */
 export default function Setup() {
   const { state, stateError, setState, reloadState, selectAccount, notify, bump } = useMail()
   const nav = useNavigate()
@@ -17,10 +18,12 @@ export default function Setup() {
   if (!state) return <div className="eml-center"><span className="eml-spinner" aria-label="Loading" /></div>
 
   const connector = state.connectors.find((c) => c.kind === kind)
-  const remove = async (id: string, address: string) => {
-    if (!window.confirm(`Disconnect ${address}? MonoRail forgets its sign-in. Your mail stays in your account.`)) return
-    setState(await api.removeAccount(id))
-    notify(`Disconnected ${address}`)
+  const remove = async (a: Account) => {
+    const name = accountLabel(a)
+    const what = a.kind === 'outlook' ? 'It stays in Outlook.' : 'MonoRail forgets its sign-in. Your mail stays in your account.'
+    if (!window.confirm(`Remove ${name} from Email? ${what}`)) return
+    setState(await api.removeAccount(a.id))
+    notify(`Removed ${name}`)
   }
 
   return (
@@ -44,18 +47,21 @@ export default function Setup() {
           <section className="eml-card">
             <h2>Connected</h2>
             <ul className="eml-accounts">
-              {state.accounts.map((a) => (
-                <li key={a.id}>
-                  <Avatar from={a.address} />
-                  <div className="eml-grow">
-                    <div className="eml-strong">{a.address}</div>
-                    <div className="eml-muted">{state.connectors.find((c) => c.kind === a.kind)?.label ?? a.kind}{a.needsReauth ? ' · sign-in expired' : ''}</div>
-                  </div>
-                  {a.needsReauth && <SignInButton connector={state.connectors.find((c) => c.kind === a.kind)} label="Reconnect" />}
-                  <button className="eml-btn ghost" onClick={() => { selectAccount(a.id); nav('/mail/INBOX') }}>Open</button>
-                  <button className="eml-icon-btn" title="Disconnect" aria-label={`Disconnect ${a.address}`} onClick={() => void remove(a.id, a.address)}><Trash2 /></button>
-                </li>
-              ))}
+              {state.accounts.map((a) => {
+                const c = state.connectors.find((x) => x.kind === a.kind)
+                return (
+                  <AccountRow
+                    key={a.id}
+                    account={a}
+                    connector={c}
+                    onOpen={() => {
+                      selectAccount(a.id)
+                      nav('/mail/INBOX')
+                    }}
+                    onRemove={() => void remove(a)}
+                  />
+                )
+              })}
             </ul>
           </section>
         )}
@@ -65,7 +71,7 @@ export default function Setup() {
           <div className="eml-connectors">
             {state.connectors.map((c) => (
               <button key={c.kind} className={`eml-connector${c.kind === kind ? ' active' : ''}`} onClick={() => setKind(c.kind)}>
-                <GoogleMark />
+                {c.kind === 'gmail' ? <GoogleMark /> : <Laptop />}
                 <span><span className="eml-strong">{c.label}</span><span className="eml-muted">{c.description}</span></span>
               </button>
             ))}
@@ -74,6 +80,16 @@ export default function Setup() {
               <span><span className="eml-strong">IMAP</span><span className="eml-muted">Other mail providers. Coming later.</span></span>
             </div>
           </div>
+          {connector?.setup === 'discover' && (
+            <DiscoverSetup
+              connector={connector}
+              onAdded={async (id) => {
+                await reloadState()
+                if (id) selectAccount(id)
+                bump()
+              }}
+            />
+          )}
           {connector?.kind === 'gmail' && (
             <GmailSetup
               connector={connector}
@@ -87,6 +103,188 @@ export default function Setup() {
             />
           )}
         </section>
+      </div>
+    </div>
+  )
+}
+
+/** One connected inbox: open, remove, read-only, and (folder trees) folders to skip. */
+function AccountRow({ account: a, connector, onOpen, onRemove }: { account: Account; connector?: ConnectorInfo; onOpen: () => void; onRemove: () => void }) {
+  const { setState, notify } = useMail()
+  const [editing, setEditing] = useState(false)
+  const [skip, setSkip] = useState('')
+  const [busy, setBusy] = useState(false)
+  const skipped = a.settings?.skipFolders ?? []
+  const label = accountLabel(a)
+  const sub = [connector?.label ?? a.kind, a.detail, a.address && a.address !== label ? a.address : '', a.needsReauth ? 'sign-in expired' : ''].filter(Boolean).join(' · ')
+
+  const update = async (patch: { readOnly?: boolean; skipFolders?: string[] }, done: string) => {
+    setBusy(true)
+    try {
+      setState(await api.updateAccount(a.id, patch))
+      notify(done)
+      return true
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e))
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li className="eml-account-row">
+      <div className="eml-row eml-account-main">
+        <Avatar from={accountAvatar(a)} />
+        <div className="eml-grow eml-min0">
+          <div className="eml-strong eml-ellipsis">{label}</div>
+          <div className="eml-muted eml-ellipsis">{sub}</div>
+        </div>
+        {a.needsReauth && <SignInButton connector={connector} label="Reconnect" />}
+        <button
+          className={`eml-chip-btn${a.readOnly ? ' on' : ''}`}
+          aria-pressed={!!a.readOnly}
+          disabled={busy}
+          title={a.readOnly ? 'Read-only: sending, archiving, flagging, marking read and new folders are off. Click to allow them.' : 'Click to make this inbox read-only.'}
+          onClick={() => void update({ readOnly: !a.readOnly }, a.readOnly ? `${label} can be changed here now` : `${label} is read-only`)}
+        >
+          <Lock /> Read-only
+        </button>
+        {connector?.capabilities.folderTree && (
+          <button
+            className="eml-chip-btn"
+            aria-expanded={editing}
+            title="Folders to leave out of the folder list and of searches"
+            onClick={() => {
+              setSkip(skipped.join('\n'))
+              setEditing((v) => !v)
+            }}
+          >
+            <FolderMinus /> Skip{skipped.length ? ` (${skipped.length})` : ''}
+          </button>
+        )}
+        <button className="eml-btn ghost" onClick={onOpen}>Open</button>
+        <button className="eml-icon-btn" title="Remove" aria-label={`Remove ${label}`} onClick={onRemove}><Trash2 /></button>
+      </div>
+      {editing && (
+        <div className="eml-skip">
+          <label className="eml-field">
+            <span>Folders to skip, one path per line. A skipped folder hides everything under it, and big or slow folders stop slowing the list down.</span>
+            <textarea rows={4} value={skip} onChange={(e) => setSkip(e.target.value)} placeholder={'Inbox\\Old reports\nRSS Feeds'} spellCheck={false} />
+          </label>
+          <div className="eml-row">
+            <button
+              className="eml-btn"
+              disabled={busy}
+              onClick={() => void update({ skipFolders: skip.split(/\r?\n/) }, 'Skipped folders saved').then((ok) => ok && setEditing(false))}
+            >
+              Save
+            </button>
+            <button className="eml-btn ghost" onClick={() => setEditing(false)}>Cancel</button>
+            <span className="eml-muted small">Paths are as shown in the folder list, from the top of the mailbox, e.g. Inbox\Reports.</span>
+          </div>
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** Connectors without sign-in (Outlook): find what is open on this PC and pick. */
+function DiscoverSetup({ connector, onAdded }: { connector: ConnectorInfo; onAdded: (accountId: string | null) => Promise<void> }) {
+  const { notify } = useMail()
+  const [result, setResult] = useState<DiscoverResult | null>(null)
+  const [looking, setLooking] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [picked, setPicked] = useState<Record<string, { on: boolean; readOnly: boolean }>>({})
+
+  const look = async () => {
+    setLooking(true)
+    setError(null)
+    try {
+      const r = await api.discover(connector.kind)
+      setResult(r)
+      setPicked(Object.fromEntries(r.stores.map((s) => [s.key, { on: false, readOnly: s.shared }])))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLooking(false)
+    }
+  }
+
+  useEffect(() => {
+    void look()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connector.kind])
+
+  const chosen = Object.entries(picked).filter(([, v]) => v.on)
+  const add = async () => {
+    setAdding(true)
+    setError(null)
+    try {
+      const r = await api.addStores(
+        connector.kind,
+        chosen.map(([key, v]) => ({ key, readOnly: v.readOnly })),
+      )
+      notify(r.added.length === 1 ? `Added ${accountLabel(r.added[0])}` : `Added ${r.added.length} mailboxes`)
+      await onAdded(r.added[0]?.id ?? null)
+      await look()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  return (
+    <div className="eml-gmail">
+      <ul className="eml-steps">
+        <li>Open <b>classic Outlook</b> on this PC and let it finish signing in. The new Outlook cannot be used: it has no way for other apps to read mail.</li>
+        <li>Pick the mailboxes to show here. Shared mailboxes start <b>read-only</b>; you can change that per mailbox.</li>
+        <li className="eml-muted">MonoRail asks Outlook for mail when you open it and never saves mail to disk. Outlook must stay open while you use it.</li>
+      </ul>
+
+      <div className="eml-form">
+        <div className="eml-row">
+          <div className="eml-step-title eml-grow"><Search /> Mailboxes open in Outlook</div>
+          <button className="eml-btn ghost" disabled={looking} onClick={() => void look()}><RefreshCw className={looking ? 'eml-spin' : ''} /> {looking ? 'Looking…' : 'Look again'}</button>
+        </div>
+        {result && result.status !== 'ok' && (
+          <div className="eml-banner warn"><AlertTriangle /> {result.message}</div>
+        )}
+        {result?.status === 'ok' && result.stores.length === 0 && <p className="eml-muted">Outlook has no mailboxes open.</p>}
+        {result?.status === 'ok' && result.stores.length > 0 && (
+          <ul className="eml-stores">
+            {result.stores.map((s) => {
+              const p = picked[s.key] ?? { on: false, readOnly: s.shared }
+              return (
+                <li key={s.key} className={s.accountId ? 'added' : ''}>
+                  <label className="eml-check eml-grow">
+                    <input type="checkbox" disabled={!!s.accountId} checked={!!s.accountId || p.on} onChange={(e) => setPicked({ ...picked, [s.key]: { ...p, on: e.target.checked } })} />
+                    <span className="eml-box"><Check /></span>
+                    <span className="eml-min0">
+                      <span className="eml-strong eml-ellipsis">{s.name}</span>
+                      <span className="eml-muted eml-ellipsis">{[s.kindLabel, s.address].filter(Boolean).join(' · ')}{s.accountId ? ' · added' : ''}</span>
+                    </span>
+                  </label>
+                  {!s.accountId && (
+                    <label className="eml-check small" title="Turns off sending, archiving, flagging, marking read and new folders for this mailbox">
+                      <input type="checkbox" checked={p.readOnly} onChange={(e) => setPicked({ ...picked, [s.key]: { ...p, readOnly: e.target.checked } })} />
+                      <span className="eml-box"><Check /></span>
+                      <span>Read-only</span>
+                    </label>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {error && <p className="eml-error">{error}</p>}
+        <div className="eml-row">
+          <button className="eml-btn primary" disabled={adding || chosen.length === 0} onClick={() => void add()}>
+            {adding ? 'Adding…' : chosen.length > 1 ? `Add ${chosen.length} mailboxes` : 'Add mailbox'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import type { EmailApi } from './api'
-import type { Account, EmailState, Folder, Message, Thread, ThreadSummary } from './types'
+import type { Account, DiscoveredStore, EmailState, Folder, Message, Thread, ThreadSummary } from './types'
 
 /*
  * Fictional sample inbox for the browser dev server (no backend there).
@@ -10,6 +10,19 @@ const ME = 'you@example.com'
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
 
 const account: Account = { id: 'sample', kind: 'gmail', address: ME, name: ME, addedAt: hoursAgo(400) }
+
+// Outlook on this PC: one own mailbox and one shared team mailbox (read-only).
+const OL_ME = 'you@contoso.example'
+const outlookStores: DiscoveredStore[] = [
+  { key: 'store-own', name: OL_ME, address: OL_ME, kindLabel: 'Mailbox', shared: false, accountId: null },
+  { key: 'store-team', name: 'Field Reports', address: '', kindLabel: 'Shared mailbox', shared: true, accountId: null },
+  { key: 'store-pst', name: 'Old archive 2019', address: '', kindLabel: 'Data file', shared: false, accountId: null },
+]
+const accounts: Account[] = [
+  account,
+  { id: 'sample-ol', kind: 'outlook', key: 'store-own', address: OL_ME, name: OL_ME, detail: 'Mailbox', readOnly: false, settings: {}, addedAt: hoursAgo(300) },
+  { id: 'sample-ol-team', kind: 'outlook', key: 'store-team', address: '', name: 'Field Reports', detail: 'Shared mailbox', readOnly: true, settings: { skipFolders: ['Inbox\\Old'] }, addedAt: hoursAgo(300) },
+]
 
 const folders: Folder[] = [
   { id: 'INBOX', name: 'Inbox', kind: 'system', role: 'inbox', unread: 2 },
@@ -97,7 +110,44 @@ const threads: Thread[] = [
   },
 ]
 
-for (const t of threads) for (const m of t.messages) m.subject = m.subject || t.subject
+const olFolders = (inboxKids: [string, string][]): Folder[] => [
+  { id: 'INBOX', name: 'Inbox', kind: 'system', role: 'inbox', path: 'Inbox', parentId: null, depth: 0 },
+  ...inboxKids.map(([path, name]) => ({ id: path, name, kind: 'user' as const, path, parentId: path.split('\\').slice(0, -1).join('\\').replace(/^Inbox$/, 'INBOX'), depth: path.split('\\').length - 1 })),
+  { id: 'DRAFT', name: 'Drafts', kind: 'system', role: 'drafts', path: 'Drafts', parentId: null, depth: 0 },
+  { id: 'SENT', name: 'Sent Items', kind: 'system', role: 'sent', path: 'Sent Items', parentId: null, depth: 0 },
+  { id: 'TRASH', name: 'Deleted Items', kind: 'system', role: 'trash', path: 'Deleted Items', parentId: null, depth: 0 },
+  { id: 'Archive', name: 'Archive', kind: 'user', path: 'Archive', parentId: null, depth: 0 },
+]
+const foldersBy: Record<string, Folder[]> = {
+  sample: folders,
+  'sample-ol': olFolders([['Inbox\\Projects', 'Projects'], ['Inbox\\Projects\\Harbor', 'Harbor']]),
+  'sample-ol-team': olFolders([['Inbox\\Daily', 'Daily'], ['Inbox\\Daily\\Station 4', 'Station 4'], ['Inbox\\Weekly', 'Weekly']]),
+}
+
+const olThreads = (acct: string, from: string, rows: [string, string, number, string, string, boolean][]): Thread[] =>
+  rows.map(([id, folder, h, subject, text, unread]) => ({
+    id: `${acct}-${id}`,
+    subject,
+    labelIds: [folder, ...(unread ? ['UNREAD'] : [])],
+    messages: [msg(`${acct}-${id}`, 1, from, acct === 'sample-ol' ? OL_ME : 'Field Reports', h, text, { subject, unread })],
+  }))
+
+const threadsBy: Record<string, Thread[]> = {
+  sample: threads,
+  'sample-ol': olThreads('sample-ol', 'Dana Whitfield <dana@contoso.example>', [
+    ['o1', 'INBOX', 3, 'Harbor project: kickoff notes', 'Notes from today are attached. Next check-in is Thursday.', true],
+    ['o2', 'Inbox\\Projects\\Harbor', 30, 'Harbor budget, first pass', 'Here is the first pass at the budget. Numbers are rough.', false],
+    ['o3', 'INBOX', 52, 'Station 4 weekly numbers', 'The weekly numbers from station 4 look normal again.', false],
+  ]),
+  'sample-ol-team': olThreads('sample-ol-team', 'Reports Robot <reports@contoso.example>', [
+    ['t1', 'Inbox\\Daily\\Station 4', 6, 'Station 4 daily report', 'All sensors reporting. 2 warnings, 0 faults.', true],
+    ['t2', 'Inbox\\Daily', 28, 'Daily report summary', 'Five stations reported. Station 4 had two warnings.', false],
+    ['t3', 'Inbox\\Weekly', 120, 'Weekly numbers, week 45', 'Uptime 99.2%. Station 4 numbers are attached.', false],
+    ['t4', 'INBOX', 9, 'Shared mailbox: new access request', 'A new member asked for access to Field Reports.', false],
+  ]),
+}
+
+for (const list of Object.values(threadsBy)) for (const t of list) for (const m of t.messages) m.subject = m.subject || t.subject
 
 function summarize(t: Thread): ThreadSummary {
   const last = t.messages.at(-1)!
@@ -116,8 +166,9 @@ function summarize(t: Thread): ThreadSummary {
   }
 }
 
+const allThreads = () => Object.values(threadsBy).flat()
 const find = (id: string) => {
-  const t = threads.find((x) => x.id === id)
+  const t = allThreads().find((x) => x.id === id)
   if (!t) throw new Error('Thread not found')
   return t
 }
@@ -133,12 +184,39 @@ const state = (): EmailState => ({
         { key: 'clientSecret', label: 'Client secret', secret: true, optional: false, placeholder: 'GOCSPX-…' },
       ],
       config: { values: { clientId: 'sample.apps.googleusercontent.com' }, secretsSet: { clientSecret: true } },
+      setup: 'oauth',
+      capabilities: { labels: true, queryHint: 'Search mail (from:, subject:, has:attachment …)', attachmentsHint: 'Open the message in Gmail to download attachments' },
+    },
+    {
+      kind: 'outlook',
+      label: 'Outlook on this PC',
+      description: 'Uses the classic Outlook that is open and signed in here. No sign-in, no app registration.',
+      configFields: [],
+      config: { values: {}, secretsSet: {} },
+      setup: 'discover',
+      capabilities: { labels: false, folderTree: true, fullStoreSearch: true, queryHint: 'Search subject, sender, recipients and text', attachmentsHint: 'Open the message in Outlook to save attachments' },
     },
   ],
-  accounts: [account],
+  accounts: structuredClone(accounts),
   encryptionAvailable: true,
   signingIn: false,
 })
+
+/** Folder, query, days back and unread filters over one sample account. */
+function sampleList(accountId: string, { folderId, query, daysBack, unreadOnly, allFolders }: { folderId?: string; query?: string; daysBack?: number; unreadOnly?: boolean; allFolders?: boolean }): ThreadSummary[] {
+  const q = (query ?? '').toLowerCase()
+  const isOutlook = accountId !== 'sample'
+  // Gmail searches all mail; Outlook searches the open folder unless All folders is on.
+  const inFolder = (t: Thread) => !folderId || (q && (!isOutlook || allFolders)) || t.labelIds.includes(folderId)
+  const cutoff = daysBack ? Date.now() - daysBack * 86_400_000 : 0
+  return (threadsBy[accountId] ?? [])
+    .filter(inFolder)
+    .filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q))
+    .filter((t) => !unreadOnly || t.labelIds.includes('UNREAD'))
+    .filter((t) => !cutoff || Date.parse(t.messages.at(-1)?.date ?? '') >= cutoff)
+    .map((t) => ({ ...summarize(t), folder: isOutlook && q && allFolders ? t.labelIds[0].replace(/^INBOX$/, 'Inbox') : undefined }))
+    .sort((a, b) => Date.parse(b.date ?? '') - Date.parse(a.date ?? ''))
+}
 
 const delay = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 120))
 
@@ -148,15 +226,36 @@ export const sampleApi: EmailApi = {
   signIn: () => delay(account),
   cancelSignIn: () => delay(true),
   removeAccount: () => delay(state()),
-  listFolders: () => delay(folders.map((f) => (f.id === 'INBOX' ? { ...f, unread: threads.filter((t) => t.labelIds.includes('INBOX') && t.labelIds.includes('UNREAD')).length } : f))),
-  listThreads: (_a, { folderId, query }) => {
-    const q = (query ?? '').toLowerCase()
-    const list = threads
-      .filter((t) => !folderId || t.labelIds.includes(folderId))
-      .filter((t) => !q || JSON.stringify(t).toLowerCase().includes(q))
-      .map(summarize)
-      .sort((a, b) => Date.parse(b.date ?? '') - Date.parse(a.date ?? ''))
-    return delay({ threads: list, nextPageToken: null, estimate: list.length })
+  discover: () => delay({ status: 'ok' as const, stores: outlookStores.map((st) => ({ ...st, accountId: accounts.find((a) => a.key === st.key)?.id ?? null })) }),
+  addStores: (_k, picks) => {
+    const added: Account[] = []
+    for (const p of picks) {
+      const st = outlookStores.find((x) => x.key === p.key)
+      if (!st || accounts.some((a) => a.key === st.key)) continue
+      const a: Account = { id: `sample-${st.key}`, kind: 'outlook', key: st.key, address: st.address, name: st.name, detail: st.kindLabel, readOnly: p.readOnly, settings: {}, addedAt: hoursAgo(0) }
+      accounts.push(a)
+      foldersBy[a.id] = olFolders([])
+      threadsBy[a.id] = []
+      added.push(a)
+    }
+    return delay({ added, state: state() })
+  },
+  updateAccount: (id, patch) => {
+    const a = accounts.find((x) => x.id === id)
+    if (a && typeof patch.readOnly === 'boolean') a.readOnly = patch.readOnly
+    if (a && patch.skipFolders) a.settings = { skipFolders: patch.skipFolders.map((x) => x.trim()).filter(Boolean) }
+    return delay(state())
+  },
+  listFolders: (accountId) => {
+    const list = threadsBy[accountId] ?? []
+    const unreadIn = (id: string) => list.filter((t) => t.labelIds.includes(id) && t.labelIds.includes('UNREAD')).length
+    return delay({ folders: (foldersBy[accountId] ?? []).map((f) => (f.id === 'INBOX' || f.kind === 'user' ? { ...f, unread: unreadIn(f.id) || undefined } : f)), timedOut: false })
+  },
+  listThreads: (accountId, opts) => delay({ threads: sampleList(accountId, opts), nextPageToken: null, estimate: 0 }),
+  searchAccounts: (ids, opts) => {
+    const rows = ids.flatMap((id) => sampleList(id, { ...opts, folderId: opts.allFolders ? undefined : 'INBOX' }).map((t) => ({ ...t, accountId: id, alsoIn: [] })))
+    rows.sort((a, b) => Date.parse(b.date ?? '') - Date.parse(a.date ?? ''))
+    return delay({ threads: rows, truncated: false, errors: [], partial: [] })
   },
   getThread: (_a, id) => delay(structuredClone(find(id))),
   modifyThread: (_a, id, add, remove) => {
