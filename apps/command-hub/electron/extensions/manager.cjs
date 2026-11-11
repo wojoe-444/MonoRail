@@ -3,7 +3,9 @@
 // On disk, all under app.getPath('userData') (never the repo):
 //   extensions/<id>/          installed extension files (replaced on update)
 //   extensions/.staging/      packages waiting for the user's approval
-//   extensions/state.json     enabled flags, sources, granted permissions and folders
+//   extensions/state.json     enabled flags, sources, granted permissions and folders,
+//                             and the version that last used each data folder (dataVersions, for migrate)
+//   extension-secrets/<id>.json  ctx.secrets, encrypted with safeStorage (secrets.cjs)
 //   extension-data/<id>/      the extension's private data (kept across updates)
 //
 // Extensions loaded "for development" are not copied: state.json records the
@@ -26,6 +28,7 @@ const {
   ID_RE,
 } = require('./manifest.cjs')
 const install = require('./install.cjs')
+const { ExtensionCallError } = require('./errors.cjs')
 
 const STAGE_TTL_MS = 30 * 60 * 1000
 
@@ -36,8 +39,10 @@ class ExtensionManager {
    * @param {import('./host.cjs').BackendHost} opts.host
    * @param {typeof fetch} [opts.fetchImpl]
    * @param {() => void} [opts.onChange] called when the installed set or a status changes
+   * @param {import('./secrets.cjs').SecretStore} [opts.secretStore]
    */
-  constructor({ userData, host, fetchImpl = globalThis.fetch, onChange = () => {} }) {
+  constructor({ userData, host, fetchImpl = globalThis.fetch, onChange = () => {}, secretStore }) {
+    this.secretStore = secretStore
     this.root = path.join(userData, 'extensions')
     this.dataRoot = path.join(userData, 'extension-data')
     this.stagingRoot = path.join(this.root, '.staging')
@@ -118,7 +123,20 @@ class ExtensionManager {
   }
 
   spec(rec) {
-    return { manifest: rec.manifest, extensionDir: rec.extensionDir, dataDir: this.dataDir(rec.id), folders: rec.entry.folders ?? [] }
+    return {
+      manifest: rec.manifest,
+      extensionDir: rec.extensionDir,
+      dataDir: this.dataDir(rec.id),
+      folders: rec.entry.folders ?? [],
+      dataVersion: this.state.dataVersions?.[rec.id] ?? null,
+    }
+  }
+
+  /** The backend's migrate() finished: its data folder is now at `version`. */
+  recordDataVersion(id, version) {
+    // Kept apart from the install record: a Remove that keeps the data keeps this too.
+    this.state.dataVersions = { ...this.state.dataVersions, [id]: version }
+    this.save()
   }
 
   /** An active extension, or a clear error. */
@@ -131,7 +149,7 @@ class ExtensionManager {
       incompatible: 'is not compatible with this version of MonoRail',
       broken: `could not be loaded (${rec.error})`,
     }[rec.status]
-    throw new Error(`${rec.manifest?.name ?? id} ${why}`)
+    throw new ExtensionCallError('EXT_NOT_ACTIVE', `${rec.manifest?.name ?? id} ${why}`)
   }
 
   /** The folder served as monorail-ext://<id>/, if the extension is active and has a UI. */
@@ -324,7 +342,11 @@ class ExtensionManager {
     const e = this.entry(id)
     await this.host.stop(id)
     if (e.source?.type !== 'dev') fs.rmSync(path.join(this.root, id), { recursive: true, force: true })
-    if (deleteData) fs.rmSync(this.dataDir(id), { recursive: true, force: true })
+    if (deleteData) {
+      fs.rmSync(this.dataDir(id), { recursive: true, force: true })
+      this.secretStore?.clear(id)
+      if (this.state.dataVersions) delete this.state.dataVersions[id]
+    }
     delete this.state.extensions[id]
     this.updates.delete(id)
     this.save()
@@ -431,7 +453,7 @@ class ExtensionManager {
 
   async invoke(id, method, args) {
     const rec = this.active(id)
-    if (!rec.manifest.backend) throw new Error(`${rec.manifest.name} has no backend`)
+    if (!rec.manifest.backend) throw new ExtensionCallError('EXT_NO_BACKEND', `${rec.manifest.name} has no backend`)
     return this.host.invoke(this.spec(rec), method, args)
   }
 

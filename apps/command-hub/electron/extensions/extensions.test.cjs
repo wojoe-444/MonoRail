@@ -14,6 +14,8 @@ const manifest = require('./manifest.cjs')
 const install = require('./install.cjs')
 const { BackendHost } = require('./host.cjs')
 const { ExtensionManager } = require('./manager.cjs')
+const { SecretStore } = require('./secrets.cjs')
+const { ERROR_CODES } = require('./errors.cjs')
 
 const DENIED = /ERR_ACCESS_DENIED|denied|restricted/i
 const tmpRoots = []
@@ -55,7 +57,16 @@ module.exports = {
     async fetchUrl(ctx, url) { try { const r = await fetch(url); return r.status } catch (e) { throw new Error(e.cause?.message ?? e.message) } },
     async emit(ctx) { ctx.emit('tick', { n: 1 }); return true },
     async boom() { throw Object.assign(new Error('nope'), { code: 'E_NOPE' }) },
+    async failCoded(ctx) { ctx.fail('NOT_SIGNED_IN', 'Sign in first', { retry: false }) },
+    async badCode() { throw Object.assign(new Error('odd'), { code: 42 }) },
+    async badResult() { return { n: 1n } },
+    async badEmit(ctx) { ctx.emit('x', { n: 1n }) },
+    async setSecret(ctx, { name, value }) { await ctx.secrets.set(name, value); return ctx.secrets.list() },
+    async getSecret(ctx, { name }) { return ctx.secrets.get(name) },
+    async deleteSecret(ctx, { name }) { await ctx.secrets.delete(name); return ctx.secrets.list() },
+    async migrations() { return globalThis.migrations ?? [] },
   },
+  async migrate(ctx, from) { (globalThis.migrations ??= []).push(from); if (from === 'explode') throw new Error('cannot migrate') },
 }
 `
 
@@ -285,5 +296,122 @@ test('a backend that fails to load reports why', async () => {
   const { m, host } = newManager()
   await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
   await assert.rejects(m.invoke('hello-test', 'ping'), /bad build|failed to start/)
+  await host.stopAll()
+})
+
+// ------------------------------------------------- API 1.1 contracts --
+
+/** A reversible stand-in for safeStorage. */
+function fakeCipher(available = true) {
+  return {
+    isAvailable: () => available,
+    encrypt: (t) => Buffer.from(`enc:${t}`).reverse(),
+    decrypt: (b) => Buffer.from(b).reverse().toString().slice(4),
+  }
+}
+
+function managerWithSecrets(cipher = fakeCipher()) {
+  const userData = tmp('userdata')
+  const secretStore = new SecretStore({ root: path.join(userData, 'extension-secrets'), cipher })
+  let m
+  const host = new BackendHost({
+    execPath: process.execPath,
+    apiVersion: manifest.API_VERSION,
+    secrets: (id) => secretStore.forExtension(id),
+    onMigrated: (id, v) => m.recordDataVersion(id, v),
+  })
+  hosts.push(host)
+  m = new ExtensionManager({ userData, host, secretStore })
+  m.init()
+  return { m, host, userData, secretStore }
+}
+
+test('a program in permissions.process matches with or without .exe', async () => {
+  const name = path.basename(process.execPath).replace(/\.exe$/i, '')
+  for (const listed of [name, `${name}.exe`, `${name.toUpperCase()}.EXE`]) {
+    const src = writeExtension(tmp('prog'), baseManifest({ backend: { main: 'backend/index.cjs' }, permissions: { process: [listed] } }))
+    const { m, host } = newManager()
+    await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+    assert.equal(await m.invoke('hello-test', 'spawn'), '', `listed as ${listed}`)
+    await host.stopAll()
+  }
+})
+
+test('errors reach the caller with a code, a message and details', async () => {
+  const src = writeExtension(tmp('err'))
+  const { m, host } = newManager()
+  await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+  await assert.rejects(m.invoke('hello-test', 'failCoded'), { code: 'NOT_SIGNED_IN', message: 'Sign in first', details: { retry: false } })
+  await assert.rejects(m.invoke('hello-test', 'boom'), { code: 'E_NOPE' })
+  await assert.rejects(m.invoke('hello-test', 'badCode'), { code: 'EXT_BACKEND_ERROR', message: 'odd' })
+  await assert.rejects(m.invoke('hello-test', 'badResult'), { code: 'EXT_BAD_PAYLOAD' })
+  await assert.rejects(m.invoke('hello-test', 'badEmit'), { code: 'EXT_BAD_PAYLOAD' })
+  await assert.rejects(m.invoke('hello-test', 'missing'), { code: 'EXT_UNKNOWN_METHOD' })
+  await assert.rejects(m.invoke('hello-test', 'readOutside', __filename), { code: 'EXT_FS_DENIED' })
+  await assert.rejects(m.invoke('hello-test', 'spawn'), { code: 'EXT_PROCESS_DENIED' })
+  await assert.rejects(m.invoke('hello-test', 'ping', { n: 1n }), { code: 'EXT_BAD_PAYLOAD' })
+  assert.ok(m.logs('hello-test').some((l) => l.level === 'warn' && l.line.includes('failCoded failed: [NOT_SIGNED_IN]')))
+  await m.setEnabled('hello-test', false)
+  await assert.rejects(m.invoke('hello-test', 'ping'), { code: 'EXT_NOT_ACTIVE' })
+  await host.stopAll()
+  for (const code of ['EXT_NOT_ACTIVE', 'EXT_BAD_PAYLOAD', 'EXT_FS_DENIED']) assert.ok(ERROR_CODES[code])
+})
+
+test('ctx.secrets are encrypted outside the sandbox and removed with the data', async () => {
+  const src = writeExtension(tmp('sec'))
+  const { m, host, userData } = managerWithSecrets()
+  await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+  assert.deepEqual(await m.invoke('hello-test', 'setSecret', { name: 'token', value: 'abc123' }), ['token'])
+  assert.equal(await m.invoke('hello-test', 'getSecret', { name: 'token' }), 'abc123')
+  assert.equal(await m.invoke('hello-test', 'getSecret', { name: 'other' }), null)
+  await assert.rejects(m.invoke('hello-test', 'setSecret', { name: '../x', value: 'v' }), { code: 'EXT_INVALID_SECRET' })
+
+  const file = path.join(userData, 'extension-secrets', 'hello-test.json')
+  assert.ok(!fs.readFileSync(file, 'utf8').includes('abc123'), 'stored encrypted')
+  assert.ok(!file.startsWith(m.dataDir('hello-test')), 'outside the data folder the backend can read')
+
+  // Kept across a Remove that keeps the data, deleted with it otherwise.
+  await m.uninstall('hello-test')
+  assert.ok(fs.existsSync(file))
+  await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+  assert.deepEqual(await m.invoke('hello-test', 'deleteSecret', { name: 'token' }), [])
+  await m.uninstall('hello-test', { deleteData: true })
+  assert.ok(!fs.existsSync(file))
+  await host.stopAll()
+})
+
+test('ctx.secrets refuse to save without encryption', async () => {
+  const src = writeExtension(tmp('nosec'))
+  const { m, host } = managerWithSecrets(fakeCipher(false))
+  await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+  await assert.rejects(m.invoke('hello-test', 'setSecret', { name: 'token', value: 'x' }), { code: 'EXT_SECRETS_UNAVAILABLE' })
+  await host.stopAll()
+})
+
+test('migrate(ctx, fromVersion) runs once per version change, before start', async () => {
+  const dir = tmp('mig')
+  writeExtension(dir)
+  const { m, host } = managerWithSecrets()
+  await m.confirm((await m.inspect({ kind: 'dev', path: dir })).token)
+  assert.deepEqual(await m.invoke('hello-test', 'migrations'), [null])
+  await m.reload('hello-test')
+  assert.deepEqual(await m.invoke('hello-test', 'migrations'), [], 'same version: no migrate on restart')
+
+  fs.writeFileSync(path.join(dir, 'monorail.json'), JSON.stringify(baseManifest({ version: '1.1.0', backend: { main: 'backend/index.cjs' } })))
+  await m.reload('hello-test')
+  assert.deepEqual(await m.invoke('hello-test', 'migrations'), ['1.0.0'])
+  assert.equal(m.state.dataVersions['hello-test'], '1.1.0')
+  await host.stopAll()
+})
+
+test('a migrate that throws stops the start and runs again next time', async () => {
+  const dir = tmp('migfail')
+  writeExtension(dir)
+  const { m, host } = managerWithSecrets()
+  await m.confirm((await m.inspect({ kind: 'dev', path: dir })).token)
+  m.recordDataVersion('hello-test', 'explode')
+  await m.reload('hello-test')
+  await assert.rejects(m.invoke('hello-test', 'ping'), { code: 'EXT_START_FAILED' })
+  assert.equal(m.state.dataVersions['hello-test'], 'explode')
   await host.stopAll()
 })

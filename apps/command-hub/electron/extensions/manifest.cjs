@@ -14,7 +14,7 @@
 const path = require('node:path')
 
 /** The extension API this build of MonoRail implements. */
-const API_VERSION = '1.0.0'
+const API_VERSION = '1.1.0'
 const MANIFEST_FILE = 'monorail.json'
 const MANIFEST_VERSION = 1
 

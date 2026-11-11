@@ -15,6 +15,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
+const { ExtensionCallError } = require('./errors.cjs')
+
 const RUNNER = path.join(__dirname, 'runner.cjs').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`)
 const CALL_TIMEOUT_MS = 2 * 60 * 1000
 const START_TIMEOUT_MS = 20 * 1000
@@ -64,11 +66,15 @@ class BackendHost {
    * @param {string} [opts.execPath] executable used to run the child (MonoRail itself, or node in tests)
    * @param {(id: string, channel: string, payload: unknown) => void} [opts.onEmit]
    * @param {(id: string) => void} [opts.onStatus] called when a backend's status changes
+   * @param {(id: string, version: string) => void} [opts.onMigrated] the backend's data folder is now at this version
+   * @param {(id: string) => import('./secrets.cjs').ExtensionSecrets} [opts.secrets] secret storage for one extension
    */
-  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, apiVersion } = {}) {
+  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, onMigrated = () => {}, secrets, apiVersion } = {}) {
     this.execPath = execPath
     this.onEmit = onEmit
     this.onStatus = onStatus
+    this.onMigrated = onMigrated
+    this.secrets = secrets
     this.apiVersion = apiVersion
     /** @type {Map<string, any>} */
     this.procs = new Map()
@@ -105,7 +111,8 @@ class BackendHost {
     const existing = this.procs.get(id)
     if (existing) return existing.ready
     const c = this.crashes.get(id)
-    if (c?.blocked) return Promise.reject(new Error(`${spec.manifest.name} stopped after crashing ${MAX_CRASHES} times. Reload it from the Extensions page. Last error: ${c.lastError}`))
+    if (c?.blocked)
+      return Promise.reject(new ExtensionCallError('EXT_CRASHED', `${spec.manifest.name} stopped after crashing ${MAX_CRASHES} times. Reload it from the Extensions page. Last error: ${c.lastError}`))
 
     const { manifest, extensionDir, dataDir, folders = [] } = spec
     fs.mkdirSync(dataDir, { recursive: true })
@@ -125,7 +132,7 @@ class BackendHost {
 
     proc.ready = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`${manifest.name} did not start within ${START_TIMEOUT_MS / 1000}s`))
+        reject(new ExtensionCallError('EXT_START_FAILED', `${manifest.name} did not start within ${START_TIMEOUT_MS / 1000}s`))
         child.kill()
       }, START_TIMEOUT_MS)
       proc.settleStart = (err, methods) => {
@@ -144,13 +151,13 @@ class BackendHost {
     child.on('message', (msg) => this.handleMessage(id, proc, msg))
     child.on('error', (err) => {
       this.log(id, 'error', `Process error: ${err.message}`)
-      proc.settleStart?.(err)
+      proc.settleStart?.(new ExtensionCallError('EXT_START_FAILED', `${manifest.name}'s backend could not start: ${err.message}`))
     })
     child.on('exit', (code, signal) => {
       this.procs.delete(id)
       const reason = proc.fatal ?? (proc.stopping ? undefined : `exited (${signal ?? `code ${code}`})`)
       if (reason) this.recordCrash(id, reason)
-      const err = new Error(`${manifest.name}'s backend ${reason ?? 'stopped'}`)
+      const err = new ExtensionCallError(proc.fatal ? 'EXT_START_FAILED' : 'EXT_CRASHED', `${manifest.name}'s backend ${reason ?? 'stopped'}`)
       proc.settleStart?.(err)
       for (const p of proc.pending.values()) p.reject(err)
       proc.pending.clear()
@@ -167,6 +174,7 @@ class BackendHost {
       dataDir,
       folders,
       permissions: manifest.permissions,
+      previousVersion: spec.dataVersion ?? null,
     })
     this.onStatus(id)
     return proc.ready
@@ -191,7 +199,7 @@ class BackendHost {
       case 'fatal':
         proc.fatal = `failed to start: ${msg.error?.message ?? 'unknown error'}`
         this.log(id, 'error', msg.error?.stack ?? msg.error?.message)
-        proc.settleStart?.(new Error(proc.fatal))
+        proc.settleStart?.(new ExtensionCallError('EXT_START_FAILED', proc.fatal))
         break
       case 'result': {
         const p = proc.pending.get(msg.id)
@@ -199,13 +207,15 @@ class BackendHost {
         proc.pending.delete(msg.id)
         clearTimeout(p.timer)
         if (msg.ok) p.resolve(msg.value)
-        else {
-          const err = new Error(msg.error?.message ?? 'Extension call failed')
-          if (msg.error?.code) err.code = msg.error.code
-          p.reject(err)
-        }
+        else p.reject(new ExtensionCallError(msg.error?.code ?? 'EXT_BACKEND_ERROR', msg.error?.message ?? 'Extension call failed', msg.error?.details))
         break
       }
+      case 'migrated':
+        if (typeof msg.version === 'string') this.onMigrated(id, msg.version)
+        break
+      case 'host':
+        void this.hostRequest(id, proc, msg)
+        break
       case 'emit':
         if (typeof msg.channel === 'string') this.onEmit(id, msg.channel, msg.payload)
         break
@@ -215,17 +225,61 @@ class BackendHost {
     }
   }
 
+  /** A request from the backend for something only the main process can do (ctx.secrets). */
+  async hostRequest(id, proc, msg) {
+    let reply
+    try {
+      const args = msg.args ?? {}
+      const store = this.secrets?.(id)
+      if (typeof msg.op === 'string' && msg.op.startsWith('secrets.') && !store)
+        throw new ExtensionCallError('EXT_SECRETS_UNAVAILABLE', 'Secret storage is not available in this MonoRail')
+      let value
+      switch (msg.op) {
+        case 'secrets.get':
+          value = await store.get(args.name)
+          break
+        case 'secrets.set':
+          await store.set(args.name, args.value)
+          value = null
+          break
+        case 'secrets.delete':
+          await store.delete(args.name)
+          value = null
+          break
+        case 'secrets.list':
+          value = await store.list()
+          break
+        default:
+          throw new ExtensionCallError('EXT_HOST_ERROR', `Unknown host request ${String(msg.op)}`)
+      }
+      reply = { type: 'hostResult', id: msg.id, ok: true, value: value ?? null }
+    } catch (err) {
+      reply = { type: 'hostResult', id: msg.id, ok: false, error: { code: typeof err?.code === 'string' ? err.code : 'EXT_HOST_ERROR', message: err?.message ?? String(err) } }
+    }
+    try {
+      if (proc.child.connected) proc.child.send(reply)
+    } catch {
+      /* the backend exited meanwhile */
+    }
+  }
+
   async invoke(spec, method, args) {
-    if (typeof method !== 'string' || !method) throw new Error('Method name required')
+    if (typeof method !== 'string' || !method) throw new ExtensionCallError('EXT_UNKNOWN_METHOD', 'Method name required')
+    try {
+      // Arguments cross a process boundary as JSON: refuse what would not survive it.
+      JSON.stringify(args)
+    } catch (err) {
+      throw new ExtensionCallError('EXT_BAD_PAYLOAD', `Arguments must be plain JSON: ${err.message}`)
+    }
     await this.ensure(spec)
     const proc = this.procs.get(spec.manifest.id)
-    if (!proc) throw new Error(`${spec.manifest.name}'s backend is not running`)
-    if (!proc.methods.includes(method)) throw new Error(`Unknown method ${spec.manifest.id}.${method}`)
+    if (!proc) throw new ExtensionCallError('EXT_CRASHED', `${spec.manifest.name}'s backend is not running`)
+    if (!proc.methods.includes(method)) throw new ExtensionCallError('EXT_UNKNOWN_METHOD', `Unknown method ${spec.manifest.id}.${method}`)
     const id = ++proc.seq
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         proc.pending.delete(id)
-        reject(new Error(`${spec.manifest.id}.${method} timed out after ${CALL_TIMEOUT_MS / 1000}s`))
+        reject(new ExtensionCallError('EXT_TIMEOUT', `${spec.manifest.id}.${method} timed out after ${CALL_TIMEOUT_MS / 1000}s`))
       }, CALL_TIMEOUT_MS)
       proc.pending.set(id, { resolve, reject, timer })
       proc.child.send({ type: 'invoke', id, method, args: args === undefined ? null : args })

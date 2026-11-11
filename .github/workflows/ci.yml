@@ -28,6 +28,23 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Extension backends run under Node's permission model, whose paths and
+  # program names behave differently on Windows, where MonoRail ships.
+  test-windows:
+    name: Tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/command-hub/package-lock.json
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm test
+
   sample-extension:
     name: Sample extension
     runs-on: ubuntu-latest
@@ -42,6 +59,7 @@ jobs:
           cache: npm
           cache-dependency-path: extensions/hello-monorail/package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run pack
       - uses: actions/upload-artifact@v4
         with:

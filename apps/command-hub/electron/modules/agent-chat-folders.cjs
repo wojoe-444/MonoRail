@@ -141,8 +141,11 @@ async function addRepo(dataDir, dir) {
 }
 
 async function removeRepo(dataDir, dir) {
+  // Stored paths are real paths (addRepo resolves them). Resolve this one too,
+  // or a path spelled another way (a Windows 8.3 short name, a link) never matches.
+  const r = await real(dir)
   const settings = await readSettings(dataDir)
-  await writeSettings(dataDir, { ...settings, repos: settings.repos.filter((p) => !samePath(p, dir)) })
+  await writeSettings(dataDir, { ...settings, repos: settings.repos.filter((p) => !samePath(p, dir) && !(r && samePath(p, r))) })
 }
 
 module.exports = { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, isInside, real }
