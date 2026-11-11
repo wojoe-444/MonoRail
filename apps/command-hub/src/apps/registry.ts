@@ -1,8 +1,9 @@
+import { emailApp } from './email'
 import { gitHubPlusApp } from './github-plus'
 import type { AppDefinition } from './types'
 
 /** Every app, in nav order. Add new apps here. */
-export const apps: AppDefinition[] = [gitHubPlusApp]
+export const apps: AppDefinition[] = [gitHubPlusApp, emailApp]
 
 const ids = new Set<string>()
 for (const a of apps) {
