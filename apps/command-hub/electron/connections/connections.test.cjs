@@ -507,3 +507,105 @@ test('pi playwright: test attaches with the extension and detaches, passing the 
   assert.match(failed.error, /Playwright Extension not found/)
   assert.equal(calls.length, 2, 'detaches even after a failure')
 })
+
+// ---------- OpenAI ----------
+
+const openai = require('./connectors/openai.cjs')._internal
+
+const fakeIdToken = (claims) => `x.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.y`
+
+test('openai: nothing is looked at until the connection is added', async () => {
+  const touched = []
+  const conn = require('./connectors/openai.cjs')
+  const s = await conn.status(undefined, {
+    findOnPath: async () => touched.push('path'),
+    readCredential: async () => touched.push('wincred'),
+    fetch: async () => touched.push('fetch'),
+  })
+  assert.equal(s.state, 'needs-setup')
+  assert.deepEqual(touched, [])
+})
+
+test('openai: Codex auth gives only the mode and plan', () => {
+  const auth = {
+    OPENAI_API_KEY: null,
+    tokens: { id_token: fakeIdToken({ email: 'demo@example.com', 'https://api.openai.com/auth': { chatgpt_plan_type: 'Plus' } }), access_token: 'acc-1', refresh_token: 'ref-1' },
+  }
+  assert.deepEqual(openai.readCodexAuth(auth), { mode: 'chatgpt', plan: 'plus' })
+  assert.deepEqual(openai.readCodexAuth({ auth_mode: 'apikey', OPENAI_API_KEY: 'sk-demo' }), { mode: 'apikey' })
+  assert.deepEqual(openai.readCodexAuth({ OPENAI_API_KEY: null, tokens: null }), { mode: 'none' })
+  assert.deepEqual(openai.readCodexAuth(undefined), { mode: 'none' })
+  assert.equal(openai.planFromIdToken('not-a-jwt'), undefined)
+})
+
+test('openai: env key is reported as set, never its value; check runs no program and no request', async () => {
+  const dataDir = tmp()
+  const calls = []
+  const deps = {
+    env: { OPENAI_API_KEY: 'sk-env-secret', PATH: '' },
+    findOnPath: async () => '/demo/bin/codex',
+    codexVersion: async () => '0.60.1',
+    codexHome: path.join(tmp(), 'codex'),
+    fetch: async (url) => {
+      calls.push(url)
+      return { status: 200, ok: true, json: async () => ({ data: [{}, {}] }) }
+    },
+  }
+  const svc = createConnections({ dataDir, cipher: cipher(), deps })
+  openai.resetTest()
+  const s = await svc.save({ kind: 'openai', values: { keySource: 'env', codex: 'yes' } })
+  assert.equal(s.state, 'ok')
+  assert.equal(calls.length, 0, 'the check makes no request')
+  assert.ok(!JSON.stringify(s).includes('sk-env-secret'))
+  assert.deepEqual(s.actions, ['test-key', 'codex-login'])
+  assert.equal(s.details.find((d) => d.label === 'Codex CLI').value, 'Installed (0.60.1)')
+  assert.equal(s.details.find((d) => d.label === 'Key test').value, 'Not tested yet')
+
+  // The test is the one request, started by the user; its result shows on the next check.
+  await svc.runAction({ kind: 'openai', action: 'test-key' })
+  await new Promise((r) => setTimeout(r, 20))
+  assert.deepEqual(calls, ['https://api.openai.com/v1/models'])
+  const after = await svc.check('openai', { force: true })
+  assert.equal(after.details.find((d) => d.label === 'Key test').value, 'Passed (2 models available)')
+  assert.equal(after.summary, 'API key works; Codex is not signed in.')
+})
+
+test('openai: pasted key is encrypted; a rejected key reads as expired', async () => {
+  const dataDir = tmp()
+  const deps = { env: {}, fetch: async () => ({ status: 401, ok: false, statusText: 'Unauthorized' }) }
+  const svc = createConnections({ dataDir, cipher: cipher(), deps })
+  openai.resetTest()
+  await assert.rejects(svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' } }), /Paste your OpenAI API key/)
+  await svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' }, secrets: { apiKey: 'sk-pasted-1' } })
+  assert.ok(!fs.readFileSync(path.join(dataDir, 'connections.json'), 'utf8').includes('sk-pasted-1'))
+  assert.deepEqual(await svc.getCredentials('openai'), { apiKey: 'sk-pasted-1' })
+  await svc.runAction({ kind: 'openai', action: 'test-key' })
+  await new Promise((r) => setTimeout(r, 20))
+  assert.equal((await svc.check('openai', { force: true })).state, 'expired')
+  // A new key is not shown as rejected.
+  await svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' }, secrets: { apiKey: 'sk-pasted-2' } })
+  assert.equal((await svc.check('openai', { force: true })).state, 'ok')
+})
+
+test('openai: Codex only, with and without a sign-in', () => {
+  const base = { source: 'none', key: { found: false }, codexWanted: true }
+  assert.equal(openai.summarize({ ...base, codex: { installed: false, auth: { mode: 'none' } } }).state, 'unavailable')
+  const notSigned = openai.summarize({ ...base, codex: { installed: true, auth: { mode: 'none' } } })
+  assert.equal(notSigned.state, 'needs-setup')
+  assert.deepEqual(notSigned.actions, ['codex-login'])
+  const signed = openai.summarize({ ...base, codex: { installed: true, version: '0.60.1', auth: { mode: 'chatgpt', plan: 'pro' } } })
+  assert.equal(signed.state, 'ok')
+  assert.equal(signed.details.find((d) => d.label === 'Codex sign-in').value, 'ChatGPT account, ChatGPT Pro plan')
+  assert.equal(openai.summarize({ ...base, codex: { installed: true, auth: { mode: 'none' }, keyring: true } }).state, 'ok')
+})
+
+test('openai: finds codex on PATH by file, with Windows extensions', async () => {
+  const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'codex.cmd'), '@echo off')
+  const found = await openai.findOnPath('codex', { env: { PATH: dir, PATHEXT: '.EXE;.CMD' }, platform: 'win32' })
+  assert.equal(found, path.join(dir, 'codex.cmd'))
+  assert.equal(await openai.findOnPath('codex', { env: { PATH: dir }, platform: 'linux' }), undefined)
+  fs.mkdirSync(path.join(dir, 'node_modules', '@openai', 'codex'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'node_modules', '@openai', 'codex', 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.60.1' }))
+  assert.equal(await openai.codexVersion(found), '0.60.1')
+})

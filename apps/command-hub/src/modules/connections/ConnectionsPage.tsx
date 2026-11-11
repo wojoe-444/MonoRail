@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  Aperture,
   CheckCircle2,
   Cloud,
   ExternalLink,
@@ -41,7 +42,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe } as const
+const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },

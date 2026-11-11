@@ -42,6 +42,19 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  openai: {
+    state: 'ok',
+    summary: 'API key works; Codex is signed in.',
+    details: [
+      { label: 'API key', value: 'Credential Manager: openai-demo', ok: true },
+      { label: 'Key test', value: 'Passed (42 models available)', ok: true },
+      { label: 'Codex CLI', value: 'Installed (0.60.1)', ok: true },
+      { label: 'Codex sign-in', value: 'ChatGPT account, ChatGPT Plus plan', ok: true },
+    ],
+    actions: ['test-key'],
+    added: true,
+    checkedAt: at,
+  },
   pi: {
     state: 'ok',
     summary: 'pi 1.5.2 is ready with 3 scoped models.',
@@ -152,6 +165,42 @@ export const sampleList: ConnectionsList = {
       actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running claude auth login.', showWhen: ['expired', 'needs-setup', 'ok', 'error'] }],
     },
     {
+      kind: 'openai',
+      title: 'OpenAI',
+      description: 'An OpenAI API key and the Codex CLI sign-in. Nothing is checked until you add it.',
+      icon: 'aperture',
+      fields: [
+        {
+          key: 'keySource',
+          label: 'API key',
+          type: 'select',
+          defaultValue: 'env',
+          options: [
+            { value: 'env', label: 'OPENAI_API_KEY environment variable' },
+            { value: 'direct', label: 'Paste it into MonoRail' },
+            { value: 'wincred', label: 'Windows Credential Manager entry' },
+            { value: 'none', label: 'No API key (Codex CLI only)' },
+          ],
+        },
+        { key: 'apiKey', label: 'OpenAI API key', type: 'secret', showIf: { keySource: 'direct' } },
+        { key: 'credentialTarget', label: 'Credential Manager entry', type: 'text', showIf: { keySource: 'wincred' }, credentialPicker: true },
+        {
+          key: 'codex',
+          label: 'Codex CLI',
+          type: 'select',
+          defaultValue: 'yes',
+          options: [
+            { value: 'yes', label: 'Also look for the Codex CLI and its sign-in' },
+            { value: 'no', label: 'Do not look for Codex' },
+          ],
+        },
+      ],
+      actions: [
+        { id: 'test-key', label: 'Test API key', description: 'Makes one request to OpenAI (lists the models) to confirm the key works.', showWhen: ['ok', 'expired', 'error'] },
+        { id: 'codex-login', label: 'Sign in to Codex', description: 'Opens a terminal running codex login.', showWhen: ['ok', 'needs-setup'] },
+      ],
+    },
+    {
       kind: 'pi',
       title: 'pi',
       description: 'The pi coding agent that Chat runs pi sessions with, and the models it is scoped to.',
@@ -244,6 +293,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.claude,
+    },
+    {
+      kind: 'openai',
+      values: { keySource: 'wincred', credentialTarget: 'openai-demo', codex: 'yes' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.openai,
     },
     {
       kind: 'pi',
