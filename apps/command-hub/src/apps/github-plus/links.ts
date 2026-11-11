@@ -7,3 +7,6 @@ export const commitsLink = (ref: string, path?: string): string => `/repo/commit
 export const commitLink = (sha: string): string => `/repo/commit/${sha}`
 export const compareLink = (base?: string, head?: string): string => `/repo/compare?${q({ base, head })}`
 export const backupsLink = (): string => '/repo/backups'
+export const issuesLink = (state?: 'closed'): string => `/repo/issues${state ? '?state=closed' : ''}`
+export const issueLink = (n: number): string => `/repo/issues/${n}`
+export const newIssueLink = (): string => '/repo/issues/new'

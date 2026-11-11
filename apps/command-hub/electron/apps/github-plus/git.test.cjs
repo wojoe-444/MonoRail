@@ -233,3 +233,83 @@ describe('dashboard activity', () => {
     assert.equal(a.branches.find((b) => b.name === 'main').isDefault, true)
   })
 })
+
+describe('local issues', () => {
+  const issues = require('./issues.cjs')
+  let repo
+  const r = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8' })
+
+  before(() => {
+    repo = mkdtempSync(join(tmpdir(), 'ghp-issues-'))
+    r('init', '-q', '-b', 'main')
+    r('config', 'user.email', 'tester@example.invalid')
+    r('config', 'user.name', 'Tester')
+    r('config', 'commit.gpgsign', 'true') // must be ignored: issue commits are never signed
+    writeFileSync(join(repo, 'a.txt'), 'one\n')
+    r('add', '.')
+    r('-c', 'commit.gpgsign=false', 'commit', '-qm', 'initial')
+    writeFileSync(join(repo, 'a.txt'), 'uncommitted edit\n')
+  })
+
+  it('starts empty', async () => {
+    assert.deepEqual(await issues.listIssues(repo, 'all'), [])
+    assert.deepEqual(await issues.issueCounts(repo), { open: 0, closed: 0 })
+  })
+
+  it('creates, comments, closes and reopens without touching the working tree', async () => {
+    const statusBefore = r('status', '--porcelain')
+    const headBefore = r('rev-parse', 'HEAD')
+    const one = await issues.createIssue(repo, { title: '  Crash on save\n', body: 'Steps:\r\n1. save' })
+    assert.equal(one.number, 1)
+    assert.equal(one.title, 'Crash on save')
+    assert.equal(one.body, 'Steps:\n1. save')
+    assert.equal(one.author, 'Tester')
+    const two = await issues.createIssue(repo, { title: 'Second' })
+    assert.equal(two.number, 2)
+
+    await issues.addComment(repo, 1, { body: 'Seen it too' })
+    const closed = await issues.updateIssue(repo, 1, { state: 'closed' })
+    assert.equal(closed.state, 'closed')
+    assert.ok(closed.closedAt)
+    assert.deepEqual(closed.timeline.map((t) => t.kind), ['comment', 'closed'])
+
+    assert.deepEqual((await issues.listIssues(repo, 'open')).map((i) => i.number), [2])
+    const all = await issues.listIssues(repo, 'all')
+    assert.deepEqual(all.map((i) => i.number), [2, 1])
+    assert.equal(all[1].comments, 1)
+    assert.deepEqual(await issues.issueCounts(repo), { open: 1, closed: 1 })
+
+    const re = await issues.updateIssue(repo, 1, { state: 'open', title: 'Crash on save (Windows)' })
+    assert.equal(re.state, 'open')
+    assert.equal(re.closedAt, null)
+    assert.equal((await issues.getIssue(repo, 1)).title, 'Crash on save (Windows)')
+
+    assert.equal(r('status', '--porcelain'), statusBefore)
+    assert.equal(r('rev-parse', 'HEAD'), headBefore)
+    assert.equal(r('log', '--format=%s', issues.ISSUES_REF).trim().split('\n').length, 5, 'one commit per change')
+    assert.equal(r('for-each-ref', '--format=%(refname)', 'refs/heads').trim(), 'refs/heads/main')
+  })
+
+  it('keeps issue commits out of the dashboard feed and in backups', async () => {
+    const a = await git.recentActivity(repo)
+    assert.ok(a.commits.every((c) => c.subject === 'initial'))
+    const file = join(repo, '..', `ghp-issues-${Date.now()}.bundle`)
+    await git.createBundle(repo, file)
+    assert.match(execFileSync('git', ['bundle', 'list-heads', file], { encoding: 'utf8' }), /refs\/local-issues/)
+  })
+
+  it('handles many writes at once', async () => {
+    await Promise.all(Array.from({ length: 5 }, (_, i) => issues.createIssue(repo, { title: `Batch ${i}` })))
+    const nums = (await issues.listIssues(repo, 'all')).map((i) => i.number)
+    assert.deepEqual(nums, [7, 6, 5, 4, 3, 2, 1])
+  })
+
+  it('rejects bad input', async () => {
+    await assert.rejects(issues.createIssue(repo, { title: '   ' }), /needs a title/)
+    await assert.rejects(issues.createIssue(repo, { title: 'x'.repeat(300) }), /limited/)
+    await assert.rejects(issues.getIssue(repo, '1; rm'), /Invalid issue number/)
+    await assert.rejects(issues.getIssue(repo, 99), /not found/)
+    await assert.rejects(issues.addComment(repo, 1, { body: ' ' }), /needs some text/)
+    await assert.rejects(issues.updateIssue(repo, 1, { state: 'deleted' }), /Invalid state/)
+  })
+})
