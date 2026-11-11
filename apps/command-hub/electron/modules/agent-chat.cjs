@@ -16,7 +16,7 @@ const path = require('node:path')
 
 const crypto = require('node:crypto')
 
-const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, real } = require('./agent-chat-folders.cjs')
+const { allowedRepos, repoFor, isGitRepo, setReposRoot, addRepo, removeRepo, real } = require('./agent-chat-folders.cjs')
 const options = require('./agent-chat-options.cjs')
 const turnsApi = require('./agent-chat-turns.cjs')
 const chatState = require('./agent-chat-state.cjs')
@@ -470,6 +470,8 @@ async function listSessions(opts = {}) {
 
   const byId = new Map()
   let outsideAllowed = 0
+  /** Folders of hidden chats, so the page can say which ones to allow. */
+  const hidden = new Map()
   const coordDir = await realCoordinatorDir(opts.dataDir)
   for (const f of scanned) {
     let s
@@ -488,6 +490,12 @@ async function listSessions(opts = {}) {
     const repo = s.cwd ? await repoFor(folders.repos, s.cwd) : undefined
     if (!repo) {
       outsideAllowed++
+      if (s.cwd) {
+        const key = process.platform === 'win32' ? s.cwd.toLowerCase() : s.cwd
+        const h = hidden.get(key) ?? { path: s.cwd, count: 0 }
+        h.count++
+        hidden.set(key, h)
+      }
       continue
     }
     known.set(s.id, { source: f.source, file: f.file, cwd: s.cwd })
@@ -517,6 +525,17 @@ async function listSessions(opts = {}) {
       kept: Math.min(sessions.length, LIST_KEEP),
       dropped: Math.max(0, sessions.length - LIST_KEEP),
       outsideAllowed,
+      // The folders with the most hidden chats (display only; allowing one
+      // still goes through the system folder picker).
+      hiddenFolders: await Promise.all(
+        [...hidden.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+          .map(async (h) => {
+            const r = await real(h.path).catch(() => undefined)
+            return { ...h, gitRepo: !!r && (await isGitRepo(r)) }
+          }),
+      ),
     },
     folders: { reposRoot: folders.reposRoot, reposRootFound: folders.reposRootFound, repoCount: folders.repos.length },
   }

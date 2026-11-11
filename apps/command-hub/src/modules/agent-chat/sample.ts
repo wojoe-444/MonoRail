@@ -60,7 +60,7 @@ export const sampleSessions: SessionList = {
       repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
   ],
-  limits: { scanned: 3, totalLogs: 3, kept: 3, dropped: 0, outsideAllowed: 0 },
+  limits: { scanned: 3, totalLogs: 3, kept: 3, dropped: 0, outsideAllowed: 4, hiddenFolders: [{ path: '/home/demo/scratch/weather-bot', count: 3, gitRepo: true }, { path: '/home/demo', count: 1, gitRepo: false }] },
   folders: { reposRoot: '/home/demo/Repos', reposRootFound: true, repoCount: 2 },
 }
 

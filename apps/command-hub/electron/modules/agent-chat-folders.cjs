@@ -148,4 +148,4 @@ async function removeRepo(dataDir, dir) {
   await writeSettings(dataDir, { ...settings, repos: settings.repos.filter((p) => !samePath(p, dir) && !(r && samePath(p, r))) })
 }
 
-module.exports = { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, isInside, real }
+module.exports = { allowedRepos, isGitRepo, repoFor, setReposRoot, addRepo, removeRepo, isInside, real }

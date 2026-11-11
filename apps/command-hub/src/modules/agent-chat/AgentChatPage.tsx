@@ -8,7 +8,9 @@ import {
   Check,
   ChevronRight,
   FlaskConical,
+  Folder,
   FolderGit2,
+  FolderPlus,
   GitBranch,
   GitCompare,
   Globe,
@@ -649,7 +651,7 @@ function SessionListView({
         {!filtered && missing && missing.length > 0 && (
           <p className="mt-2 text-xs">No logs found for {missing.join(' or ')} on this machine.</p>
         )}
-        {!filtered && <ListLimits limits={limits} />}
+        {!filtered && <ListLimits limits={limits} onOpenFolders={onOpenFolders} />}
       </div>
     )
   }
@@ -728,21 +730,52 @@ function SessionListView({
           </ul>
         </div>
       ))}
-      <ListLimits limits={limits} />
+      <ListLimits limits={limits} onOpenFolders={onOpenFolders} />
     </div>
   )
 }
 
 /** Says what the list leaves out, so it never looks complete when it is not. */
-function ListLimits({ limits }: { limits?: SessionList['limits'] }) {
+function ListLimits({ limits, onOpenFolders }: { limits?: SessionList['limits']; onOpenFolders?: () => void }) {
   if (!limits) return null
   const notes: string[] = []
   if (limits.dropped > 0) notes.push(`Showing the ${limits.kept} most recent chats.`)
   if (limits.totalLogs > limits.scanned) notes.push(`Only the ${limits.scanned} newest of ${limits.totalLogs} session logs were read.`)
-  if (limits.outsideAllowed > 0)
-    notes.push(`${limits.outsideAllowed} ${limits.outsideAllowed === 1 ? 'chat is' : 'chats are'} hidden because ${limits.outsideAllowed === 1 ? 'its folder is' : 'their folders are'} not in an allowed repo.`)
-  if (!notes.length) return null
-  return <p className="px-3 py-3 text-xs text-muted-foreground">{notes.join(' ')}</p>
+  const hidden = limits.outsideAllowed
+  if (!notes.length && !hidden) return null
+  return (
+    <div className="space-y-3 px-3 py-3 text-xs text-muted-foreground">
+      {notes.length > 0 && <p>{notes.join(' ')}</p>}
+      {hidden > 0 && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <p>
+            {hidden} {hidden === 1 ? 'chat is' : 'chats are'} hidden because {hidden === 1 ? 'it ran' : 'they ran'} outside your allowed repos. Chat
+            only lists, opens and runs chats in repos you allow, so an agent started here can never reach other folders.
+          </p>
+          {!!limits.hiddenFolders?.length && (
+            <ul className="space-y-1">
+              {limits.hiddenFolders.map((f) => (
+                <li key={f.path} className="flex items-center gap-2" title={f.path}>
+                  <Folder className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate font-mono">{f.path}</span>
+                  {f.gitRepo === false && <span className="shrink-0 rounded bg-muted px-1">not a repo</span>}
+                  <span className="shrink-0 tabular-nums">{f.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {limits.hiddenFolders?.some((f) => f.gitRepo === false) && (
+            <p>Folders that are not a git repo (your home folder, for example) cannot be allowed. Start those chats inside a repo instead.</p>
+          )}
+          {onOpenFolders && (
+            <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={onOpenFolders}>
+              <FolderPlus /> Allow folders…
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SourceAvatar({ source, className }: { source: SessionSource; className?: string }) {
