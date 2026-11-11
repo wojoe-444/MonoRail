@@ -1,0 +1,32 @@
+# Publishes a MonoRail extension release when you push a version tag:
+#   npm version patch && git push --follow-tags
+# Users install or update it in MonoRail from Settings > Extensions >
+# From a GitHub release (owner/name).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the tag matches monorail.json
+        run: |
+          version=$(node -p "require('./monorail.json').version")
+          [ "v$version" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match monorail.json version $version"; exit 1; }
+      - run: npm run pack
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" release/*.monorail.zip --title "$GITHUB_REF_NAME" --generate-notes

@@ -1,73 +1,72 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Command Hub color system
- * ------------------------
- * Neutrals are a cool slate, the brand is a deep indigo, and a teal accent
- * carries secondary emphasis. Semantic colors (success / warning / info /
- * destructive) each have a solid and a soft (tinted surface) variant so
- * status can be shown without shouting. All tokens are OKLCH.
+ * MonoRail color system
+ * ---------------------
+ * The look and the color schemes come from the Bot Dashboard in
+ * wojoe-444/MC-Player. A scheme ("palette") is a few parameters in
+ * src/lib/palettes.ts that expand into every token below, for light and dark.
+ * Status colors (success / warning / info / destructive) keep their hues in
+ * every palette, each with a solid and a soft (tinted surface) variant. Chart
+ * series are fixed and not part of a palette. All tokens are OKLCH.
  */
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(0.985 0.003 255);
-  --foreground: oklch(0.22 0.03 262);
-
+  /*
+   * Defaults: the "Sand & Ink" palette (src/lib/palettes.ts). lib/theme.ts
+   * overwrites these on <html> with the palette the user picked, so edit
+   * palettes.ts, not these values, to change a scheme.
+   */
+  --background: oklch(0.975 0.007 85);
+  --foreground: oklch(0.23 0.0145 85);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.03 262);
+  --card-foreground: oklch(0.23 0.0145 85);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.03 262);
-
-  --primary: oklch(0.47 0.19 268);
-  --primary-foreground: oklch(0.985 0.01 268);
-  --primary-soft: oklch(0.95 0.035 268);
-  --primary-soft-foreground: oklch(0.4 0.17 268);
-
-  --secondary: oklch(0.955 0.01 260);
-  --secondary-foreground: oklch(0.3 0.03 262);
-
-  --accent: oklch(0.95 0.025 268);
-  --accent-foreground: oklch(0.3 0.08 268);
-
-  --highlight: oklch(0.62 0.12 190);
-  --highlight-foreground: oklch(0.99 0.01 190);
-  --highlight-soft: oklch(0.95 0.03 190);
-  --highlight-soft-foreground: oklch(0.42 0.08 195);
-
-  --muted: oklch(0.96 0.006 258);
-  --muted-foreground: oklch(0.5 0.025 262);
-
-  --success: oklch(0.6 0.14 155);
-  --success-soft: oklch(0.95 0.04 155);
-  --success-soft-foreground: oklch(0.4 0.1 155);
-  --warning: oklch(0.75 0.15 75);
-  --warning-soft: oklch(0.96 0.05 85);
-  --warning-soft-foreground: oklch(0.45 0.1 60);
-  --info: oklch(0.6 0.14 240);
-  --info-soft: oklch(0.95 0.03 240);
-  --info-soft-foreground: oklch(0.42 0.12 245);
-  --destructive: oklch(0.58 0.21 25);
-  --destructive-soft: oklch(0.95 0.03 25);
-  --destructive-soft-foreground: oklch(0.45 0.17 25);
-
-  --border: oklch(0.91 0.01 258);
-  --input: oklch(0.89 0.012 258);
-  --ring: oklch(0.47 0.19 268 / 0.5);
-
-  /* Navigation drawer: a dark indigo-slate rail, like a MUI permanent drawer */
-  --sidebar: oklch(0.23 0.045 268);
-  --sidebar-foreground: oklch(0.86 0.02 265);
-  --sidebar-muted-foreground: oklch(0.65 0.03 265);
-  --sidebar-primary: oklch(0.72 0.13 268);
-  --sidebar-primary-foreground: oklch(0.2 0.04 268);
-  --sidebar-accent: oklch(0.3 0.055 268);
-  --sidebar-accent-foreground: oklch(0.98 0.01 265);
-  --sidebar-border: oklch(0.31 0.04 268);
-  --sidebar-ring: oklch(0.72 0.13 268);
+  --popover-foreground: oklch(0.23 0.0145 85);
+  --primary: oklch(0.42 0.07 80);
+  --primary-foreground: oklch(0.985 0.01 80);
+  --primary-soft: oklch(0.95 0.0126 80);
+  --primary-soft-foreground: oklch(0.38 0.056 80);
+  --secondary: oklch(0.955 0.015 85);
+  --secondary-foreground: oklch(0.3 0.009 85);
+  --muted: oklch(0.945 0.012 85);
+  --muted-foreground: oklch(0.5 0.0045 85);
+  --accent: oklch(0.945 0.0105 80);
+  --accent-foreground: oklch(0.36 0.0455 80);
+  --highlight: oklch(0.6 0.12 230);
+  --highlight-foreground: oklch(0.99 0.01 230);
+  --highlight-soft: oklch(0.95 0.03 230);
+  --highlight-soft-foreground: oklch(0.42 0.09 230);
+  --border: oklch(0.915 0.012 85);
+  --input: oklch(0.9 0.014 85);
+  --ring: oklch(0.6 0.0595 80 / 0.5);
+  --destructive: oklch(0.6 0.22 17);
+  --success: oklch(0.56 0.15 158);
+  --warning: oklch(0.78 0.16 75);
+  --info: oklch(0.58 0.15 235);
+  --success-soft: oklch(0.95 0.035 158);
+  --success-soft-foreground: oklch(0.43 0.11 158);
+  --warning-soft: oklch(0.95 0.035 75);
+  --warning-soft-foreground: oklch(0.43 0.11 75);
+  --info-soft: oklch(0.95 0.035 235);
+  --info-soft-foreground: oklch(0.43 0.11 235);
+  --destructive-soft: oklch(0.95 0.035 17);
+  --destructive-soft-foreground: oklch(0.43 0.11 17);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.38 0.0045 85);
+  --sidebar-muted-foreground: oklch(0.56 0.0045 85);
+  --sidebar-primary: oklch(0.42 0.07 80);
+  --sidebar-primary-foreground: oklch(0.985 0.01 80);
+  --sidebar-accent: oklch(0.955 0.0184 80);
+  --sidebar-accent-foreground: oklch(0.25 0.006 85);
+  --sidebar-border: oklch(0.915 0.012 85);
+  --sidebar-ring: oklch(0.6 0.0595 80 / 0.5);
 
   /*
    * Data-viz categorical series, assigned in this fixed order and never cycled.
@@ -86,50 +85,50 @@
 }
 
 .dark {
-  --background: oklch(0.17 0.02 265);
-  --foreground: oklch(0.94 0.01 260);
-  --card: oklch(0.21 0.025 265);
-  --card-foreground: oklch(0.94 0.01 260);
-  --popover: oklch(0.21 0.025 265);
-  --popover-foreground: oklch(0.94 0.01 260);
-  --primary: oklch(0.68 0.15 268);
-  --primary-foreground: oklch(0.18 0.04 268);
-  --primary-soft: oklch(0.3 0.07 268);
-  --primary-soft-foreground: oklch(0.85 0.08 268);
-  --secondary: oklch(0.26 0.025 265);
-  --secondary-foreground: oklch(0.92 0.01 260);
-  --accent: oklch(0.28 0.04 268);
-  --accent-foreground: oklch(0.94 0.02 268);
-  --highlight: oklch(0.72 0.11 190);
-  --highlight-foreground: oklch(0.18 0.03 190);
-  --highlight-soft: oklch(0.3 0.05 195);
-  --highlight-soft-foreground: oklch(0.85 0.07 190);
-  --muted: oklch(0.25 0.02 265);
-  --muted-foreground: oklch(0.68 0.02 262);
-  --success: oklch(0.7 0.14 155);
-  --success-soft: oklch(0.3 0.05 155);
-  --success-soft-foreground: oklch(0.85 0.1 155);
-  --warning: oklch(0.8 0.14 80);
-  --warning-soft: oklch(0.32 0.05 75);
-  --warning-soft-foreground: oklch(0.88 0.1 85);
-  --info: oklch(0.7 0.12 240);
-  --info-soft: oklch(0.3 0.05 245);
-  --info-soft-foreground: oklch(0.85 0.08 240);
-  --destructive: oklch(0.68 0.19 25);
-  --destructive-soft: oklch(0.3 0.06 25);
-  --destructive-soft-foreground: oklch(0.86 0.09 25);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.68 0.15 268 / 0.5);
-  --sidebar: oklch(0.14 0.025 268);
-  --sidebar-foreground: oklch(0.86 0.02 265);
-  --sidebar-muted-foreground: oklch(0.62 0.03 265);
-  --sidebar-primary: oklch(0.72 0.13 268);
-  --sidebar-primary-foreground: oklch(0.18 0.04 268);
-  --sidebar-accent: oklch(0.22 0.04 268);
-  --sidebar-accent-foreground: oklch(0.98 0.01 265);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.72 0.13 268);
+  --background: oklch(0.165 0.03 85);
+  --foreground: oklch(0.95 0.01 85);
+  --card: oklch(0.205 0.035 85);
+  --card-foreground: oklch(0.95 0.01 85);
+  --popover: oklch(0.22 0.035 85);
+  --popover-foreground: oklch(0.95 0.01 85);
+  --primary: oklch(0.8 0.0595 80);
+  --primary-foreground: oklch(0.16 0.04 80);
+  --primary-soft: oklch(0.3 0.0245 80);
+  --primary-soft-foreground: oklch(0.87 0.028 80);
+  --secondary: oklch(0.27 0.04 85);
+  --secondary-foreground: oklch(0.95 0.01 85);
+  --muted: oklch(0.25 0.035 85);
+  --muted-foreground: oklch(0.7 0.0038 85);
+  --accent: oklch(0.3 0.021 80);
+  --accent-foreground: oklch(0.95 0.03 80);
+  --highlight: oklch(0.74 0.11 230);
+  --highlight-foreground: oklch(0.18 0.03 230);
+  --highlight-soft: oklch(0.3 0.05 230);
+  --highlight-soft-foreground: oklch(0.86 0.07 230);
+  --border: oklch(1 0 0 / 0.09);
+  --input: oklch(1 0 0 / 0.13);
+  --ring: oklch(0.66 0.056 80 / 0.5);
+  --destructive: oklch(0.7 0.19 17);
+  --success: oklch(0.74 0.16 158);
+  --warning: oklch(0.82 0.15 78);
+  --info: oklch(0.74 0.13 232);
+  --success-soft: oklch(0.3 0.05 158);
+  --success-soft-foreground: oklch(0.86 0.1 158);
+  --warning-soft: oklch(0.3 0.05 75);
+  --warning-soft-foreground: oklch(0.86 0.1 75);
+  --info-soft: oklch(0.3 0.05 235);
+  --info-soft-foreground: oklch(0.86 0.1 235);
+  --destructive-soft: oklch(0.3 0.05 17);
+  --destructive-soft-foreground: oklch(0.86 0.1 17);
+  --sidebar: oklch(0.19 0.03 85);
+  --sidebar-foreground: oklch(0.82 0.003 85);
+  --sidebar-muted-foreground: oklch(0.62 0.003 85);
+  --sidebar-primary: oklch(0.8 0.0595 80);
+  --sidebar-primary-foreground: oklch(0.16 0.04 80);
+  --sidebar-accent: oklch(0.27 0.0175 80);
+  --sidebar-accent-foreground: oklch(0.97 0.01 85);
+  --sidebar-border: oklch(1 0 0 / 0.08);
+  --sidebar-ring: oklch(0.66 0.056 80 / 0.5);
 
   --series-1: #3987e5;
   --series-2: #d95926;
@@ -143,7 +142,8 @@
 }
 
 @theme inline {
-  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -195,10 +195,10 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* MUI-style elevation steps, tinted toward the brand hue */
-  --shadow-elevation-1: 0 1px 2px oklch(0.3 0.05 268 / 0.06), 0 1px 3px oklch(0.3 0.05 268 / 0.08);
-  --shadow-elevation-2: 0 2px 4px oklch(0.3 0.05 268 / 0.06), 0 4px 12px oklch(0.3 0.05 268 / 0.08);
-  --shadow-elevation-3: 0 4px 8px oklch(0.3 0.05 268 / 0.08), 0 12px 28px oklch(0.3 0.05 268 / 0.12);
+  /* Elevation steps, neutral so they sit under any palette. Cards rest flat (a hairline ring); these are for raised and overlay surfaces. */
+  --shadow-elevation-1: 0 1px 2px oklch(0.2 0 0 / 0.05), 0 1px 3px oklch(0.2 0 0 / 0.06);
+  --shadow-elevation-2: 0 2px 4px oklch(0.2 0 0 / 0.05), 0 4px 12px oklch(0.2 0 0 / 0.08);
+  --shadow-elevation-3: 0 4px 8px oklch(0.2 0 0 / 0.07), 0 12px 28px oklch(0.2 0 0 / 0.12);
 }
 
 @layer base {
@@ -209,6 +209,9 @@
   body,
   #root {
     height: 100%;
+  }
+  html {
+    font-family: var(--font-sans);
   }
   body {
     @apply bg-background text-foreground antialiased;

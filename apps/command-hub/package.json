@@ -5,23 +5,39 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev:browser": "node scripts/check-deps.cjs",
+    "dev:browser": "node scripts/dev-browser.cjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "node --test \"electron/**/*.test.cjs\"",
     "preview": "vite preview",
+    "predesktop": "node scripts/check-deps.cjs",
     "desktop": "concurrently -k \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env-shell VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "predesktop:prod": "node scripts/check-deps.cjs",
     "desktop:prod": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win portable"
+    "dist:win": "npm run build && electron-builder --win nsis --publish never",
+    "dist:win:portable": "npm run build && electron-builder --win portable --publish never"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@tailwindcss/vite": "^4.3.5",
     "ccusage": "^20.0.49",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.11",
+    "fflate": "^0.8.3",
+    "highlight.js": "^11.12.0",
+    "isomorphic-git": "^1.44.12",
     "lucide-react": "^1.71.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.5",
     "recharts": "^3.10.1",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.5"
   },
@@ -40,7 +56,7 @@
     "vite": "^8.3.6",
     "wait-on": "^9.5.1"
   },
-  "description": "Command Hub: a desktop app for managing MonoRail agents",
+  "description": "MonoRail: a desktop app for managing agents",
   "main": "electron/main.cjs",
   "author": "MonoRail"
 }

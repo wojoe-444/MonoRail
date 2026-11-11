@@ -25,11 +25,40 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
+  sample-extension:
+    name: Sample extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extensions/hello-monorail
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extensions/hello-monorail/package-lock.json
+      - run: npm ci
+      - run: npm run pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hello-monorail-extension
+          path: extensions/hello-monorail/release/*.monorail.zip
+          if-no-files-found: error
+
   windows-exe:
-    name: Windows .exe
+    name: Windows installer
     runs-on: windows-latest
+    # Pushes to main publish a GitHub release that the in-app updater reads.
+    permissions:
+      contents: write
+    # Rapid merges publish one release at a time, in order.
+    concurrency:
+      group: windows-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,11 +67,38 @@ jobs:
           cache: npm
           cache-dependency-path: apps/command-hub/package-lock.json
       - run: npm ci
-      - run: npm run dist:win
+      - name: Stamp version
+        run: node scripts/set-ci-version.cjs
+      - name: Build installer
+        run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # Pushes to main publish one GitHub release per build. electron-builder's
+      # own publisher uploads files in parallel and each upload can create its
+      # own release for the same tag, which left latest.yml (the file the
+      # in-app updater reads) on a stray draft. So electron-builder only builds
+      # and `gh release create` uploads every file to a single release, then
+      # publishes it. A missing file fails the job instead of shipping.
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          shopt -s nullglob
+          files=(release/MonoRail-Setup-"$version".exe release/MonoRail-Setup-"$version".exe.blockmap release/latest.yml)
+          for f in release/MonoRail-Setup-"$version".exe release/latest.yml; do
+            [ -f "$f" ] || { echo "missing $f"; exit 1; }
+          done
+          gh release create "v$version" "${files[@]}" --title "$version" --latest \
+            --target "$GITHUB_SHA" --notes "Built from $GITHUB_SHA." --repo "$GITHUB_REPOSITORY"
+          gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -qx latest.yml
       - uses: actions/upload-artifact@v4
         with:
-          name: CommandHub-windows-portable
-          path: apps/command-hub/release/*.exe
+          name: MonoRail-windows-setup
+          path: |
+            apps/command-hub/release/*.exe
+            apps/command-hub/release/latest.yml
           if-no-files-found: error

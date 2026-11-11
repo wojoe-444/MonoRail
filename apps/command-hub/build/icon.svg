@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b3b40"/>
+      <stop offset="0.48" stop-color="#141416"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="glyph" gradientUnits="userSpaceOnUse" x1="0" y1="4" x2="0" y2="22">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#c9cbd2"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="1" r="0.6">
+      <stop offset="0" stop-color="#8a8f9c" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#8a8f9c" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile"><rect x="16" y="16" width="480" height="480" rx="112"/></clipPath>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#body)"/>
+  <g clip-path="url(#tile)">
+    <rect x="16" y="256" width="480" height="240" fill="url(#glow)"/>
+    <path d="M16 16H496V214C380 262 140 262 16 214Z" fill="url(#gloss)"/>
+  </g>
+  <rect x="19" y="19" width="474" height="474" rx="109" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  <g transform="translate(64 64) scale(16)" stroke="url(#glyph)" stroke-width="2.25" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 16.5V5.5l6 6.5 6-6.5v11"/>
+    <path d="M3 20.5h18"/>
+  </g>
+</svg>

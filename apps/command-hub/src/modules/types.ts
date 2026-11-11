@@ -1,10 +1,12 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
-import type { LucideIcon } from 'lucide-react'
+
+/** A nav/header icon: any Lucide icon, or an extension's SVG icon (src/extensions/ExtensionIcon). */
+export type IconComponent = ComponentType<{ className?: string }>
 
 /**
  * The module contract.
  *
- * A module is a self-contained feature of Command Hub: it owns one nav entry,
+ * A module is a self-contained feature of MonoRail: it owns one nav entry,
  * one route, one page, and (optionally) a backend data source that runs in the
  * Electron main process. Adding a module is:
  *
@@ -22,7 +24,7 @@ export interface ModuleDefinition {
   title: string
   /** One-line summary, shown in page headers and module listings. */
   description: string
-  icon: LucideIcon
+  icon: IconComponent
   /** Route path, e.g. "/claude-stats". Must be unique across the app. */
   path: string
   nav: {
@@ -31,6 +33,8 @@ export interface ModuleDefinition {
     /** Lower sorts first within the section. Defaults to 100. */
     order?: number
     badge?: string
+    /** Path of a nav item to nest under as a subpage (e.g. "/agents"). Falls back to the section if missing. */
+    parent?: string
   }
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType
@@ -45,6 +49,8 @@ export interface ModuleDefinition {
 export interface CommandHubBridge {
   platform: string
   invoke<T = unknown>(moduleId: string, method: string, args?: unknown): Promise<T>
+  /** Push channels from the main process: 'extension:event' and 'extension:changed'. Returns an unsubscribe. */
+  on?(channel: 'extension:event' | 'extension:changed', cb: (payload: unknown) => void): () => void
 }
 
 declare global {

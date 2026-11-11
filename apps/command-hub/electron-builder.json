@@ -1,28 +1,45 @@
 {
   "appId": "dev.monorail.commandhub",
-  "productName": "Command Hub",
+  "productName": "MonoRail",
   "directories": {
     "output": "release"
   },
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "package.json"
+    "!electron/**/*.test.cjs",
+    "package.json",
+    "!electron/dev-bridge*.cjs"
   ],
   "win": {
     "target": [
       {
-        "target": "portable",
+        "target": "nsis",
         "arch": [
           "x64"
         ]
       }
     ]
   },
-  "portable": {
-    "artifactName": "CommandHub-${version}-portable.exe"
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "deleteAppDataOnUninstall": false,
+    "artifactName": "MonoRail-Setup-${version}.exe"
   },
+  "portable": {
+    "artifactName": "MonoRail-${version}-portable.exe"
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "wojoe-444",
+      "repo": "MonoRail",
+      "releaseType": "draft"
+    }
+  ],
   "asarUnpack": [
-    "node_modules/@ccusage/**"
+    "node_modules/@ccusage/**",
+    "electron/extensions/runner.cjs"
   ]
 }
