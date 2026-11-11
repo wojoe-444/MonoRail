@@ -1,5 +1,7 @@
 /** Mirrors electron/connections (the page never receives secrets). */
 
+import type { ClaudeAccount } from './account'
+
 export type ConnectionState = 'ok' | 'expired' | 'needs-setup' | 'error' | 'unavailable'
 
 export interface ConnectorField {
@@ -38,6 +40,8 @@ export interface ConnectionStatus {
   summary: string
   hint?: string
   details: { label: string; value?: string; ok?: boolean }[]
+  /** Claude only: how the login is billed. */
+  account?: ClaudeAccount
   added: boolean
   checkedAt: string
 }

@@ -93,7 +93,7 @@ function readTools({ rootDir }) {
       name: 'usage_summary',
       title: 'Agent usage and cost',
       description:
-        "API-equivalent spend on coding agents (Claude Code, Gemini CLI, pi) per day for up to the last 30 days, the total, and the top models by cost. From Claude Stats' last cached report; MonoRail rebuilds it every 15 minutes while it runs. Costs are list-price estimates in USD, not a bill.",
+        "API-equivalent spend on coding agents (Claude Code, Gemini CLI, pi) per day for up to the last 30 days, the total, and the top models by cost. From Claude Stats' last cached report; MonoRail rebuilds it every 15 minutes while it runs. Costs are list-price estimates in USD, not a bill. claudeAccount says how the Claude login is billed (subscription: flat fee, so Claude Code costs are API-equivalent; api or enterprise: billed per token at API prices), when the Claude connection has been checked.",
       inputSchema: {
         type: 'object',
         properties: { days: { type: 'integer', minimum: 1, maximum: 30, description: 'How many recent days to return (default 30).' } },
@@ -110,6 +110,7 @@ function readTools({ rootDir }) {
           }
         }
         const recent = (s.summary.days ?? []).slice(-days)
+        const claudeAccount = (await cache.readSummaries(rootDir))['connections.summary']?.summary?.connections?.claude?.account
         return {
           available: true,
           builtAt: s.builtAt,
@@ -120,6 +121,7 @@ function readTools({ rootDir }) {
           totalForDays: recent.reduce((a, d) => a + (d.cost ?? 0), 0),
           days: recent,
           topModels30Days: s.summary.topModels ?? [],
+          claudeAccount,
         }
       },
     },

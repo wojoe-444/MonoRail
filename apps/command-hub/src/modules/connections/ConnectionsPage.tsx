@@ -31,7 +31,9 @@ import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
+import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { sampleList, sampleStatuses } from './sample'
+import type { ClaudeAccount } from './account'
 import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, ConnectionsList, Connector, ConnectorField } from './types'
 
 const MODULE_ID = 'connections'
@@ -365,6 +367,7 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
           <div className="min-w-0">
             <CardTitle className="flex flex-wrap items-center gap-2">
               {connector.title} <StateBadge status={status} checking={checking} />
+              {status?.account && <ClaudeAccountBadge account={status.account} />}
             </CardTitle>
             <CardDescription className="mt-1">{connector.description}</CardDescription>
           </div>
@@ -401,6 +404,7 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
               <div className="text-sm font-medium">{status.summary}</div>
               {status.hint && <div className="mt-1 text-sm text-muted-foreground">{status.hint}</div>}
             </div>
+            {status.account && <AccountNote account={status.account} onEdit={onEdit} />}
             {status.details.length > 0 && (
               <dl className="flex flex-col divide-y text-sm">
                 {status.details.map((d) => (
@@ -456,6 +460,27 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/** Claude: what the account type means for cost, why it was picked, and a way to change it. */
+function AccountNote({ account, onEdit }: { account: ClaudeAccount; onEdit: () => void }) {
+  const tone = account.type === 'unknown' ? 'bg-warning-soft text-warning-soft-foreground' : 'bg-muted text-foreground'
+  return (
+    <div className={cn('flex flex-col gap-1 rounded-lg px-4 py-3 text-sm', tone)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">{account.label} account</span>
+        <span className="text-xs opacity-80">{account.source === 'override' ? 'set by you' : 'detected'}</span>
+        <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={onEdit}>
+          <Pencil /> Change
+        </Button>
+      </div>
+      <div className={account.type === 'unknown' ? undefined : 'text-muted-foreground'}>{account.billing}</div>
+      <div className="text-xs opacity-80">
+        {account.source === 'override' ? `MonoRail detected ${account.detected === 'unknown' ? 'no type' : account.detected}: ` : ''}
+        {account.reason}
+      </div>
+    </div>
   )
 }
 
@@ -516,7 +541,7 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
 
 function AvailableCard({ connector, detected, busy, onAdd }: { connector: Connector; detected?: ConnectionStatus; busy: boolean; onAdd: () => void }) {
   // For detect-only connectors (no fields) show what was found on this PC.
-  const showDetected = connector.fields.length === 0 && detected
+  const showDetected = detected && (connector.fields.length === 0 || detected.account)
   return (
     <Card className="gap-4">
       <CardContent className="flex flex-col gap-4">
@@ -530,9 +555,11 @@ function AvailableCard({ connector, detected, busy, onAdd }: { connector: Connec
         {showDetected && (
           <div className="flex items-center gap-2 text-sm">
             <StateBadge status={detected} checking={busy} />
+            {detected.account && <ClaudeAccountBadge account={detected.account} />}
             <span className="min-w-0 truncate text-muted-foreground">{detected.summary}</span>
           </div>
         )}
+        {showDetected && detected.account && <p className="text-xs text-muted-foreground">{detected.account.billing} Set up to change the account type.</p>}
         <div>
           <Button onClick={onAdd} disabled={busy || !isDesktop()}>
             {busy ? <Loader2 className="animate-spin" /> : <Plus />} Set up

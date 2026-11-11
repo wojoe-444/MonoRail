@@ -15,6 +15,8 @@ import { describeCache, useCachePolling } from '@/lib/cache'
 import { formatCount, formatIn, formatPercent, formatRelative, formatUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { isDesktop, useModuleQuery } from '@/modules/client'
+import { claudeCostNote, useClaudeAccount } from '@/modules/connections/account'
+import { ClaudeAccountBadge } from '@/modules/connections/ClaudeAccountBadge'
 
 import { BreakdownTable } from './components/BreakdownTable'
 import { CostPerMChart } from './components/CostPerMChart'
@@ -58,6 +60,8 @@ function sessionDate(iso: string): string {
 export default function ClaudeStatsPage() {
   const desktop = isDesktop()
   const query = useModuleQuery<UsageReport>(MODULE_ID, 'getUsage')
+  // Subscription vs API/Enterprise decides whether Claude Code's cost is real spend.
+  const claudeAccount = useClaudeAccount()
   const [useSample, setUseSample] = useState(!desktop)
   const [range, setRange] = useState<RangeKey>('30d')
   const [metric, setMetric] = useState<Metric>('outputTokens')
@@ -165,6 +169,7 @@ export default function ClaudeStatsPage() {
 
   const headerActions = (
     <>
+      {claudeAccount && <ClaudeAccountBadge account={claudeAccount} link prefix="Claude: " />}
       {useSample ? (
         <Badge variant="warning">
           <FlaskConical /> Sample data
@@ -312,11 +317,12 @@ export default function ClaudeStatsPage() {
               deltaLabel={prevLabel}
             />
             <StatTile
-              label="API-equivalent cost"
+              label={source === 'claude-code' && claudeAccount?.billedAtApiPrices ? 'Cost at API prices' : 'API-equivalent cost'}
               value={formatUSD(model.now.cost, { compact: true })}
               delta={pctChange(model.now.cost, model.prev?.cost)}
               deltaLabel={prevLabel}
               upIsGood={false}
+              hint={source === 'all' || source === 'claude-code' ? claudeCostNote(claudeAccount) : undefined}
             />
             <StatTile
               label="Sessions"

@@ -102,8 +102,10 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
         if (!dataDir) return
         const all = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']?.summary?.connections ?? {}
         if (result) {
-          const { state, summary, hint, checkedAt } = result
+          const { state, summary, hint, checkedAt, account } = result
           all[kind] = { title: connectorOf(kind).title, state, summary, hint, checkedAt }
+          // The Claude account type (no names or emails), for Home and the MCP server.
+          if (account) all[kind].account = { type: account.type, source: account.source, billedAtApiPrices: account.billedAtApiPrices }
         } else delete all[kind]
         await cacheLib.writeSummary({ dataDir }, 'connections.summary', { connections: all })
       })
@@ -214,6 +216,17 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       return publicJob(job)
     },
 
+    /**
+     * The Claude account type (subscription | api | enterprise | unknown),
+     * with the user's override applied. Anything that shows Claude costs
+     * should use it: Enterprise and API logins bill at API prices, a
+     * subscription does not bill per token. Reuses a recent check.
+     */
+    async claudeAccount() {
+      const s = await check('claude')
+      return s.account
+    },
+
     /** For other backends in the main process: what a connector's credentials() returns. */
     async getCredentials(kind) {
       const c = connectorOf(kind)
@@ -254,4 +267,9 @@ function getCredentials(kind) {
   return connections().getCredentials(kind)
 }
 
-module.exports = { connections, getCredentials, createConnections, CONNECTORS }
+/** The Claude account type for cost views: `const { type, billedAtApiPrices } = await claudeAccount()`. */
+function claudeAccount() {
+  return connections().claudeAccount()
+}
+
+module.exports = { connections, getCredentials, claudeAccount, createConnections, CONNECTORS }

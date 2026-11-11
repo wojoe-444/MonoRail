@@ -147,6 +147,63 @@ test('claude status reads the login without exposing tokens', () => {
   assert.equal(loc.credentials, path.join('/cfg', '.credentials.json'))
 })
 
+test('claude account type follows what Claude Code reports, and the override wins', () => {
+  const type = (input) => claude.detectAccount(input).type
+  // claude auth status --json
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'max' } }), 'subscription')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'team' } }), 'subscription')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'enterprise' } }), 'enterprise')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: null } }), 'unknown')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: '/login managed key' } }), 'api')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'api_key_helper', apiProvider: 'firstParty' } }), 'api')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'third_party', apiProvider: 'bedrock' } }), 'api')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'oauth_token', apiProvider: 'firstParty' }, env: {} }), 'subscription')
+  assert.equal(type({ auth: { loggedIn: true, authMethod: 'oauth_token', apiProvider: 'firstParty' }, env: { ANTHROPIC_AUTH_TOKEN: true } }), 'api')
+  assert.equal(type({ auth: { loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' } }), 'unknown')
+  // Older CLI: files and environment.
+  assert.equal(type({ creds: { claudeAiOauth: { refreshToken: 'r', subscriptionType: 'enterprise' } } }), 'enterprise')
+  assert.equal(type({ creds: { claudeAiOauth: { refreshToken: 'r', subscriptionType: 'pro' } } }), 'subscription')
+  assert.equal(type({ creds: { claudeAiOauth: { refreshToken: 'r', subscriptionType: 'max' } }, env: { ANTHROPIC_API_KEY: true } }), 'api', 'an API key in the environment wins for the SDK')
+  assert.equal(type({ config: { primaryApiKey: 'x' } }), 'api')
+  assert.equal(type({}), 'unknown')
+
+  const now = Date.parse('2026-06-01T00:00:00Z')
+  const creds = { claudeAiOauth: { accessToken: 'a', refreshToken: 'r', subscriptionType: 'enterprise' } }
+  const detected = claude.summarize({ creds, now })
+  assert.equal(detected.account.type, 'enterprise')
+  assert.equal(detected.account.billedAtApiPrices, true)
+  assert.equal(detected.account.source, 'detected')
+  const overridden = claude.summarize({ creds, now, override: 'subscription' })
+  assert.equal(overridden.account.type, 'subscription')
+  assert.equal(overridden.account.detected, 'enterprise')
+  assert.equal(overridden.account.source, 'override')
+  assert.equal(overridden.account.billedAtApiPrices, false)
+  assert.equal(claude.summarize({ creds, now, override: 'auto' }).account.source, 'detected')
+  assert.equal(claude.summarize({ creds, now, override: 'nonsense' }).account.type, 'enterprise')
+  assert.ok(!JSON.stringify(overridden).includes('"a"') && !JSON.stringify(overridden).includes('"r"'))
+
+  // A Console login with no credentials file is still signed in.
+  assert.equal(claude.summarize({ auth: { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty' }, cli: 'x', now }).state, 'ok')
+
+  assert.equal(claude.parseAuthStatus({ code: 1, stdout: '{"loggedIn":false,"authMethod":"none"}' }).loggedIn, false)
+  assert.equal(claude.parseAuthStatus({ code: 1, stdout: "error: unknown command 'auth'" }), undefined)
+  assert.equal(claude.parseAuthStatus({ notFound: true, stdout: '' }), undefined)
+})
+
+test('the Claude account override is a saved setting and reaches the summary file', async () => {
+  const dataDir = path.join(tmp(), 'modules', 'connections')
+  const svc = createConnections({ dataDir, cipher: cipher() })
+  await svc.save({ kind: 'claude', values: { accountType: 'enterprise' } })
+  const account = await svc.claudeAccount()
+  assert.equal(account.type, 'enterprise')
+  assert.equal(account.source, 'override')
+  assert.equal((await svc.list()).connections.find((c) => c.kind === 'claude').values.accountType, 'enterprise')
+  await new Promise((r) => setTimeout(r, 50))
+  const cacheLib = require('../cache/index.cjs')
+  const summary = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']
+  assert.deepEqual(summary.summary.connections.claude.account, { type: 'enterprise', source: 'override', billedAtApiPrices: true })
+})
+
 test('command arguments must be fixed tokens', () => {
   assert.ok(SAFE_ARG.test('application-default'))
   assert.ok(SAFE_ARG.test('--format=json'))
