@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Download, Info, Loader2, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Download, Info, Loader2, Puzzle, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { useExtensionList } from '@/extensions/store'
 import { formatRelative } from '@/lib/format'
+import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -36,6 +38,7 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [callError, setCallError] = useState<string>()
 
+  const extensionCount = useExtensionList().extensions.length
   const status = live ?? query.data ?? (desktop ? undefined : browserStatus)
 
   // The backend is request/response, so poll while a download is running.
@@ -94,6 +97,23 @@ export default function SettingsPage() {
               <Row label="Electron" value={status?.electronVersion} />
               <Row label="Local data" value={status?.dataDir} mono />
             </dl>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardContent className="flex flex-wrap items-center gap-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-highlight-soft text-highlight-soft-foreground">
+              <Puzzle className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">Extensions</div>
+              <div className="text-sm text-muted-foreground">
+                {extensionCount ? `${extensionCount} installed. ` : ''}Add modules and apps built in other repositories, and choose what they may access.
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/settings/extensions')}>
+              Manage extensions <ArrowRight />
+            </Button>
           </CardContent>
         </Card>
       </div>

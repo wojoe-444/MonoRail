@@ -1,5 +1,9 @@
 import { emailApp } from './email'
 import { gitHubPlusApp } from './github-plus'
+import { extensionApps } from '@/extensions/contributions'
+import { getExtensionList } from '@/extensions/store'
+import type { ExtensionList } from '@/extensions/types'
+
 import type { AppDefinition } from './types'
 
 /** Every app, in nav order. Add new apps here. */
@@ -13,6 +17,11 @@ for (const a of apps) {
 }
 
 /** The app that owns a route path (the app's prefix or anything under it). */
-export function findAppByPath(path: string): AppDefinition | undefined {
-  return apps.find((a) => path === a.path || path.startsWith(`${a.path}/`) || path.startsWith(`${a.path}?`))
+/** Built-in apps plus the apps of active extensions (src/extensions). */
+export function allApps(list: ExtensionList = getExtensionList()): AppDefinition[] {
+  return [...apps, ...extensionApps(list)]
+}
+
+export function findAppByPath(path: string, list?: ExtensionList): AppDefinition | undefined {
+  return allApps(list).find((a) => path === a.path || path.startsWith(`${a.path}/`) || path.startsWith(`${a.path}?`))
 }

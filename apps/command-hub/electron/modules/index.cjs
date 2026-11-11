@@ -7,7 +7,9 @@
 //                   %APPDATA%\MonoRail\apps\<id>      (apps)
 //                   created on demand
 //   ctx.log(...) -> console logging prefixed with the backend id
-// The renderer addresses a module as "<id>" and an app as "app:<id>".
+// The renderer addresses a module as "<id>", an app as "app:<id>" and an
+// installed extension's backend as "ext:<id>" (electron/extensions; those run
+// in their own sandboxed process, not here).
 // Results must be structured-cloneable (plain JSON is safest).
 
 const fs = require('node:fs')
@@ -16,9 +18,12 @@ const { app, ipcMain } = require('electron')
 
 const moduleBackends = [require('./claude-stats.cjs'), require('./jira.cjs'), require('./settings.cjs')]
 const appBackends = require('../apps/index.cjs')
+const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 
 function registerModuleBackends() {
+  const extensionsBackend = setupExtensions()
   const byId = new Map([
+    [extensionsBackend.id, { backend: extensionsBackend, dataDir: ['modules', extensionsBackend.id] }],
     ...moduleBackends.map((b) => [b.id, { backend: b, dataDir: ['modules', b.id] }]),
     ...appBackends.map((b) => [`app:${b.id}`, { backend: b, dataDir: ['apps', b.id] }]),
   ])
@@ -36,6 +41,7 @@ function registerModuleBackends() {
 
   ipcMain.handle('module:invoke', async (_event, payload) => {
     const { moduleId, method, args } = payload ?? {}
+    if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
     const entry = byId.get(moduleId)
     if (!entry) throw new Error(`Unknown module: ${moduleId}`)
     const fn = Object.hasOwn(entry.backend.methods, method) ? entry.backend.methods[method] : undefined

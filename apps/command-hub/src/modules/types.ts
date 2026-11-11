@@ -1,5 +1,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
-import type { LucideIcon } from 'lucide-react'
+
+/** A nav/header icon: any Lucide icon, or an extension's SVG icon (src/extensions/ExtensionIcon). */
+export type IconComponent = ComponentType<{ className?: string }>
 
 /**
  * The module contract.
@@ -22,7 +24,7 @@ export interface ModuleDefinition {
   title: string
   /** One-line summary, shown in page headers and module listings. */
   description: string
-  icon: LucideIcon
+  icon: IconComponent
   /** Route path, e.g. "/claude-stats". Must be unique across the app. */
   path: string
   nav: {
@@ -45,6 +47,8 @@ export interface ModuleDefinition {
 export interface CommandHubBridge {
   platform: string
   invoke<T = unknown>(moduleId: string, method: string, args?: unknown): Promise<T>
+  /** Push channels from the main process: 'extension:event' and 'extension:changed'. Returns an unsubscribe. */
+  on?(channel: 'extension:event' | 'extension:changed', cb: (payload: unknown) => void): () => void
 }
 
 declare global {

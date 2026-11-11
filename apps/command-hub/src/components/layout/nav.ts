@@ -1,20 +1,17 @@
-import {
-  Bot,
-  BookOpen,
-  History,
-  House,
-  KeyRound,
-  type LucideIcon,
-} from 'lucide-react'
+import { useMemo } from 'react'
+import { Bot, BookOpen, History, House, KeyRound } from 'lucide-react'
 
-import { apps } from '@/apps/registry'
-import { modules } from '@/modules/registry'
+import { allApps } from '@/apps/registry'
+import { useExtensionList } from '@/extensions/store'
+import type { ExtensionList } from '@/extensions/types'
+import { allModules } from '@/modules/registry'
+import type { IconComponent } from '@/modules/types'
 
 export interface NavItem {
   /** Route path, e.g. "/agents". Also the item's identity. */
   path: string
   label: string
-  icon: LucideIcon
+  icon: IconComponent
   badge?: string
 }
 
@@ -23,37 +20,43 @@ export interface NavSection {
   items: NavItem[]
 }
 
-/** Built-in destinations. Apps come from `src/apps/registry.ts`, modules add theirs from `src/modules/registry.ts`. */
-const coreSections: NavSection[] = [
-  {
-    items: [{ path: '/', label: 'Home', icon: House }],
-  },
-  {
-    // Apps open full screen (src/apps); each one is listed from the app registry.
-    heading: 'Apps',
-    items: apps.map((a) => ({ path: a.path, label: a.title, icon: a.icon })),
-  },
-  {
-    heading: 'Workspace',
-    items: [
-      { path: '/agents', label: 'Agents', icon: Bot, badge: '4' },
-      { path: '/runs', label: 'Runs', icon: History },
-      { path: '/library', label: 'Library', icon: BookOpen },
-    ],
-  },
-  {
-    heading: 'Configure',
-    items: [
-      { path: '/connections', label: 'Connections', icon: KeyRound },
-      // Settings is a module (src/modules/settings) and joins this section from the registry.
-    ],
-  },
-]
+/**
+ * Built-in destinations. Apps come from `src/apps/registry.ts`, modules add
+ * theirs from `src/modules/registry.ts`, and installed extensions add theirs
+ * through the same registries (src/extensions).
+ */
+function coreSections(list: ExtensionList): NavSection[] {
+  return [
+    {
+      items: [{ path: '/', label: 'Home', icon: House }],
+    },
+    {
+      // Apps open full screen (src/apps); each one is listed from the app registry.
+      heading: 'Apps',
+      items: allApps(list).map((a) => ({ path: a.path, label: a.title, icon: a.icon })),
+    },
+    {
+      heading: 'Workspace',
+      items: [
+        { path: '/agents', label: 'Agents', icon: Bot, badge: '4' },
+        { path: '/runs', label: 'Runs', icon: History },
+        { path: '/library', label: 'Library', icon: BookOpen },
+      ],
+    },
+    {
+      heading: 'Configure',
+      items: [
+        { path: '/connections', label: 'Connections', icon: KeyRound },
+        // Settings and Extensions are modules and join this section from the registry.
+      ],
+    },
+  ]
+}
 
 /** Merge module nav entries into sections. New module sections go before "Configure". */
-function buildSections(): NavSection[] {
-  const sections = coreSections.map((s) => ({ ...s, items: [...s.items] }))
-  const sorted = [...modules].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
+export function buildNavSections(list: ExtensionList): NavSection[] {
+  const sections = coreSections(list).filter((s) => s.items.length > 0 || s.heading === 'Configure')
+  const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
   for (const m of sorted) {
     let section = sections.find((s) => s.heading === m.nav.section)
     if (!section) {
@@ -66,6 +69,8 @@ function buildSections(): NavSection[] {
   return sections
 }
 
-export const navSections: NavSection[] = buildSections()
-
-export const allNavItems = navSections.flatMap((s) => s.items)
+/** Nav sections, updated when extensions are installed, removed or toggled. */
+export function useNavSections(): NavSection[] {
+  const list = useExtensionList()
+  return useMemo(() => buildNavSections(list), [list])
+}

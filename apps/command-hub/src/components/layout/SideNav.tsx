@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BrandMark } from '@/components/layout/BrandMark'
 import { cn } from '@/lib/utils'
 
-import { navSections } from './nav'
+import { useNavSections } from './nav'
 
 interface SideNavProps {
   current: string
@@ -21,6 +21,7 @@ interface SideNavProps {
  * Collapses to a 72px icon rail (MUI "mini variant").
  */
 export function SideNav({ current, onNavigate, collapsed, onToggleCollapsed }: SideNavProps) {
+  const navSections = useNavSections()
   return (
     <aside
       className={cn(

@@ -1,5 +1,5 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { IconComponent } from '@/modules/types'
 
 /**
  * The app contract.
@@ -28,7 +28,7 @@ export interface AppDefinition {
   title: string
   /** One-line summary. */
   description: string
-  icon: LucideIcon
+  icon: IconComponent
   /**
    * Route prefix, always "/apps/<id>". Everything under it belongs to the app,
    * so it can run its own router (e.g. react-router's HashRouter with
