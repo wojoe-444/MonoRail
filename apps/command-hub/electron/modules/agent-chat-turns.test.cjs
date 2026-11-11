@@ -447,3 +447,19 @@ test('system prompts are kept per agent in the data folder', () => {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('without a coordinator.md the built-in coordinator runs, and the user\'s own wins otherwise', () => {
+  const j = opts.validateJob({ ...job, coordinator: true })
+  const builtin = opts.buildClaudeOptions({ job: j, cwd: '/c', executable: '/c', builtinCoordinator: true })
+  assert.equal(builtin.agent, 'coordinator')
+  assert.equal(builtin.agents.coordinator, opts.BUILTIN_COORDINATOR)
+  assert.deepEqual(opts.BUILTIN_COORDINATOR.tools, [...opts.COORDINATOR_TOOLS, ...opts.COORDINATOR_MCP_TOOLS])
+  assert.match(opts.BUILTIN_COORDINATOR.prompt, /send_to_chat/)
+  // Still dontAsk, still the same tool limits.
+  assert.equal(builtin.permissionMode, 'dontAsk')
+  assert.deepEqual(builtin.tools, ['Agent', 'Workflow'])
+  // With the user's own file, no programmatic definition shadows it.
+  assert.equal(opts.buildClaudeOptions({ job: j, cwd: '/c', executable: '/c' }).agents, undefined)
+  // A normal chat never gets it.
+  assert.equal(opts.buildClaudeOptions({ job: opts.validateJob({ ...job }), cwd: '/c', executable: '/c', builtinCoordinator: true }).agents, undefined)
+})

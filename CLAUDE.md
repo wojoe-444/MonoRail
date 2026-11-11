@@ -258,7 +258,9 @@ at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
 **Coordinator** (pinned above the chat list): opens the latest coordinator
 chat or starts one. It runs the user's `coordinator` subagent
 (`~/.claude/agents/coordinator.md`, found by `findCoordinator`) with the
-`agent` option, in the module's own `coordinator` folder in its data folder,
+`agent` option, or, when there is none, MonoRail's built-in definition
+(`BUILTIN_COORDINATOR`, passed as the SDK's `agents` option; never when the
+user has their own), in the module's own `coordinator` folder in its data folder,
 with `dontAsk`, built-in tools limited to `Agent` and `Workflow`, and one
 MCP server: MonoRail's in-process chat tools (`agent-chat-coordinator.cjs`,
 served by the worker as `mcp__monorail__*`: list_chats, read_chat,
@@ -273,7 +275,7 @@ only) keeps one turn per chat across the app, coordinator workers and the
 MCP server, which also breaks loops. `coordinatorToolsNote` warns when the
 subagent's own `tools:` line would hide the chat tools. Claude only: pi has
 no subagents, so a coordinator job on pi is refused. Its chats are listed
-apart, first. Without the subagent the entry is greyed out with the reason.
+apart, first. The entry is greyed out only when Claude Code is missing.
 Subscription logins are fine here: MonoRail drives the user's own unmodified
 `claude` executable, signed in through Anthropic's own flow, and never
 handles the token.
