@@ -6,7 +6,10 @@
 //   ctx.dataDir  -> %APPDATA%\MonoRail\modules\<id>   (modules)
 //                   %APPDATA%\MonoRail\apps\<id>      (apps)
 //                   created on demand
+//   ctx.rootDir  -> %APPDATA%\MonoRail (only Home reads across folders, for summaries)
 //   ctx.log(...) -> console logging prefixed with the backend id
+// Every file a backend keeps in its folder, and every cache, is declared in
+// electron/cache/declared.cjs (see docs/caching.md).
 // The renderer addresses a module as "<id>", an app as "app:<id>" and an
 // installed extension's backend as "ext:<id>" (electron/extensions; those run
 // in their own sandboxed process, not here).
@@ -16,9 +19,16 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { app, ipcMain } = require('electron')
 
-const moduleBackends = [require('./agent-chat.cjs'), require('./claude-stats.cjs'), require('./connections.cjs'), require('./settings.cjs')]
+const moduleBackends = [
+  require('./agent-chat.cjs'),
+  require('./claude-stats.cjs'),
+  require('./connections.cjs'),
+  require('./home.cjs'),
+  require('./settings.cjs'),
+]
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
+const { auditAll } = require('../cache/index.cjs')
 
 /**
  * Start every backend and return invoke(moduleId, method, args), the router the
@@ -44,6 +54,9 @@ function startModuleBackends() {
     }
   }
 
+  // A1: report files nobody declared (a warning, never a delete).
+  void auditAll(app.getPath('userData')).catch(() => {})
+
   return async function invoke(moduleId, method, args) {
     if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
     const entry = byId.get(moduleId)
@@ -68,6 +81,7 @@ function makeCtx(key, entry) {
   fs.mkdirSync(dataDir, { recursive: true })
   return {
     dataDir,
+    rootDir: app.getPath('userData'),
     isPackaged: app.isPackaged,
     log: (...a) => console.log(`[${key}]`, ...a),
   }

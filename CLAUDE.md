@@ -133,7 +133,9 @@ it knows (Claude Code, Gemini CLI, pi; one reader each, a missing source is
 reported as not found) into day x session x model x role x 50K context-step
 rows, plus per-turn prompt sizes, compactions and session phases (driver
 model + subagent models; new phase on driver change or a 2-hour idle gap).
-Both go into one cached JSON report in its data folder. List prices, with
+Both go into one cached JSON report in its data folder (cache
+`claude-stats.usage`: opening the page only reads it; it is rebuilt every 15
+minutes while the app runs, retried an hour after a failure, or on Refresh). List prices, with
 prompt-size tiers, live in one table, `claude-stats-prices.json`, shared by
 the backend and the page (`src/modules/claude-stats/pricing.ts`); a test
 fails if a model in the local logs has no row. The page turns the report into
@@ -141,6 +143,17 @@ priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
 day and model, pi's logged per-token-type cost is used as logged, anything
 else is priced from the table, and any split that is not logged is labelled
 an estimate.
+
+**Caches** go through the shared primitive in `electron/cache/` (rules and
+examples: `docs/caching.md`). Every cache, and every other file a backend keeps
+in its data folder, is declared in `electron/cache/declared.cjs` with its tier,
+version, time limits and content policy; opening an undeclared cache throws and
+a test fails on an undeclared `*_FILE`. Cache files are written atomically, a
+lock file lets one build run at a time, a failed build backs off and keeps the
+last good result, and pages only read a cache on open: slow builds run from a
+Refresh button or the background schedule (`cache.schedule` from `start(ctx)`).
+After each build a module may write a small summary file; Home reads only those
+(`home.getSummaries`). Pages show `CacheStatusBadge` for cached data.
 
 `agent-chat` (**Chat**, under Agents) lists every local Claude Code
 (`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
