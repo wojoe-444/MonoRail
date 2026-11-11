@@ -161,3 +161,63 @@ test('jobs are validated', () => {
   assert.throws(() => opts.validateJob({ ...job, model: 'gpt' }), /model/)
   assert.throws(() => opts.validateJob({ ...job, effort: 'ultra' }), /effort/)
 })
+
+// ---------------------------------------------------------------------------
+// pi
+
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+
+test('pi tools: Ask reads only, Agent adds edit and write, never a shell', () => {
+  assert.deepEqual(opts.piTools('ask'), ['read', 'grep', 'find', 'ls'])
+  assert.deepEqual(opts.piTools('agent'), ['read', 'grep', 'find', 'ls', 'edit', 'write'])
+  for (const m of ['ask', 'agent']) assert.ok(!opts.piTools(m).some((t) => /bash/.test(t)))
+})
+
+test('effort maps to the pi thinking level; Default sends none', () => {
+  assert.equal(opts.piThinkingLevel('default'), undefined)
+  assert.equal(opts.piThinkingLevel('high'), 'high')
+  assert.equal(opts.piThinkingLevel('max'), 'xhigh')
+})
+
+test('pi jobs are checked against the pi model list', () => {
+  assert.doesNotThrow(() => opts.validateJob({ ...job, sdk: 'pi', model: 'anthropic/claude-sonnet-4-6' }))
+  assert.throws(() => opts.validateJob({ ...job, sdk: 'pi', model: 'claude-sonnet-5-5' }), /model/)
+  assert.throws(() => opts.validateJob({ ...job, sdk: 'other' }), /SDK/)
+})
+
+test('pi paths must resolve inside the repo, links included', async () => {
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pi-guard-')))
+  const repo = path.join(base, 'repo')
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true })
+  fs.writeFileSync(path.join(base, 'secret.txt'), 'x')
+  fs.symlinkSync(base, path.join(repo, 'escape'), 'junction')
+  const ok = (p) => opts.piPathAllowed(repo, repo, p)
+  assert.equal(await ok(undefined), true) // default: the repo itself
+  assert.equal(await ok('src'), true)
+  assert.equal(await ok('src/new/file.ts'), true) // a new file inside
+  assert.equal(await ok('../secret.txt'), false)
+  assert.equal(await ok(path.join(base, 'secret.txt')), false)
+  assert.equal(await ok('escape/secret.txt'), false) // through a link
+  assert.equal(await ok('escape/new.txt'), false)
+  assert.equal(await ok('~/x'), false)
+})
+
+test('the pi SDK is found behind the pi command', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-find-'))
+  const pkg = path.join(base, 'lib', 'node_modules', '@mariozechner', 'pi-coding-agent')
+  fs.mkdirSync(path.join(pkg, 'dist'), { recursive: true })
+  fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: '@mariozechner/pi-coding-agent', version: '9.9.9' }))
+  fs.writeFileSync(path.join(pkg, 'dist', 'cli.js'), '')
+  fs.mkdirSync(path.join(base, 'bin'))
+  const bin = path.join(base, 'bin', process.platform === 'win32' ? 'pi.cmd' : 'pi')
+  if (process.platform === 'win32') {
+    fs.mkdirSync(path.join(base, 'bin', 'node_modules', '@mariozechner'), { recursive: true })
+    fs.cpSync(pkg, path.join(base, 'bin', 'node_modules', '@mariozechner', 'pi-coding-agent'), { recursive: true })
+    fs.writeFileSync(bin, '')
+  } else fs.symlinkSync(path.join(pkg, 'dist', 'cli.js'), bin)
+  const found = opts.findPiSdk({ PATH: path.join(base, 'bin') }, base)
+  assert.equal(found?.version, '9.9.9')
+  assert.equal(opts.findPiSdk({ PATH: path.join(base, 'nowhere') }, base), undefined)
+})

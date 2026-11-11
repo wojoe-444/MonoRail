@@ -23,28 +23,42 @@ const EFFORT_LABEL: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Remembered choices (this machine only)
 
-const MODEL_KEY = 'commandHub.agentChat.model'
+const MODEL_KEY: Record<SessionSource, string> = { claude: 'commandHub.agentChat.model', pi: 'commandHub.agentChat.model.pi' }
 const EFFORT_KEY = 'commandHub.agentChat.effort'
+const SDK_KEY = 'commandHub.agentChat.sdk'
+
+export function modelsFor(info: ComposerInfo | undefined, sdk: SessionSource) {
+  return (sdk === 'pi' ? info?.piModels : info?.models) ?? [{ id: 'default', label: 'Default' }]
+}
 
 export function useComposerPrefs(info: ComposerInfo | undefined) {
-  const [model, setModelState] = useState(() => localStorage.getItem(MODEL_KEY) ?? 'default')
+  const [models, setModels] = useState<Record<SessionSource, string>>(() => ({
+    claude: localStorage.getItem(MODEL_KEY.claude) ?? 'default',
+    pi: localStorage.getItem(MODEL_KEY.pi) ?? 'default',
+  }))
   const [effort, setEffortState] = useState(() => localStorage.getItem(EFFORT_KEY) ?? 'default')
+  const [newSdk, setNewSdkState] = useState<SessionSource>(() => (localStorage.getItem(SDK_KEY) === 'pi' ? 'pi' : 'claude'))
   const [mode, setMode] = useState<ChatMode>('ask') // Ask is the default, every time
-  const validModel = info?.models.some((m) => m.id === model) ? model : 'default'
   const validEffort = info?.efforts.includes(effort) ? effort : 'default'
   return {
-    model: validModel,
-    effort: validEffort,
-    mode,
-    setMode,
-    setModel: (v: string) => {
-      localStorage.setItem(MODEL_KEY, v)
-      setModelState(v)
+    /** The SDK a new chat starts with (remembered). */
+    newSdk,
+    setNewSdk: (v: SessionSource) => {
+      localStorage.setItem(SDK_KEY, v)
+      setNewSdkState(v)
     },
+    modelFor: (sdk: SessionSource) => (modelsFor(info, sdk).some((m) => m.id === models[sdk]) ? models[sdk] : 'default'),
+    setModel: (sdk: SessionSource, v: string) => {
+      localStorage.setItem(MODEL_KEY[sdk], v)
+      setModels((m) => ({ ...m, [sdk]: v }))
+    },
+    effort: validEffort,
     setEffort: (v: string) => {
       localStorage.setItem(EFFORT_KEY, v)
       setEffortState(v)
     },
+    mode,
+    setMode,
   }
 }
 
@@ -113,7 +127,9 @@ export function Composer({
         ? 'Pick a project for this chat first.'
         : prefs.mode === 'ask'
           ? 'Ask about this repo. Ask mode only reads files.'
-          : 'Tell the agent what to do. Anything that needs approval is denied.'
+          : source === 'pi'
+            ? 'Tell pi what to do. It can read, edit and write files inside this repo.'
+            : 'Tell the agent what to do. Anything that needs approval is denied.'
 
   return (
     <div className="shrink-0 border-t px-4 pt-3 pb-3">
@@ -138,12 +154,12 @@ export function Composer({
           <div className="flex flex-wrap items-center gap-2">
             <NativeSelect
               aria-label="Model"
-              value={prefs.model}
-              onChange={(e) => prefs.setModel(e.target.value)}
+              value={prefs.modelFor(source)}
+              onChange={(e) => prefs.setModel(source, e.target.value)}
               className="w-36 [&_select]:h-8 [&_select]:text-xs"
               disabled={!info}
             >
-              {(info?.models ?? [{ id: 'default', label: 'Default' }]).map((m) => (
+              {modelsFor(info, source).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.id === 'default' ? 'Default model' : m.label}
                 </option>
@@ -200,7 +216,7 @@ export function Composer({
               </span>
             )
           )}
-          <SdkToggle info={info} source={source} locked={!isNew} />
+          <SdkToggle info={info} source={source} locked={!isNew} onChange={prefs.setNewSdk} />
           <Segmented<ChatMode>
             aria-label="Mode"
             value={prefs.mode}
@@ -231,7 +247,17 @@ function RunningCost({ turn }: { turn: LiveTurn }) {
 }
 
 /** Claude or pi for a new chat. A chat that has started keeps its SDK, shown locked. */
-function SdkToggle({ info, source, locked }: { info?: ComposerInfo; source: SessionSource; locked: boolean }) {
+function SdkToggle({
+  info,
+  source,
+  locked,
+  onChange,
+}: {
+  info?: ComposerInfo
+  source: SessionSource
+  locked: boolean
+  onChange: (sdk: SessionSource) => void
+}) {
   const sdks = info?.sdks ?? []
   return (
     <div role="radiogroup" aria-label="SDK" className="inline-flex h-7 items-center gap-1 rounded-lg border bg-muted p-1">
@@ -245,6 +271,7 @@ function SdkToggle({ info, source, locked }: { info?: ComposerInfo; source: Sess
             role="radio"
             aria-checked={active}
             aria-disabled={disabled}
+            onClick={() => !disabled && !active && onChange(s.id)}
             className={cn(
               'inline-flex h-5 items-center gap-1 rounded-md px-2 text-xs font-medium',
               active ? 'bg-card text-foreground shadow-elevation-1' : 'text-muted-foreground',
@@ -353,7 +380,7 @@ export function TurnFooter({ turn }: { turn: LiveTurn }) {
   )
 }
 
-export function NewChatEmpty({ repoName }: { repoName?: string }) {
+export function NewChatEmpty({ repoName, sdk }: { repoName?: string; sdk: SessionSource }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
@@ -361,8 +388,9 @@ export function NewChatEmpty({ repoName }: { repoName?: string }) {
       </div>
       <div className="font-medium">{repoName ? `New chat in ${repoName}` : 'New chat'}</div>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Each message runs one turn of Claude in the project&apos;s folder. Ask mode only reads files; Agent mode follows
-        the repo&apos;s own permission rules, and anything that needs approval is denied.
+        {sdk === 'pi'
+          ? "Each message runs one turn of pi in the project's folder. Ask mode only reads files; Agent mode can also edit and write files inside the repo. pi never gets shell commands here."
+          : "Each message runs one turn of Claude in the project's folder. Ask mode only reads files; Agent mode follows the repo's own permission rules, and anything that needs approval is denied."}
       </p>
     </div>
   )

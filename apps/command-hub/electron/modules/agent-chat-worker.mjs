@@ -36,8 +36,13 @@ function toBlocks(content) {
 }
 
 async function main() {
-  const { job: rawJob, cwd, resume, executable } = await readStdin()
-  const job = validateJob(rawJob)
+  const payload = await readStdin()
+  const job = validateJob(payload.job)
+  if (job.sdk === 'pi') {
+    const { runPi } = await import('./agent-chat-worker-pi.mjs')
+    return runPi({ ...payload, job }, emit)
+  }
+  const { cwd, resume, executable } = payload
   const reported = new Set()
 
   // Agent mode: nobody can answer an approval prompt here, so every prompt is
