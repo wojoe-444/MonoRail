@@ -25,6 +25,17 @@ const CLAUDE_MODELS = [
 /** Effort picker. Default sends no effort, so the SDK chooses as it would with no picker. */
 const EFFORTS = ['default', 'low', 'medium', 'high', 'xhigh', 'max']
 
+/** pi models as provider/id. pi must know the model (an older pi may not). */
+const PI_MODELS = [
+  { id: 'default', label: 'Default' },
+  { id: 'anthropic/claude-opus-4-7', label: 'Claude Opus 4.7' },
+  { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  { id: 'openai/gpt-5.5', label: 'GPT-5.5' },
+  { id: 'google/gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+]
+
+const SDKS = ['claude', 'pi']
+
 const MODES = ['ask', 'agent']
 
 const ASK_TOOLS = ['Read', 'Grep', 'Glob']
@@ -64,8 +75,10 @@ function validateJob(job) {
   if (!job || typeof job !== 'object') throw new Error('Missing job')
   if (typeof job.prompt !== 'string' || !job.prompt.trim()) throw new Error('Type a message first.')
   if (job.prompt.length > 100_000) throw new Error('That message is too long.')
+  if (job.sdk === undefined) job.sdk = 'claude'
+  if (!SDKS.includes(job.sdk)) throw new Error('Unknown SDK')
   if (!MODES.includes(job.mode)) throw new Error('Unknown mode')
-  if (!CLAUDE_MODELS.some((m) => m.id === job.model)) throw new Error('Unknown model')
+  if (!(job.sdk === 'pi' ? PI_MODELS : CLAUDE_MODELS).some((m) => m.id === job.model)) throw new Error('Unknown model')
   if (!EFFORTS.includes(job.effort)) throw new Error('Unknown effort')
   return job
 }
@@ -102,6 +115,104 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool }) {
 }
 
 // ---------------------------------------------------------------------------
+// pi
+//
+// pi has no permission prompts, so its safety comes from the tool list and a
+// path guard:
+//   - Ask: read, grep, find, ls.
+//   - Agent: the same plus edit and write.
+//   - Every tool's path must resolve (real path) inside the chat's repo.
+//   - No mode ever offers bash, and the user's own pi extensions (which could
+//     add tools) are not loaded.
+
+const PI_READ_TOOLS = ['read', 'grep', 'find', 'ls']
+const PI_WRITE_TOOLS = ['edit', 'write']
+
+/** The pi tool allowlist for a mode. Throws if it would ever include a shell. */
+function piTools(mode) {
+  const tools = mode === 'agent' ? [...PI_READ_TOOLS, ...PI_WRITE_TOOLS] : [...PI_READ_TOOLS]
+  if (tools.some((t) => /bash|shell|exec/i.test(t))) throw new Error('Refusing to run: pi never gets shell commands.')
+  return tools
+}
+
+/** Effort -> pi thinking level. Default sets none; pi clamps to what the model supports. */
+function piThinkingLevel(effort) {
+  if (!effort || effort === 'default') return undefined
+  return effort === 'max' ? 'xhigh' : effort
+}
+
+/**
+ * Whether a tool may touch `target` (as the model wrote it). The path is
+ * resolved against the chat folder, then to its real path (following links
+ * and junctions); a path that does not exist yet (a new file) is checked
+ * through its nearest existing parent.
+ */
+async function piPathAllowed(root, cwd, target) {
+  const fsp = fs.promises
+  let p = typeof target === 'string' && target.trim() ? target.trim() : '.'
+  if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) p = path.join(os.homedir(), p.slice(1))
+  p = path.resolve(cwd, p)
+  let rest = ''
+  for (;;) {
+    try {
+      const r = await fsp.realpath(p)
+      const full = rest ? path.join(r, rest) : r
+      const rel = path.relative(root, full)
+      return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+    } catch {
+      const parent = path.dirname(p)
+      if (parent === p) return false
+      rest = rest ? path.join(path.basename(p), rest) : path.basename(p)
+      p = parent
+    }
+  }
+}
+
+/**
+ * The pi coding agent SDK this machine already has: the package behind the
+ * `pi` command (npm global install). MonoRail does not ship one, so pi runs
+ * with the user's own version, settings and sign-in.
+ */
+function findPiSdk(env = process.env, home = os.homedir()) {
+  const win = process.platform === 'win32'
+  const dirs = [
+    ...(env.PATH || env.Path || '').split(path.delimiter).filter(Boolean),
+    ...(win && env.APPDATA ? [path.join(env.APPDATA, 'npm')] : []),
+    path.join(home, '.npm-global', 'bin'),
+    path.join(home, '.local', 'bin'),
+  ]
+  const pkgDir = (d) => {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8'))
+      if (pkg.name === '@mariozechner/pi-coding-agent') return { dir: d, entry: path.join(d, 'dist', 'index.js'), version: pkg.version }
+    } catch {
+      // not it
+    }
+    return undefined
+  }
+  for (const dir of dirs) {
+    for (const name of win ? ['pi.cmd', 'pi.exe', 'pi'] : ['pi']) {
+      const bin = path.join(dir, name)
+      if (!fs.existsSync(bin)) continue
+      // npm on Windows: <prefix>\pi.cmd next to <prefix>\node_modules
+      // npm on POSIX: <prefix>/bin/pi -> ../lib/node_modules/.../dist/cli.js
+      const candidates = [path.join(dir, 'node_modules', '@mariozechner', 'pi-coding-agent'), path.join(dir, '..', 'lib', 'node_modules', '@mariozechner', 'pi-coding-agent')]
+      try {
+        let d = path.dirname(fs.realpathSync(bin))
+        for (let i = 0; i < 4; i++, d = path.dirname(d)) candidates.unshift(d)
+      } catch {
+        // broken link
+      }
+      for (const c of candidates) {
+        const found = pkgDir(c)
+        if (found) return found
+      }
+    }
+  }
+  return undefined
+}
+
+// ---------------------------------------------------------------------------
 // Finding the user's Claude Code
 
 /**
@@ -130,4 +241,4 @@ function findClaudeExecutable(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-module.exports = { CLAUDE_MODELS, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
+module.exports = { CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }

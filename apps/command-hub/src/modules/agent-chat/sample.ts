@@ -148,6 +148,10 @@ export const sampleComposer: ComposerInfo = {
     { id: 'claude-opus-5-5', label: 'Opus 5.5' },
     { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
   ],
+  piModels: [
+    { id: 'default', label: 'Default' },
+    { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  ],
   efforts: ['default', 'low', 'medium', 'high', 'xhigh', 'max'],
   repos: sampleFolders.repos.map((r) => ({ name: r.name, path: r.path })),
 }

@@ -108,7 +108,8 @@ export default function AgentChatPage() {
     ? undefined
     : (sessions.find((s) => s.id === selectedId) ?? (selectedId ? pendingSessions[selectedId] : undefined) ?? visible[0])
   const chatKey = draft?.key ?? selected?.id
-  const chatTurns = turns.filter((t) => t.chatKey === chatKey || (t.sessionId && `claude:${t.sessionId}` === chatKey))
+  const chatSdk = draft ? prefs.newSdk : (selected?.source ?? 'claude')
+  const chatTurns = turns.filter((t) => t.chatKey === chatKey || (t.sessionId && `${t.sdk}:${t.sessionId}` === chatKey))
   const runningTurn = chatTurns.find((t) => t.status === 'running')
   const lastWithUsage = [...chatTurns].reverse().find((t) => contextUse(t))
 
@@ -141,13 +142,13 @@ export default function AgentChatPage() {
         )
         // A new chat got its session id: it becomes a normal chat, keeping its view.
         if (p.sessionId && !t.sessionId && t.chatKey.startsWith('draft:')) {
-          const id2 = `claude:${p.sessionId}`
+          const id2 = `${t.sdk}:${p.sessionId}`
           setViewKeys((v) => ({ ...v, [id2]: t.chatKey }))
           setPendingSessions((v) => ({
             ...v,
             [id2]: {
               id: id2,
-              source: 'claude',
+              source: t.sdk,
               sessionId: p.sessionId!,
               title: t.prompt.slice(0, 100),
               preview: t.prompt.slice(0, 160),
@@ -185,13 +186,13 @@ export default function AgentChatPage() {
     const repo = draft ? composerInfo?.repos.find((r) => r.path === draft.repo) : undefined
     try {
       const { turnId } = await invokeModule<{ turnId: string }>('agent-chat', 'startTurn', {
-        ...(draft ? { repo: draft.repo } : { chatId: selected?.id }),
+        ...(draft ? { repo: draft.repo, sdk: chatSdk } : { chatId: selected?.id }),
         prompt,
         mode: prefs.mode,
-        model: prefs.model,
+        model: prefs.modelFor(chatSdk),
         effort: prefs.effort,
       })
-      setTurns((prev) => [...prev, { turnId, chatKey, prompt, startedAt: Date.now(), status: 'running', events: [], next: 0, repo }])
+      setTurns((prev) => [...prev, { turnId, chatKey, sdk: chatSdk, prompt, startedAt: Date.now(), status: 'running', events: [], next: 0, repo }])
       return true
     } catch (e) {
       setSendError({ key: chatKey, message: e instanceof Error ? e.message : String(e) })
@@ -204,16 +205,16 @@ export default function AgentChatPage() {
   }
 
   /** A turn already running in the backend (e.g. the page was left and reopened): follow it. */
-  function attach(turnId: string, key: string) {
+  function attach(turnId: string, key: string, sdk: SessionSource) {
     if (turnsRef.current.some((t) => t.turnId === turnId)) return
-    setTurns((prev) => [...prev, { turnId, chatKey: key, prompt: '', startedAt: Date.now(), status: 'running', events: [], next: 0 }])
+    setTurns((prev) => [...prev, { turnId, chatKey: key, sdk, prompt: '', startedAt: Date.now(), status: 'running', events: [], next: 0 }])
   }
 
   const composer = (
     <Composer
       info={composerInfo}
       prefs={prefs}
-      source={selected?.source ?? 'claude'}
+      source={chatSdk}
       isNew={!!draft}
       repo={draft?.repo}
       onRepo={(path) => setDraft((d) => (d ? { ...d, repo: path } : d))}
@@ -334,6 +335,7 @@ export default function AgentChatPage() {
             <Conversation
               key={draft.key}
               draftRepoName={composerInfo?.repos.find((r) => r.path === draft.repo)?.name}
+              sdk={chatSdk}
               turns={chatTurns}
               composer={composer}
             />
@@ -344,7 +346,7 @@ export default function AgentChatPage() {
               skipHistory={!!viewKeys[selected.id]}
               turns={chatTurns}
               composer={composer}
-              onAttach={(turnId) => attach(turnId, selected.id)}
+              onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
             />
           ) : (
             <EmptyState
@@ -522,6 +524,7 @@ function SourceAvatar({ source, className }: { source: SessionSource; className?
 function Conversation({
   session,
   draftRepoName,
+  sdk = 'claude',
   skipHistory,
   turns,
   composer,
@@ -530,6 +533,8 @@ function Conversation({
   /** Missing for a new chat that has not started yet. */
   session?: SessionSummary
   draftRepoName?: string
+  /** The SDK of a new chat. */
+  sdk?: SessionSource
   /** Chats started on this page show their live turns instead of re-reading the log. */
   skipHistory?: boolean
   turns: LiveTurn[]
@@ -597,7 +602,7 @@ function Conversation({
   if (!session && turns.length === 0) {
     return (
       <>
-        <NewChatEmpty repoName={draftRepoName} />
+        <NewChatEmpty repoName={draftRepoName} sdk={sdk} />
         {composer}
       </>
     )

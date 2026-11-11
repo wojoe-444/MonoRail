@@ -180,6 +180,14 @@ settings overlay disables bypass mode; never weaken either. A continued chat
 runs only in its own folder, re-checked against the allowed folders. The
 running cost total per session is kept in `costs.json` in the module's data
 folder (numbers only) so a resumed turn's own cost can be worked out.
+**pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
+agent SDK, found behind the `pi` command (`findPiSdk`); MonoRail does not
+bundle it. pi has no approval prompts, so its limits are the tool list and a
+path guard: Ask gets read/grep/find/ls, Agent adds edit/write, every tool path
+must resolve (real path) inside the chat's repo, the user's pi extensions are
+not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
+(Max = xhigh). A started chat keeps its SDK; new chats pick one in the
+status bar (remembered).
 
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`

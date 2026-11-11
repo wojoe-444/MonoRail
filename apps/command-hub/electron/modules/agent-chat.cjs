@@ -493,6 +493,7 @@ function writeCosts(dataDir, costs) {
 
 function sdkStatus() {
   const exe = options.findClaudeExecutable()
+  const piSdk = options.findPiSdk()
   return [
     {
       id: 'claude',
@@ -500,7 +501,12 @@ function sdkStatus() {
       ready: !!exe,
       reason: exe ? undefined : 'Claude Code was not found on this machine. Install it so "claude" is on your PATH, sign in once in a terminal, then reopen this page.',
     },
-    { id: 'pi', label: 'pi', ready: false, reason: 'Sending with pi is not available yet.' },
+    {
+      id: 'pi',
+      label: 'pi',
+      ready: !!piSdk,
+      reason: piSdk ? undefined : 'pi was not found on this machine. Install it with "npm install -g @mariozechner/pi-coding-agent", sign in once in a terminal, then reopen this page.',
+    },
   ]
 }
 
@@ -509,6 +515,7 @@ async function getComposer(ctx) {
   return {
     sdks: sdkStatus(),
     models: options.CLAUDE_MODELS,
+    piModels: options.PI_MODELS,
     efforts: options.EFFORTS,
     repos: folders.repos.map((r) => ({ name: r.name, path: r.path })),
   }
@@ -520,32 +527,55 @@ async function getComposer(ctx) {
  * repo. A new chat names one of the allowed repos, which is checked again.
  */
 async function startTurn(ctx, args = {}) {
-  const job = options.validateJob({ prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort })
-  const executable = options.findClaudeExecutable()
-  if (!executable) throw new Error(sdkStatus()[0].reason)
   const folders = await allowedRepos(ctx.dataDir)
 
+  // Which chat, which folder, which SDK. A continued chat keeps its own SDK
+  // and folder (from its log), never what the page asks for.
   let cwd
+  let root
+  let sessionFile
   let resume
   let chatKey
+  let sdk
   if (typeof args.chatId === 'string') {
     if (!known.has(args.chatId)) await listSessions({ dataDir: ctx.dataDir })
     const entry = known.get(args.chatId)
     if (!entry) throw new Error('Session not found')
-    if (entry.source !== 'claude') throw new Error('Continuing pi chats from this page is not available yet.')
     const dir = entry.cwd ? await real(entry.cwd) : undefined
-    if (!dir || !(await repoFor(folders.repos, dir))) throw new Error('This chat\'s folder is not in an allowed repo any more.')
+    const repo = dir && (await repoFor(folders.repos, dir))
+    if (!repo) throw new Error("This chat's folder is not in an allowed repo any more.")
     cwd = dir
-    resume = args.chatId.slice('claude:'.length)
+    root = repo.path
+    sdk = entry.source
     chatKey = args.chatId
+    if (sdk === 'claude') resume = args.chatId.slice('claude:'.length)
+    else sessionFile = entry.file
   } else {
     const wanted = typeof args.repo === 'string' ? await real(args.repo) : undefined
     const repo = wanted && folders.repos.find((r) => r.path === wanted)
     if (!repo) throw new Error('Pick one of your allowed repos for a new chat.')
     cwd = repo.path
+    root = repo.path
+    sdk = args.sdk === 'pi' ? 'pi' : 'claude'
     chatKey = `new:${crypto.randomUUID()}`
   }
 
+  const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort })
+  const status = sdkStatus().find((s) => s.id === sdk)
+  if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
+
+  if (sdk === 'pi') {
+    const piSdk = options.findPiSdk()
+    return turnsApi.startTurn({
+      chatKey,
+      worker: { job, cwd, root, sessionFile, sdkEntry: piSdk.entry },
+      meta: { sdk: 'pi', model: job.model, mode: job.mode, resume: sessionFile ? chatKey.slice('pi:'.length) : undefined },
+      // pi logs a cost on every model call, so a turn's cost is exact.
+      onFinish: (turn) => (typeof turn.result?.costUsd === 'number' ? [{ t: 'cost', turnUsd: turn.result.costUsd, exact: true }] : []),
+    })
+  }
+
+  const executable = options.findClaudeExecutable()
   const previous = resume ? readCosts(ctx.dataDir)[resume] : undefined
   return turnsApi.startTurn({
     chatKey,

@@ -67,6 +67,7 @@ export type ChatMode = 'ask' | 'agent'
 export interface ComposerInfo {
   sdks: { id: SessionSource; label: string; ready: boolean; reason?: string }[]
   models: { id: string; label: string }[]
+  piModels: { id: string; label: string }[]
   efforts: string[]
   repos: { name: string; path: string }[]
 }
@@ -78,7 +79,7 @@ export type TurnEvent =
   | { t: 'assistant'; id?: string; model?: string; blocks: ChatBlock[] }
   | { t: 'tool_result'; toolUseId: string; result: string; isError: boolean }
   | { t: 'denied'; kind: 'Denied' | 'Blocked'; tool: string; toolUseId?: string; summary?: string; reason: string }
-  | { t: 'usage'; model?: string; input: number; cacheRead: number; cacheWrite: number; output: number }
+  | { t: 'usage'; model?: string; input: number; cacheRead: number; cacheWrite: number; output: number; costUsd?: number }
   | { t: 'result'; subtype: string; isError: boolean; costUsd?: number; durationMs?: number; numTurns?: number; contextWindow?: number; errors?: string[] }
   | { t: 'cost'; turnUsd?: number; sessionUsd?: number; exact: boolean }
   | { t: 'error'; message: string }
@@ -101,6 +102,7 @@ export interface LiveTurn {
   turnId: string
   /** The chat this turn belongs to: a session id ("claude:…"), or the draft key of a new chat. */
   chatKey: string
+  sdk: SessionSource
   sessionId?: string
   prompt: string
   startedAt: number
