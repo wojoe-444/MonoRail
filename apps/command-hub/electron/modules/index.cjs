@@ -10,7 +10,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { app, ipcMain } = require('electron')
 
-const backends = [require('./claude-stats.cjs'), require('./settings.cjs')]
+const backends = [require('./claude-stats.cjs'), require('./jira.cjs'), require('./settings.cjs')]
 
 function registerModuleBackends() {
   const byId = new Map(backends.map((b) => [b.id, b]))

@@ -99,6 +99,13 @@ the raw Claude Code logs and splits each session into phases (driver model +
 subagent models; new phase on driver change or a 2-hour idle gap). Phase
 cost is priced from ccusage's per-session, per-model cost per output token.
 
+`jira` is the second worked example: one tracker over two sources. Team
+tickets go through the Jira Cloud REST API (`electron/modules/jira-cloud.cjs`,
+API token encrypted with `safeStorage` in the module's data folder). Personal
+projects are a git repo in `<dataDir>/local-repo` (`jira-local.cjs`, via
+`isomorphic-git`, one JSON file per ticket, one commit per change). That repo
+never gets a remote; do not add push or sync to it.
+
 ### Charts
 
 Follow the data-viz rules already encoded in `components/charts/`: series
