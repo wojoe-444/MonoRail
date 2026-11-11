@@ -94,7 +94,11 @@ major/minor in `package.json` by hand; never publish from a local machine.
 - `lib/router.ts` tiny hash router (`useRoute`, `navigate`); hash routes work
   with Electron's `file://` loading.
 - `data/` fictional sample data only.
-- `index.css` all design tokens (light and dark).
+- `index.css` design tokens (light and dark defaults = the "Sand & Ink"
+  palette), fonts, chart series.
+- `lib/palettes.ts` the color schemes; `lib/theme.ts` applies the chosen
+  palette and light/dark mode; `components/theme/ThemePicker.tsx` holds the
+  top-bar picker, the mode toggle and the Settings "Appearance" card.
 
 ## Modules: the main building block
 
@@ -154,8 +158,9 @@ layout and in-app routing. Apps are listed in the **Apps** nav section, right
 under Home. The contract is `AppDefinition` in `src/apps/types.ts`.
 
 The one thing an app never owns is the **hub bar**: `src/apps/AppFrame.tsx`
-renders a 48px bar above every app, in the hub's dark drawer color, with a
-"Back to MonoRail" button, the app's icon and name, and an "App" chip.
+renders a 48px bar above every app, in the drawer colors of the current
+color scheme, with a "Back to MonoRail" button (filled like the active nav
+item), the app's icon and name, and an "App" chip.
 That is how users leave any app; do not hide, restyle or duplicate it inside
 an app. Leaving returns to the hub page the user came from, and reopening an
 app from the nav resumes where it was left (`src/apps/session.ts`). An error
@@ -301,50 +306,74 @@ ticks "Also delete its data". The UI is Settings > Extensions
 
 ## Design guidance
 
-The visual direction is **shadcn's component aesthetics + MUI's page
-composition + a more expressive, professional color system.** Build
-everything with shadcn/ui. Do **not** add MUI (or any second component
+The visual direction is **the Bot Dashboard from `wojoe-444/MC-Player`**
+(`dashboard/web` there): shadcn/ui components, MUI-style page composition,
+and its palette suite with a theme picker. When in doubt, match that app.
+Build everything with shadcn/ui. Do **not** add MUI (or any second component
 library) as a dependency; borrow MUI's conventions, not its code.
 
-### From shadcn: component look
+### Component look
 
-Clean, quiet components: thin borders, generous radius (`--radius` 10px),
-subtle focus rings, restrained typography. Use the primitives in
+Clean, quiet components: cards rest flat on a hairline ring
+(`ring-1 ring-foreground/10`, no shadow), generous radius (`--radius` 10px),
+subtle focus rings, restrained typography. Type is Inter Variable (bundled
+via `@fontsource-variable`, so it works offline in the .exe), code and
+numbers in JetBrains Mono Variable (`font-mono`). Use the primitives in
 `components/ui/` rather than hand-rolled one-off styles.
 
-### From MUI: layout, spacing, hierarchy
+### Layout, spacing, hierarchy
 
 - **8px grid.** Spacing values come from multiples of 8 (Tailwind `2`, `4`,
   `6`, `8`, ...). Page gutters 24px (32px on large screens), gaps between
   cards 24px, page sections 32px apart.
-- **App frame.** Permanent left drawer (260px, collapses to a 72px icon rail
-  like MUI's mini variant) + a 64px top app bar. The drawer header is the
-  same height as the app bar.
+- **App frame.** Permanent left drawer (256px, collapses to a 72px icon
+  rail) + a 64px top bar. The drawer header (brand tile, "MonoRail",
+  "Agent hub") is the same height as the top bar and has a bottom border;
+  the drawer footer shows the version and a desktop / browser badge.
+- **Top bar.** Drawer toggle, a divider, a `Section > Page` breadcrumb, and
+  on the right the color scheme picker and the light/dark toggle. Nothing
+  else lives there unless it is page-wide status (the Bot Dashboard puts
+  live pills there).
 - **Navigation.** Items grouped into sections with small uppercase overline
-  subheaders; 40px rows; the active item gets a filled background plus a left
-  indicator bar. Every destination lives in `nav.ts`.
-- **Page structure.** Every page starts with `PageHeader`: overline (optional),
-  h4-scale title (28px semibold), one-line subtitle, actions aligned right.
-  Content sits in a centered container (max 1440px).
-- **Content hierarchy.** Responsive grids like MUI `Grid`
-  (1 / 2 / 3-4 columns). Cards have a header (title + description + action),
-  a divider, then content. Lists use dividers and hover states.
-- **Elevation.** Use the `shadow-elevation-1/2/3` tokens to express depth
-  (resting card, raised element, hover/overlay) instead of ad-hoc shadows.
+  labels; 40px rows on soft pills (`bg-sidebar-accent`); the active item is
+  filled with `bg-sidebar-primary` and a soft colored shadow. Count badges
+  are amber. Every destination lives in `nav.ts`.
+- **Page structure.** Every page starts with `PageHeader`: overline
+  (optional), 24px semibold title, one-line subtitle, actions aligned right.
+  Content sits in a centered container (max 1536px).
+- **KPI tiles.** `StatTile` (or the same markup): uppercase xs label, 30px
+  tabular value, a colored delta line with an arrow (green good, amber bad),
+  and an optional `Sparkline` on the right. 4-up on desktop.
+- **Content hierarchy.** Responsive grids (1 / 2 / 3-4 columns). Cards have
+  a header (title + description + action), a divider, then content. Lists
+  use dividers and hover states.
+- **Elevation.** Cards are flat. Use `shadow-elevation-2/3` for raised and
+  overlay surfaces (menus, dialogs, hover lift), never ad-hoc shadows.
 
-### Color system
+### Color system: palettes
 
-Defined in `src/index.css` as OKLCH CSS variables, mapped to Tailwind via
-`@theme inline`. Use tokens, never raw hex values in components.
+Colors are OKLCH CSS variables mapped to Tailwind via `@theme inline` in
+`src/index.css`. Use tokens, never raw hex values in components.
 
-- **Neutrals:** cool slate for backgrounds, borders, and muted text.
-- **Primary:** deep indigo for primary actions, active nav, and links.
-- **Highlight:** teal for secondary emphasis (the second brand color).
-- **Semantic:** `success`, `warning`, `info`, `destructive`. Each has a solid
-  (`bg-success`) and a soft variant (`bg-success-soft
-  text-success-soft-foreground`). Prefer soft variants for badges, status
-  chips, and icon tiles; save solid colors for primary actions and small
-  indicators.
-- **Sidebar:** a dark indigo-slate drawer (`--sidebar-*`) in both themes, which
-  anchors the layout and gives the app its identity.
-- Every token has a light and a dark value. Check both when adding UI.
+- **Palettes.** `src/lib/palettes.ts` holds the 28 color schemes ported from
+  the Bot Dashboard (Set 1, Set 2, Neutrals). Each is a few numbers (primary
+  hue/chroma, neutral hue/chroma, drawer style dark/light/bold) that
+  `tokens()` expands into every token for light and dark. `lib/theme.ts`
+  writes them on `<html>`; the choice is kept in `commandHub.palette`, the
+  mode in `commandHub.theme`. **Defaults: Sand & Ink, light mode.** The
+  values in `index.css` are Sand & Ink so the first paint matches; change a
+  scheme in `palettes.ts`, not there.
+- **Primary:** the palette's primary (Sand & Ink: deep khaki-brown) for
+  primary actions, active nav and links. `primary-soft` for tinted tiles.
+- **Highlight:** the palette's complementary hue, for secondary emphasis.
+- **Semantic:** `success`, `warning`, `info`, `destructive` keep the same
+  hues in every palette. Each has a solid (`bg-success`) and a soft variant
+  (`bg-success-soft text-success-soft-foreground`). Prefer soft variants for
+  badges, status chips, and icon tiles; save solid colors for primary
+  actions and small indicators.
+- **Sidebar:** `--sidebar-*` follows the palette's drawer style (white for
+  light-drawer palettes like Sand & Ink, near-black or brand-colored for the
+  others). The app frame's hub bar uses the same tokens.
+- **Charts** do not follow the palette: `--series-*` stay fixed (see Charts).
+- Check new UI in light and dark, and in at least one dark-drawer palette
+  (e.g. Indigo Ink) besides Sand & Ink.

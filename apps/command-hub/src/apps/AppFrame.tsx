@@ -10,9 +10,10 @@ import type { AppDefinition } from './types'
 
 /**
  * Full-screen host for an app. The app gets the whole window below one
- * 48px hub bar, which is the same in every app: the hub's dark drawer color,
- * the MonoRail mark, and a "Back to MonoRail" button. Apps style
- * everything below it however they like, but never the bar.
+ * 48px hub bar, which is the same in every app: the drawer's colors from the
+ * current color scheme, the MonoRail mark, and a "Back to MonoRail" button
+ * filled like the active nav item. Apps style everything below it however
+ * they like, but never the bar.
  */
 export function AppFrame({ app }: { app: AppDefinition }) {
   const AppRoot = app.component
@@ -30,7 +31,7 @@ export function AppFrame({ app }: { app: AppDefinition }) {
         <button
           type="button"
           onClick={exit}
-          className="group flex h-8 items-center gap-2 rounded-lg bg-sidebar-primary pr-3 pl-2 text-sm font-medium text-sidebar-primary-foreground shadow-elevation-1 transition-colors outline-none hover:bg-sidebar-primary/85 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="group flex h-8 items-center gap-2 rounded-md bg-sidebar-primary pr-3 pl-2 text-sm font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25 transition-colors outline-none hover:bg-sidebar-primary/85 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
           <span className="flex size-5 items-center justify-center rounded-md bg-sidebar-primary-foreground/15">
@@ -42,7 +43,7 @@ export function AppFrame({ app }: { app: AppDefinition }) {
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Icon className="size-4 shrink-0 text-sidebar-muted-foreground" />
           <span className="truncate font-semibold text-sidebar-accent-foreground">{app.title}</span>
-          <span className="rounded-full bg-sidebar-primary/20 px-2 py-0.5 text-[11px] font-semibold text-sidebar-primary">App</span>
+          <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[11px] font-semibold text-sidebar-accent-foreground">App</span>
         </div>
         <span className="ml-auto hidden min-w-0 truncate text-xs text-sidebar-muted-foreground lg:block">{app.description}</span>
         <button
