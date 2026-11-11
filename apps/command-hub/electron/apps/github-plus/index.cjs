@@ -47,6 +47,26 @@ async function writeRecents(ctx, list) {
   await fs.writeFile(path.join(ctx.dataDir, RECENTS_FILE), JSON.stringify(list.slice(0, MAX_RECENTS), null, 2))
 }
 
+// Home dashboard rows by repo path, kept in memory for the session and reused
+// while the repo's refs (every branch, tag, remote, the issues ref and which
+// branch is checked out) are unchanged. Checking that is one git process per
+// repo instead of about a dozen for a full summary.
+const activityCache = new Map()
+
+async function repoActivity(p) {
+  const fp = await git.refsFingerprint(p).catch(() => null)
+  const hit = activityCache.get(p)
+  if (fp !== null && hit?.fp === fp) return hit.value
+  const [activity, open] = await Promise.all([
+    git.recentActivity(p).catch((e) => ({ path: p, name: path.basename(p), error: e.message, commits: [], branches: [] })),
+    issues.listIssues(p, 'open').catch(() => []),
+  ])
+  const value = { ...activity, path: p, openIssues: open.length, issues: open.slice(0, 5) }
+  if (fp !== null && !activity.error) activityCache.set(p, { fp, value })
+  else activityCache.delete(p)
+  return value
+}
+
 async function readSettings(ctx) {
   try {
     return { ...DEFAULT_SETTINGS, ...JSON.parse(await fs.readFile(path.join(ctx.dataDir, SETTINGS_FILE), 'utf8')) }
@@ -103,12 +123,8 @@ module.exports = {
       const recents = await readRecents(ctx)
       return Promise.all(
         recents.map(async (p) => {
-          const [activity, backup, open] = await Promise.all([
-            git.recentActivity(p).catch((e) => ({ path: p, name: path.basename(p), error: e.message, commits: [], branches: [] })),
-            backups.get(p).catch(() => null),
-            issues.listIssues(p, 'open').catch(() => []),
-          ])
-          return { ...activity, path: p, openIssues: open.length, issues: open.slice(0, 5), backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
+          const [activity, backup] = await Promise.all([repoActivity(p), backups.get(p).catch(() => null)])
+          return { ...activity, backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
         }),
       )
     },
@@ -116,12 +132,15 @@ module.exports = {
       return readRecents(ctx)
     },
     async removeRecent(ctx, { path: p } = {}) {
+      activityCache.delete(p)
       const next = (await readRecents(ctx)).filter((x) => x !== p)
       await writeRecents(ctx, next)
       return next
     },
     listRefs: (_ctx, { repo } = {}) => git.listRefs(guard(repo)),
     listTree: (_ctx, { repo, ref, path: p } = {}) => git.listTree(guard(repo), ref, p),
+    treeLastCommits: (_ctx, { repo, ref, path: p } = {}) => git.treeLastCommits(guard(repo), ref, p),
+    branchDivergence: (_ctx, { repo, base } = {}) => git.branchDivergence(guard(repo), base),
     readBlob: (_ctx, { repo, ref, path: p } = {}) => git.readBlob(guard(repo), ref, p),
     getLog: (_ctx, { repo, opts } = {}) => git.getLog(guard(repo), opts),
     countCommits: (_ctx, { repo, ref } = {}) => git.countCommits(guard(repo), ref),

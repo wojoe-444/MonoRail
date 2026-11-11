@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useRepo } from '../RepoContext'
+import { useAsync, useRepo } from '../RepoContext'
+import { api } from '../api'
 import { BranchIcon, TagIcon } from '../components/Icons'
 import { commitLink, commitsLink, compareLink, treeLink } from '../links'
 import { fullDate, timeAgo } from '../util'
@@ -10,6 +11,8 @@ export default function BranchesPage() {
   const [tab, setTab] = useState<'branch' | 'tag'>('branch')
   const base = repo!.defaultRef ?? 'HEAD'
   const list = refs.filter((r) => r.type === tab)
+  // One git call for every branch (git 2.41+), asked for only on this page.
+  const divergence = useAsync(() => api.branchDivergence(repo!.path, base), [repo!.path, base, refs])
   return (
     <div>
       <div className="toolbar">
@@ -31,7 +34,9 @@ export default function BranchesPage() {
             </div>
             {r.type === 'branch' && r.name !== base && (
               <span className="muted small" title={`vs ${base}`}>
-                <span className="add">{r.ahead ?? 0} ahead</span> · <span className="del">{r.behind ?? 0} behind</span>
+                {divergence.data?.[r.name]
+                  ? <><span className="add">{divergence.data[r.name].ahead} ahead</span> · <span className="del">{divergence.data[r.name].behind} behind</span></>
+                  : divergence.loading ? '…' : null}
               </span>
             )}
             <Link className="btn" to={commitsLink(r.name)}>History</Link>

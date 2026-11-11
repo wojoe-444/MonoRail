@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
 
 /** Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call stays on this machine. */
 export interface RepoApi {
@@ -19,7 +19,12 @@ export interface RepoApi {
   getActivity(): Promise<RepoActivity[]>
   removeRecent(path: string): Promise<string[]>
   listRefs(repo: string): Promise<RefInfo[]>
+  /** Folder entries only; the last commit per entry is treeLastCommits, so the list shows first. */
   listTree(repo: string, ref: string, path: string): Promise<TreeEntry[]>
+  /** Newest commit touching each entry of a folder, by entry name. */
+  treeLastCommits(repo: string, ref: string, path: string): Promise<Record<string, LastCommit>>
+  /** Ahead/behind of every branch against `base`, by branch name. */
+  branchDivergence(repo: string, base: string): Promise<Record<string, Divergence>>
   readBlob(repo: string, ref: string, path: string): Promise<BlobResult>
   getLog(repo: string, opts: LogOptions): Promise<{ commits: CommitSummary[]; hasMore: boolean }>
   countCommits(repo: string, ref: string): Promise<number>
@@ -67,6 +72,8 @@ const desktopApi: RepoApi = {
   removeRecent: (path) => call('removeRecent', { path }),
   listRefs: (repo) => call('listRefs', { repo }),
   listTree: (repo, ref, path) => call('listTree', { repo, ref, path }),
+  treeLastCommits: (repo, ref, path) => call('treeLastCommits', { repo, ref, path }),
+  branchDivergence: (repo, base) => call('branchDivergence', { repo, base }),
   readBlob: (repo, ref, path) => call('readBlob', { repo, ref, path }),
   getLog: (repo, opts) => call('getLog', { repo, opts }),
   countCommits: (repo, ref) => call('countCommits', { repo, ref }),

@@ -20,6 +20,9 @@ export default function TreePage() {
   const rp = repo!.path
 
   const tree = useAsync(() => api.listTree(rp, ref, path), [rp, ref, path])
+  // Filled in after the list shows: it walks history, the list doesn't.
+  const lastCommits = useAsync(() => api.treeLastCommits(rp, ref, path), [rp, ref, path])
+  const last = lastCommits.loading ? null : lastCommits.data
   const latest = useAsync(() => api.getLog(rp, { ref, path: path || undefined, limit: 1 }), [rp, ref, path])
   const count = useAsync(() => api.countCommits(rp, ref), [rp, ref])
   const readme = tree.data?.find((e) => e.type === 'file' && README_RE.test(e.name))
@@ -62,8 +65,8 @@ export default function TreePage() {
                     : e.type === 'submodule' ? <span title="Submodule">{e.name}</span>
                     : <Link to={blobLink(ref, e.path)}>{e.name}</Link>}
                 </td>
-                <td className="msg muted ellipsis">{e.lastCommit && <Link to={commitLink(e.lastCommit.sha)}>{e.lastCommit.subject}</Link>}</td>
-                <td className="when muted">{e.lastCommit && <span title={fullDate(e.lastCommit.date)}>{timeAgo(e.lastCommit.date)}</span>}</td>
+                <td className="msg muted ellipsis">{last?.[e.name] && <Link to={commitLink(last[e.name].sha)}>{last[e.name].subject}</Link>}</td>
+                <td className="when muted">{last?.[e.name] && <span title={fullDate(last[e.name].date)}>{timeAgo(last[e.name].date)}</span>}</td>
               </tr>
             ))}
           </tbody>

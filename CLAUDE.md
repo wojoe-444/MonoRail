@@ -369,6 +369,17 @@ Recent repo paths are kept in its data folder, never in the repo. It makes no
 network requests: remote images in READMEs are blocked and external links do
 nothing. Tests live in `git.test.cjs`.
 
+GitHub+ speed: starting a git process is the costly part (on Windows most of
+all, and Node starts each one on the main process), so every page uses as few
+as it can and `git.cjs` runs at most 6 at a time. A folder lists in one
+`ls-tree`; its last-commit column is a second call (`treeLastCommits`, one
+`git log --name-only` walk that stops when every entry is found). Ahead/behind
+is `branchDivergence`, asked for only by the Branches page (one
+`for-each-ref %(ahead-behind:)` on git 2.41+, else one `rev-list` per branch).
+Answers keyed by a commit sha (last commits, commit counts, ahead/behind,
+parsed issues) are memoized in memory; Home reuses a repo's summary while
+`refsFingerprint` is unchanged. Nothing of it is written to disk.
+
 GitHub+ also has **scheduled backups** (Backups tab, `backup.cjs`): per repo,
 "X times per hour/day/week" into a folder the user picks (e.g. one OneDrive
 already syncs). Each backup is a verified `git bundle --all` file, written as

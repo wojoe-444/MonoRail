@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
@@ -15,6 +15,9 @@ function greeting(): string {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
 }
 
+/** The last dashboard shown, so coming back to Home paints at once while it refreshes. Memory only. */
+let lastActivity: RepoActivity[] | null = null
+
 const UNIT_LABEL = { hour: 'hourly', day: 'daily', week: 'weekly' } as const
 
 /** GitHub+ home: a dashboard of the local repos you've opened, laid out like a code host's home page. */
@@ -23,7 +26,9 @@ export default function Welcome() {
   const nav = useNavigate()
   const [filter, setFilter] = useState('')
   const [showAll, setShowAll] = useState(false)
-  const activity = useAsync(() => api.getActivity(), [recents.join('\n')])
+  const fetched = useAsync(() => api.getActivity(), [recents.join('\n')])
+  useEffect(() => { if (fetched.data) lastActivity = fetched.data }, [fetched.data])
+  const activity = { ...fetched, data: fetched.data ?? (fetched.error ? null : lastActivity) }
   const repos = useMemo(() => activity.data ?? [], [activity.data])
 
   const byPath = useMemo(() => new Map(repos.map((r) => [r.path, r])), [repos])
