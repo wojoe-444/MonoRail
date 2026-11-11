@@ -1,0 +1,14 @@
+{
+  "appId": "dev.monorail.commandhub",
+  "productName": "Command Hub",
+  "directories": {
+    "output": "release"
+  },
+  "files": ["dist/**/*", "electron/**/*", "package.json"],
+  "win": {
+    "target": [{ "target": "portable", "arch": ["x64"] }]
+  },
+  "portable": {
+    "artifactName": "CommandHub-${version}-portable.exe"
+  }
+}
