@@ -7,6 +7,11 @@
 //
 // The module contract is request/response, so the page polls getStatus while a
 // download is running instead of subscribing to events.
+//
+// Background check: start() checks once shortly after startup and then every
+// few hours, the same check as the Settings button. The update pop-up
+// (src/modules/settings/UpdateToast.tsx) reads getStatus and offers the
+// update; its "Ignore for six hours" snooze is kept in the renderer.
 
 const { app } = require('electron')
 
@@ -86,24 +91,45 @@ function snapshot() {
   }
 }
 
+/** First background check after startup, then one every few hours. */
+const FIRST_CHECK_MS = 30 * 1000
+const CHECK_EVERY_MS = 4 * 60 * 60 * 1000
+
+let checking
+async function checkForUpdates() {
+  if (!updateSupport().supported) return snapshot()
+  if (status.state === 'downloading' || status.state === 'downloaded') return snapshot()
+  if (checking) return checking
+  checking = (async () => {
+    try {
+      set({ state: 'checking', error: undefined })
+      await getUpdater().checkForUpdates()
+    } catch (err) {
+      set({ state: 'error', error: message(err) })
+    }
+    set({ lastChecked: new Date().toISOString() })
+    return snapshot()
+  })().finally(() => {
+    checking = undefined
+  })
+  return checking
+}
+
 module.exports = {
   id: 'settings',
+  start() {
+    if (!updateSupport().supported) return
+    const run = () => checkForUpdates().catch(() => {})
+    setTimeout(run, FIRST_CHECK_MS).unref?.()
+    setInterval(run, CHECK_EVERY_MS).unref?.()
+  },
   methods: {
     async getStatus() {
       return snapshot()
     },
 
     async checkForUpdates() {
-      if (!updateSupport().supported) return snapshot()
-      if (status.state === 'downloading' || status.state === 'downloaded') return snapshot()
-      try {
-        set({ state: 'checking', error: undefined })
-        await getUpdater().checkForUpdates()
-      } catch (err) {
-        set({ state: 'error', error: message(err) })
-      }
-      set({ lastChecked: new Date().toISOString() })
-      return snapshot()
+      return checkForUpdates()
     },
 
     async downloadUpdate() {
