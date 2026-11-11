@@ -1,8 +1,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react'
 
-import { AppFrame } from '@/apps/AppFrame'
-import { findAppByPath } from '@/apps/registry'
-import { appEntryPath, rememberHubPath } from '@/apps/session'
+import { AppBody, AppFrame } from '@/apps/AppFrame'
+import { findAppByPath, isWorkspaceApp } from '@/apps/registry'
+import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 
 import { findNavItem, flattenNav, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
@@ -10,7 +10,8 @@ import { TopBar } from '@/components/layout/TopBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
-import { useRoute } from '@/lib/router'
+import { currentPath, useRoute } from '@/lib/router'
+import { cn } from '@/lib/utils'
 import { findModuleByPath } from '@/modules/registry'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { AppsPage } from '@/pages/AppsPage'
@@ -44,25 +45,33 @@ export default function App() {
   const activeApp = findAppByPath(path, extensionList)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Remember the hub page, so leaving an app comes back to it.
+  const workspaceApp = activeApp && isWorkspaceApp(activeApp) ? activeApp : undefined
+
+  // Remember the hub page, so leaving a full-screen app comes back to it, and
+  // where a workspace app was, so going back to it resumes there.
   useEffect(() => {
     if (!activeApp) rememberHubPath(path)
+    else if (isWorkspaceApp(activeApp)) rememberAppPath(activeApp, path)
   }, [activeApp, path])
 
-  // Opening an app from the nav resumes it where it was left.
+  // Opening an app from the nav resumes it where it was left; clicking the
+  // nav item of the workspace app already open goes to its start page.
   const openPath = useCallback(
     (p: string) => {
+      // In-app routers move the hash without telling useRoute, so read it now.
+      if (workspaceApp) rememberAppPath(workspaceApp, currentPath())
       const app = findAppByPath(p)
-      navigate(app && p === app.path ? appEntryPath(app) : p)
+      if (!app || p !== app.path) return navigate(p)
+      navigate(app.id === workspaceApp?.id ? app.path : appEntryPath(app))
     },
-    [navigate],
+    [navigate, workspaceApp],
   )
 
   const found = findNavItem(navSections, path)
   const current = found?.item
   const section = found?.section.heading
 
-  if (activeApp) {
+  if (activeApp && !workspaceApp) {
     return (
       <TooltipProvider>
         <AppFrame key={activeApp.id} app={activeApp} />
@@ -74,11 +83,11 @@ export default function App() {
     <TooltipProvider>
       <div className="flex h-full overflow-hidden">
         <SideNav
-          current={path}
+          current={current?.path ?? path}
           onNavigate={openPath}
           collapsed={collapsed}
         />
-        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp ? 'overflow-hidden' : 'overflow-y-auto')}>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
@@ -87,10 +96,17 @@ export default function App() {
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed((c) => !c)}
           />
-          {/* Content container: max 1536px with 24/32px gutters */}
-          <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
-            <RouteView path={path} navItems={navItems} onOpen={openPath} />
-          </main>
+          {workspaceApp ? (
+            // A workspace app owns the whole page body, with its own look and scrolling.
+            <main className="min-h-0 flex-1 overflow-auto">
+              <AppBody key={workspaceApp.id} app={workspaceApp} />
+            </main>
+          ) : (
+            // Content container: max 1536px with 24/32px gutters
+            <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
+              <RouteView path={path} navItems={navItems} onOpen={openPath} />
+            </main>
+          )}
         </div>
       </div>
     </TooltipProvider>

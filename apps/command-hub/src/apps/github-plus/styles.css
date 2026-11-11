@@ -390,7 +390,7 @@
   .settings-hint { margin: 4px 0 0 24px; }
   /* Home dashboard */
   .home .topbar { gap: 12px; }
-  .home-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; min-height: calc(100vh - 48px - 57px); }
+  .home-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; min-height: calc(100vh - 64px - 57px); }
   .home-side { border-right: 1px solid var(--border); background: var(--bg); padding: 24px 16px; }
   .home-main { padding: 32px 32px 48px; max-width: 900px; width: 100%; justify-self: center; }
   .home-right { padding: 32px 24px 48px 0; display: flex; flex-direction: column; gap: 16px; }

@@ -9,6 +9,7 @@ export const gitHubPlusApp: AppDefinition = {
   description: 'Browse local git repositories the way you would on GitHub. Nothing leaves this machine.',
   icon: FolderGit2,
   path: '/apps/github-plus',
+  placement: 'workspace',
   component: lazy(() => import('./GitHubPlusApp')),
   dataMethods: [
     'pickRepoFolder',

@@ -16,7 +16,7 @@ import './styles.css'
 /**
  * Jira+: a Jira-style tracker where a private local git repo is a
  * first-class project next to your team's real Jira projects. Its look is
- * its own (scoped under `.jp`); the hub bar above it is MonoRail's.
+ * its own (scoped under `.jp`); MonoRail's drawer and top bar sit around it.
  *
  * Routes live under the app's hash path, e.g. #/apps/jira-plus/projects/local/ME/board.
  */

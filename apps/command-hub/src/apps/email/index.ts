@@ -9,6 +9,7 @@ export const emailApp: AppDefinition = {
   description: 'Read and send mail through inbox connectors. Starts with Google sign-in (Gmail).',
   icon: Mail,
   path: '/apps/email',
+  placement: 'workspace',
   component: lazy(() => import('./EmailApp')),
   dataMethods: [
     'getState',

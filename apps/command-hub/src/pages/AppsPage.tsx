@@ -1,6 +1,6 @@
 import { ArrowRight, Puzzle } from 'lucide-react'
 
-import { allApps, apps as builtInApps } from '@/apps/registry'
+import { apps as builtInApps, fullscreenApps } from '@/apps/registry'
 import type { AppDefinition } from '@/apps/types'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -11,12 +11,13 @@ import { useExtensionList } from '@/extensions/store'
 const builtInIds = new Set(builtInApps.map((a) => a.id))
 
 /**
- * The Apps page: one card per app (built in and from extensions). Apps open
- * full screen; the bar across the top of every app leads back here.
+ * The Apps page: one card per full-screen app (from extensions; the built-in
+ * apps are Workspace pages in the drawer). The bar across the top of every
+ * full-screen app leads back here.
  */
 export function AppsPage({ onOpen }: { onOpen: (path: string) => void }) {
   const list = useExtensionList()
-  const all = allApps(list)
+  const all = fullscreenApps(list)
 
   return (
     <div className="flex flex-col gap-8">

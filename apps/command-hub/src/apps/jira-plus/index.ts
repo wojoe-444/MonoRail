@@ -9,6 +9,7 @@ export const jiraPlusApp: AppDefinition = {
   description: 'Every task as a Jira ticket: your private local projects next to your team Jira. Local tickets never leave this machine.',
   icon: SquareKanban,
   path: '/apps/jira-plus',
+  placement: 'workspace',
   component: lazy(() => import('./JiraPlusApp')),
   dataMethods: [
     'getOverview',
