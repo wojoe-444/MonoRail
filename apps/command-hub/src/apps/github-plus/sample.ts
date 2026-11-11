@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, Issue, IssueSummary, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -196,6 +196,19 @@ const OTHER_REPOS: RepoActivity[] = [
   },
 ]
 
+// Jira+'s private projects repo, listed without being opened (linked.cjs on the desktop).
+const JIRA_REPO: LinkedRepo = { path: 'C:/Users/sample/AppData/Roaming/MonoRail/apps/jira-plus/local-repo', name: 'Jira+ projects', app: 'jira-plus', label: 'Jira+' }
+const JIRA_ACTIVITY: RepoActivity = {
+  path: JIRA_REPO.path,
+  name: JIRA_REPO.name,
+  linked: { app: JIRA_REPO.app, label: JIRA_REPO.label },
+  defaultRef: 'main',
+  currentBranch: 'main',
+  commits: [commit('e5f60718293a4b5c6d7e8f90123456789012345a', [], 'You', 0.3, 'ME-2: Status In Progress', [])].map(summary),
+  branches: [{ name: 'main', sha: 'e5f60718', date: day(0.3), author: 'You', subject: 'ME-2: Status In Progress', isDefault: true }],
+  backup: null,
+}
+
 // Fictional local issues for orbit-notes.
 let issues: Issue[] = [
   {
@@ -237,6 +250,7 @@ export const sampleApi: RepoApi = {
   pickRepoFolder: () => wait(REPO.path),
   async openRepo(dir) {
     if (dir === PLAIN && !plainIsRepo) throw new Error(`"${dir}" is not inside a git repository`)
+    if (dir === JIRA_REPO.path) return wait({ ...REPO, path: dir, name: JIRA_REPO.name, linked: { app: JIRA_REPO.app, label: JIRA_REPO.label } })
     return wait(dir === PLAIN ? { ...REPO, path: PLAIN, name: 'Job search' } : REPO)
   },
   previewFolder: (dir) =>
@@ -277,8 +291,9 @@ export const sampleApi: RepoApi = {
     const plain: RepoActivity = plainIsRepo
       ? { ...orbit, path: PLAIN, name: 'Job search', backup: null }
       : { path: PLAIN, name: 'Job search', error: `"${PLAIN}" is not inside a git repository`, commits: [], branches: [], backup: null }
-    return wait([orbit, plain, ...OTHER_REPOS])
+    return wait([orbit, plain, ...OTHER_REPOS, JIRA_ACTIVITY])
   },
+  getLinked: () => wait([JIRA_REPO]),
   removeRecent: () => wait([]),
   // No file manager in the browser dev server.
   openInExplorer: () => wait(null),

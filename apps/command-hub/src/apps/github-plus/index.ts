@@ -17,6 +17,7 @@ export const gitHubPlusApp: AppDefinition = {
     'getRecents',
     'removeRecent',
     'openInExplorer',
+    'getLinked',
     'listRefs',
     'listTree',
     'readBlob',

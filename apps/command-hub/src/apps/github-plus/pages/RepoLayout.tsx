@@ -24,7 +24,7 @@ export default function RepoLayout() {
         <button className="btn" onClick={() => pick().then((ok) => ok && nav('/repo/tree'))}>Open…</button>
       </header>
       <div className="repo-head">
-        <div className="repo-title"><RepoIcon /> <strong>{repo.name}</strong> <span className="badge">Local</span></div>
+        <div className="repo-title"><RepoIcon /> <strong>{repo.name}</strong> <span className="badge">Local</span>{repo.linked && <span className="badge" title={`Created by ${repo.linked.label}`}>{repo.linked.label}</span>}</div>
         <div className="muted small mono">{repo.path}</div>
         <nav className="tabs">
           <NavLink to={treeLink(ref, '')} className={({ isActive }) => (isActive ? 'active' : '')} end={false}><CodeIcon /> Code</NavLink>

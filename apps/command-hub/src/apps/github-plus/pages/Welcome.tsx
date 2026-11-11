@@ -22,10 +22,13 @@ const UNIT_LABEL = { hour: 'hourly', day: 'daily', week: 'weekly' } as const
 
 /** GitHub+ home: a dashboard of the local repos you've opened, laid out like a code host's home page. */
 export default function Welcome() {
-  const { open, pick, error, recents, forget, initOffer, settings, saveSettings } = useRepo()
+  const { open, pick, error, recents: opened, linked, forget, initOffer, settings, saveSettings } = useRepo()
   const nav = useNavigate()
   const [filter, setFilter] = useState('')
   const [showAll, setShowAll] = useState(false)
+  // Opened repos first, then repos other MonoRail apps created (Jira+), which are always listed.
+  const recents = useMemo(() => [...opened, ...linked.map((l) => l.path).filter((p) => !opened.includes(p))], [opened, linked])
+  const linkedBy = useMemo(() => new Map(linked.map((l) => [l.path, l])), [linked])
   const fetched = useAsync(() => api.getActivity(), [recents.join('\n')])
   useEffect(() => { if (fetched.data) lastActivity = fetched.data }, [fetched.data])
   const activity = { ...fetched, data: fetched.data ?? (fetched.error ? null : lastActivity) }
@@ -37,7 +40,7 @@ export default function Welcome() {
   }
   const openPicker = () => pick().then((ok) => ok && nav('/repo/tree'), () => undefined)
 
-  const nameOf = (p: string) => byPath.get(p)?.name ?? p.split(/[\\/]/).pop() ?? p
+  const nameOf = (p: string) => linkedBy.get(p)?.name ?? byPath.get(p)?.name ?? p.split(/[\\/]/).pop() ?? p
   const shown = recents.filter((p) => !filter || nameOf(p).toLowerCase().includes(filter.toLowerCase()) || p.toLowerCase().includes(filter.toLowerCase()))
   const listed = showAll || filter ? shown : shown.slice(0, SIDEBAR_LIMIT)
 
@@ -87,15 +90,17 @@ export default function Welcome() {
           <ul className="repo-list">
             {listed.map((p) => {
               const r = byPath.get(p)
+              const l = linkedBy.get(p)
               return (
                 <li key={p} className="repo-item">
                   <button className="repo-link" title={p} onClick={() => openAt(p, () => '/repo/tree')}>
                     <span className={`repo-dot${r?.error ? ' missing' : ''}`}><RepoIcon /></span>
                     <span className="ellipsis">{nameOf(p)}</span>
+                    {l && <span className="badge" title={`Created by ${l.label}. Always listed while it exists.`}>{l.label}</span>}
                     {r?.error && <span className="badge">{/not inside a git repository/.test(r.error) ? 'not a repo' : 'unavailable'}</span>}
                   </button>
                   {!r?.error && <button className="icon-btn folder-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => api.openInExplorer(p).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))}><FolderIcon /></button>}
-                  <button className="icon-btn" title="Remove from recent repositories" aria-label={`Remove ${nameOf(p)} from recent repositories`} onClick={() => forget(p)}>×</button>
+                  {!l && <button className="icon-btn" title="Remove from recent repositories" aria-label={`Remove ${nameOf(p)} from recent repositories`} onClick={() => forget(p)}>×</button>}
                 </li>
               )
             })}

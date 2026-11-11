@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
 
 /** Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call stays on this machine. */
 export interface RepoApi {
@@ -15,7 +15,9 @@ export interface RepoApi {
   saveSettings(settings: GitHubPlusSettings): Promise<GitHubPlusSettings>
   /** Recently opened repo paths, newest first. Kept in the app's AppData folder. */
   getRecents(): Promise<string[]>
-  /** Home dashboard: activity across the recently opened repos. */
+  /** Repos other MonoRail apps created (Jira+'s private projects), listed without being opened first. */
+  getLinked(): Promise<LinkedRepo[]>
+  /** Home dashboard: activity across the recently opened repos and the linked ones. */
   getActivity(): Promise<RepoActivity[]>
   removeRecent(path: string): Promise<string[]>
   /** Show the repo's folder in File Explorer (an opened or recent repo only). */
@@ -70,6 +72,7 @@ const desktopApi: RepoApi = {
   getSettings: () => call('getSettings'),
   saveSettings: (settings) => call('saveSettings', { settings }),
   getRecents: () => call('getRecents'),
+  getLinked: () => call('getLinked'),
   getActivity: () => call('getActivity'),
   removeRecent: (path) => call('removeRecent', { path }),
   openInExplorer: (path) => call('openInExplorer', { path }),

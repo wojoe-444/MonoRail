@@ -443,13 +443,17 @@ repositories (code, README, file viewer, history, commits with diffs,
 branches, compare). Its backend (`electron/apps/github-plus/git.cjs`) only
 runs the local `git` CLI, validates refs and paths from the renderer, disables
 repo-configured textconv/external diff, and only serves repos the user opened.
-Recent repo paths are kept in its data folder, never in the repo. It makes no
+Recent repo paths are kept in its data folder, never in the repo. Repos other
+MonoRail apps create are listed with them automatically (`linked.cjs`): so
+far Jira+'s private projects repo (found with `resolveJiraDataDir`, shown as
+"Jira+ projects" with a Jira+ badge, not removable, never written to
+`recents.json` until opened). It is not added to Chat's allowed folders. It makes no
 network requests: remote images in READMEs are blocked and external links do
 nothing. Tests live in `git.test.cjs`.
 
 GitHub+ can show a repo's folder in File Explorer (repo header button and
 the home page's repo list, `openInExplorer`): only for a repo opened this
-session or on its recents list, only a directory (`shell.openPath` would run a
+session, on its recents list or linked, only a directory (`shell.openPath` would run a
 file).
 
 GitHub+ speed: starting a git process is the costly part (on Windows most of

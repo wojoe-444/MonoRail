@@ -7,6 +7,20 @@ export interface RepoInfo {
   isEmpty: boolean
   /** Branch shown by default: current branch, else main/master, else first branch. */
   defaultRef: string | null
+  /** Set when another MonoRail app created this repo (e.g. Jira+'s private projects). */
+  linked?: LinkedSource
+}
+
+/** Which MonoRail app created a repo, for its badge. */
+export interface LinkedSource {
+  app: string
+  label: string
+}
+
+/** A repo another MonoRail app created, listed in GitHub+ without being opened first. */
+export interface LinkedRepo extends LinkedSource {
+  path: string
+  name: string
 }
 
 export interface RefInfo {
@@ -170,6 +184,8 @@ export interface RepoActivity {
   isEmpty?: boolean
   /** Set when the repo could not be read (moved, deleted, no longer a repo). */
   error?: string
+  /** Set when another MonoRail app created this repo (e.g. Jira+'s private projects). */
+  linked?: LinkedSource
   /** Newest commits on any branch. */
   commits: CommitSummary[]
   /** Most recently updated branches. */
