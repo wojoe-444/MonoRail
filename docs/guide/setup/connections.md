@@ -5,10 +5,13 @@ summary: Sign MonoRail in to Claude, GitHub, Jira, Google Cloud, pi and more, in
 
 # Connect your accounts
 
-**Configure > Connections** is the one place MonoRail signs in to the
+**Settings > Connections** is the one place MonoRail signs in to the
 services it works with. Each [connection](../glossary.md#connection) is a
-card that shows whether it still works, with a button to sign in again when
-it doesn't.
+row in one table: whether it still works, which account it uses, what in
+MonoRail uses it and when it was last checked, with a button to sign in again
+when it doesn't. Click a row to see everything the check found. A connection
+that stops working is also listed on the Settings home page (see
+[finding your way around Settings](README.md#finding-your-way-around-settings)).
 
 ## Nothing runs until you add it
 

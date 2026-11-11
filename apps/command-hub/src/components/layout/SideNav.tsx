@@ -15,6 +15,8 @@ import { BrandTile } from '@/components/layout/BrandMark'
 import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
+import { useSettingsAlerts } from '@/modules/settings/alerts'
+
 import { useNavSections, type NavItem } from './nav'
 import { prefs } from '@/lib/prefs'
 
@@ -39,6 +41,10 @@ interface SideNavProps {
  */
 export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
   const navSections = useNavSections()
+  const mainSections = navSections.filter((s) => !s.pinned)
+  const settings = navSections.find((s) => s.pinned)?.items[0]
+  const inSettings = !!settings && (current === settings.path || !!settings.children?.some((c) => c.path === current))
+  const { alerts } = useSettingsAlerts()
   return (
     <aside
       data-slot="sidebar"
@@ -64,7 +70,7 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label="Main">
-        {navSections.map((section, i) => (
+        {mainSections.map((section, i) => (
           <div key={section.heading ?? i} className={cn(i > 0 && 'mt-4')}>
             {section.heading && !collapsed && (
               <div className="flex h-8 items-center px-3 text-[11px] font-semibold tracking-wider text-sidebar-muted-foreground uppercase">
@@ -86,6 +92,19 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
           </div>
         ))}
       </nav>
+
+      {settings && (
+        // Settings: one button pinned above the footer. Its pages (Connections,
+        // Agent access, Extensions, ...) have their own menu on the Settings page.
+        <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
+          <NavButton
+            item={{ ...settings, children: undefined, badge: alerts.length ? String(alerts.length) : undefined }}
+            current={inSettings ? settings.path : current}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+        </div>
+      )}
 
       {!collapsed && (
         <div className="flex items-center justify-between border-t border-sidebar-border p-4 text-xs text-sidebar-muted-foreground">
@@ -116,7 +135,7 @@ function NavButton({
       onClick={() => onNavigate(item.path)}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        'relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         collapsed && 'justify-center px-0',
         active
           ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
@@ -124,6 +143,7 @@ function NavButton({
       )}
     >
       <Icon className="size-4 shrink-0" />
+      {collapsed && item.badge && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-warning" aria-label={`${item.badge} need attention`} />}
       {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
       {!collapsed && item.badge && (
         <span

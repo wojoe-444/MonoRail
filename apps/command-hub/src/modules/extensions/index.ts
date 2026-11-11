@@ -13,7 +13,7 @@ export const extensionsModule: ModuleDefinition = {
   description: 'Add modules and apps built in other repositories, and control what they may access.',
   icon: Puzzle,
   path: '/settings/extensions',
-  nav: { section: 'Configure', order: 850 },
+  nav: { section: 'Settings', group: 'Accounts & access', order: 120 },
   component: lazy(() => import('./ExtensionsPage')),
   dataMethods: ['list', 'inspect', 'confirm', 'cancel', 'uninstall', 'setEnabled', 'approve', 'reload', 'checkUpdates', 'stageUpdate', 'revokeFolder', 'logs', 'openFolder', 'requestFolder', 'openExternal'],
 }

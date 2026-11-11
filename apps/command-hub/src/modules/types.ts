@@ -35,6 +35,13 @@ export interface ModuleDefinition {
     badge?: string
     /** Path of a nav item to nest under as a subpage (e.g. "/agents"). Falls back to the section if missing. */
     parent?: string
+    /**
+     * Settings pages only (`section: 'Settings'`): the heading they are listed
+     * under in the Settings menu, e.g. "App" or "Accounts & access". Settings
+     * pages are not drawn in the drawer; the one Settings button at its bottom
+     * opens them (src/modules/settings/SettingsLayout.tsx).
+     */
+    group?: string
   }
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType

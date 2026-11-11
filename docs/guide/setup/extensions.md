@@ -12,7 +12,7 @@ repositories, by anyone.
 
 ## Install one
 
-Open **Configure > Extensions** and choose where it comes from:
+Open **Settings > Extensions** and choose where it comes from:
 
 - a GitHub repository (MonoRail fetches its latest release),
 - a `.zip` file, or

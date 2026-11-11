@@ -252,7 +252,7 @@ settings overlay disables bypass mode; never weaken either. A continued chat
 runs only in its own folder, re-checked against the allowed folders. The
 running cost total per session is kept in `costs.json` in the module's data
 folder (numbers only) so a resumed turn's own cost can be worked out.
-**Spending limit** (Settings card `src/components/spending/SpendingCard.tsx`,
+**Spending limit** (Settings > General card `src/components/spending/SpendingCard.tsx`,
 self-contained so it can move; Chat's meter and banner in
 `SpendingNotice.tsx`; backend `agent-chat-spending.cjs`; guide
 `docs/guide/setup/spending-limit.md`): off by default. When on, a daily and/or
@@ -392,7 +392,7 @@ markup, so only repo-authored strings may go into it, never agent or user text.
 Shown on Agents definitions, Chat's Agent/Task tool rows and the Coordinator
 entry; Agents > Characters is the gallery.
 
-`connections` (**Connections**, under Configure) is the one place for the
+`connections` (**Connections**, a Settings page) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
 `ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
@@ -444,7 +444,7 @@ the login mode and ChatGPT plan claim; a keyring login is reported, not read.
 The one request, `GET /v1/models`, is the user's "Test API key" action (result
 kept in memory, keyed by a hash of the key). Connectors must not probe for
 accounts the user has not added. Connectors may be **subconnectors**
-(`parent: '<kind>'`), drawn inside the parent's card under "Add-ons". The
+(`parent: '<kind>'`), drawn as indented rows under the parent's row ("Add-on"). The
 first is **pi > Playwright browser** (`connectors/pi-playwright.cjs`): pi's
 `pi-playwright` skill package drives the user's own Chrome or Edge tabs via
 `@playwright/cli attach --extension`, which opens the Playwright Extension's
@@ -469,7 +469,7 @@ reports the version, global `user.name` / `user.email` and the credential
 helper's name; it never runs `git credential`. Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
-`mcp` (**Agent access**, under Configure) shows how to connect agents to
+`mcp` (**Agent access**, a Settings page) shows how to connect agents to
 MonoRail's **MCP server** (`electron/mcp`, docs: `docs/mcp.md`). Agents start
 it as `MonoRail.exe --mcp`: `main.cjs` then opens no window and runs
 `electron/mcp/server.cjs` in `ELECTRON_RUN_AS_NODE` mode with stdio inherited
@@ -548,6 +548,28 @@ the next start), a blank new note is never committed, and a note's file
 follows its title only until its first commit. The repo never gets a remote.
 GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
 item (`notes`, bundle).
+
+**Settings** is a group of pages behind one button pinned to the bottom of
+the drawer (above the version footer; amber count = alerts). Every module
+with `nav.section: 'Settings'` is a Settings page: it is not listed in the
+drawer, `nav.group` names its heading in the Settings menu ("App": General
+`/settings/general` (the `settings` module, updates, about, profile,
+Developer Mode), Appearance, Backups; "Accounts & access": Connections,
+Agent access, Extensions), and `App.tsx` wraps it in
+`src/modules/settings/SettingsLayout.tsx` (menu plus search). `/settings` is
+the Settings **Home** (`SettingsHomePage.tsx`): only alerts, usually "Nothing
+needs you". Alerts (`alerts.ts`, one shared store) are read from what
+MonoRail already knows and never start a check: the `connections.summary`
+file (so connectors that are not set up are never looked at), the update
+state, global backups' last results and extensions waiting for approval or
+broken; read on start, on focus (at most once a minute), every 5 minutes and
+on `refreshSettingsAlerts()`. Search (`search.ts`) finds every Settings page
+by title and description plus the entries in `SEARCH_ENTRIES` (cards and
+options, with an element id to scroll to); add one when you add a card or an
+option to a Settings page. Ctrl+K focuses it. Connections is a table (one row
+per connector, subconnectors indented under their parent; columns drop out
+as the card narrows via container queries) whose rows open to show the
+check's details, actions and running sign-ins.
 
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as

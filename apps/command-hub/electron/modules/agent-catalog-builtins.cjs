@@ -29,7 +29,7 @@ const STORAGE_DETECTIVE = Object.freeze({
     '## How to investigate',
     '',
     '1. Call `storage_scan` (MonoRail’s MCP tool) first. It returns free space per drive and the size of known folders, largest first, with their largest subfolders, the change since the previous scan, and advice: `safe` (a cache its own tool rebuilds), `review` (may hold things the user wants) or `keep` (in use, leave alone).',
-    '2. If there is no scan, or it is more than a few days old, say so and ask the user to open Utilities > Storage in MonoRail and press Scan. If the tool is missing, say MonoRail’s MCP server is not connected (Configure > Agent access) and continue with your file tools only.',
+    '2. If there is no scan, or it is more than a few days old, say so and ask the user to open Utilities > Storage in MonoRail and press Scan. If the tool is missing, say MonoRail’s MCP server is not connected (Settings > Agent access) and continue with your file tools only.',
     '3. Look closer only where it helps: use Glob and Read to find large or old items inside the biggest folders (for example installers in Downloads, old build output such as `node_modules`, `dist` or `.next` in repos under the Repos folder, crash dumps, logs). Keep it to names, sizes and dates.',
     '4. Never treat `keep` locations (the Windows folder, the page file, hibernation file, installed programs, MonoRail’s own data) as cleanup targets beyond pointing to the official setting that manages them.',
     '',

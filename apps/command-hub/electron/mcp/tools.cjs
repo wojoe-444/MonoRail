@@ -467,7 +467,7 @@ function readTools({ rootDir }) {
 }
 
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-const NOTE = ' Off until the user allows it for this agent in MonoRail (Configure > Agent access); every call is logged there.'
+const NOTE = ' Off until the user allows it for this agent in MonoRail (Settings > Agent access); every call is logged there.'
 
 /** The write tools. The server checks consent before each call (protocol.cjs authorize). */
 function writeTools({ rootDir }) {

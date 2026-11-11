@@ -14,7 +14,7 @@ import { useClaudeAccount } from '@/modules/connections/account'
 import { allowOneMoreTurn, formatLimit, formatMoney, resetSpending, saveSpending, useSpending, type LiveSpending, type SpendingMeter, type SpendingSettings } from './spending'
 
 /**
- * Settings > Spending limit (docs/guide/setup/spending-limit.md). Off by
+ * Settings > General > Spending limit (docs/guide/setup/spending-limit.md). Off by
  * default. Self-contained so it can move to any Settings section: it needs no
  * props and reads and saves its own state.
  */

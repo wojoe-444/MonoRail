@@ -7,7 +7,7 @@ summary: Turn on a daily or monthly spending limit for the agent turns MonoRail 
 
 If your Claude login is billed at API prices, every reply an agent writes
 costs money. The spending limit lets you cap what MonoRail itself spends.
-It is **off** until you turn it on in **Settings > Spending limit**. While it
+It is **off** until you turn it on in **Settings > General > Spending limit**. While it
 is off, nothing is counted and nothing changes.
 
 ## Who it is for
@@ -21,7 +21,7 @@ probably don't need it.
 
 ## Setting it up
 
-1. Open **Settings** and turn on **Spending limit**.
+1. Open **Settings > General** and turn on **Spending limit**.
 2. Enter a **daily limit**, a **monthly limit**, or both. Leave a field
    empty for no limit. The daily limit resets at midnight, the monthly one on
    the 1st.

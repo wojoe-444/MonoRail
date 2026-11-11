@@ -31,7 +31,6 @@ export default function McpPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Configure"
         title="Agent access"
         description="Claude Code and other agents can use MonoRail through its MCP server. The agent starts it when it needs it; writes need your OK."
         actions={

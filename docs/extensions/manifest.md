@@ -87,7 +87,7 @@ together must be unique.
 | `description` | string | no | `""` | At most 200 characters. The module page's subtitle, or the app card's text. |
 | `entry` | string | yes | | An HTML file inside `ui`, optionally with a `#hash`: `index.html`, `index.html#/status`. At most 300 characters. Several contributions can share one HTML file and pick their view from the hash. |
 | `icon` | path | no | the extension's icon | Single-color SVG. |
-| `nav.section` | string | no (modules only) | `"Extensions"` | The menu section the module appears under. At most 40 characters. |
+| `nav.section` | string | no (modules only) | `"Extensions"` | The menu section the module appears under. At most 40 characters. `"Settings"` lists the page in the Settings menu (under "More") instead of the drawer. |
 | `nav.order` | number | no (modules only) | `100` | Sort order within the section, lowest first. |
 
 ## MCP tools
@@ -119,7 +119,7 @@ back what it returns, so `mcpTools` needs a `backend`.
 | `inputSchema` | object | no | no arguments | `{ "type": "object", "properties": {...}, "required": [...] }`. Properties are flat and typed (`string`, `integer`, `number`, `boolean`) with optional `description`, `enum`, `minimum`, `maximum`, `maxLength`. At most 20. MonoRail checks every call against it and refuses unknown arguments. |
 
 At most 20 tools. Every extension tool, `write` or not, stays off for each
-agent until the user turns it on under **Configure > Agent access**, and
+agent until the user turns it on under **Settings > Agent access**, and
 every call is logged there. Your backend runs in the MCP server's own
 process when an agent calls it; see
 [`ctx.runningIn`](backend-api.md#when-an-agent-calls-a-tool).
