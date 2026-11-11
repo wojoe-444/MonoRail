@@ -43,15 +43,15 @@ import { formatRelative } from '@/lib/format'
 import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
+import { openWiki } from '@/modules/wiki/store'
 
 import { SettingsDialog } from './SettingsDialog'
 
 const BACKEND = 'extensions'
-const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions/README.md'
 
 /** Shown in the browser dev server, where there is no backend. Fictional. */
 const sampleList: ExtensionList = {
-  apiVersion: '1.0.0',
+  apiVersion: '1.1.0',
   extensions: [
     {
       id: 'hello-monorail',
@@ -222,7 +222,7 @@ export default function ExtensionsPage() {
           </CardContent>
         </Card>
 
-        <AboutCard apiVersion={list.apiVersion || '1.0.0'} />
+        <AboutCard apiVersion={list.apiVersion || '1.1.0'} />
       </div>
 
       <GitHubDialog
@@ -556,7 +556,7 @@ function AboutCard({ apiVersion }: { apiVersion: string }) {
           servers, folders, or programs.
         </p>
         <p>Running programs gives an extension the same access you have, so only approve that for extensions you trust.</p>
-        <Button variant="outline" className="self-start" onClick={() => void invokeModule(BACKEND, 'openExternal', { url: DOCS_URL }).catch(() => {})}>
+        <Button variant="outline" className="self-start" onClick={() => openWiki('extensions/README')}>
           <Code2 /> Build an extension
         </Button>
       </CardContent>

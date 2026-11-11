@@ -454,6 +454,14 @@ troubleshooting; plans only in roadmap.md). Reference pages describe what the
 code does today: update them in the same PR as any change to the manifest,
 `ctx`, the bridge, permissions or error codes.
 
+`wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
+is bundled at build time (`import.meta.glob` `?raw` in
+`src/modules/wiki/content.ts`, so it is offline and matches the installed
+version). Links between docs open in the wiki, other repo paths open on
+GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
+there. Open a page from elsewhere with `openWiki(id, anchor)` from
+`modules/wiki/store.ts`.
+
 ## Design guidance
 
 The visual direction is **the Bot Dashboard from `wojoe-444/MC-Player`**

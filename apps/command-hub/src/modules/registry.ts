@@ -3,6 +3,7 @@ import { claudeStatsModule } from './claude-stats'
 import { connectionsModule } from './connections'
 import { extensionsModule } from './extensions'
 import { settingsModule } from './settings'
+import { wikiModule } from './wiki'
 import { extensionModules } from '@/extensions/contributions'
 import { getExtensionList } from '@/extensions/store'
 import type { ExtensionList } from '@/extensions/types'
@@ -10,7 +11,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [agentChatModule, claudeStatsModule, connectionsModule, extensionsModule, settingsModule]
+export const modules: ModuleDefinition[] = [agentChatModule, claudeStatsModule, connectionsModule, extensionsModule, settingsModule, wikiModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()
