@@ -1,40 +1,65 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
+import { DEFAULT_PALETTE, findPalette, tokens } from './palettes'
+
 /**
- * Light / dark theme for the whole app, apps included. Light is the default;
- * the choice is remembered in localStorage (inside the app's AppData folder in
- * Electron). The theme is applied as the `dark` class on <html>, which the
- * Tailwind tokens and app stylesheets key off.
+ * Appearance for the whole app, apps included: a color scheme (palette, see
+ * `palettes.ts`) plus light / dark mode. Light mode and "Sand & Ink" are the
+ * defaults. Both are remembered in localStorage (inside the app's AppData
+ * folder in Electron). Mode is applied as the `dark` class on <html>, which
+ * the Tailwind tokens and app stylesheets key off; the palette is applied by
+ * writing its tokens as CSS variables on <html>.
  */
 export type Theme = 'light' | 'dark'
 
-const KEY = 'commandHub.theme'
+const MODE_KEY = 'commandHub.theme'
+const PALETTE_KEY = 'commandHub.palette'
 const listeners = new Set<() => void>()
 
-function read(): Theme {
+function readItem(key: string): string | null {
   try {
-    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light'
+    return localStorage.getItem(key)
   } catch {
-    return 'light'
+    return null
   }
 }
 
-let theme: Theme = read()
-
-function apply() {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-}
-apply()
-
-export function setTheme(next: Theme) {
-  theme = next
+function writeItem(key: string, value: string) {
   try {
-    localStorage.setItem(KEY, next)
+    localStorage.setItem(key, value)
   } catch {
     /* storage unavailable: keep it for this session */
   }
+}
+
+let theme: Theme = readItem(MODE_KEY) === 'dark' ? 'dark' : 'light'
+let palette: string = findPalette(readItem(PALETTE_KEY) ?? DEFAULT_PALETTE).id
+
+function apply() {
+  const root = document.documentElement
+  root.classList.toggle('dark', theme === 'dark')
+  root.dataset.palette = palette
+  for (const [k, v] of Object.entries(tokens(findPalette(palette), theme === 'dark'))) {
+    root.style.setProperty(`--${k}`, v)
+  }
+}
+apply()
+
+function emit() {
   apply()
   listeners.forEach((l) => l())
+}
+
+export function setTheme(next: Theme) {
+  theme = next
+  writeItem(MODE_KEY, next)
+  emit()
+}
+
+export function setPalette(id: string) {
+  palette = findPalette(id).id
+  writeItem(PALETTE_KEY, palette)
+  emit()
 }
 
 function subscribe(l: () => void) {
@@ -42,9 +67,15 @@ function subscribe(l: () => void) {
   return () => listeners.delete(l)
 }
 
-/** Current theme and a toggle. */
+/** Current mode and a toggle. */
 export function useTheme(): [Theme, () => void] {
   const t = useSyncExternalStore(subscribe, () => theme, () => 'light' as Theme)
   const toggle = useCallback(() => setTheme(theme === 'dark' ? 'light' : 'dark'), [])
   return [t, toggle]
+}
+
+/** Current palette id and a setter. */
+export function usePalette(): [string, (id: string) => void] {
+  const p = useSyncExternalStore(subscribe, () => palette, () => DEFAULT_PALETTE)
+  return [p, setPalette]
 }

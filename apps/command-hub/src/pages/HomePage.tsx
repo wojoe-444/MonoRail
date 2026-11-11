@@ -1,10 +1,8 @@
 import {
-  Activity,
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   Bot,
-  CheckCircle2,
   FolderGit2,
   Plus,
   Play,
@@ -12,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { Sparkline } from '@/components/charts/Sparkline'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,15 +38,17 @@ interface Stat {
   label: string
   value: string
   delta: string
-  icon: LucideIcon
-  iconClass: string
+  /** Whether the delta reads as good (green) or worth a look (amber). */
+  good: boolean
+  /** Fictional last-7-days trend for the sparkline. */
+  spark: number[]
 }
 
 const stats: Stat[] = [
-  { label: 'Agents', value: '4', delta: '1 added this week', icon: Bot, iconClass: 'bg-primary-soft text-primary-soft-foreground' },
-  { label: 'Running now', value: '1', delta: '3 idle or paused', icon: Activity, iconClass: 'bg-highlight-soft text-highlight-soft-foreground' },
-  { label: 'Runs today', value: '27', delta: '+12% vs. yesterday', icon: CheckCircle2, iconClass: 'bg-success-soft text-success-soft-foreground' },
-  { label: 'Needs attention', value: '1', delta: 'Inbox Digest', icon: AlertTriangle, iconClass: 'bg-destructive-soft text-destructive-soft-foreground' },
+  { label: 'Agents', value: '4', delta: '+1 this week', good: true, spark: [3, 3, 3, 3, 3, 4, 4] },
+  { label: 'Runs today', value: '27', delta: '+12% vs. yesterday', good: true, spark: [18, 21, 17, 22, 19, 24, 27] },
+  { label: 'Success rate (7d)', value: '94%', delta: '+2 pts', good: true, spark: [90, 91, 89, 92, 93, 92, 94] },
+  { label: 'Needs attention', value: '1', delta: 'Inbox Digest', good: false, spark: [0, 0, 1, 0, 0, 2, 1] },
 ]
 
 function greeting() {
@@ -78,22 +79,31 @@ export function HomePage() {
         }
       />
 
-      {/* Stat tiles: 4-up on desktop, 2-up on tablet (MUI Grid xs=12 sm=6 lg=3) */}
+      {/* KPI tiles: 4-up on desktop, 2-up on tablet */}
       <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="gap-0 py-5">
-            <CardContent className="flex items-start justify-between gap-4 px-5">
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">{s.label}</div>
-                <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{s.value}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{s.delta}</div>
+        {stats.map((s) => {
+          const Arrow = s.good ? ArrowUpRight : AlertTriangle
+          return (
+            <Card key={s.label} className="gap-0 p-4">
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{s.label}</span>
+                  <span className="text-3xl font-semibold tracking-tight tabular-nums">{s.value}</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-xs font-medium',
+                      s.good ? 'text-success' : 'text-warning-soft-foreground',
+                    )}
+                  >
+                    <Arrow className="size-3.5" />
+                    {s.delta}
+                  </span>
+                </div>
+                <Sparkline data={s.spark} className={s.good ? 'text-success' : 'text-warning'} />
               </div>
-              <div className={cn('flex size-10 items-center justify-center rounded-lg', s.iconClass)}>
-                <s.icon className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          )
+        })}
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -197,7 +207,7 @@ export function HomePage() {
       </section>
 
       <Separator />
-      <footer className="pb-2 text-xs text-muted-foreground">MonoRail · v0.1.0</footer>
+      <footer className="pb-2 text-xs text-muted-foreground">MonoRail · v{__APP_VERSION__}</footer>
     </div>
   )
 }

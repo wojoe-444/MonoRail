@@ -11,7 +11,6 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
 import { useRoute } from '@/lib/router'
-import { useTheme } from '@/lib/theme'
 import { findModuleByPath } from '@/modules/registry'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -36,10 +35,10 @@ function RouteView({ path, navItems }: { path: string; navItems: NavItem[] }) {
 export default function App() {
   const [path, navigate] = useRoute()
   const extensionList = useExtensionList()
-  const navItems = useNavSections().flatMap((s) => s.items)
+  const navSections = useNavSections()
+  const navItems = navSections.flatMap((s) => s.items)
   const activeApp = findAppByPath(path, extensionList)
   const [collapsed, setCollapsed] = useState(false)
-  const [theme, toggleTheme] = useTheme()
 
   // Remember the hub page, so leaving an app comes back to it.
   useEffect(() => {
@@ -56,6 +55,7 @@ export default function App() {
   )
 
   const current = navItems.find((i) => i.path === path)
+  const section = navSections.find((s) => s.items.some((i) => i.path === path))?.heading
 
   if (activeApp) {
     return (
@@ -72,12 +72,16 @@ export default function App() {
           current={path}
           onNavigate={openPath}
           collapsed={collapsed}
-          onToggleCollapsed={() => setCollapsed((c) => !c)}
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-          <TopBar title={current?.label ?? 'Not found'} dark={theme === 'dark'} onToggleDark={toggleTheme} />
-          {/* Content container: MUI Container maxWidth="xl" with 24/32px gutters */}
-          <main className="mx-auto w-full max-w-[1440px] px-6 py-8 lg:px-8">
+          <TopBar
+            section={section}
+            title={current?.label ?? 'Not found'}
+            collapsed={collapsed}
+            onToggleCollapsed={() => setCollapsed((c) => !c)}
+          />
+          {/* Content container: max 1536px with 24/32px gutters */}
+          <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
             <RouteView path={path} navItems={navItems} />
           </main>
         </div>

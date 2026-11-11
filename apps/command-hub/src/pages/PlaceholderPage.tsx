@@ -7,7 +7,7 @@ export function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title={title} description="This section is not built yet." />
-      <Card className="border-dashed shadow-none">
+      <Card className="border border-dashed ring-0">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <div className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
             <Construction className="size-6" />
