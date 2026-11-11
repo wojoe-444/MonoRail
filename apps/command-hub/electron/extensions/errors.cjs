@@ -26,6 +26,7 @@ const ERROR_CODES = {
   EXT_FS_DENIED: 'Reading or writing a file outside the folders the extension may use.',
   EXT_SECRETS_UNAVAILABLE: 'The operating system offers no encryption, so secrets cannot be stored.',
   EXT_INVALID_SECRET: 'A secret name or value that breaks the rules (name: 1-100 of A-Z a-z 0-9 . _ -; value: a string up to 64 KB).',
+  EXT_INVALID_SETTINGS: 'A settings value that does not fit the field declared in the manifest (details.field names it).',
   EXT_HOST_ERROR: 'MonoRail could not complete a request from the backend.',
 }
 

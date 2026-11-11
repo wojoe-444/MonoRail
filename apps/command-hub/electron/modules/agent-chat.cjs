@@ -19,6 +19,7 @@ const crypto = require('node:crypto')
 const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, real } = require('./agent-chat-folders.cjs')
 const options = require('./agent-chat-options.cjs')
 const turnsApi = require('./agent-chat-turns.cjs')
+const chatState = require('./agent-chat-state.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -197,8 +198,9 @@ function claudeUserText(d) {
 }
 
 function claudeMeta(entries) {
-  const meta = { cwd: undefined, branch: undefined, model: undefined, title: undefined, prompt: undefined, start: undefined }
+  const meta = { cwd: undefined, branch: undefined, model: undefined, title: undefined, prompt: undefined, start: undefined, entrypoint: undefined }
   for (const d of entries) {
+    if (typeof d.entrypoint === 'string') meta.entrypoint ??= d.entrypoint
     // "summary" lines can describe other sessions (they point at a leafUuid), so only titles the user set count.
     if (d.type === 'custom-title' && d.customTitle) meta.title = d.customTitle
     meta.start ??= toMs(d.timestamp)
@@ -415,6 +417,9 @@ async function summarizeFile(source, root, file, stat) {
     startedAt: meta.start ?? stat.birthtimeMs ?? stat.mtimeMs,
     updatedAt: stat.mtimeMs,
     sizeBytes: stat.size,
+    // Claude Code records how a session was started: "cli" is a person at a
+    // terminal; "sdk-*" is a script, a scheduled task or another app.
+    headless: typeof meta.entrypoint === 'string' && meta.entrypoint.startsWith('sdk'),
   }
   // pi's total needs the whole file; past the history limit it is unknown here.
   if (source === 'pi' && stat.size <= HISTORY_BYTES) summary.spentUsd = piSpend(parseLines(await fs.promises.readFile(file, 'utf8')))
@@ -481,9 +486,20 @@ async function listSessions(opts = {}) {
     byId.set(s.id, { ...s, repo: { name: repo.name, path: repo.path } })
   }
   const costs = opts.dataDir ? readCosts(opts.dataDir) : {}
+  const state = opts.dataDir ? chatState.read(opts.dataDir) : { since: 0, chats: {} }
   const sessions = [...byId.values()]
     .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map(({ spentUsd: _s, ...s }) => ({ ...s, total: chatTotal({ ...s, spentUsd: _s }, costs) }))
+    .map(({ spentUsd: _s, headless, ...s }) => {
+      const f = chatState.flags(state, s.id, s.updatedAt)
+      return {
+        ...s,
+        total: chatTotal({ ...s, spentUsd: _s }, costs),
+        unread: f.unread,
+        archived: f.archived,
+        // Run without a person, and not started from this page.
+        scheduled: !!headless && !f.startedHere,
+      }
+    })
   return {
     sources,
     sessions: sessions.slice(0, LIST_KEEP),
@@ -677,7 +693,10 @@ async function startTurn(ctx, args = {}) {
       worker: { job, cwd, root, sessionFile, sdkEntry: piSdk.entry },
       meta: { sdk: 'pi', model: job.model, mode: job.mode, resume: sessionFile ? chatKey.slice('pi:'.length) : undefined },
       // pi logs a cost on every model call, so a turn's cost is exact.
-      onFinish: (turn) => (typeof turn.result?.costUsd === 'number' ? [{ t: 'cost', turnUsd: turn.result.costUsd, exact: true }] : []),
+      onFinish: (turn) => {
+        if (turn.sessionId && !sessionFile) chatState.markStartedHere(ctx.dataDir, `pi:${turn.sessionId}`)
+        return typeof turn.result?.costUsd === 'number' ? [{ t: 'cost', turnUsd: turn.result.costUsd, exact: true }] : []
+      },
     })
   }
 
@@ -688,6 +707,7 @@ async function startTurn(ctx, args = {}) {
     worker: { job, cwd, resume, executable },
     meta: { sdk: 'claude', model: job.model, mode: job.mode, resume },
     onFinish: (turn) => {
+      if (turn.sessionId && !resume) chatState.markStartedHere(ctx.dataDir, `claude:${turn.sessionId}`)
       const r = turn.result
       if (!r || typeof r.costUsd !== 'number' || !turn.sessionId) return []
       const costs = readCosts(ctx.dataDir)
@@ -718,6 +738,16 @@ module.exports = {
     stopTurn: async (_ctx, args) => turnsApi.stopTurn(args?.turnId),
     runningTurn: async (_ctx, args) => (typeof args?.chatId === 'string' ? (turnsApi.runningTurnFor(args.chatId) ?? null) : null),
     listSessions: async (ctx) => listSessions({ dataDir: ctx.dataDir }),
+    /** List flags live in a record file in the data folder, never in a transcript. */
+    markSeen: async (ctx, args) => {
+      chatState.markSeen(ctx.dataDir, args?.id)
+    },
+    setUnread: async (ctx, args) => {
+      chatState.setUnread(ctx.dataDir, args?.id, !!args?.unread)
+    },
+    setArchived: async (ctx, args) => {
+      chatState.setArchived(ctx.dataDir, args?.id, !!args?.archived)
+    },
     getSession: async (ctx, args) => getSession(args?.id, { dataDir: ctx.dataDir }),
     getFolders: async (ctx) => {
       const f = await allowedRepos(ctx.dataDir)

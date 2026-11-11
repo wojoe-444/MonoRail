@@ -188,7 +188,7 @@ test('pi jobs are checked against the pi model list', () => {
 })
 
 test('pi paths must resolve inside the repo, links included', async () => {
-  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pi-guard-')))
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'pi-guard-')))
   const repo = path.join(base, 'repo')
   fs.mkdirSync(path.join(repo, 'src'), { recursive: true })
   fs.writeFileSync(path.join(base, 'secret.txt'), 'x')

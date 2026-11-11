@@ -13,12 +13,13 @@
 // Protocol with the host (process IPC, JSON):
 //   host -> child  { type: 'init', extension, main, dataDir, extensionDir, folders, permissions, previousVersion }
 //   child -> host  { type: 'migrated', version }       (after migrate() succeeded, before start())
-//   child -> host  { type: 'ready', methods } | { type: 'fatal', error }
+//   child -> host  { type: 'ready', methods, hooks } | { type: 'fatal', error }
 //   host -> child  { type: 'invoke', id, method, args }
 //   child -> host  { type: 'result', id, ok, value | error }   error = { code, message, details? }
 //   child -> host  { type: 'emit', channel, payload }  (pushed to the extension's open pages)
-//   child -> host  { type: 'host', id, op, args }      (ctx.secrets: op = 'secrets.get' | ...)
+//   child -> host  { type: 'host', id, op, args }      (op = 'secrets.get' | ... | 'settings.get')
 //   host -> child  { type: 'hostResult', id, ok, value | error }
+//   host -> child  { type: 'settings', values }    (settings saved; calls settingsChanged)
 //   host -> child  { type: 'stop' }
 //
 // Error codes the runtime itself produces start with EXT_ (see ERROR_CODES in
@@ -274,6 +275,7 @@ function makeCtx(init) {
     emit(channel, payload) {
       if (typeof channel !== 'string' || !channel || channel.length > 100)
         throw codedError('EXT_BAD_PAYLOAD', 'emit(channel, payload) needs a channel name (1-100 characters)')
+      if (channel.startsWith('monorail.')) throw codedError('EXT_BAD_PAYLOAD', 'Channels starting with "monorail." are reserved for MonoRail')
       if (jsonSize(payload, 'An event payload') > MAX_PAYLOAD) throw codedError('EXT_BAD_PAYLOAD', 'An event payload must be under 1 MB')
       send({ type: 'emit', channel, payload: payload === undefined ? null : payload })
     },
@@ -293,6 +295,10 @@ function makeCtx(init) {
       set: (name, value) => hostCall('secrets.set', { name, value }),
       delete: (name) => hostCall('secrets.delete', { name }),
       list: () => hostCall('secrets.list', {}),
+    }),
+    /** Values of the settings declared in monorail.json (secrets decrypted; defaults filled in). */
+    settings: Object.freeze({
+      get: () => hostCall('settings.get', {}),
     }),
   })
 }
@@ -314,7 +320,11 @@ async function init(msg) {
     send({ type: 'migrated', version: ctx.extension.version })
   }
   if (typeof backend.start === 'function') await backend.start(ctx)
-  send({ type: 'ready', methods: Object.keys(backend.methods).filter((k) => typeof backend.methods[k] === 'function') })
+  send({
+    type: 'ready',
+    methods: Object.keys(backend.methods).filter((k) => typeof backend.methods[k] === 'function'),
+    hooks: { settingsChanged: typeof backend.settingsChanged === 'function' },
+  })
 }
 
 async function invoke(msg) {
@@ -348,6 +358,10 @@ process.on('message', (msg) => {
   })
   else if (msg.type === 'invoke') void invoke(msg)
   else if (msg.type === 'hostResult') onHostResult(msg)
+  else if (msg.type === 'settings' && backend && typeof backend.settingsChanged === 'function')
+    Promise.resolve()
+      .then(() => backend.settingsChanged(ctx, msg.values))
+      .catch((err) => send({ type: 'log', level: 'error', line: `settingsChanged failed: ${err?.stack ?? err}` }))
   else if (msg.type === 'stop') void stop()
 })
 

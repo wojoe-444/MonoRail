@@ -107,6 +107,7 @@ function normalizePermissions(p = {}) {
  * @param {{ path: string, write: boolean }[]} [opts.folders] folders "the user picked"
  * @param {Record<string, string>} [opts.secrets] secrets stored beforehand
  * @param {boolean} [opts.secretsAvailable] false simulates a computer without encryption
+ * @param {Record<string, unknown>} [opts.settings] values "the user entered" (defaults come from manifest.settings)
  */
 export function createTestContext(opts = {}) {
   const m = opts.manifest ?? {}
@@ -118,7 +119,16 @@ export function createTestContext(opts = {}) {
     /** @type {Map<string, string>} */ secrets: new Map(Object.entries(opts.secrets ?? {})),
     dataDir,
     ownsDataDir: !opts.dataDir,
+    /** @type {Record<string, unknown>} */ settings: { ...(opts.settings ?? {}) },
   }
+  const settingsValues = () =>
+    Object.fromEntries(
+      (m.settings ?? []).map((f) => [
+        f.key,
+        Object.hasOwn(record.settings, f.key) ? record.settings[f.key] : (f.default ?? (f.type === 'boolean' ? false : null)),
+      ]),
+    )
+  record.settingsValues = settingsValues
   const secretsAvailable = opts.secretsAvailable !== false
   const checkName = (name) => {
     if (typeof name !== 'string' || !SECRET_NAME_RE.test(name))
@@ -138,6 +148,7 @@ export function createTestContext(opts = {}) {
     emit(channel, payload) {
       if (typeof channel !== 'string' || !channel || channel.length > 100)
         throw coded('EXT_BAD_PAYLOAD', 'emit(channel, payload) needs a channel name (1-100 characters)')
+      if (channel.startsWith('monorail.')) throw coded('EXT_BAD_PAYLOAD', 'Channels starting with "monorail." are reserved for MonoRail')
       const { value, size } = roundTrip(payload, 'An event payload')
       if (size > MAX_PAYLOAD) throw coded('EXT_BAD_PAYLOAD', 'An event payload must be under 1 MB')
       record.events.push({ channel, payload: value })
@@ -164,6 +175,11 @@ export function createTestContext(opts = {}) {
       },
       async list() {
         return [...record.secrets.keys()].sort()
+      },
+    }),
+    settings: Object.freeze({
+      async get() {
+        return roundTrip(settingsValues(), 'Settings').value
       },
     }),
   })
@@ -227,6 +243,20 @@ export async function loadBackend(opts = {}) {
         return value
       } catch (err) {
         throw err instanceof MonoRailTestError ? err : toPageError(err)
+      }
+    },
+
+    /**
+     * Simulate the user saving settings: calls settingsChanged(ctx, values)
+     * if the backend has it, else stop() and start() as MonoRail's restart does.
+     */
+    async changeSettings(values) {
+      Object.assign(record.settings, values)
+      const all = record.settingsValues()
+      if (typeof backend.settingsChanged === 'function') await backend.settingsChanged(ctx, all)
+      else {
+        if (typeof backend.stop === 'function') await backend.stop(ctx)
+        if (typeof backend.start === 'function') await backend.start(ctx)
       }
     },
 

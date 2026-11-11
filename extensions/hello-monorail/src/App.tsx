@@ -59,6 +59,15 @@ function HelloPage() {
   const [uptime, setUptime] = useState<number>()
   const [folder, setFolder] = useState<{ path: string; entries: { name: string; dir: boolean }[] }>()
   const [folderError, setFolderError] = useState<string>()
+  const [greeting, setGreeting] = useState('Hello from MonoRail')
+
+  // Settings from monorail.json: read once, then follow changes the user saves.
+  useEffect(() => {
+    if (!monorail.inMonoRail) return
+    const off = monorail.onSettings<{ greeting: string }>((s) => setGreeting(s.values.greeting))
+    monorail.getSettings<{ greeting: string }>().then((s) => setGreeting(s.values.greeting), () => {})
+    return off
+  }, [])
 
   useEffect(() => {
     if (!monorail.inMonoRail) return
@@ -107,6 +116,18 @@ function HelloPage() {
             <dt className="text-muted-foreground">Uptime (live event)</dt>
             <dd className="text-right font-medium tabular-nums">{uptime === undefined ? '–' : `${uptime}s`}</dd>
           </dl>
+        </Card>
+
+        <Card title="Settings" description="Declared in monorail.json; MonoRail draws the form.">
+          <p className="text-lg font-medium">{greeting}</p>
+          <button
+            type="button"
+            onClick={() => void monorail.openSettings()}
+            disabled={!monorail.inMonoRail}
+            className="self-start rounded-md border bg-card px-3 py-2 text-sm font-medium shadow-elevation-1 hover:bg-accent disabled:opacity-50"
+          >
+            Change settings…
+          </button>
         </Card>
 
         <Card title="Folder access" description="Asks you for a folder, then lists it from the backend.">

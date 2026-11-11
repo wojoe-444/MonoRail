@@ -40,9 +40,13 @@ class ExtensionManager {
    * @param {typeof fetch} [opts.fetchImpl]
    * @param {() => void} [opts.onChange] called when the installed set or a status changes
    * @param {import('./secrets.cjs').SecretStore} [opts.secretStore]
+   * @param {import('./settings.cjs').SettingsStore} [opts.settingsStore]
+   * @param {(id: string, values: object) => void} [opts.onSettings] tell open pages that settings changed
    */
-  constructor({ userData, host, fetchImpl = globalThis.fetch, onChange = () => {}, secretStore }) {
+  constructor({ userData, host, fetchImpl = globalThis.fetch, onChange = () => {}, secretStore, settingsStore, onSettings = () => {} }) {
     this.secretStore = secretStore
+    this.settingsStore = settingsStore
+    this.onSettings = onSettings
     this.root = path.join(userData, 'extensions')
     this.dataRoot = path.join(userData, 'extension-data')
     this.stagingRoot = path.join(this.root, '.staging')
@@ -205,6 +209,8 @@ class ExtensionManager {
       folders: e.folders ?? [],
       contributes: m?.contributes ?? { modules: [], apps: [] },
       backend: m?.backend ? { activation: m.backend.activation, ...this.host.status(rec.id) } : undefined,
+      settings: m?.settings ?? [],
+      settingsMissing: m && this.settingsStore ? this.settingsStore.missing(m) : [],
       update: this.updates.get(rec.id),
       dataDir: this.dataDir(rec.id),
       extensionDir: rec.extensionDir,
@@ -345,6 +351,7 @@ class ExtensionManager {
     if (deleteData) {
       fs.rmSync(this.dataDir(id), { recursive: true, force: true })
       this.secretStore?.clear(id)
+      this.settingsStore?.clear(id)
       if (this.state.dataVersions) delete this.state.dataVersions[id]
     }
     delete this.state.extensions[id]
@@ -447,6 +454,35 @@ class ExtensionManager {
     await this.host.stop(id)
     this.onChange()
     return this.summary(this.record(id))
+  }
+
+  // --------------------------------------------------------------- settings --
+
+  /** Settings for the form and for pages: { fields, values, secrets } (secrets: whether each is set). */
+  getSettings(id) {
+    const rec = this.record(id)
+    if (!rec.manifest) throw new Error(rec.error)
+    if (!this.settingsStore) return { fields: [], values: {}, secrets: {} }
+    return { fields: rec.manifest.settings, ...this.settingsStore.publicValues(rec.manifest) }
+  }
+
+  /** Save the form, then tell the backend (settingsChanged, or a restart) and open pages. */
+  async saveSettings(id, input) {
+    const rec = this.record(id)
+    if (!rec.manifest) throw new Error(rec.error)
+    if (!this.settingsStore) throw new Error('Settings are not available')
+    await this.settingsStore.save(rec.manifest, input)
+    if (rec.status === 'active' && rec.manifest.backend) {
+      const handled = await this.host.settingsChanged(id, () => this.settingsStore.backendValues(rec.manifest))
+      if (!handled) {
+        await this.host.stop(id)
+        if (rec.manifest.backend.activation === 'startup') this.host.ensure(this.spec(rec)).catch(() => {})
+      }
+    }
+    const pub = this.settingsStore.publicValues(rec.manifest)
+    this.onSettings(id, pub)
+    this.onChange()
+    return pub
   }
 
   // ---------------------------------------------------------------- backend --
