@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   SendHorizontal,
+  Settings2,
   Sparkles,
   User,
   Wrench,
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { ChatMarkdown } from './ChatMarkdown'
+import { FoldersDialog } from './FoldersDialog'
 import { sampleSessions, sampleTranscripts } from './sample'
 import {
   SOURCE_LABEL,
@@ -57,17 +59,6 @@ function relative(ms: number, now = Date.now()): string {
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function dayGroup(ms: number): string {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  const day = 86_400_000
-  if (ms >= start.getTime()) return 'Today'
-  if (ms >= start.getTime() - day) return 'Yesterday'
-  if (ms >= start.getTime() - 6 * day) return 'Previous 7 days'
-  if (ms >= start.getTime() - 29 * day) return 'Previous 30 days'
-  return 'Older'
-}
-
 function clock(ms?: number): string {
   if (!ms) return ''
   return new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -83,6 +74,7 @@ export default function AgentChatPage() {
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
+  const [foldersOpen, setFoldersOpen] = useState(false)
 
   const sessions = useMemo(() => data?.sessions ?? [], [data])
   const visible = useMemo(() => {
@@ -90,7 +82,7 @@ export default function AgentChatPage() {
     return sessions.filter(
       (s) =>
         (filter === 'all' || s.source === filter) &&
-        (!q || `${s.title} ${s.preview} ${s.project} ${s.model ?? ''} ${s.branch ?? ''}`.toLowerCase().includes(q)),
+        (!q || `${s.title} ${s.preview} ${s.project} ${s.repo.name} ${s.model ?? ''} ${s.branch ?? ''}`.toLowerCase().includes(q)),
     )
   }, [sessions, filter, query])
 
@@ -107,7 +99,7 @@ export default function AgentChatPage() {
       <PageHeader
         eyebrow="Agents"
         title="Chat"
-        description="Every Claude Code and pi session on this machine, read from their local logs."
+        description="Claude Code and pi sessions in your allowed repos, read from their local logs."
         actions={
           <>
             {!desktop && (
@@ -115,6 +107,9 @@ export default function AgentChatPage() {
                 <FlaskConical /> Sample data
               </Badge>
             )}
+            <Button variant="outline" size="sm" onClick={() => setFoldersOpen(true)}>
+              <Settings2 /> Folders
+            </Button>
             {desktop && (
               <Button variant="outline" size="sm" onClick={() => void list.refresh()} disabled={list.fetching}>
                 {list.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
@@ -123,6 +118,14 @@ export default function AgentChatPage() {
             )}
           </>
         }
+      />
+
+      <FoldersDialog
+        open={foldersOpen}
+        onOpenChange={setFoldersOpen}
+        onChanged={() => {
+          if (desktop) void list.refresh()
+        }}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
@@ -169,6 +172,9 @@ export default function AgentChatPage() {
             onSelect={setSelectedId}
             sources={data?.sources}
             filtered={sessions.length > 0}
+            limits={data?.limits}
+            folders={data?.folders}
+            onOpenFolders={() => setFoldersOpen(true)}
           />
         </aside>
 
@@ -200,7 +206,13 @@ function SessionListView({
   onSelect,
   sources,
   filtered,
+  limits,
+  folders,
+  onOpenFolders,
 }: {
+  limits?: SessionList['limits']
+  folders?: SessionList['folders']
+  onOpenFolders: () => void
   sessions: SessionSummary[]
   loading: boolean
   error?: Error
@@ -209,15 +221,16 @@ function SessionListView({
   sources?: SessionList['sources']
   filtered: boolean
 }) {
+  // Grouped by repo. Sessions arrive newest first, so each group and the
+  // group order (by its newest chat) come out newest first too.
   const groups = useMemo(() => {
-    const out: { label: string; items: SessionSummary[] }[] = []
+    const byRepo = new Map<string, { label: string; title: string; items: SessionSummary[] }>()
     for (const s of sessions) {
-      const label = dayGroup(s.updatedAt)
-      const g = out[out.length - 1]
-      if (g?.label === label) g.items.push(s)
-      else out.push({ label, items: [s] })
+      let g = byRepo.get(s.repo.path)
+      if (!g) byRepo.set(s.repo.path, (g = { label: s.repo.name, title: s.repo.path, items: [] }))
+      g.items.push(s)
     }
-    return out
+    return [...byRepo.entries()].map(([key, g]) => ({ key, ...g }))
   }, [sessions])
 
   if (error) {
@@ -236,14 +249,29 @@ function SessionListView({
       </div>
     )
   }
+  if (folders && folders.repoCount === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
+        <FolderGit2 className="size-5" />
+        <p>
+          Chats are only shown for git repos in your Repos folder or repos you add.{' '}
+          {folders.reposRootFound ? 'No repos were found there yet.' : 'The Repos folder was not found.'}
+        </p>
+        <Button variant="outline" size="sm" onClick={onOpenFolders}>
+          <Settings2 /> Choose folders
+        </Button>
+      </div>
+    )
+  }
   if (sessions.length === 0) {
     const missing = sources?.filter((s) => !s.found).map((s) => s.label)
     return (
       <div className="p-6 text-center text-sm text-muted-foreground">
-        {filtered ? 'No sessions match.' : 'No sessions found yet.'}
+        {filtered ? 'No sessions match.' : 'No sessions found in your allowed repos yet.'}
         {!filtered && missing && missing.length > 0 && (
           <p className="mt-2 text-xs">No logs found for {missing.join(' or ')} on this machine.</p>
         )}
+        {!filtered && <ListLimits limits={limits} />}
       </div>
     )
   }
@@ -251,8 +279,11 @@ function SessionListView({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
       {groups.map((g) => (
-        <div key={g.label} className="mb-2">
-          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{g.label}</div>
+        <div key={g.key} className="mb-2">
+          <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase" title={g.title}>
+            <FolderGit2 className="size-3.5" />
+            <span className="truncate">{g.label}</span>
+          </div>
           <ul className="flex flex-col gap-0.5">
             {g.items.map((s) => {
               const active = s.id === selectedId
@@ -273,10 +304,13 @@ function SessionListView({
                         <span className="flex-1 truncate text-sm font-medium">{s.title}</span>
                         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{relative(s.updatedAt)}</span>
                       </span>
-                      <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                        <span className="truncate">{s.project}</span>
-                        <span aria-hidden>·</span>
-                        <span className="shrink-0">{SOURCE_LABEL[s.source]}</span>
+                      <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
+                        {s.source !== 'claude' && (
+                          <Badge variant="info" className="px-1.5 py-0 text-[10px]">
+                            {SOURCE_LABEL[s.source]}
+                          </Badge>
+                        )}
                       </span>
                     </span>
                   </button>
@@ -286,8 +320,21 @@ function SessionListView({
           </ul>
         </div>
       ))}
+      <ListLimits limits={limits} />
     </div>
   )
+}
+
+/** Says what the list leaves out, so it never looks complete when it is not. */
+function ListLimits({ limits }: { limits?: SessionList['limits'] }) {
+  if (!limits) return null
+  const notes: string[] = []
+  if (limits.dropped > 0) notes.push(`Showing the ${limits.kept} most recent chats.`)
+  if (limits.totalLogs > limits.scanned) notes.push(`Only the ${limits.scanned} newest of ${limits.totalLogs} session logs were read.`)
+  if (limits.outsideAllowed > 0)
+    notes.push(`${limits.outsideAllowed} ${limits.outsideAllowed === 1 ? 'chat is' : 'chats are'} hidden because ${limits.outsideAllowed === 1 ? 'its folder is' : 'their folders are'} not in an allowed repo.`)
+  if (!notes.length) return null
+  return <p className="px-3 py-3 text-xs text-muted-foreground">{notes.join(' ')}</p>
 }
 
 function SourceAvatar({ source, className }: { source: SessionSource; className?: string }) {
@@ -369,6 +416,11 @@ function Conversation({ session }: { session: SessionSummary }) {
           {transcript && messages.length === 0 && (
             <div className="py-16 text-center text-sm text-muted-foreground">This session has no messages to show.</div>
           )}
+          {transcript?.truncated && hidden === 0 && (
+            <div className="self-center rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+              Earlier history was cut: only the last {transcript.truncated.bytes ? '4 MB of this log' : '300 messages'} {transcript.truncated.bytes ? 'is' : 'are'} shown.
+            </div>
+          )}
           {hidden > 0 && (
             <Button variant="outline" size="sm" className="self-center" onClick={showEarlier}>
               Show {Math.min(hidden, PAGE)} earlier messages
@@ -392,7 +444,7 @@ function ConversationHeader({ session }: { session: SessionSummary }) {
         <div className="truncate font-semibold">{session.title}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1" title={session.cwd}>
-            <FolderGit2 className="size-3.5" /> {session.project}
+            <FolderGit2 className="size-3.5" /> {session.repo.name}
           </span>
           {session.branch && (
             <span className="inline-flex items-center gap-1">

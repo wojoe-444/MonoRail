@@ -147,7 +147,14 @@ never gets a remote; do not add push or sync to it.
 read-only transcript (`electron/modules/agent-chat.cjs`). Logs are read in
 place, never copied or cached to disk, and the page only names a session by
 the id the backend handed out, never a path. pi sessions are trees; the
-transcript follows the branch ending at the last entry.
+transcript follows the branch ending at the last entry. **Allowed folders**
+(`agent-chat-folders.cjs`): a chat is listed, opened or run only if its
+folder resolves (real path, following symlinks and junctions) into a git repo
+directly under the Repos folder (default `~/Repos`) or a repo added in the
+page's Folders dialog; folders are picked in the system dialog, and every
+request re-resolves them. Read limits: the list reads the 300 newest logs and
+keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
+page says when it was cut.
 
 Nav items may have one level of indented subpages (`NavItem.children` in
 `nav.ts`); a module nests under an item with `nav.parent: '<path>'`.

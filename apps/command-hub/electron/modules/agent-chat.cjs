@@ -14,10 +14,17 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
+const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo } = require('./agent-chat-folders.cjs')
+
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
 const MAX_TOOL_TEXT = 4_000
-const MAX_FILE_BYTES = 64 * 1024 * 1024
+// Read limits (K3): the list reads the 300 newest logs and keeps 60 chats; a
+// history is at most the last 4 MB of its log and 300 messages.
+const LIST_SCAN = 300
+const LIST_KEEP = 60
+const HISTORY_BYTES = 4 * 1024 * 1024
+const HISTORY_MESSAGES = 300
 
 // ---------------------------------------------------------------------------
 // Locations
@@ -360,54 +367,136 @@ async function summarize(source, root, file) {
   return summary
 }
 
+/**
+ * List chats. Only sessions whose folder resolves into an allowed repo are
+ * listed (agent-chat-folders.cjs). Limits: the LIST_SCAN newest logs are
+ * read, and the LIST_KEEP newest allowed chats are kept.
+ */
 async function listSessions(opts = {}) {
   const env = opts.env ?? process.env
   const home = opts.home ?? os.homedir()
-  const sessions = []
+  const folders = await allowedRepos(opts.dataDir, { home })
   const sources = []
+  const files = []
   for (const [source, def] of Object.entries(SOURCES)) {
     const roots = def.roots(env, home).filter((r) => fs.existsSync(r))
-    sources.push({ id: source, label: def.label, found: roots.length > 0, roots })
+    sources.push({ id: source, label: def.label, found: roots.length > 0 })
     for (const root of roots) {
       for (const file of await listJsonl(root, def.depth, def.skip)) {
         try {
-          const s = await summarize(source, root, file)
-          if (!s) continue
-          known.set(s.id, { source, file })
-          sessions.push(s)
+          files.push({ source, root, file, mtimeMs: (await fs.promises.stat(file)).mtimeMs })
         } catch {
-          // Unreadable file: leave it out.
+          // Vanished or unreadable: leave it out.
         }
       }
     }
   }
-  // The same Claude session can exist under two config roots; keep the newest.
+  files.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  const scanned = files.slice(0, LIST_SCAN)
+
   const byId = new Map()
-  for (const s of sessions) if (!byId.has(s.id) || byId.get(s.id).updatedAt < s.updatedAt) byId.set(s.id, s)
+  let outsideAllowed = 0
+  for (const f of scanned) {
+    let s
+    try {
+      s = await summarize(f.source, f.root, f.file)
+    } catch {
+      continue
+    }
+    if (!s || byId.has(s.id)) continue // newest first, so a duplicate under a second config root is older
+    const repo = s.cwd ? await repoFor(folders.repos, s.cwd) : undefined
+    if (!repo) {
+      outsideAllowed++
+      continue
+    }
+    known.set(s.id, { source: f.source, file: f.file, cwd: s.cwd })
+    byId.set(s.id, { ...s, repo: { name: repo.name, path: repo.path } })
+  }
+  const sessions = [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
   return {
-    sources: sources.map(({ roots: _roots, ...s }) => s),
-    sessions: [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt),
+    sources,
+    sessions: sessions.slice(0, LIST_KEEP),
+    limits: {
+      scanned: scanned.length,
+      totalLogs: files.length,
+      kept: Math.min(sessions.length, LIST_KEEP),
+      dropped: Math.max(0, sessions.length - LIST_KEEP),
+      outsideAllowed,
+    },
+    folders: { reposRoot: folders.reposRoot, reposRootFound: folders.reposRootFound, repoCount: folders.repos.length },
   }
 }
 
-async function getSession(id, opts) {
+/** Read at most the last `bytes` of a file, starting at a whole line. */
+async function readTailWhole(file, size, bytes) {
+  if (size <= bytes) return { text: await fs.promises.readFile(file, 'utf8'), cut: false }
+  const fh = await fs.promises.open(file, 'r')
+  try {
+    const buf = Buffer.alloc(bytes)
+    const { bytesRead } = await fh.read(buf, 0, bytes, size - bytes)
+    const text = buf.subarray(0, bytesRead).toString('utf8')
+    return { text: text.slice(text.indexOf('\n') + 1), cut: true }
+  } finally {
+    await fh.close()
+  }
+}
+
+/**
+ * One chat's history: the last HISTORY_BYTES of its log and at most
+ * HISTORY_MESSAGES messages. `truncated` says when the history was cut.
+ */
+async function getSession(id, opts = {}) {
   if (typeof id !== 'string') throw new Error('Missing session id')
   if (!known.has(id)) await listSessions(opts)
   const entry = known.get(id)
   if (!entry) throw new Error('Session not found')
+  // The folder may have stopped being allowed since the list was read.
+  const folders = await allowedRepos(opts.dataDir, { home: opts.home })
+  if (!entry.cwd || !(await repoFor(folders.repos, entry.cwd))) throw new Error('This chat is not in an allowed folder.')
   const stat = await fs.promises.stat(entry.file)
-  if (stat.size > MAX_FILE_BYTES) throw new Error('This session log is too large to open here.')
-  const entries = parseLines(await fs.promises.readFile(entry.file, 'utf8'))
-  const def = SOURCES[entry.source]
-  return { id, messages: def.transcript(entries) }
+  const { text, cut } = await readTailWhole(entry.file, stat.size, HISTORY_BYTES)
+  const all = SOURCES[entry.source].transcript(parseLines(text))
+  const messages = all.length > HISTORY_MESSAGES ? all.slice(-HISTORY_MESSAGES) : all
+  return {
+    id,
+    messages,
+    truncated: cut || all.length > HISTORY_MESSAGES ? { bytes: cut, messages: all.length - messages.length } : undefined,
+  }
 }
 
 module.exports = {
   id: 'agent-chat',
   methods: {
-    listSessions: async () => listSessions(),
-    getSession: async (_ctx, args) => getSession(args?.id),
+    listSessions: async (ctx) => listSessions({ dataDir: ctx.dataDir }),
+    getSession: async (ctx, args) => getSession(args?.id, { dataDir: ctx.dataDir }),
+    getFolders: async (ctx) => {
+      const f = await allowedRepos(ctx.dataDir)
+      return { reposRoot: f.reposRoot, reposRootFound: f.reposRootFound, rootIsDefault: f.rootIsDefault, repos: f.repos, added: f.added }
+    },
+    /** Folder choices go through the system dialog, never a path typed in the page. */
+    pickReposRoot: async (ctx) => {
+      const dir = await pickFolder('Choose your Repos folder')
+      if (dir) await setReposRoot(ctx.dataDir, dir)
+      return !!dir
+    },
+    addRepo: async (ctx) => {
+      const dir = await pickFolder('Add a git repository')
+      if (dir) await addRepo(ctx.dataDir, dir)
+      return !!dir
+    },
+    /** Only removes an entry from the list of added repos. */
+    removeRepo: async (ctx, args) => {
+      if (typeof args?.path === 'string') await removeRepo(ctx.dataDir, args.path)
+    },
   },
   // Exported for tests.
   _internal: { listSessions, getSession, claudeTranscript, piTranscript, piBranch, claudeMeta, piMeta },
+}
+
+async function pickFolder(title) {
+  const { BrowserWindow, dialog } = require('electron')
+  const win = BrowserWindow.getFocusedWindow()
+  const opts = { title, properties: ['openDirectory'] }
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  return r.canceled ? undefined : r.filePaths[0]
 }

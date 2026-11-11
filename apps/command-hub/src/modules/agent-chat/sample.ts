@@ -1,5 +1,5 @@
 // Fictional sessions for the browser dev server, where there is no backend.
-import type { SessionList, SessionTranscript } from './types'
+import type { AllowedFolders, SessionList, SessionTranscript } from './types'
 
 const now = Date.now()
 const min = 60_000
@@ -23,6 +23,7 @@ export const sampleSessions: SessionList = {
       startedAt: now - 42 * min,
       updatedAt: now - 12 * min,
       sizeBytes: 48_000,
+      repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
     {
       id: 'pi:demo-2',
@@ -36,6 +37,7 @@ export const sampleSessions: SessionList = {
       startedAt: now - 5 * 60 * min,
       updatedAt: now - 4 * 60 * min,
       sizeBytes: 21_000,
+      repo: { name: 'seed-catalog', path: '/home/demo/Repos/seed-catalog' },
     },
     {
       id: 'claude:demo-3',
@@ -50,8 +52,22 @@ export const sampleSessions: SessionList = {
       startedAt: now - 26 * 60 * min,
       updatedAt: now - 25 * 60 * min,
       sizeBytes: 9_000,
+      repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
   ],
+  limits: { scanned: 3, totalLogs: 3, kept: 3, dropped: 0, outsideAllowed: 0 },
+  folders: { reposRoot: '/home/demo/Repos', reposRootFound: true, repoCount: 2 },
+}
+
+export const sampleFolders: AllowedFolders = {
+  reposRoot: '/home/demo/Repos',
+  reposRootFound: true,
+  rootIsDefault: true,
+  repos: [
+    { path: '/home/demo/Repos/garden-planner', name: 'garden-planner', source: 'root' },
+    { path: '/home/demo/Repos/seed-catalog', name: 'seed-catalog', source: 'root' },
+  ],
+  added: [],
 }
 
 export const sampleTranscripts: Record<string, SessionTranscript> = {
