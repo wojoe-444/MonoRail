@@ -153,3 +153,22 @@ test('command arguments must be fixed tokens', () => {
   assert.ok(!SAFE_ARG.test('a&b'))
   assert.ok(!SAFE_ARG.test('a b'))
 })
+
+test('checks are reused until forced or the connection changes', async () => {
+  const { KeyedCache } = require('../cache/keyed.cjs')
+  let now = 0
+  const checks = new KeyedCache('connections.sign-in', { now: () => now })
+  const calls = []
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { fetch: fakeFetch(calls) }, checks })
+  await svc.save({ kind: 'atlassian', values: { siteUrl: 'd.atlassian.net', tokenSource: 'direct', email: 'a@example.com' }, secrets: { token: 't' } })
+  assert.equal(calls.length, 1)
+  await svc.check('atlassian')
+  assert.equal(calls.length, 1, 'reused within 15 minutes')
+  await svc.check('atlassian', { force: true })
+  assert.equal(calls.length, 2, 'Check button forces')
+  now += 16 * 60_000
+  await svc.check('atlassian')
+  assert.equal(calls.length, 3, 'stale after 15 minutes')
+  await svc.save({ kind: 'atlassian', values: { siteUrl: 'e.atlassian.net', tokenSource: 'direct', email: 'a@example.com' } })
+  assert.equal(calls.at(-1).url, 'https://e.atlassian.net/rest/api/3/myself')
+})

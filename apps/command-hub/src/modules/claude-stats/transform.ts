@@ -167,13 +167,28 @@ export function groupBy(facts: UsageFact[], key: (f: UsageFact) => string): Grou
 
 export const OTHER = 'Other'
 
+/** Days, counted back from the newest usage, that decide which models keep a color. */
+export const RECENT_RANK_DAYS = 30
+
 /**
- * Stable series identity: the top N models by all-time output keep a slot;
- * the rest fold into "Other". Computed on the full dataset so filtering the
- * date range never repaints a model.
+ * Stable series identity: the top N models keep a slot; the rest fold into
+ * "Other". Models are ranked by output in the last 30 days of data, then by
+ * all-time output, so a model you switched to recently gets its own color
+ * instead of hiding in "Other" behind models you no longer use. Computed on
+ * the full dataset, never the current filters, so filtering never repaints a
+ * model.
  */
 export function seriesOrder(facts: UsageFact[], max = 5, key: (f: UsageFact) => string = (f) => f.model): string[] {
-  const ranked = groupBy(facts, key).map((g) => g.key)
+  const last = facts.reduce((m, f) => (f.date > m ? f.date : m), '')
+  const since = last ? addDays(last, -(RECENT_RANK_DAYS - 1)) : ''
+  const recent = new Map<string, number>()
+  const all = new Map<string, number>()
+  for (const f of facts) {
+    const k = key(f)
+    all.set(k, (all.get(k) ?? 0) + f.outputTokens)
+    if (f.date >= since) recent.set(k, (recent.get(k) ?? 0) + f.outputTokens)
+  }
+  const ranked = [...all.keys()].sort((a, b) => (recent.get(b) ?? 0) - (recent.get(a) ?? 0) || all.get(b)! - all.get(a)!)
   return ranked.length <= max ? ranked : [...ranked.slice(0, max), OTHER]
 }
 

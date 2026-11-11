@@ -108,6 +108,7 @@ const wait = <T,>(v: T, ms = 150) => new Promise<T>((r) => setTimeout(() => r(st
 export function createSampleBackend(): JiraApi {
   const db = seed()
   let connected = true
+  let scopeJql = 'assignee = currentUser()'
 
   const statusesFor = (source: Source) => (source === 'local' ? LOCAL_STATUSES : JIRA_STATUSES)
   const find = (key: string) => {
@@ -135,8 +136,8 @@ export function createSampleBackend(): JiraApi {
         })
       const overview: Overview = {
         connection: connected
-          ? { connected: true, siteUrl: SITE, email: 'casey@example.com', displayName: 'Casey Morgan', scopeJql: 'assignee = currentUser()', encrypted: true }
-          : { connected: false, scopeJql: 'assignee = currentUser()' },
+          ? { connected: true, via: 'connections', siteUrl: SITE, email: 'casey@example.com', displayName: 'Casey Morgan', scopeJql }
+          : { connected: false, scopeJql },
         projects,
         local: { statuses: LOCAL_STATUSES, types: TYPES, priorities: PRIORITIES, repoDir: '%APPDATA%\\MonoRail\\modules\\jira\\local-repo' },
       }
@@ -228,13 +229,12 @@ export function createSampleBackend(): JiraApi {
       db.next[key] = 1
       return wait(p)
     },
-    async saveConnection(input) {
-      connected = true
-      return wait({ connected: true, siteUrl: input.siteUrl, email: input.email, displayName: 'Casey Morgan', scopeJql: input.scopeJql, encrypted: true })
+    async saveSettings(input) {
+      scopeJql = input.scopeJql.trim() || 'assignee = currentUser()'
+      return wait({ connected, via: connected ? ('connections' as const) : undefined, siteUrl: connected ? SITE : undefined, scopeJql })
     },
-    async disconnect() {
-      connected = false
-      return wait({ connected: false, scopeJql: 'assignee = currentUser()' })
+    async forgetLegacyConnection() {
+      return wait({ connected, scopeJql })
     },
   }
 }

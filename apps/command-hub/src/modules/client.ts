@@ -26,6 +26,8 @@ export interface ModuleQuery<T> {
   /** True while any request is in flight, including refreshes. */
   fetching: boolean
   refresh: (args?: unknown) => Promise<void>
+  /** Fetch again without marking the query as fetching (background polling, no fade). */
+  reload: (args?: unknown) => Promise<void>
 }
 
 /**
@@ -48,9 +50,9 @@ export function useModuleQuery<T>(
   const seq = useRef(0)
 
   const run = useCallback(
-    async (override?: unknown) => {
+    async (override?: unknown, silent = false) => {
       const id = ++seq.current
-      setFetching(true)
+      if (!silent) setFetching(true)
       try {
         const result = await invokeModule<T>(moduleId, method, override ?? argsRef.current)
         if (id === seq.current) {
@@ -70,5 +72,8 @@ export function useModuleQuery<T>(
     if (enabled) void run()
   }, [run, enabled])
 
-  return { data, error, loading: fetching && data === undefined, fetching, refresh: run }
+  const reload = useCallback((override?: unknown) => run(override, true), [run])
+  const refresh = useCallback((override?: unknown) => run(override), [run])
+
+  return { data, error, loading: fetching && data === undefined, fetching, refresh, reload }
 }

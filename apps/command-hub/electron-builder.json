@@ -9,7 +9,8 @@
     "electron/**/*",
     "!electron/**/*.test.cjs",
     "package.json",
-    "!electron/dev-bridge*.cjs"
+    "!electron/dev-bridge*.cjs",
+    "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   ],
   "win": {
     "target": [

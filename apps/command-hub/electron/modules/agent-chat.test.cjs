@@ -136,3 +136,47 @@ test('a history keeps the last 300 messages and says it was cut', async () => {
   assert.equal(messages[0].blocks[0].text, 'Message 20')
   assert.deepEqual(truncated, { bytes: false, messages: 20 })
 })
+
+// ---------------------------------------------------------------------------
+// Detailed view and totals
+
+test('Claude replies carry one usage per model call, and subagent calls are read apart', () => {
+  const usage = { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 5, output_tokens: 7 }
+  const msgs = chat.claudeTranscript([
+    { type: 'user', timestamp: '2026-01-01T00:00:00Z', message: { role: 'user', content: 'Hi' } },
+    { type: 'assistant', timestamp: '2026-01-01T00:00:01Z', message: { id: 'm1', model: 'demo', content: [{ type: 'thinking', thinking: 'hmm' }], usage } },
+    { type: 'assistant', timestamp: '2026-01-01T00:00:01Z', message: { id: 'm1', model: 'demo', content: [{ type: 'text', text: 'Hello' }], usage } },
+  ])
+  const a = msgs.filter((m) => m.role === 'assistant')
+  assert.equal(a.length, 1)
+  assert.deepEqual(a[0].usage, { model: 'demo', input: 10, cacheRead: 100, cacheWrite: 5, output: 7 })
+  const sub = chat.claudeSubagentCalls([
+    { type: 'assistant', timestamp: '2026-01-01T00:00:02Z', message: { id: 's1', model: 'small', content: [], usage } },
+    { type: 'assistant', timestamp: '2026-01-01T00:00:02Z', message: { id: 's1', model: 'small', content: [], usage } },
+  ])
+  assert.equal(sub.length, 1)
+  assert.equal(sub[0].subagent, true)
+})
+
+test("pi's total counts every paid entry, abandoned branches included", () => {
+  const paid = (id, parentId, usd) => ({ type: 'message', id, parentId, message: { role: 'assistant', content: [], usage: { input: 1, output: 1, cost: { total: usd } } } })
+  const entries = [
+    { type: 'session', id: 's', cwd: '/r' },
+    { type: 'message', id: 'u1', parentId: null, message: { role: 'user', content: 'Hi' } },
+    paid('a1', 'u1', 0.25), // abandoned branch
+    paid('a2', 'u1', 0.5),
+  ]
+  assert.equal(chat.piSpend(entries), 0.75)
+  // The transcript follows one branch, but carries each call's logged cost.
+  const shown = chat.piTranscript(entries).filter((m) => m.role === 'assistant')
+  assert.equal(shown.length, 1)
+  assert.equal(shown[0].usage.costUsd, 0.5)
+})
+
+test('a Claude total is complete only while nothing ran after its record', () => {
+  const costs = { s1: { usd: 1.5, at: 1_000_000 } }
+  assert.deepEqual(chat.chatTotal({ source: 'claude', sessionId: 's1', updatedAt: 1_000_500 }, costs), { usd: 1.5, complete: true })
+  assert.equal(chat.chatTotal({ source: 'claude', sessionId: 's1', updatedAt: 2_000_000 }, costs).complete, false)
+  assert.equal(chat.chatTotal({ source: 'claude', sessionId: 'nope' }, costs).reason, 'no-record')
+  assert.equal(chat.chatTotal({ source: 'pi' }, costs).reason, 'too-big')
+})

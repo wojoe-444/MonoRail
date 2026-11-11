@@ -1,3 +1,5 @@
+import type { CacheStatus } from '@/lib/cache'
+
 /** Raw ccusage JSON (v20, `ccusage claude <report> --json --breakdown`). */
 export interface CcusageModelBreakdown {
   modelName: string
@@ -39,10 +41,16 @@ export interface CcusageSessionRow {
 /** What the backend's getUsage returns. */
 export interface UsageReport {
   version: number
-  generatedAt: string
+  /** Undefined while no report has been built yet (`missing`). */
+  generatedAt?: string
   source: 'ccusage' | 'sample'
+  /** The last build failed; this is the last good report. */
   stale?: boolean
   error?: string
+  /** No report has been built yet (the page never starts a build on open). */
+  missing?: boolean
+  /** Built time, age, limit, build in progress, last failure and next retry. */
+  cache?: CacheStatus
   /** `daily --instances`: rows grouped per project, or a flat `daily` list. */
   daily: { projects?: Record<string, CcusageDailyRow[]>; daily?: CcusageDailyRow[] }
   sessions: { sessions: CcusageSessionRow[] }

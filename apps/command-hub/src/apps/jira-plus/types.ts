@@ -68,7 +68,8 @@ export interface Connection {
   email?: string
   displayName?: string
   scopeJql: string
-  encrypted?: boolean
+  /** Where the credentials come from: the hub's Connections page, or a token Jira+ saved before that existed. */
+  via?: 'connections' | 'legacy'
   error?: string
 }
 
@@ -96,13 +97,6 @@ export interface NewIssue extends IssueFields {
   projectKey: string
   summary: string
   status?: string
-}
-
-export interface ConnectionInput {
-  siteUrl: string
-  email: string
-  token?: string
-  scopeJql: string
 }
 
 /** Selected scope in the project list. */

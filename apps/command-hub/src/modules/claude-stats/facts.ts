@@ -78,10 +78,12 @@ export function buildFacts(report: UsageReport): FactSet {
       const k = claudeKey(r.date, r.model)
       const target = ccusage.get(k)
       const g = groups.get(k)!
-      if (target !== undefined && g.table > 0) {
+      // ccusage at zero for tokens the price table can price means ccusage
+      // doesn't know the model yet: keep the list price instead of a $0 row.
+      if (target !== undefined && g.table > 0 && target > 0) {
         const f = target / g.table
         parts = { input: table.input * f, output: table.output * f, cacheWrite: table.cacheWrite * f, cacheRead: table.cacheRead * f }
-      } else if (target !== undefined && g.output > 0) {
+      } else if (target !== undefined && target > 0 && g.table === 0 && g.output > 0) {
         // No price row: spread ccusage's cost by output, with no token-type split.
         const share = (target * r.output) / g.output
         parts = { input: 0, output: share, cacheWrite: 0, cacheRead: 0 }

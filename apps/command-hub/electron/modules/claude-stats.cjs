@@ -3,20 +3,21 @@
 // agent CLI (claude-stats-scan.cjs). Returns both in one cached report.
 //
 // Private data rule: the logs and the cached report never leave this machine.
-// The cache lives in %APPDATA%\MonoRail\modules\claude-stats\usage.json.
+// The cache lives in %APPDATA%\MonoRail\modules\claude-stats\usage.json and is
+// run by the shared cache primitive (electron/cache, declared as
+// 'claude-stats.usage'): opening the page only reads it; a build runs from the
+// Refresh button or the background schedule, one at a time.
 // summarize() turns a report into the small digest the Home widget shows.
 
 const { execFile } = require('node:child_process')
-const fs = require('node:fs/promises')
 const path = require('node:path')
 
+const cache = require('../cache/index.cjs')
 const { IDLE_GAP_MS } = require('./claude-stats-phases.cjs')
 const { findPrice, normalizeModelId, rowCost } = require('./claude-stats-prices.cjs')
 const { scanAll } = require('./claude-stats-scan.cjs')
 
-const CACHE_FILE = 'usage.json'
-const CACHE_MAX_AGE_MS = 10 * 60 * 1000
-const REPORT_VERSION = 3
+const REPORT_VERSION = cache.declared.declaration('claude-stats.usage').version
 const SUMMARY_DAYS = 30
 
 /** Path to the native ccusage binary installed with the app, if present. */
@@ -71,14 +72,6 @@ async function ccusage(args, log) {
   throw new Error(
     `Could not run ccusage. ${lastErr ? lastErr.message.split('\n')[0] : ''}`.trim(),
   )
-}
-
-async function readCache(file) {
-  try {
-    return JSON.parse(await fs.readFile(file, 'utf8'))
-  } catch {
-    return undefined
-  }
 }
 
 async function collect(ctx) {
@@ -156,29 +149,59 @@ function summarize(report, now = new Date()) {
   }
 }
 
+/** One report cache per data folder (the dev bridge and the app use different ones). */
+const reports = new Map()
+function usageCache(ctx) {
+  if (!reports.has(ctx.dataDir)) {
+    reports.set(
+      ctx.dataDir,
+      cache.report(ctx, 'claude-stats.usage', {
+        build: () => collect(ctx),
+        // Home reads only this small file (D1). summarize() is optional so the
+        // summary shape stays owned by Claude Stats.
+        onBuilt: async (report, builtAt) => {
+          const summarize = module.exports.summarize
+          if (typeof summarize === 'function') await cache.writeSummary(ctx, 'claude-stats.summary', summarize(report, new Date(builtAt)), { builtAt })
+        },
+      }),
+    )
+  }
+  return reports.get(ctx.dataDir)
+}
+
+/** The page's view: the last good report (if any) plus the cache status. */
+function view({ value, status }) {
+  const base = value ?? {
+    version: REPORT_VERSION,
+    generatedAt: undefined,
+    source: 'ccusage',
+    daily: { projects: {} },
+    sessions: { sessions: [] },
+    missing: true,
+  }
+  // `stale`/`error` keep their old meaning: the last build failed, this is the saved report.
+  return { ...base, cache: status, stale: !!status.lastError && !!value, error: status.lastError }
+}
+
 module.exports = {
   id: 'claude-stats',
   summarize,
+  /** Background rebuilds while the app runs (C4). */
+  start(ctx) {
+    cache.schedule(usageCache(ctx))
+  },
   methods: {
     /**
      * getUsage({ refresh?: boolean })
-     * Returns the cached report if it is fresh, otherwise runs ccusage.
-     * If ccusage fails and a cache exists, returns the stale cache with `stale: true`.
+     * Without refresh: returns the saved report and its status, and never runs
+     * ccusage (the schedule keeps it fresh). With refresh (the Refresh button):
+     * builds a new report, sharing a build that is already running; returns
+     * after the build or, if it takes longer than the wait, with
+     * cache.building = true so the page polls.
      */
     async getUsage(ctx, args) {
-      const file = path.join(ctx.dataDir, CACHE_FILE)
-      const cached = await readCache(file)
-      const fresh = cached?.version === REPORT_VERSION && Date.now() - Date.parse(cached.generatedAt) < CACHE_MAX_AGE_MS
-      if (cached && fresh && !args?.refresh) return cached
-
-      try {
-        const report = await collect(ctx)
-        await fs.writeFile(file, JSON.stringify(report))
-        return report
-      } catch (e) {
-        if (cached) return { ...cached, stale: true, error: e.message }
-        throw e
-      }
+      const usage = usageCache(ctx)
+      return view(args?.refresh ? await usage.refresh({ force: true }) : await usage.read())
     },
   },
 }

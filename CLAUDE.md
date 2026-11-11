@@ -133,7 +133,9 @@ it knows (Claude Code, Gemini CLI, pi; one reader each, a missing source is
 reported as not found) into day x session x model x role x 50K context-step
 rows, plus per-turn prompt sizes, compactions and session phases (driver
 model + subagent models; new phase on driver change or a 2-hour idle gap).
-Both go into one cached JSON report in its data folder. List prices, with
+Both go into one cached JSON report in its data folder (cache
+`claude-stats.usage`: opening the page only reads it; it is rebuilt every 15
+minutes while the app runs, retried an hour after a failure, or on Refresh). List prices, with
 prompt-size tiers, live in one table, `claude-stats-prices.json`, shared by
 the backend and the page (`src/modules/claude-stats/pricing.ts`); a test
 fails if a model in the local logs has no row. The page turns the report into
@@ -142,12 +144,16 @@ day and model, pi's logged per-token-type cost is used as logged, anything
 else is priced from the table, and any split that is not logged is labelled
 an estimate.
 
-`jira` is the second worked example: one tracker over two sources. Team
-tickets go through the Jira Cloud REST API (`electron/modules/jira-cloud.cjs`,
-API token encrypted with `safeStorage` in the module's data folder). Personal
-projects are a git repo in `<dataDir>/local-repo` (`jira-local.cjs`, via
-`isomorphic-git`, one JSON file per ticket, one commit per change). That repo
-never gets a remote; do not add push or sync to it.
+**Caches** go through the shared primitive in `electron/cache/` (rules and
+examples: `docs/caching.md`). Every cache, and every other file a backend keeps
+in its data folder, is declared in `electron/cache/declared.cjs` with its tier,
+version, time limits and content policy; opening an undeclared cache throws and
+a test fails on an undeclared `*_FILE`. Cache files are written atomically, a
+lock file lets one build run at a time, a failed build backs off and keeps the
+last good result, and pages only read a cache on open: slow builds run from a
+Refresh button or the background schedule (`cache.schedule` from `start(ctx)`).
+After each build a module may write a small summary file; Home reads only those
+(`home.getSummaries`). Pages show `CacheStatusBadge` for cached data.
 
 `agent-chat` (**Chat**, under Agents) lists every local Claude Code
 (`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
@@ -164,6 +170,46 @@ request re-resolves them. Read limits: the list reads the 300 newest logs and
 keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
 page says when it was cut.
 
+**Sending** (Claude for now): each message runs one turn in a worker process
+(`agent-chat-worker.mjs`, run with MonoRail's own executable in
+`ELECTRON_RUN_AS_NODE` mode) that drives the Claude Agent SDK against the
+user's own installed `claude` executable (the SDK's bundled native binary is
+excluded from the installer). The job and prompt go to the worker on stdin,
+never argv; `agent-chat-turns.cjs` keeps one turn per chat, kills the whole
+process tree on Stop, times out after 30 minutes and logs metadata only
+(session id, SDK, model, mode, outcome). The page polls `pollTurn` for events.
+Options come from `agent-chat-options.cjs`: **Ask** (default) offers only
+Read/Grep/Glob with no MCP servers; **Agent** uses Claude Code's normal
+permission rules. Every approval prompt is denied and shown in the thread.
+`assertNoBypass()` refuses any options that would bypass permissions, and the
+settings overlay disables bypass mode; never weaken either. A continued chat
+runs only in its own folder, re-checked against the allowed folders. The
+running cost total per session is kept in `costs.json` in the module's data
+folder (numbers only) so a resumed turn's own cost can be worked out.
+**pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
+agent SDK, found behind the `pi` command (`findPiSdk`); MonoRail does not
+bundle it. pi has no approval prompts, so its limits are the tool list and a
+path guard: Ask gets read/grep/find/ls, Agent adds edit/write, every tool path
+must resolve (real path) inside the chat's repo, the user's pi extensions are
+not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
+(Max = xhigh). A started chat keeps its SDK; new chats pick one in the
+status bar (remembered).
+
+**Plain / Detailed** (status bar, remembered; Plain is the default). Detailed
+shows reasoning above the tool rows and, after each reply, one row per model
+call (model, cost, input, cache read, cache write, output; subagent calls
+counted apart) with the reply's total and call count. Reasoning is only
+requested from the SDK in Detailed mode, so Plain replies never have it.
+History transcripts carry `usage` per assistant message, and Claude subagent
+logs (`<session>/subagents/`) supply subagent calls. A call's cost is the
+logged cost when there is one (pi); otherwise the reply's cost is split by
+token weight (output 5x input, cache write 1.25x, cache read 0.1x) and marked
+as an estimate (`src/modules/agent-chat/cost.ts`). **Totals**: Claude's comes
+from the last cost record in `costs.json` (marked incomplete if the log
+changed after it), pi's is every paid entry in the file, abandoned branches
+included; past the 4 MB read limit only spend since opening is counted, and
+the page says so. A total never reads complete when it is not.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
@@ -177,7 +223,7 @@ the CLI login and Application Default Credentials; sign-in runs
 `gcloud auth login` then `gcloud auth application-default login`),
 `atlassian` (site + email + API token, pasted or read each time from a named
 generic credential in Windows Credential Manager via PowerShell CredRead,
-never copied; Jira+ should use it) and `claude` (Claude Code / Agent SDK
+never copied; Jira+ uses it) and `claude` (Claude Code / Agent SDK
 login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
 opens a terminal running `claude auth login`). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
@@ -261,7 +307,23 @@ working tree and index are never touched, every change is a commit, backups
 carry them and a normal push does not. Keep that ref out of commit feeds
 (`--exclude=refs/local-issues --all`).
 
-`email` (**Email**) is the second app: mail through pluggable **inbox
+`jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
+tracker (own look under `.jp`, Your work / Projects / board / list / issue
+dialog) where a private local repo is a first-class project next to the
+team's real Jira projects. Team issues go through the Jira Cloud REST API
+(`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
+Connections (`getCredentials('atlassian')`); only shown when one is set up.
+Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token
+saved by older versions is still used when Connections has no Atlassian
+account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
+(`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
+change, the issue's git log is its History). That repo never gets a remote;
+do not add push or sync to it. Jira+ started as the `jira` module, so if
+`%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
+the backend keeps using the old folder in place. Tests live in
+`jira-plus.test.cjs`.
+
+`email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
 `electron/apps/email/connectors/index.cjs` (config fields, `signIn`,
 `createSession` returning folders/threads/modify/send); the backend

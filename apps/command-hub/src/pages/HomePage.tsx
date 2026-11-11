@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { sampleActivity, sampleAgents, type AgentStatus } from '@/data/sample'
 import { cn } from '@/lib/utils'
+import { ClaudeStatsHomeWidget } from '@/modules/claude-stats/HomeWidget'
 
 const statusMeta: Record<AgentStatus, { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }> = {
   running: { label: 'Running', variant: 'success' },
@@ -104,6 +105,10 @@ export function HomePage() {
             </Card>
           )
         })}
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <ClaudeStatsHomeWidget />
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
