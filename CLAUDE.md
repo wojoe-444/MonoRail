@@ -284,9 +284,17 @@ Electron: summary files (`claude-stats.summary`, `connections.summary`, the
 latter written after every connection check), Chat's `listSessions` (allowed
 folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
 repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
-legacy folder). Every tool so far is read-only and returns no secrets or
-tokens; keep it that way unless a tool goes through the planned consent and
-audit log. Tests: `electron/mcp/mcp.test.cjs` (includes a real stdio run).
+legacy folder). No tool returns secrets or tokens. **Write tools** (`write:
+true` in `tools.cjs`: create/comment on GitHub+ and Jira+ local issues) are
+off for every agent until the user turns each one on per agent on the page;
+the server checks `access.json` on every call (`access.cjs`; the agent is the
+self-reported `clientInfo.name`, recorded on first connect with nothing
+allowed; only the page grants). Every call goes to `audit.jsonl` (agent, tool,
+outcome, ms, a one-line `did` for writes; never arguments or results),
+shown under Activity. Both files are in `modules/mcp`. A new write tool must
+set `write: true` and call `ctx.did()`. Jira+ local writes take a lock file
+in its `.git` so the app and the server never commit at once. Tests:
+`electron/mcp/mcp.test.cjs` (includes a real stdio run).
 
 Nav items may have one level of indented subpages (`NavItem.children` in
 `nav.ts`); a module nests under an item with `nav.parent: '<path>'`.

@@ -17,9 +17,10 @@ const path = require('node:path')
 const { resolveUserDataDir } = require('../userData.cjs')
 const { createMcpServer } = require('./protocol.cjs')
 const { serveStdio } = require('./stdio.cjs')
-const { readTools } = require('./tools.cjs')
+const access = require('./access.cjs')
+const { readTools, writeTools } = require('./tools.cjs')
 
-const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. They are read-only and return no secrets. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
+const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. Write tools (raising or commenting on local issues) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
 
 function defaultAppData(env = process.env, platform = process.platform, home = os.homedir()) {
   if (platform === 'win32') return env.APPDATA || path.join(home, 'AppData', 'Roaming')
@@ -45,8 +46,26 @@ function createServer({ rootDir, log = () => {} }) {
     name: 'monorail',
     version: version(),
     instructions: INSTRUCTIONS,
-    tools: readTools({ rootDir }),
-    onCall: ({ tool, ok, ms }) => log(`tool ${tool} ${ok ? 'ok' : 'failed'} in ${ms} ms`),
+    tools: [...readTools({ rootDir }), ...writeTools({ rootDir })],
+    // The agent shows up on the Agent access page with nothing allowed.
+    onInitialize: async (clientInfo) => {
+      try {
+        return await access.noteAgent(rootDir, clientInfo)
+      } catch (e) {
+        log('could not record the agent:', e.message)
+        return access.cleanName(clientInfo?.name)
+      }
+    },
+    authorize: async ({ tool, agent }) => {
+      if (!(await access.isAllowed(rootDir, agent, tool))) {
+        throw new Error(`MonoRail has not allowed "${agent}" to use ${tool}. The user can turn it on in MonoRail under Configure > Agent access.`)
+      }
+    },
+    onCall: (info) => {
+      log(`tool ${info.tool} ${info.ok ? 'ok' : 'failed'} in ${info.ms} ms`)
+      const { tool, agent, write, ok, ms, error, did } = info
+      return access.appendAudit(rootDir, { agent, tool, write, ok, ms, error: error?.slice(0, 300), did }).catch((e) => log('audit log failed:', e.message))
+    },
   })
 }
 

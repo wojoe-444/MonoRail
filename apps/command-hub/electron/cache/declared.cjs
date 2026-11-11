@@ -116,6 +116,7 @@ const CACHES = Object.freeze([
 const DATA_FILES = Object.freeze({
   'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json'],
   'modules/connections': ['connections.json'],
+  'modules/mcp': ['access.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
   'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/'],

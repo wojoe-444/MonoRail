@@ -17,6 +17,8 @@ const fsp = require('node:fs/promises')
 const path = require('node:path')
 const git = require('isomorphic-git')
 
+const { sleep, tryLock } = require('../../cache/files.cjs')
+
 const AUTHOR = { name: 'MonoRail', email: 'local@monorail.invalid' }
 
 /** Workflow for local projects. Board columns group by category. */
@@ -49,9 +51,27 @@ function createLocalStore(repoDir) {
   let ready
   let queue = Promise.resolve()
 
-  /** Run writes one at a time so commits never interleave. */
+  // The app and the MCP server (electron/mcp) can both write here, so a lock
+  // file in .git keeps writes from two processes apart too.
+  const lockFile = path.join(repoDir, '.git', 'monorail-write.lock')
+  async function locked(fn) {
+    await ensureRepo()
+    let release
+    for (let waited = 0; !(release = await tryLock(lockFile, { staleMs: 60_000 })); waited += 50) {
+      if (waited > 15_000) throw new Error('The local Jira repository is busy. Try again in a moment.')
+      await sleep(50)
+    }
+    try {
+      return await fn()
+    } finally {
+      await release()
+    }
+  }
+
+  /** Run writes one at a time (in this process and across processes) so commits never interleave. */
   function serial(fn) {
-    const next = queue.then(fn, fn)
+    const run = () => locked(fn)
+    const next = queue.then(run, run)
     queue = next.catch(() => {})
     return next
   }

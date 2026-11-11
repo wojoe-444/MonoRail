@@ -1,4 +1,4 @@
-import type { McpSetup } from './types'
+import type { McpAccess, McpAuditEntry, McpSetup } from './types'
 
 /** Shown in the browser dev server, where there is no backend. Fictional paths. */
 export const sampleSetup: McpSetup = {
@@ -25,5 +25,29 @@ export const sampleSetup: McpSetup = {
     { name: 'list_jira_plus_issues', title: 'Jira+ local issues', description: 'Issues of one local Jira+ project.', readOnly: true },
     { name: 'get_jira_plus_issue', title: 'Jira+ local issue', description: 'One local Jira+ issue with comments and history.', readOnly: true },
     { name: 'connection_status', title: 'Account connections', description: 'Whether each connection still works. No credentials.', readOnly: true },
+    { name: 'create_github_plus_issue', title: 'Raise a GitHub+ local issue', description: 'Create a local issue in a GitHub+ repo.', readOnly: false },
+    { name: 'comment_github_plus_issue', title: 'Comment on a GitHub+ local issue', description: 'Add a comment to a local issue.', readOnly: false },
+    { name: 'create_jira_plus_issue', title: 'Raise a Jira+ local issue', description: 'Create an issue in a private local Jira+ project.', readOnly: false },
+    { name: 'comment_jira_plus_issue', title: 'Comment on a Jira+ local issue', description: 'Add a comment to a local Jira+ issue.', readOnly: false },
   ],
 }
+
+/** An ISO time `min` minutes ago, so sample times read naturally. */
+const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
+
+const writeTools = sampleSetup.tools.filter((t) => !t.readOnly).map(({ name, title }) => ({ name, title }))
+
+export const sampleAccess: McpAccess = {
+  writeTools,
+  agents: [
+    { name: 'claude-code', version: '2.1.0', firstSeen: ago(26 * 60), allow: ['create_github_plus_issue'] },
+    { name: 'example-agent', version: '0.4.2', firstSeen: ago(40), allow: [] },
+  ],
+}
+
+export const sampleAudit: McpAuditEntry[] = [
+  { at: ago(3), agent: 'claude-code', tool: 'create_github_plus_issue', write: true, ok: true, ms: 84, did: 'Created issue #7 "Flaky login test" in demo-repo' },
+  { at: ago(4), agent: 'claude-code', tool: 'list_github_plus_issues', write: false, ok: true, ms: 41 },
+  { at: ago(39), agent: 'example-agent', tool: 'create_jira_plus_issue', write: true, ok: false, ms: 2, error: 'MonoRail has not allowed "example-agent" to use create_jira_plus_issue.' },
+  { at: ago(40), agent: 'example-agent', tool: 'usage_summary', write: false, ok: true, ms: 6 },
+]

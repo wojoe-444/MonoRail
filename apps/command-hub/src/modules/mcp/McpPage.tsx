@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 import { openWiki } from '@/modules/wiki/store'
 
+import { ActivityCard, AgentsCard } from './AccessCards'
 import { sampleSetup } from './sample'
 import type { McpSetup } from './types'
 
@@ -32,7 +33,7 @@ export default function McpPage() {
       <PageHeader
         eyebrow="Configure"
         title="Agent access"
-        description="Claude Code and other agents can read MonoRail through its MCP server. The agent starts it when it needs it."
+        description="Claude Code and other agents can use MonoRail through its MCP server. The agent starts it when it needs it; writes need your OK."
         actions={
           <Button variant="outline" onClick={() => openWiki('mcp')}>
             <BookOpen /> How it works
@@ -75,15 +76,15 @@ export default function McpPage() {
         <Card>
           <CardHeader>
             <CardTitle>What agents can reach</CardTitle>
-            <CardDescription>Read-only, on this machine.</CardDescription>
+            <CardDescription>On this machine, on your terms.</CardDescription>
           </CardHeader>
           <Separator />
           <CardContent className="flex flex-col gap-4 text-sm">
             <Point icon={Terminal} title="Started by the agent">
               It talks over the agent's own stdin and stdout. No network port is opened, so other programs can't reach it.
             </Point>
-            <Point icon={ShieldCheck} title="Read-only">
-              Tools read what MonoRail already keeps: cached reports, your allowed repos and local issues. They change nothing.
+            <Point icon={ShieldCheck} title="Writes need your OK">
+              Read tools change nothing. Write tools stay off for each agent until you turn them on below, and every call is logged.
             </Point>
             <Point icon={Lock} title="No secrets">
               Tokens, keys and passwords are never returned. Connection status says only whether an account works.
@@ -93,6 +94,8 @@ export default function McpPage() {
             </Point>
           </CardContent>
         </Card>
+
+        <AgentsCard className="lg:col-span-3" />
 
         <Card className="lg:col-span-3">
           <CardHeader>
@@ -109,12 +112,14 @@ export default function McpPage() {
                     <code className="font-mono text-xs text-muted-foreground">{t.name}</code>
                   </div>
                   <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.description}</p>
-                  {t.readOnly && <Badge variant="success">Read-only</Badge>}
+                  {t.readOnly ? <Badge variant="success">Read-only</Badge> : <Badge variant="warning">Write, needs your OK</Badge>}
                 </li>
               ))}
             </ul>
           </CardContent>
         </Card>
+
+        <ActivityCard className="lg:col-span-3" />
       </div>
     </div>
   )
