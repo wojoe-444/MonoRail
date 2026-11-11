@@ -16,6 +16,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 
 const declared = require('./declared.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 const { HistoryCache } = require('./history.cjs')
 const { IncrementalCache } = require('./incremental.cjs')
 const { KeyedCache, definitionHash } = require('./keyed.cjs')
@@ -55,10 +56,11 @@ async function writeSummary(ctx, id, summary, { builtAt = new Date().toISOString
 }
 
 /** Every declared summary under userData: { [id]: { builtAt, ageMs, stale, summary } }. */
-async function readSummaries(rootDir, { now = Date.now() } = {}) {
+/** root: a data folder (string) or a profile layout (electron/profiles). */
+async function readSummaries(root, { now = Date.now() } = {}) {
   const out = {}
   for (const d of declared.CACHES.filter((c) => c.tier === 'summary')) {
-    const e = await readJson(path.join(rootDir, ...d.folder.split('/'), d.file))
+    const e = await readJson(path.join(folderOf(root, d.folder), d.file))
     if (!e || e.version !== d.version) continue
     const ageMs = Math.max(0, now - Date.parse(e.builtAt))
     out[d.id] = { builtAt: e.builtAt, ageMs, ttlMs: d.ttlMs, stale: ageMs >= d.ttlMs, summary: e.summary }
@@ -119,10 +121,10 @@ async function auditDataDir(folder, dir) {
 }
 
 /** Log undeclared files in every declared folder under userData (startup check). */
-async function auditAll(rootDir, log = console.warn) {
+async function auditAll(root, log = console.warn) {
   const report = {}
   for (const folder of declared.declaredFolders()) {
-    const extra = await auditDataDir(folder, path.join(rootDir, ...folder.split('/')))
+    const extra = await auditDataDir(folder, folderOf(root, folder))
     if (extra.length) {
       report[folder] = extra
       log(`[cache] undeclared files in ${folder}: ${extra.join(', ')} (declare them in electron/cache/declared.cjs)`)

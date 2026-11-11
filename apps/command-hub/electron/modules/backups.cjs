@@ -1,15 +1,17 @@
 // Backups module backend: the global backup folder in Settings > Backups.
 // The logic lives in electron/backups (no Electron there, so it is tested
 // under Node); this file adds the folder picker and Explorer, and starts the
-// global schedule. Settings and run state: %APPDATA%\MonoRail\modules\backups.
+// global schedule. Settings and run state: <profile>\modules\backups (the
+// active profile's folder, electron/profiles; %APPDATA%\MonoRail for the default).
 
-const { BrowserWindow, app, dialog, shell } = require('electron')
+const { BrowserWindow, dialog, shell } = require('electron')
 
 const { createGlobalBackups } = require('../backups/service.cjs')
 const { readGlobal } = require('../backups/global.cjs')
+const { appLayout } = require('../profiles/index.cjs')
 
 let service
-const get = () => (service ??= createGlobalBackups(app.getPath('userData'), (...a) => console.log('[backups]', ...a)))
+const get = () => (service ??= createGlobalBackups(appLayout().profileDir, (...a) => console.log('[backups]', ...a)))
 
 module.exports = {
   id: 'backups',
@@ -28,7 +30,7 @@ module.exports = {
     },
     /** Open the saved global folder in Explorer (never a path from the page). */
     async openFolder() {
-      const g = await readGlobal(app.getPath('userData'))
+      const g = await readGlobal(appLayout().profileDir)
       if (!g.folder) throw new Error('No backup folder is set')
       await require('node:fs/promises').mkdir(g.folder, { recursive: true })
       const err = await shell.openPath(g.folder)

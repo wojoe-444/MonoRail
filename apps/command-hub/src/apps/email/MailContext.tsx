@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { api } from './api'
 import type { Account, ConnectorCapabilities, ConnectorInfo, Draft, EmailState, Folder } from './types'
+import { prefs } from '@/lib/prefs'
 
 const ACCOUNT_KEY = 'monorail.email.account'
 
@@ -49,7 +50,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 export function MailProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<EmailState | null>(null)
   const [stateError, setStateError] = useState<string | null>(null)
-  const [accountId, setAccountId] = useState<string | null>(() => localStorage.getItem(ACCOUNT_KEY))
+  const [accountId, setAccountId] = useState<string | null>(() => prefs.getItem(ACCOUNT_KEY))
   const [folders, setFolders] = useState<Folder[]>([])
   const [foldersError, setFoldersError] = useState<Error | null>(null)
   const [foldersTimedOut, setFoldersTimedOut] = useState(false)
@@ -79,7 +80,7 @@ export function MailProvider({ children }: { children: ReactNode }) {
   }, [state, accountId])
 
   const selectAccount = useCallback((id: string) => {
-    localStorage.setItem(ACCOUNT_KEY, id)
+    prefs.setItem(ACCOUNT_KEY, id)
     setAccountId(id)
   }, [])
 

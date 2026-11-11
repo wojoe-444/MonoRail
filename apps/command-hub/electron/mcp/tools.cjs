@@ -1,5 +1,6 @@
 // The MCP server's read-only tools. Each reads what MonoRail already keeps on
-// disk in its data folder (rootDir, e.g. %APPDATA%\MonoRail), or the local
+// disk in its data folder (rootDir: a data folder or a profile layout, see
+// electron/profiles; e.g. %APPDATA%\MonoRail), or the local
 // data MonoRail's own pages read, and never starts a slow build:
 //
 //   usage_summary            Claude Stats' summary file (written after each report build)
@@ -39,6 +40,7 @@ const { readJson } = require('../cache/files.cjs')
 const issues = require('../apps/github-plus/issues.cjs')
 const { resolveJiraDataDir } = require('../apps/jira-plus/data-dir.cjs')
 const flashcards = require('../modules/flashcards-store.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 
 const MAX_TEXT = 20_000
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -49,12 +51,12 @@ const minutes = (ms) => (typeof ms === 'number' ? Math.round(ms / 60000) : undef
 
 function folders(rootDir) {
   return {
-    claudeStats: path.join(rootDir, 'modules', 'claude-stats'),
-    agentChat: path.join(rootDir, 'modules', 'agent-chat'),
-    githubPlus: path.join(rootDir, 'apps', 'github-plus'),
-    jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
-    flashcards: path.join(rootDir, 'modules', 'flashcards'),
-    storage: path.join(rootDir, 'modules', 'storage'),
+    claudeStats: folderOf(rootDir, 'modules/claude-stats'),
+    agentChat: folderOf(rootDir, 'modules/agent-chat'),
+    githubPlus: folderOf(rootDir, 'apps/github-plus'),
+    jiraPlus: resolveJiraDataDir(folderOf(rootDir, 'apps/jira-plus')),
+    flashcards: folderOf(rootDir, 'modules/flashcards'),
+    storage: folderOf(rootDir, 'modules/storage'),
   }
 }
 
@@ -69,7 +71,19 @@ async function storageScan(storageDir, { top = 40 } = {}) {
   const scans = all.filter((s) => s.data?.kind === 'scan')
   const last = scans.at(-1)
   const lastDrives = all.at(-1)
-  const drives = (lastDrives?.data?.drives ?? []).map((d) => ({ drive: d.id, totalGB: gb(d.total), freeGB: gb(d.free), usedPercent: d.total ? Math.round(((d.total - d.free) / d.total) * 100) : undefined }))
+  // Free-space goals the user set on the Storage page (goals.json, when that feature is present).
+  const goalsFile = await readJson(path.join(storageDir, 'goals.json')).catch(() => undefined)
+  const goals = goalsFile?.version === 1 && goalsFile.goals && typeof goalsFile.goals === 'object' ? goalsFile.goals : {}
+  const drives = (lastDrives?.data?.drives ?? []).map((d) => {
+    const goal = typeof goals[d.id]?.freeBytes === 'number' ? goals[d.id].freeBytes : undefined
+    return {
+      drive: d.id,
+      totalGB: gb(d.total),
+      freeGB: gb(d.free),
+      usedPercent: d.total ? Math.round(((d.total - d.free) / d.total) * 100) : undefined,
+      ...(goal !== undefined ? { freeGoalGB: gb(goal), stillToFreeGB: gb(Math.max(0, goal - d.free)) } : {}),
+    }
+  })
   if (!last) {
     return {
       available: false,
@@ -397,7 +411,7 @@ function readTools({ rootDir }) {
       name: 'storage_scan',
       title: 'Disk space and folder sizes',
       description:
-        "The Storage page's last saved scan: free and used space per drive, and the size of known folders (MonoRail's data, agent tools, package manager caches, Temp, Downloads, system files), largest first, each with its largest subfolders, the change since the previous scan, and advice: safe (a cache its tool rebuilds), review (may hold things the user wants) or keep (in use). Sizes in GB. Read-only: MonoRail never deletes or moves anything it measures. If there is no scan yet, ask the user to press Scan on the Storage page.",
+        "The Storage page's last saved scan: free and used space per drive, and the size of known folders (MonoRail's data, agent tools, package manager caches, Temp, Downloads, system files), largest first, each with its largest subfolders, the change since the previous scan, and advice: safe (a cache its tool rebuilds), review (may hold things the user wants) or keep (in use), plus any free-space goal the user set per drive. Sizes in GB. Read-only: MonoRail never deletes or moves anything it measures. If there is no scan yet, ask the user to press Scan on the Storage page.",
       inputSchema: {
         type: 'object',
         properties: { top: { type: 'integer', minimum: 1, maximum: 100, description: 'How many folders to return, largest first (default 40).' } },

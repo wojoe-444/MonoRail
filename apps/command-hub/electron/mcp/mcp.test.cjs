@@ -192,9 +192,12 @@ describe('MonoRail read tools', () => {
         { id: 'downloads', label: 'Downloads', group: 'user', path: '/x/dl', advice: 'review', bytes: 9 * GB },
       ],
     })
-    const { value } = await call(server, 'storage_scan', {})
+    let { value } = await call(server, 'storage_scan', {})
     assert.equal(value.available, true)
     assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90 }])
+    fs.writeFileSync(path.join(dir, 'goals.json'), JSON.stringify({ version: 1, goals: { 'C:': { freeBytes: 80 * GB, setAt: '2026-11-11T00:00:00Z' } } }))
+    ;({ value } = await call(server, 'storage_scan', {}))
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90, freeGoalGB: 80, stillToFreeGB: 30 }])
     assert.deepEqual(value.locations.map((l) => l.id), ['downloads', 'npm'])
     assert.equal(value.locations[1].changeSincePreviousScanGB, 1)
     assert.equal(value.locations[1].largestChildren[0].name, '_cacache')

@@ -9,13 +9,13 @@
 //     docs/caching.md: a summary is read, a report is never built from here)
 
 const os = require('node:os')
-const path = require('node:path')
 
 const cache = require('../cache/index.cjs')
 const agentChat = require('./agent-chat.cjs')
 const { allowedRepos } = require('./agent-chat-folders.cjs')
 const turnsApi = require('./agent-chat-turns.cjs')
 const defs = require('./agents-definitions.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 
 const DAY = 24 * 60 * 60 * 1000
 /** A session whose log changed this recently is shown as active. */
@@ -24,7 +24,7 @@ const RECENT_KEEP = 10
 const REPOS_KEEP = 6
 
 function chatDataDir(ctx) {
-  return path.join(ctx.rootDir, 'modules', 'agent-chat')
+  return folderOf(ctx.layout ?? ctx.rootDir, 'modules/agent-chat')
 }
 
 function startOfToday(now) {
@@ -118,7 +118,7 @@ async function getOverview(ctx, { env = process.env, home = os.homedir() } = {})
     agentChat._internal.listSessions({ dataDir, env, home }),
     allowedRepos(dataDir, { home }),
     agentChat._internal.getComposer({ ...ctx, dataDir }),
-    cache.readSummaries(ctx.rootDir).catch(() => ({})),
+    cache.readSummaries(ctx.layout ?? ctx.rootDir).catch(() => ({})),
   ])
   const definitions = await defs.listDefinitions({ repos: folders.repos, env, home })
   const running = turnsApi.runningTurns()

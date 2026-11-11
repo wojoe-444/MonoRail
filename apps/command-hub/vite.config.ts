@@ -85,6 +85,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), ...(bridgeToken ? [devBridge()] : [])],
   // Shown in the drawer footer. CI stamps package.json before it builds the installer.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  // Keep function names in the production build so Developer Mode's element
+  // inspector can name React components (src/components/dev/inspect.ts).
+  build: { rolldownOptions: { output: { keepNames: true } } },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

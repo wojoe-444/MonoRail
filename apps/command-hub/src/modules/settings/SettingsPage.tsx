@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowRight, CheckCircle2, Download, Info, Loader2, Puzzle, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { DeveloperModeCard } from '@/components/dev/DeveloperModeCard'
 import { AppearanceCard } from '@/components/theme/ThemePicker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { BackupsCard } from './BackupsCard'
+import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
 import { changeItems } from './changes'
 import { WhatsNewList } from './WhatsNew'
@@ -69,7 +71,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Configure" title="Settings" description="Appearance, app version, updates, backups and local data." />
+      <PageHeader eyebrow="Configure" title="Settings" description="Your profile, appearance, app version, updates, backups and local data." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -104,6 +106,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        <ProfileCard className="lg:col-span-3" />
+
         <BackupsCard className="lg:col-span-3" />
 
         <Card className="lg:col-span-3">
@@ -124,6 +128,8 @@ export default function SettingsPage() {
         </Card>
 
         <AppearanceCard className="lg:col-span-3" />
+
+        <DeveloperModeCard className="lg:col-span-3" />
       </div>
     </div>
   )

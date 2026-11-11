@@ -28,6 +28,7 @@ const { allowedRepos } = require('./agent-chat-folders.cjs')
 const { builtins } = require('./agent-catalog-builtins.cjs')
 const { parseFrontmatter } = require('./agents-definitions.cjs')
 const { writeAtomic } = require('../cache/files.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 
 const BACKUPS_DIR = 'backups'
 const MAX_BACKUPS = 200
@@ -388,7 +389,7 @@ async function assertStillThere(opts, entry) {
 
 /** Allowed repos come from Chat's folder settings; backups go to this module's own folder. */
 function opts(ctx) {
-  return { chatDir: path.join(ctx.rootDir, 'modules', 'agent-chat'), backupDir: ctx.dataDir, env: process.env, home: os.homedir() }
+  return { chatDir: folderOf(ctx.layout ?? ctx.rootDir, 'modules/agent-chat'), backupDir: ctx.dataDir, env: process.env, home: os.homedir() }
 }
 
 module.exports = {

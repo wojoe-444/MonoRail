@@ -17,6 +17,13 @@ function startApp() {
   const { setupUserData } = require('./userData.cjs')
   // Before anything touches userData: picks the existing data folder (never moves it).
   setupUserData(app)
+  // Developer Mode's New User profile starts blank each time it is switched
+  // to: wipe its own folder (only profiles\new-user) before any backend opens it.
+  try {
+    if (require('./profiles/index.cjs').resetBlankProfile(app.getPath('userData'))) console.log('[profiles] New User profile reset to a blank slate')
+  } catch (err) {
+    console.error('[profiles] could not reset the New User profile', err)
+  }
 
   const { registerExtensionScheme } = require('./extensions/index.cjs')
   // The monorail-ext:// scheme (extension UIs) must be registered before 'ready'.

@@ -35,7 +35,7 @@ const STORAGE_DETECTIVE = Object.freeze({
     '',
     '## What to report',
     '',
-    'Start with one line: the drive that is fullest and how much space a careful cleanup could free.',
+    'Start with one line: the drive that is fullest and how much space a careful cleanup could free. If the scan gives a free-space goal for a drive (`freeGoalGB`, `stillToFreeGB`), say how far the plan gets toward it, and stop suggesting once the goal is met unless the user asks for more.',
     '',
     'Then a table, largest saving first, with these columns: what it is, where (path), size, how safe (Safe, Check first, Leave alone), and how to clean it.',
     '',

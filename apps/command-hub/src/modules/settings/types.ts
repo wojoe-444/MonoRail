@@ -65,3 +65,30 @@ export interface BackupStatus {
   settings: GlobalBackupSettings
   pages: BackupPageStatus[]
 }
+
+export interface ProfileInfo {
+  id: string
+  name: string
+  createdAt: string | null
+  active: boolean
+  isDefault: boolean
+  /** Not listed outside Developer Mode (the New User test profile). */
+  hidden?: boolean
+  /** Wiped to a blank slate each time it is switched to. */
+  blank?: boolean
+  /** The profile's data root. The default profile's is the data folder itself. */
+  dataDir: string
+}
+
+export interface ProfilesView {
+  activeId: string
+  /** The profile the next start opens, when a switch waits for a restart. */
+  nextId?: string | null
+  /** Where Developer Mode's New User profile switches back to. */
+  previousId?: string | null
+  /** profiles.json exists but cannot be read; MonoRail will not overwrite it. */
+  damaged: boolean
+  profiles: ProfileInfo[]
+  machineDir: string
+  scopes: { profile: string[]; machine: string[] }
+}
