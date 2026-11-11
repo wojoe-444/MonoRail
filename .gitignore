@@ -1,0 +1,43 @@
+# ------------------------------------------------------------------
+# PRIVATE DATA NEVER BELONGS IN THIS PUBLIC REPO.
+# User-specific data (API keys, tokens, settings, run history, logs)
+# lives in local AppData (%APPDATA%\Command Hub on Windows). These
+# rules are a safety net in case any of it ends up in the working tree.
+# ------------------------------------------------------------------
+AppData/
+appdata/
+**/AppData/**
+local-data/
+.local/
+secrets/
+*.secret
+*.secrets.*
+*.local.json
+*.local.yaml
+*.local.yml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+token*.json
+
+# Build output
+node_modules/
+dist/
+release/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
