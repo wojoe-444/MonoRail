@@ -102,7 +102,7 @@ const CACHES = Object.freeze([
 
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
-  'modules/agent-chat': ['folders.json', 'costs.json'],
+  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json'],
   'modules/connections': ['connections.json'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
@@ -115,7 +115,7 @@ const DATA_FILES = Object.freeze({
  */
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
-  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session are kept (costs.json).',
+  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) are kept.',
   'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
 })
 
