@@ -24,6 +24,7 @@ const moduleBackends = [
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
   require('./home.cjs'),
+  require('./mcp.cjs'),
   require('./settings.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')

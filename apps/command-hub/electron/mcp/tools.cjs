@@ -1,0 +1,317 @@
+// The MCP server's read-only tools. Each reads what MonoRail already keeps on
+// disk in its data folder (rootDir, e.g. %APPDATA%\MonoRail), or the local
+// data MonoRail's own pages read, and never starts a slow build:
+//
+//   usage_summary            Claude Stats' summary file (written after each report build)
+//   list_chat_sessions       Chat's session list (logs read in place, allowed folders only)
+//   list_github_plus_repos   GitHub+'s recent repos, with issue counts
+//   list_github_plus_issues  local issues of one of those repos (refs/local-issues)
+//   get_github_plus_issue
+//   list_jira_plus_projects  Jira+'s private local projects (never team Jira)
+//   list_jira_plus_issues
+//   get_jira_plus_issue
+//   connection_status        Connections' last check per account (no secrets)
+//
+// Rules: nothing here returns a secret or a token, writes a file, or makes a
+// network request. Repos and folders are the ones the user already allowed in
+// MonoRail (GitHub+ recents, Chat's allowed folders); an agent cannot name
+// another path.
+
+const fs = require('node:fs/promises')
+const fsSync = require('node:fs')
+const path = require('node:path')
+
+const cache = require('../cache/index.cjs')
+const { readJson } = require('../cache/files.cjs')
+const issues = require('../apps/github-plus/issues.cjs')
+const { resolveJiraDataDir } = require('../apps/jira-plus/data-dir.cjs')
+
+const MAX_TEXT = 20_000
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+
+const clip = (s, max = MAX_TEXT) => (typeof s === 'string' && s.length > max ? `${s.slice(0, max)}\n... (cut at ${max} characters)` : s)
+const iso = (ms) => (typeof ms === 'number' && Number.isFinite(ms) ? new Date(ms).toISOString() : undefined)
+const minutes = (ms) => (typeof ms === 'number' ? Math.round(ms / 60000) : undefined)
+
+function folders(rootDir) {
+  return {
+    claudeStats: path.join(rootDir, 'modules', 'claude-stats'),
+    agentChat: path.join(rootDir, 'modules', 'agent-chat'),
+    githubPlus: path.join(rootDir, 'apps', 'github-plus'),
+    jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
+  }
+}
+
+// ---------- GitHub+ ----------
+
+async function githubRecents(dir) {
+  const list = await readJson(path.join(dir, 'recents.json'))
+  return Array.isArray(list) ? list.filter((p) => typeof p === 'string') : []
+}
+
+/** A repo from GitHub+'s recents, by its full path or its folder name. */
+async function githubRepo(dir, wanted) {
+  const recents = await githubRecents(dir)
+  const norm = (p) => path.resolve(p).replace(/[\\/]+$/, '').toLowerCase()
+  const exact = recents.find((p) => norm(p) === norm(wanted))
+  if (exact) return exact
+  const byName = recents.filter((p) => path.basename(p).toLowerCase() === wanted.toLowerCase())
+  if (byName.length === 1) return byName[0]
+  if (byName.length > 1) throw new Error(`Several GitHub+ repos are called "${wanted}". Pass the full path from list_github_plus_repos.`)
+  throw new Error(`"${wanted}" is not one of the repos opened in GitHub+. Call list_github_plus_repos for the list; open a repo in MonoRail's GitHub+ to add it.`)
+}
+
+// ---------- Jira+ ----------
+
+function jiraStore(dir) {
+  const repoDir = path.join(dir, 'local-repo')
+  // Reading must not create the repository, so only open one that exists.
+  if (!fsSync.existsSync(path.join(repoDir, '.git'))) return undefined
+  const { createLocalStore } = require('../apps/jira-plus/local.cjs')
+  return createLocalStore(repoDir)
+}
+
+const JIRA_PROJECT = /^[A-Z][A-Z0-9]{1,9}$/
+const JIRA_ISSUE = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,6}$/
+
+/** The read-only tools, over the data folder `rootDir`. */
+function readTools({ rootDir }) {
+  const dir = folders(rootDir)
+
+  return [
+    {
+      name: 'usage_summary',
+      title: 'Agent usage and cost',
+      description:
+        "API-equivalent spend on coding agents (Claude Code, Gemini CLI, pi) per day for up to the last 30 days, the total, and the top models by cost. From Claude Stats' last cached report; MonoRail rebuilds it every 15 minutes while it runs. Costs are list-price estimates in USD, not a bill.",
+      inputSchema: {
+        type: 'object',
+        properties: { days: { type: 'integer', minimum: 1, maximum: 30, description: 'How many recent days to return (default 30).' } },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ days = 30 }) {
+        const s = (await cache.readSummaries(rootDir))['claude-stats.summary']
+        const status = await readJson(path.join(dir.claudeStats, 'usage.json.status.json'))
+        if (!s) {
+          return {
+            available: false,
+            reason: 'There is no usage report yet. Open Claude Stats in MonoRail, or leave MonoRail running: it builds the report in the background.',
+          }
+        }
+        const recent = (s.summary.days ?? []).slice(-days)
+        return {
+          available: true,
+          builtAt: s.builtAt,
+          ageMinutes: minutes(s.ageMs),
+          stale: s.stale,
+          lastBuildError: status?.lastError && Date.parse(status.lastAttemptAt ?? 0) > Date.parse(s.builtAt) ? status.lastError.split('\n')[0] : undefined,
+          currency: 'USD',
+          totalForDays: recent.reduce((a, d) => a + (d.cost ?? 0), 0),
+          days: recent,
+          topModels30Days: s.summary.topModels ?? [],
+        }
+      },
+    },
+
+    {
+      name: 'list_chat_sessions',
+      title: 'Recent agent chats',
+      description:
+        "Recent local Claude Code and pi sessions, newest first, as MonoRail's Chat page lists them: only sessions whose folder is in a repo the user allowed there. Each has an id, title, repo, branch, model, times, spend when known, and unread/archived/scheduled flags. Transcripts are not returned.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          source: { type: 'string', enum: ['claude', 'pi'], description: 'Only sessions of this agent.' },
+          repo: { type: 'string', maxLength: 260, description: 'Only sessions in the repo with this folder name.' },
+          includeArchived: { type: 'boolean', description: 'Include chats archived in MonoRail (default false).' },
+          limit: { type: 'integer', minimum: 1, maximum: 60, description: 'At most this many (default 20).' },
+        },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ source, repo, includeArchived = false, limit = 20 }) {
+        const { _internal } = require('../modules/agent-chat.cjs')
+        const list = await _internal.listSessions({ dataDir: dir.agentChat })
+        const sessions = list.sessions
+          .filter((s) => !source || s.source === source)
+          .filter((s) => !repo || s.repo?.name?.toLowerCase() === repo.toLowerCase())
+          .filter((s) => includeArchived || !s.archived)
+          .slice(0, limit)
+          .map((s) => ({
+            id: s.id,
+            source: s.source,
+            title: s.title,
+            repo: s.repo?.name,
+            repoPath: s.repo?.path,
+            branch: s.branch,
+            model: s.model,
+            startedAt: iso(s.startedAt),
+            updatedAt: iso(s.updatedAt),
+            spentUsd: s.total?.usd,
+            spendComplete: s.total?.complete,
+            unread: s.unread,
+            archived: s.archived,
+            scheduled: s.scheduled,
+            coordinator: s.coordinator || undefined,
+          }))
+        return {
+          sessions,
+          sources: list.sources,
+          allowedRepos: list.folders?.repoCount,
+          note: list.folders?.repoCount ? undefined : 'No allowed repos yet: add them in MonoRail under Chat > Folders.',
+        }
+      },
+    },
+
+    {
+      name: 'list_github_plus_repos',
+      title: 'GitHub+ repos',
+      description: "The local git repos recently opened in MonoRail's GitHub+, with their open and closed local issue counts. Local issues live in each repo under refs/local-issues.",
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: READ_ONLY,
+      async handler() {
+        const recents = await githubRecents(dir.githubPlus)
+        return {
+          repos: await Promise.all(
+            recents.map(async (p) => {
+              const base = { name: path.basename(p), path: p }
+              try {
+                await fs.access(p)
+                return { ...base, issues: await issues.issueCounts(p) }
+              } catch (e) {
+                return { ...base, error: e.code === 'ENOENT' ? 'Folder not found' : e.message.split('\n')[0] }
+              }
+            }),
+          ),
+        }
+      },
+    },
+
+    {
+      name: 'list_github_plus_issues',
+      title: 'GitHub+ local issues',
+      description: 'Local issues of a GitHub+ repo, newest first (number, title, state, author, times, comment count). Pass the repo folder name or the path from list_github_plus_repos.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo: { type: 'string', maxLength: 1024, description: 'Repo folder name or full path.' },
+          state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Default open.' },
+          limit: { type: 'integer', minimum: 1, maximum: 500, description: 'At most this many (default 100).' },
+        },
+        required: ['repo'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ repo, state = 'open', limit = 100 }) {
+        const p = await githubRepo(dir.githubPlus, repo)
+        const list = await issues.listIssues(p, state)
+        return { repo: p, total: list.length, issues: list.slice(0, limit) }
+      },
+    },
+
+    {
+      name: 'get_github_plus_issue',
+      title: 'GitHub+ local issue',
+      description: 'One local issue of a GitHub+ repo, with its body and timeline (comments, closes, reopens).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repo: { type: 'string', maxLength: 1024, description: 'Repo folder name or full path.' },
+          number: { type: 'integer', minimum: 1, description: 'Issue number.' },
+        },
+        required: ['repo', 'number'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ repo, number }) {
+        const p = await githubRepo(dir.githubPlus, repo)
+        const issue = await issues.getIssue(p, number)
+        return { repo: p, ...issue, body: clip(issue.body), timeline: issue.timeline.map((t) => (typeof t.body === 'string' ? { ...t, body: clip(t.body) } : t)) }
+      },
+    },
+
+    {
+      name: 'list_jira_plus_projects',
+      title: 'Jira+ local projects',
+      description: "The user's private local projects in MonoRail's Jira+ (kept in a git repo on this machine, never synced), with issue counts. Team Jira Cloud projects are not available here.",
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: READ_ONLY,
+      async handler() {
+        const store = jiraStore(dir.jiraPlus)
+        if (!store) return { projects: [], note: 'No local Jira+ projects yet.' }
+        return { projects: await store.listProjects() }
+      },
+    },
+
+    {
+      name: 'list_jira_plus_issues',
+      title: 'Jira+ local issues',
+      description: 'Issues of one local Jira+ project, most recently updated first (key, summary, type, priority, status, labels, times, comment count).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string', maxLength: 10, description: 'Project key, e.g. "ME".' },
+          statusCategory: { type: 'string', enum: ['todo', 'in_progress', 'done'], description: 'Only issues in this status category.' },
+          limit: { type: 'integer', minimum: 1, maximum: 500, description: 'At most this many (default 100).' },
+        },
+        required: ['project'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ project, statusCategory, limit = 100 }) {
+        const key = project.toUpperCase()
+        if (!JIRA_PROJECT.test(key)) throw new Error('Project keys are 2 to 10 letters or digits and start with a letter.')
+        const store = jiraStore(dir.jiraPlus)
+        if (!store) throw new Error(`There is no local Jira+ project ${key}.`)
+        const all = (await store.listIssues(key)).filter((i) => !statusCategory || i.statusCategory === statusCategory)
+        return { project: key, total: all.length, issues: all.slice(0, limit).map(({ description: _d, ...i }) => i) }
+      },
+    },
+
+    {
+      name: 'get_jira_plus_issue',
+      title: 'Jira+ local issue',
+      description: 'One local Jira+ issue with its description, comments and history.',
+      inputSchema: {
+        type: 'object',
+        properties: { key: { type: 'string', maxLength: 20, description: 'Issue key, e.g. "ME-4".' } },
+        required: ['key'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ key }) {
+        const k = key.toUpperCase()
+        if (!JIRA_ISSUE.test(k)) throw new Error('Issue keys look like ME-4.')
+        const store = jiraStore(dir.jiraPlus)
+        if (!store) throw new Error(`There is no local Jira+ issue ${k}.`)
+        let issue
+        try {
+          issue = await store.getIssue(k)
+        } catch (e) {
+          if (e.code === 'ENOENT') throw new Error(`There is no local Jira+ issue ${k}.`)
+          throw e
+        }
+        const { transitions: _t, ...rest } = issue
+        return { ...rest, description: clip(rest.description), comments: rest.comments.map((c) => ({ ...c, body: clip(c.body) })) }
+      },
+    },
+
+    {
+      name: 'connection_status',
+      title: 'Account connections',
+      description:
+        "Whether each account MonoRail signs in with (Google Cloud, Atlassian, Claude) still works, from the last check MonoRail ran: state (ok, expired, needs-setup, error, unavailable), a one-line summary and when it was checked. Never returns credentials.",
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: READ_ONLY,
+      async handler() {
+        const s = (await cache.readSummaries(rootDir))['connections.summary']
+        const list = Object.entries(s?.summary?.connections ?? {}).map(([kind, c]) => ({ kind, ...c }))
+        if (!list.length) return { connections: [], note: 'No connection has been checked yet. Add or check one on the Connections page in MonoRail.' }
+        return { connections: list }
+      },
+    },
+  ]
+}
+
+module.exports = { readTools, folders }

@@ -85,8 +85,30 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       },
       { definition, force, failed: (r) => r.state !== 'ok' },
     )
-    if (conn) lastStatus.set(kind, result)
+    if (conn) {
+      lastStatus.set(kind, result)
+      void saveSummary(kind, result)
+    }
     return result
+  }
+
+  // The last result per connection, on disk (declared 'connections.summary'),
+  // so Home and the MCP server can show it without running a check. Only the
+  // state and one-line summary: never secrets or check details.
+  let summaryWrites = Promise.resolve()
+  function saveSummary(kind, result) {
+    summaryWrites = summaryWrites
+      .then(async () => {
+        if (!dataDir) return
+        const all = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']?.summary?.connections ?? {}
+        if (result) {
+          const { state, summary, hint, checkedAt } = result
+          all[kind] = { title: connectorOf(kind).title, state, summary, hint, checkedAt }
+        } else delete all[kind]
+        await cacheLib.writeSummary({ dataDir }, 'connections.summary', { connections: all })
+      })
+      .catch(() => {})
+    return summaryWrites
   }
 
   return {
@@ -130,6 +152,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       jobs.delete(kind)
       lastStatus.delete(kind)
       checks.invalidate(kind)
+      await saveSummary(kind, undefined)
       return store.remove(kind)
     },
 

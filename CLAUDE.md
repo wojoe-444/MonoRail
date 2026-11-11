@@ -256,6 +256,23 @@ login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
 opens a terminal running `claude auth login`). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
+`mcp` (**Agent access**, under Configure) shows how to connect agents to
+MonoRail's **MCP server** (`electron/mcp`, docs: `docs/mcp.md`). Agents start
+it as `MonoRail.exe --mcp`: `main.cjs` then opens no window and runs
+`electron/mcp/server.cjs` in `ELECTRON_RUN_AS_NODE` mode with stdio inherited
+(`launch.cjs`; the launcher's own Chromium files go to a temp folder, never a
+data folder). stdio only, never a network port; stdout carries protocol
+messages only (logs go to stderr, metadata only). The protocol layer
+(`protocol.cjs`, no SDK dependency) and tools (`tools.cjs`) run outside
+Electron, so tools read MonoRail's data folder from disk and never `require`
+Electron: summary files (`claude-stats.summary`, `connections.summary`, the
+latter written after every connection check), Chat's `listSessions` (allowed
+folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
+repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
+legacy folder). Every tool so far is read-only and returns no secrets or
+tokens; keep it that way unless a tool goes through the planned consent and
+audit log. Tests: `electron/mcp/mcp.test.cjs` (includes a real stdio run).
+
 Nav items may have one level of indented subpages (`NavItem.children` in
 `nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
 

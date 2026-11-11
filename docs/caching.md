@@ -52,6 +52,7 @@ else, with a test that checks the values:
 | `connections.connector-check` | 15 min |
 | `connections.sign-in` | 15 min after a success, 2 min after a failure |
 | `agent-chat.recent` | 10 s, cleared when the chat list changes |
+| `connections.summary` | rewritten after every connection check; reads as stale after 1 h |
 
 **B2. A cached check is keyed to its definition.** `keyed(id).get(key, fn, {
 definition })` stores a SHA-256 hash of the definition (a connector's config,
