@@ -14,6 +14,7 @@ const { API_VERSION, resolveInside } = require('./manifest.cjs')
 const { BackendHost } = require('./host.cjs')
 const { ExtensionManager } = require('./manager.cjs')
 const { SecretStore, safeStorageCipher } = require('./secrets.cjs')
+const { SettingsStore } = require('./settings.cjs')
 const { toWire } = require('./errors.cjs')
 
 const SCHEME = 'monorail-ext'
@@ -193,6 +194,12 @@ const extensionsBackend = {
     async revokeFolder(_ctx, { id, path: folder }) {
       return manager.revokeFolder(id, folder)
     },
+    async getSettings(_ctx, { id }) {
+      return manager.getSettings(id)
+    },
+    async saveSettings(_ctx, { id, values }) {
+      return manager.saveSettings(id, values)
+    },
     async logs(_ctx, { id }) {
       return manager.logs(id)
     },
@@ -246,17 +253,21 @@ const extensionsBackend = {
 function setupExtensions() {
   const userData = app.getPath('userData')
   const secretStore = new SecretStore({ root: path.join(userData, 'extension-secrets'), cipher: safeStorageCipher(safeStorage) })
+  const settingsStore = new SettingsStore({ root: path.join(userData, 'extension-settings'), secretStore })
   const host = new BackendHost({
     apiVersion: API_VERSION,
     onEmit: (id, channel, payload) => broadcast('extension:event', { id, channel, payload }),
     onStatus: () => broadcast('extension:changed', {}),
     onMigrated: (id, version) => manager.recordDataVersion(id, version),
     secrets: (id) => secretStore.forExtension(id),
+    settings: (id) => settingsStore.backendValues(manager.record(id).manifest),
   })
   manager = new ExtensionManager({
     userData,
     host,
     secretStore,
+    settingsStore,
+    onSettings: (id, values) => broadcast('extension:event', { id, channel: 'monorail.settings', payload: values }),
     // Electron's net uses the system proxy settings, like the updater.
     fetchImpl: (url, init) => net.fetch(url, init),
     onChange: () => broadcast('extension:changed', {}),

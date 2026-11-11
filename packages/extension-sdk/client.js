@@ -6,6 +6,9 @@
 //   monorail.on('log', (line) => ...)           // events your backend sends with ctx.emit('log', line)
 //   const folder = await monorail.pickFolder({ write: false })    // needs filesystem.pickFolders
 //   await monorail.openExternal('https://example.com')
+//   const { values } = await monorail.getSettings()   // fields from "settings" in monorail.json
+//   monorail.onSettings(({ values }) => ...)          // the user saved new settings
+//   monorail.openSettings()                           // show the settings form
 //
 // The SDK also keeps the page's theme in step with MonoRail (adds/removes the
 // "dark" class on <html>) and, for pages shown inside the hub, reports the
@@ -146,6 +149,25 @@ export const monorail = {
   /** Open an https:// link in the user's browser. */
   openExternal(url) {
     return request('openExternal', { url })
+  },
+
+  /**
+   * The settings declared in monorail.json: { values, secrets }. `values` has
+   * every non-secret field (defaults filled in); `secrets` says per secret
+   * field whether one is set. Secret values never reach pages. API 1.1.
+   */
+  getSettings() {
+    return request('getSettings', {})
+  },
+
+  /** Called with { values, secrets } after the user saves new settings. Returns an unsubscribe function. */
+  onSettings(cb) {
+    return monorail.on('monorail.settings', cb)
+  },
+
+  /** Take the user to this extension's settings form in MonoRail. */
+  openSettings() {
+    return request('openSettings', {})
   },
 }
 

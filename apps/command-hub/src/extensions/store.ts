@@ -70,3 +70,18 @@ export function useExtensionList(): ExtensionList {
 export function activeExtensions(l: ExtensionList = list): ExtensionSummary[] {
   return l.extensions.filter((e) => e.status === 'active')
 }
+
+// "Open the settings of extension X": set by an extension page (monorail.openSettings())
+// or a nav action, read once by the Extensions page when it mounts.
+let pendingSettings: string | undefined
+
+export function requestExtensionSettings(id: string) {
+  pendingSettings = id
+  window.dispatchEvent(new CustomEvent('monorail:open-extension-settings', { detail: id }))
+}
+
+export function takePendingSettings(): string | undefined {
+  const id = pendingSettings
+  pendingSettings = undefined
+  return id
+}

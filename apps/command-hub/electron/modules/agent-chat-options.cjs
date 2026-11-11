@@ -158,12 +158,15 @@ async function piPathAllowed(root, cwd, target) {
   let p = typeof target === 'string' && target.trim() ? target.trim() : '.'
   if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) p = path.join(os.homedir(), p.slice(1))
   p = path.resolve(cwd, p)
+  // Compare real paths on both sides: fs.realpathSync and fs.promises.realpath
+  // can spell the same Windows folder differently (8.3 short names).
+  const realRoot = await fsp.realpath(root).catch(() => path.resolve(root))
   let rest = ''
   for (;;) {
     try {
       const r = await fsp.realpath(p)
       const full = rest ? path.join(r, rest) : r
-      const rel = path.relative(root, full)
+      const rel = path.relative(realRoot, full)
       return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
     } catch {
       const parent = path.dirname(p)
