@@ -38,7 +38,6 @@ import {
   isoDate,
   pctChange,
   RANGES,
-  seriesOf,
   seriesOrder,
   timeSeries,
   totals,
@@ -123,7 +122,8 @@ export default function ClaudeStatsPage() {
           phasesBySession,
         }
       })(),
-      byModel: groupBy(current, (f) => seriesOf(seriesKey(f), order)),
+      // Every model gets its own row; models outside the color slots share the "Other" color.
+      byModel: groupBy(current, seriesKey),
       byProject: groupBy(current, (f) => f.project),
       sessions: sessionsInRange.sort((a, b) => b.outputTokens - a.outputTokens),
       prevSessions: w.prev

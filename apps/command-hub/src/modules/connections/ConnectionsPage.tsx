@@ -63,11 +63,11 @@ export default function ConnectionsPage() {
   const [removing, setRemoving] = useState<Connector>()
 
   const check = useCallback(
-    async (kind: string) => {
+    async (kind: string, force = false) => {
       if (!desktop) return
       setChecking((c) => ({ ...c, [kind]: true }))
       try {
-        const s = await invokeModule<ConnectionStatus>(MODULE_ID, 'check', { kind })
+        const s = await invokeModule<ConnectionStatus>(MODULE_ID, 'check', { kind, force })
         setStatuses((all) => ({ ...all, [kind]: s }))
       } catch (e) {
         setStatuses((all) => ({ ...all, [kind]: { state: 'error', summary: message(e), details: [], added: true, checkedAt: new Date().toISOString() } }))
@@ -110,7 +110,7 @@ export default function ConnectionsPage() {
       for (const kind of runningKinds.split(',')) {
         invokeModule<ConnectionJob | undefined>(MODULE_ID, 'getJob', { kind }).then((job) => {
           setJobs((all) => ({ ...all, [kind]: job }))
-          if (job && job.state !== 'running') void check(kind)
+          if (job && job.state !== 'running') void check(kind, true)
         }, () => {})
       }
     }, 1000)
@@ -126,7 +126,7 @@ export default function ConnectionsPage() {
   useEffect(() => {
     if (!desktop) return
     const onFocus = () => {
-      for (const [kind, s] of Object.entries(statusesRef.current)) if (s.state !== 'ok') void check(kind)
+      for (const [kind, s] of Object.entries(statusesRef.current)) if (s.state !== 'ok') void check(kind, true)
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -176,7 +176,7 @@ export default function ConnectionsPage() {
         title="Connections"
         description="Accounts MonoRail signs in with, and whether each one still works. Secrets stay encrypted on this PC."
         actions={
-          <Button variant="outline" onClick={() => list?.connectors.forEach((c) => void check(c.kind))} disabled={!desktop || Object.values(checking).some(Boolean)}>
+          <Button variant="outline" onClick={() => list?.connectors.forEach((c) => void check(c.kind, true))} disabled={!desktop || Object.values(checking).some(Boolean)}>
             <RefreshCw className={cn(Object.values(checking).some(Boolean) && 'animate-spin')} /> Check all
           </Button>
         }
@@ -209,7 +209,7 @@ export default function ConnectionsPage() {
                 status={statuses[c.kind]}
                 checking={!!checking[c.kind]}
                 job={jobs[c.kind]}
-                onCheck={() => void check(c.kind)}
+                onCheck={() => void check(c.kind, true)}
                 onAction={(a) => void runAction(c.kind, a)}
                 onCancel={() => void cancelJob(c.kind)}
                 onEdit={() => setEditing(c)}
@@ -276,7 +276,7 @@ export default function ConnectionsPage() {
                 }
                 setStatuses(({ [kind]: _gone, ...rest }) => rest)
                 await load()
-                void check(kind)
+                void check(kind, true)
               }}
             >
               <Trash2 /> Remove

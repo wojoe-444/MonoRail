@@ -18,12 +18,15 @@ import type { ExtensionSummary } from './types'
  *   frame -> hub  { monorail: 1, type: 'hello' }
  *   hub -> frame  { monorail: 1, type: 'init', theme, apiVersion, extension, contribution }
  *   frame -> hub  { monorail: 1, type: 'request', id, op: 'invoke' | 'pickFolder' | 'openExternal', ... }
- *   hub -> frame  { monorail: 1, type: 'response', id, ok, value | error }
+ *   hub -> frame  { monorail: 1, type: 'response', id, ok, value | error }   error = { code, message, details? }
  *   frame -> hub  { monorail: 1, type: 'resize', height }   (modules only: page height)
  *   hub -> frame  { monorail: 1, type: 'theme', theme } | { monorail: 1, type: 'event', channel, payload }
  */
 
 const BRIDGE = 1
+
+/** What the "extensions" backend's call() returns (see electron/extensions/errors.cjs). */
+type CallResult = { ok: true; value: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 interface ExtensionFrameProps {
   ext: ExtensionSummary
@@ -99,7 +102,12 @@ export function ExtensionFrame({ ext, contribution, kind, apiVersion }: Extensio
         let value: unknown
         if (msg.op === 'invoke') {
           if (typeof msg.method !== 'string') throw new Error('invoke needs a method name')
-          value = await invokeModule(`ext:${id}`, msg.method, msg.args)
+          const res = await invokeModule<CallResult>('extensions', 'call', { id, method: msg.method, args: msg.args })
+          if (!res.ok) {
+            post({ type: 'response', id: msg.id, ok: false, error: res.error })
+            return
+          }
+          value = res.value
         } else if (msg.op === 'pickFolder') {
           value = await invokeModule('extensions', 'requestFolder', { id, write: msg.write === true })
         } else if (msg.op === 'openExternal') {
@@ -107,7 +115,7 @@ export function ExtensionFrame({ ext, contribution, kind, apiVersion }: Extensio
         } else throw new Error(`Unknown request ${String(msg.op)}`)
         post({ type: 'response', id: msg.id, ok: true, value })
       } catch (err) {
-        post({ type: 'response', id: msg.id, ok: false, error: { message: cleanError(err) } })
+        post({ type: 'response', id: msg.id, ok: false, error: { code: 'EXT_HOST_ERROR', message: cleanError(err) } })
       }
     }
 

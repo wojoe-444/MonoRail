@@ -386,7 +386,7 @@ Rules live in `electron/extensions/manifest.cjs` (with tests). Routes are
 router and `AppFrame` pick them up through `allModules()` / `allApps()` in
 the registries, fed by `src/extensions/store.ts`.
 
-**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.0.0) covers
+**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.1.0) covers
 the manifest, the backend `ctx`, and bridge protocol 1. Extensions declare
 `engines.monorail`; a non-matching extension stays installed but is not loaded.
 Adding things is a minor bump; changing or removing anything an extension can
@@ -415,6 +415,16 @@ a minimal environment (no inherited tokens). `process` is full trust (a
 spawned program is not sandboxed) and the UI says so. `runner.cjs` must stay
 self-contained: it is `asarUnpack`ed and is the only app file the child may
 read. Backends crash in isolation; 3 crashes in a minute stop it until reload.
+API 1.1 added: `ctx.secrets` (safeStorage, stored in
+`%APPDATA%\<app>\extension-secrets\<id>.json`, outside every sandbox,
+`secrets.cjs`); the error contract (`errors.cjs`: every failed call carries
+`code`, `message`, `details`; `EXT_*` codes are MonoRail's, `ctx.fail()` sends
+the extension's own; pages call through `extensions.call`, which returns an
+envelope because Electron IPC drops error fields); `migrate(ctx, fromVersion)`
+before `start()` when the version that last used the data folder changed
+(`state.json` `dataVersions`); `ctx.emit` is fire and forget (dropped with no
+page open, JSON under 1 MB). Program names in `permissions.process` match
+without `.exe`/`.cmd`/`.bat`/`.com` on both sides.
 
 **Install, update, remove** (`manager.cjs`, `install.cjs`). Sources: a
 folder (copied), a `.zip`, the latest GitHub release of `owner/name` (the

@@ -11,12 +11,18 @@
 // file the sandboxed process may read.
 //
 // Protocol with the host (process IPC, JSON):
-//   host -> child  { type: 'init', extension, main, dataDir, extensionDir, folders, permissions }
+//   host -> child  { type: 'init', extension, main, dataDir, extensionDir, folders, permissions, previousVersion }
+//   child -> host  { type: 'migrated', version }       (after migrate() succeeded, before start())
 //   child -> host  { type: 'ready', methods } | { type: 'fatal', error }
 //   host -> child  { type: 'invoke', id, method, args }
-//   child -> host  { type: 'result', id, ok, value | error }
-//   child -> host  { type: 'emit', channel, payload }  (pushed to the extension's UI)
+//   child -> host  { type: 'result', id, ok, value | error }   error = { code, message, details? }
+//   child -> host  { type: 'emit', channel, payload }  (pushed to the extension's open pages)
+//   child -> host  { type: 'host', id, op, args }      (ctx.secrets: op = 'secrets.get' | ...)
+//   host -> child  { type: 'hostResult', id, ok, value | error }
 //   host -> child  { type: 'stop' }
+//
+// Error codes the runtime itself produces start with EXT_ (see ERROR_CODES in
+// errors.cjs, kept in step with the list in docs/extensions/backend-api.md).
 
 'use strict'
 
@@ -30,12 +36,44 @@ function send(msg) {
   if (process.connected) process.send(msg)
 }
 
+const CODE_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/
+const MAX_DETAILS = 64 * 1024
+const MAX_PAYLOAD = 1024 * 1024
+
+/**
+ * The error contract: every failed call reaches the page as { code, message,
+ * details? }. A backend's own `code` (a short identifier) and JSON `details`
+ * pass through; anything else becomes EXT_BACKEND_ERROR. Node's permission
+ * model denials become EXT_FS_DENIED (files) or keep their EXT_ code.
+ */
 function errorInfo(err) {
+  let e = err
+  let message
   // fetch() hides the real reason (e.g. a network permission denial) in err.cause.
-  if (err instanceof Error && err.cause instanceof Error && err.message === 'fetch failed')
-    return { message: `fetch failed: ${err.cause.message}`, code: err.cause.code, stack: err.stack }
-  if (err instanceof Error) return { message: err.message, code: err.code, stack: err.stack }
-  return { message: String(err) }
+  if (e instanceof Error && e.cause instanceof Error && e.message === 'fetch failed') {
+    message = `fetch failed: ${e.cause.message}`
+    e = e.cause
+  }
+  if (!(e instanceof Error)) return { code: 'EXT_BACKEND_ERROR', message: String(err) }
+  let code = typeof e.code === 'string' && CODE_RE.test(e.code) ? e.code : 'EXT_BACKEND_ERROR'
+  if (code === 'ERR_ACCESS_DENIED') code = e.permission === 'ChildProcess' ? 'EXT_PROCESS_DENIED' : 'EXT_FS_DENIED'
+  const out = { code, message: message ?? e.message, stack: err instanceof Error ? err.stack : undefined }
+  if (e.details !== undefined) {
+    try {
+      const json = JSON.stringify(e.details)
+      if (json !== undefined && json.length <= MAX_DETAILS) out.details = JSON.parse(json)
+    } catch {
+      /* details that are not JSON are dropped */
+    }
+  }
+  return out
+}
+
+function codedError(code, message, details) {
+  const err = new Error(message)
+  err.code = code
+  if (details !== undefined) err.details = details
+  return err
 }
 
 // ----------------------------------------------------------- network guard --
@@ -121,15 +159,24 @@ function installNetworkGuard(policy) {
 
 // ----------------------------------------------------------- process guard --
 
-/** With a list of programs, only those may be started (checked by file name, without .exe/.cmd). */
+/**
+ * A program name as the process guard compares it: the file name only (no
+ * folder), lower case, without a Windows launcher extension. Applied to both
+ * the allowlist entry and the program being started, so "node", "node.exe"
+ * and "C:\\Program Files\\nodejs\\node.exe" are the same program.
+ */
+function programName(file) {
+  return String(file ?? '').split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|com)$/, '')
+}
+
+/** With a list of programs, only those may be started (see programName). */
 function installProcessGuard(policy) {
   if (policy !== true && !Array.isArray(policy)) return // no permission: Node's permission model blocks it
   if (policy === true) return
   const cp = require('node:child_process')
-  const allowed = new Set(policy.map((p) => p.toLowerCase()))
+  const allowed = new Set(policy.map(programName))
   const check = (file) => {
-    const base = String(file ?? '').split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|com)$/, '')
-    if (!allowed.has(base)) {
+    if (!allowed.has(programName(file))) {
       const err = new Error(`This extension may not run "${file}". Add it to "permissions.process" in monorail.json.`)
       err.code = 'EXT_PROCESS_DENIED'
       throw err
@@ -170,6 +217,36 @@ function installProcessGuard(policy) {
 
 let backend
 let ctx
+const hostCalls = new Map()
+let hostSeq = 0
+
+/** Ask MonoRail's main process for something only it can do (secrets: safeStorage). */
+function hostCall(op, args) {
+  const id = ++hostSeq
+  return new Promise((resolve, reject) => {
+    hostCalls.set(id, { resolve, reject })
+    send({ type: 'host', id, op, args })
+  })
+}
+
+function onHostResult(msg) {
+  const p = hostCalls.get(msg.id)
+  if (!p) return
+  hostCalls.delete(msg.id)
+  if (msg.ok) p.resolve(msg.value)
+  else p.reject(codedError(msg.error?.code ?? 'EXT_HOST_ERROR', msg.error?.message ?? 'MonoRail could not do that'))
+}
+
+/** Is this value plain JSON that survives the trip to a page unchanged? Returns its size. */
+function jsonSize(value, what) {
+  let json
+  try {
+    json = JSON.stringify(value)
+  } catch (err) {
+    throw codedError('EXT_BAD_PAYLOAD', `${what} must be plain JSON: ${err.message}`)
+  }
+  return json === undefined ? 0 : json.length
+}
 
 function makeCtx(init) {
   const prefix = `[${init.extension.id}]`
@@ -189,11 +266,34 @@ function makeCtx(init) {
     log: log('info'),
     warn: log('warn'),
     error: log('error'),
-    /** Push an event to the extension's open pages (monorail.on(channel, cb) in the UI). */
+    /**
+     * Push an event to every open page of this extension (monorail.on(channel, cb)).
+     * Fire and forget: events are not queued, so with no page open they are
+     * dropped. Pages load current state with invoke() when they open.
+     */
     emit(channel, payload) {
-      if (typeof channel !== 'string' || !channel) throw new Error('emit(channel, payload) needs a channel name')
-      send({ type: 'emit', channel, payload })
+      if (typeof channel !== 'string' || !channel || channel.length > 100)
+        throw codedError('EXT_BAD_PAYLOAD', 'emit(channel, payload) needs a channel name (1-100 characters)')
+      if (jsonSize(payload, 'An event payload') > MAX_PAYLOAD) throw codedError('EXT_BAD_PAYLOAD', 'An event payload must be under 1 MB')
+      send({ type: 'emit', channel, payload: payload === undefined ? null : payload })
     },
+    /** Throw an error with a code (and JSON details) that the page receives as error.code / error.details. */
+    fail(code, message, details) {
+      throw codedError(typeof code === 'string' && CODE_RE.test(code) ? code : 'EXT_BACKEND_ERROR', String(message ?? code), details)
+    },
+    /**
+     * Secrets (tokens, passwords) encrypted by MonoRail with the operating
+     * system's key store (safeStorage) and kept outside the extension's
+     * folders, so they are never in a file the backend or a backup can read
+     * as plain text. Rejects with EXT_SECRETS_UNAVAILABLE when the system
+     * offers no encryption.
+     */
+    secrets: Object.freeze({
+      get: (name) => hostCall('secrets.get', { name }),
+      set: (name, value) => hostCall('secrets.set', { name, value }),
+      delete: (name) => hostCall('secrets.delete', { name }),
+      list: () => hostCall('secrets.list', {}),
+    }),
   })
 }
 
@@ -206,6 +306,13 @@ async function init(msg) {
   backend = mod.default && typeof mod.default === 'object' && mod.default.methods ? mod.default : mod
   if (!backend || typeof backend.methods !== 'object' || backend.methods === null)
     throw new Error('The backend must export { methods: { name: async (ctx, args) => result } }')
+  // migrate(ctx, fromVersion) runs before start() whenever the version that
+  // last used ctx.dataDir differs from this one (fromVersion null: no record).
+  const from = msg.previousVersion ?? null
+  if (from !== ctx.extension.version) {
+    if (typeof backend.migrate === 'function') await backend.migrate(ctx, from)
+    send({ type: 'migrated', version: ctx.extension.version })
+  }
   if (typeof backend.start === 'function') await backend.start(ctx)
   send({ type: 'ready', methods: Object.keys(backend.methods).filter((k) => typeof backend.methods[k] === 'function') })
 }
@@ -213,11 +320,15 @@ async function init(msg) {
 async function invoke(msg) {
   try {
     const fn = Object.hasOwn(backend.methods, msg.method) ? backend.methods[msg.method] : undefined
-    if (typeof fn !== 'function') throw new Error(`Unknown method ${ctx.extension.id}.${msg.method}`)
+    if (typeof fn !== 'function') throw codedError('EXT_UNKNOWN_METHOD', `Unknown method ${ctx.extension.id}.${msg.method}`)
     const value = await fn(ctx, msg.args)
+    if (jsonSize(value, `The result of ${msg.method}`) > 16 * MAX_PAYLOAD)
+      throw codedError('EXT_BAD_PAYLOAD', `The result of ${msg.method} must be under 16 MB`)
     send({ type: 'result', id: msg.id, ok: true, value: value === undefined ? null : value })
   } catch (err) {
-    send({ type: 'result', id: msg.id, ok: false, error: errorInfo(err) })
+    const error = errorInfo(err)
+    send({ type: 'log', level: 'warn', line: `${msg.method} failed: [${error.code}] ${error.message}` })
+    send({ type: 'result', id: msg.id, ok: false, error })
   }
 }
 
@@ -236,6 +347,7 @@ process.on('message', (msg) => {
     setTimeout(() => process.exit(1), 50)
   })
   else if (msg.type === 'invoke') void invoke(msg)
+  else if (msg.type === 'hostResult') onHostResult(msg)
   else if (msg.type === 'stop') void stop()
 })
 
