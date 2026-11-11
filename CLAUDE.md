@@ -142,13 +142,6 @@ day and model, pi's logged per-token-type cost is used as logged, anything
 else is priced from the table, and any split that is not logged is labelled
 an estimate.
 
-`jira` is the second worked example: one tracker over two sources. Team
-tickets go through the Jira Cloud REST API (`electron/modules/jira-cloud.cjs`,
-API token encrypted with `safeStorage` in the module's data folder). Personal
-projects are a git repo in `<dataDir>/local-repo` (`jira-local.cjs`, via
-`isomorphic-git`, one JSON file per ticket, one commit per change). That repo
-never gets a remote; do not add push or sync to it.
-
 `agent-chat` (**Chat**, under Agents) lists every local Claude Code
 (`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
 (`~/.pi/agent/sessions` or `PI_CODING_AGENT_DIR`) session and shows one as a
@@ -194,7 +187,7 @@ the CLI login and Application Default Credentials; sign-in runs
 `gcloud auth login` then `gcloud auth application-default login`),
 `atlassian` (site + email + API token, pasted or read each time from a named
 generic credential in Windows Credential Manager via PowerShell CredRead,
-never copied; Jira+ should use it) and `claude` (Claude Code / Agent SDK
+never copied; Jira+ uses it) and `claude` (Claude Code / Agent SDK
 login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
 opens a terminal running `claude auth login`). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
@@ -278,7 +271,23 @@ working tree and index are never touched, every change is a commit, backups
 carry them and a normal push does not. Keep that ref out of commit feeds
 (`--exclude=refs/local-issues --all`).
 
-`email` (**Email**) is the second app: mail through pluggable **inbox
+`jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
+tracker (own look under `.jp`, Your work / Projects / board / list / issue
+dialog) where a private local repo is a first-class project next to the
+team's real Jira projects. Team issues go through the Jira Cloud REST API
+(`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
+Connections (`getCredentials('atlassian')`); only shown when one is set up.
+Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token
+saved by older versions is still used when Connections has no Atlassian
+account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
+(`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
+change, the issue's git log is its History). That repo never gets a remote;
+do not add push or sync to it. Jira+ started as the `jira` module, so if
+`%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
+the backend keeps using the old folder in place. Tests live in
+`jira-plus.test.cjs`.
+
+`email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
 `electron/apps/email/connectors/index.cjs` (config fields, `signIn`,
 `createSession` returning folders/threads/modify/send); the backend
