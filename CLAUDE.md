@@ -562,6 +562,22 @@ runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
 
+**Global backup folder** (Settings > Backups, docs: `docs/backups.md`,
+`electron/backups/`, backend module `backups`): one folder plus the same
+"X times per hour/day/week, keep N" choices, saved in `modules/backups`
+(`settings.json`, `state.json`). When on, it is the default root for every
+page's backups, each in its own subfolder (`<folder>/github-plus/<repo>/`,
+`<folder>/jira-plus/`, `<folder>/flashcards/`); `pageRoot(global, id)` builds
+it. GitHub+ schedules may follow the global folder (`useGlobalFolder`) and/or
+frequency (`useGlobalFrequency`), read when each backup runs; a repo's own
+folder or frequency wins when its flag is off, and a schedule that follows a
+global folder that was turned off pauses with a reason. Jira+'s private
+projects repo (bundle) and Flashcards' `decks.json` (copy, refused when
+damaged) run on the global schedule (`service.cjs`, one switch each). Changing
+the folder only affects future backups: never move, copy or delete backups in
+an earlier folder; pruning touches only MonoRail's own files in the folder it
+writes to. New pages with backups add an entry to `PAGES` in `global.cjs`.
+
 GitHub+ also has **local issues** (Issues tab, `issues.cjs`): create, edit,
 comment, close and reopen, with Markdown. They are stored inside each repo,
 never in AppData: one JSON file per issue in the tree of a commit that

@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRepo } from '../RepoContext'
 import { api } from '../api'
+import { navigate } from '@/lib/router'
 import type { BackupSchedule, BackupState, BackupUnit } from '../types'
 import { formatSize, fullDate, timeAgo } from '../util'
 
-const DEFAULTS: BackupSchedule = { enabled: true, times: 1, unit: 'day', keep: 14, destination: '' }
+const DEFAULTS: BackupSchedule = { enabled: true, times: 1, unit: 'day', keep: 14, destination: '', useGlobalFolder: false, useGlobalFrequency: false }
 const UNITS: BackupUnit[] = ['hour', 'day', 'week']
 
+/** A new schedule follows the global backup folder when one is set up (Settings > Backups). */
+const defaultsFor = (s: BackupState): BackupSchedule =>
+  s.global?.enabled ? { ...DEFAULTS, times: s.global.times, unit: s.global.unit, keep: s.global.keep, useGlobalFolder: true, useGlobalFrequency: true } : DEFAULTS
+
 const sameSchedule = (a: BackupSchedule | null, b: BackupSchedule) =>
-  !!a && a.enabled === b.enabled && a.times === b.times && a.unit === b.unit && a.keep === b.keep && a.destination === b.destination
+  !!a && a.enabled === b.enabled && a.times === b.times && a.unit === b.unit && a.keep === b.keep && a.destination === b.destination &&
+  !!a.useGlobalFolder === !!b.useGlobalFolder && !!a.useGlobalFrequency === !!b.useGlobalFrequency
+
+const per = (times: number, unit: string) => `${times} ${times === 1 ? 'time' : 'times'} per ${unit}`
+const trimSlash = (p: string) => p.replace(/[\\/]+$/, '')
 
 /** Scheduled backups for the open repo: X times per hour/day/week into a folder on this machine. */
 export default function BackupsPage() {
@@ -24,7 +33,7 @@ export default function BackupsPage() {
     try {
       const s = await api.getBackup(rp)
       setState(s)
-      if (resetForm) setForm(s.schedule ?? DEFAULTS)
+      if (resetForm) setForm(s.schedule ?? defaultsFor(s))
     } catch (e) {
       setError((e as Error).message)
     }
@@ -42,7 +51,7 @@ export default function BackupsPage() {
     try {
       const s = await fn()
       setState(s)
-      if (kind !== 'run') setForm(s.schedule ?? DEFAULTS)
+      if (kind !== 'run') setForm(s.schedule ?? defaultsFor(s))
       setNotice(done)
     } catch (e) {
       setError((e as Error).message)
@@ -61,6 +70,12 @@ export default function BackupsPage() {
   const saved = state?.schedule ?? null
   const dirty = !sameSchedule(saved, form)
   const last = state?.lastResult
+  const g = state?.global
+  const globalOn = !!g?.enabled
+  const ownFolder = !form.useGlobalFolder
+  const ownFrequency = !form.useGlobalFrequency
+  const target = form.useGlobalFolder ? (state?.globalFolder ?? '') : form.destination
+  const canSave = dirty && (form.useGlobalFolder ? globalOn : !!form.destination) && (ownFrequency || globalOn)
 
   return (
     <div>
@@ -80,45 +95,86 @@ export default function BackupsPage() {
             Back up automatically
           </label>
 
-          <div className="form-row">
-            <span className="form-label">How often</span>
-            <span className="inline-fields">
-              <input className="num" type="number" min={1} max={24} value={form.times}
-                onChange={(e) => set('times', Math.max(1, Math.min(24, Math.trunc(Number(e.target.value)) || 1)))} />
-              <span>{form.times === 1 ? 'time' : 'times'} per</span>
-              <select value={form.unit} onChange={(e) => set('unit', e.target.value as BackupUnit)}>
-                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </span>
-          </div>
-
-          <div className="form-row">
-            <span className="form-label">Save to</span>
-            <span className="inline-fields grow">
-              <input className="path mono" readOnly placeholder="No folder chosen" value={form.destination} title={form.destination} />
-              <button className="btn" onClick={choose}>Choose folder…</button>
-            </span>
-          </div>
-          {form.destination && (
-            <div className="form-hint muted small">Backups go in <span className="mono">{form.destination.replace(/[\\/]+$/, '')}/{repo!.name}/</span></div>
+          {!globalOn && (
+            <div className="form-hint muted small" style={{ margin: 0 }}>
+              Tip: set a global backup folder in{' '}
+              <a href="#/settings" onClick={(e) => { e.preventDefault(); navigate('/settings') }}>Settings &gt; Backups</a>{' '}
+              and every page's backups can share it, each in its own subfolder.
+            </div>
           )}
 
           <div className="form-row">
-            <span className="form-label">Keep</span>
+            <span className="form-label">Save to</span>
             <span className="inline-fields">
-              the newest
-              <input className="num" type="number" min={1} max={365} value={form.keep}
-                onChange={(e) => set('keep', Math.max(1, Math.min(365, Math.trunc(Number(e.target.value)) || 1)))} />
-              backups, delete older ones
+              <label className="check-row normal">
+                <input type="radio" name="bk-folder" checked={!!form.useGlobalFolder} disabled={!globalOn && !form.useGlobalFolder}
+                  onChange={() => set('useGlobalFolder', true)} />
+                Global backup folder
+              </label>
+              <label className="check-row normal">
+                <input type="radio" name="bk-folder" checked={ownFolder} onChange={() => set('useGlobalFolder', false)} />
+                Another folder
+              </label>
+            </span>
+          </div>
+          {ownFolder && (
+            <div className="form-row">
+              <span className="form-label" />
+              <span className="inline-fields grow">
+                <input className="path mono" readOnly placeholder="No folder chosen" value={form.destination} title={form.destination} />
+                <button className="btn" onClick={choose}>Choose folder…</button>
+              </span>
+            </div>
+          )}
+          {target && (
+            <div className="form-hint muted small">Backups go in <span className="mono">{trimSlash(target)}/{repo!.name}/</span></div>
+          )}
+
+          <div className="form-row">
+            <span className="form-label">How often</span>
+            <span className="inline-fields">
+              <label className="check-row normal">
+                <input type="checkbox" checked={!!form.useGlobalFrequency} disabled={!globalOn && !form.useGlobalFrequency}
+                  onChange={(e) => set('useGlobalFrequency', e.target.checked)} />
+                Same as the global setting{g && globalOn ? ` (${per(g.times, g.unit)}, keep ${g.keep})` : ''}
+              </label>
             </span>
           </div>
 
+          {ownFrequency && (
+            <>
+              <div className="form-row">
+                <span className="form-label" />
+                <span className="inline-fields">
+                  <input className="num" type="number" min={1} max={24} value={form.times}
+                    onChange={(e) => set('times', Math.max(1, Math.min(24, Math.trunc(Number(e.target.value)) || 1)))} />
+                  <span>{form.times === 1 ? 'time' : 'times'} per</span>
+                  <select value={form.unit} onChange={(e) => set('unit', e.target.value as BackupUnit)}>
+                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </span>
+              </div>
+
+              <div className="form-row">
+                <span className="form-label">Keep</span>
+                <span className="inline-fields">
+                  the newest
+                  <input className="num" type="number" min={1} max={365} value={form.keep}
+                    onChange={(e) => set('keep', Math.max(1, Math.min(365, Math.trunc(Number(e.target.value)) || 1)))} />
+                  backups, delete older ones
+                </span>
+              </div>
+            </>
+          )}
+
+          {state?.problem && <div className="flash warn" style={{ margin: 0 }}>{state.problem}</div>}
+
           <div className="form-actions">
-            <button className="btn primary" disabled={!dirty || !form.destination || !!busy}
+            <button className="btn primary" disabled={!canSave || !!busy}
               onClick={() => act('save', () => api.saveBackup(rp, form), form.enabled ? 'Saved. Backups will run in MonoRail while it is open, and catch up when it next opens.' : 'Saved. Automatic backups are off.')}>
               {busy === 'save' ? 'Saving…' : 'Save'}
             </button>
-            <button className="btn" disabled={!saved || dirty || !!busy || state?.running}
+            <button className="btn" disabled={!saved || dirty || !!busy || state?.running || !!state?.problem}
               title={dirty ? 'Save your changes first' : undefined}
               onClick={() => act('run', () => api.runBackup(rp), 'Backup complete.')}>
               {busy === 'run' || state?.running ? 'Backing up…' : 'Back up now'}
@@ -144,9 +200,16 @@ export default function BackupsPage() {
                 : last.ok ? <><span className="add">Succeeded</span> <span title={fullDate(last.at)}>{timeAgo(last.at)}</span> · {formatSize(last.size)}</>
                 : <><span className="del">Failed</span> <span title={fullDate(last.at)}>{timeAgo(last.at)}</span>: {last.error}</>}
             </span>
+            {state?.effective && (
+              <>
+                <span className="muted">Saving to</span>
+                <span className="mono small">{trimSlash(state.effective.destination)}/{repo!.name}/ · {per(state.effective.times, state.effective.unit)}, keep {state.effective.keep}</span>
+              </>
+            )}
             <span className="muted">Next backup</span>
             <span>
               {!saved.enabled ? <span className="muted">Automatic backups are off</span>
+                : state?.problem ? <span className="muted">Paused: the global backup folder is off</span>
                 : state?.nextDueAt ? (Date.parse(state.nextDueAt) <= Date.now() ? 'Due now' : <span title={fullDate(state.nextDueAt)}>{timeAgo(state.nextDueAt)}</span>)
                 : '—'}
             </span>
