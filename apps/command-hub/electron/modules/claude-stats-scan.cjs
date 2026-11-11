@@ -75,7 +75,9 @@ const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 
 // ---------------------------------------------------------------- readers
 // A reader returns { found, sessions: Map<id, { project, requests[], compactions[] }> }.
-// A request is { ts, model, sub, effort?, input, output, cw5m, cw1h, cacheRead, logged? }.
+// A request is { ts, model, sub, effort?, input, output, cw5m, cw1h, cacheRead, thinking, thinkingEst?, logged? }.
+// effort: Claude Code's effort level, or pi's thinking level, when the log records one.
+// thinking: reasoning tokens (part of output); thinkingEst marks a count estimated from text.
 
 async function readClaude(roots) {
   const sessions = new Map()
@@ -121,6 +123,7 @@ async function readClaude(roots) {
           cw5m: Math.max(cw - cw1h, 0),
           cw1h: Math.min(cw1h, cw),
           cacheRead: num(u.cache_read_input_tokens),
+          thinking: num(u.output_tokens_details?.thinking_tokens),
         })
       }
     }
@@ -160,6 +163,7 @@ async function readGemini(roots) {
           cw5m: 0,
           cw1h: 0,
           cacheRead: cached,
+          thinking: num(t.thoughts),
         })
       }
     }
@@ -177,12 +181,17 @@ async function readPi(roots) {
       const project = path.relative(root, file).split(path.sep)[0]
       let sessionId = `pi:${path.basename(file, '.jsonl')}`
       let cwd
+      // pi sessions are trees: an entry's thinking level is the last
+      // thinking_level_change on its branch (pi writes one at session start).
+      const levels = new Map()
       for await (const d of jsonLines(file)) {
         if (d.type === 'session') {
           if (d.id) sessionId = `pi:${d.id}`
           cwd = d.cwd
           continue
         }
+        const level = d.type === 'thinking_level_change' && typeof d.thinkingLevel === 'string' ? d.thinkingLevel : levels.get(d.parentId)
+        if (d.id) levels.set(d.id, level)
         const ts = Date.parse(d.timestamp)
         if (!Number.isFinite(ts)) continue
         if (d.type === 'compaction') {
@@ -206,6 +215,9 @@ async function readPi(roots) {
           cw5m: num(u.cacheWrite),
           cw1h: 0,
           cacheRead: num(u.cacheRead),
+          effort: level,
+          // pi logs no reasoning token count: estimate it from the thinking text (~4 characters a token).
+          ...piThinking(m.content),
           // pi logs its own cost per token type; use it as logged when present.
           logged:
             c && num(c.total) > 0
@@ -216,6 +228,12 @@ async function readPi(roots) {
     }
   }
   return { found, sessions }
+}
+
+function piThinking(content) {
+  let chars = 0
+  for (const b of Array.isArray(content) ? content : []) if (b?.type === 'thinking' && typeof b.thinking === 'string') chars += b.thinking.length
+  return chars ? { thinking: Math.round(chars / 4), thinkingEst: true } : { thinking: 0 }
 }
 
 function projectName(cwd, dirName) {
@@ -257,14 +275,15 @@ function aggregate(source, sessions) {
     for (const r of s.requests) {
       const date = localDate(r.ts)
       const step = contextStep(promptOf(r))
-      const key = `${date}|${sessionId}|${r.model}|${r.sub ? 1 : 0}|${step}`
+      const effort = r.effort ?? null
+      const key = `${date}|${sessionId}|${r.model}|${r.sub ? 1 : 0}|${step}|${effort}`
       let row = reqRows.get(key)
       if (!row) {
         reqRows.set(
           key,
           (row = {
-            date, source, project: s.project, sessionId, model: r.model, role: r.sub ? 'subagent' : 'driver', step,
-            n: 0, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, logged: null,
+            date, source, project: s.project, sessionId, model: r.model, role: r.sub ? 'subagent' : 'driver', step, effort,
+            n: 0, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, thinking: 0, thinkingEst: 0, logged: null,
           }),
         )
       }
@@ -274,6 +293,8 @@ function aggregate(source, sessions) {
       row.cw5m += r.cw5m
       row.cw1h += r.cw1h
       row.cacheRead += r.cacheRead
+      row.thinking += r.thinking ?? 0
+      if (r.thinkingEst) row.thinkingEst += r.thinking ?? 0
       if (r.logged) {
         row.logged ??= { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, n: 0 }
         row.logged.input += r.logged.input

@@ -109,6 +109,9 @@ export function buildFacts(report: UsageReport): FactSet {
       priced: !!price,
       aboveTier: isAboveTier(price, r.step),
       tierAbove: price?.tier?.above,
+      effort: r.effort ?? undefined,
+      thinkingTokens: r.thinking ?? 0,
+      thinkingEstimated: r.thinkingEst ?? 0,
     }
   })
 
@@ -129,6 +132,8 @@ export function buildFacts(report: UsageReport): FactSet {
         outputTokens: 0,
         totalTokens: 0,
         cost: 0,
+        thinkingTokens: 0,
+        thinkingEstimated: 0,
       }
       bySession.set(f.sessionId, s)
     }
@@ -136,6 +141,8 @@ export function buildFacts(report: UsageReport): FactSet {
     s.outputTokens += f.outputTokens
     s.totalTokens += f.inputTokens + f.outputTokens + f.cacheCreationTokens + f.cacheReadTokens
     s.cost += f.cost
+    s.thinkingTokens! += f.thinkingTokens ?? 0
+    s.thinkingEstimated! += f.thinkingEstimated ?? 0
   }
 
   return { facts, sessions: [...bySession.values()], sources: scan.sources, unpriced: [...unpriced] }
