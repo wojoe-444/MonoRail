@@ -38,7 +38,7 @@ export interface CcusageSessionRow {
 
 /** What the backend's getUsage returns. */
 export interface UsageReport {
-  version: 1
+  version: number
   generatedAt: string
   source: 'ccusage' | 'sample'
   stale?: boolean
@@ -48,6 +48,77 @@ export interface UsageReport {
   sessions: { sessions: CcusageSessionRow[] }
   /** Session phases parsed from the raw logs (electron/modules/claude-stats-phases.cjs). */
   partners?: { idleGapMinutes?: number; error?: string; phases: RawPhase[] }
+  /** ccusage failed; Claude Code costs then come from the price table. */
+  ccusageError?: string
+  /** Every source's logs, aggregated (electron/modules/claude-stats-scan.cjs). */
+  scan?: ScanReport
+  scanError?: string
+}
+
+export type SourceId = 'claude-code' | 'gemini-cli' | 'pi'
+
+export interface ScanSource {
+  id: SourceId
+  label: string
+  /** False when the CLI's log folder does not exist on this machine. */
+  found: boolean
+  sessions?: number
+  error?: string
+}
+
+/** Requests grouped by day x session x model x role x context step. */
+export interface ScanRequestRow {
+  date: string
+  source: SourceId
+  project: string
+  sessionId: string
+  model: string
+  role: 'driver' | 'subagent'
+  /** Context step: prompts in (step*50K, (step+1)*50K]. */
+  step: number
+  n: number
+  input: number
+  output: number
+  cw5m: number
+  cw1h: number
+  cacheRead: number
+  /** Cost per token type as the tool logged it (pi), summed. */
+  logged: { input: number; output: number; cacheWrite: number; cacheRead: number; n: number } | null
+}
+
+export interface ScanTurnRow {
+  /** Day the segment (session start or compaction) began. */
+  date: string
+  source: SourceId
+  model: string
+  kind: 'start' | 'compaction'
+  turn: number
+  n: number
+  promptSum: number
+}
+
+export interface ScanCompaction {
+  date: string
+  source: SourceId
+  model: string | null
+  trigger: 'auto' | 'manual'
+  preTokens: number | null
+}
+
+export interface ScanSession {
+  source: SourceId
+  sessionId: string
+  project: string
+  first: string
+  last: string
+}
+
+export interface ScanReport {
+  sources: ScanSource[]
+  requests: ScanRequestRow[]
+  turns: ScanTurnRow[]
+  compactions: ScanCompaction[]
+  sessions: ScanSession[]
 }
 
 export interface RawPhaseFact {
@@ -62,6 +133,7 @@ export interface RawPhaseFact {
 
 /** One stretch of a session: a driver model plus the models its subagents ran on. */
 export interface RawPhase {
+  source?: SourceId
   sessionId: string
   project: string
   /** Main-thread model. Undefined when the phase only has subagent traffic. */
@@ -76,15 +148,33 @@ export interface RawPhase {
 export interface UsageFact {
   date: string
   project: string
+  /** Display label, e.g. "Opus 4.6". */
   model: string
   inputTokens: number
   outputTokens: number
   cacheCreationTokens: number
   cacheReadTokens: number
   cost: number
+  source: SourceId
+  rawModel?: string
+  sessionId?: string
+  role?: 'driver' | 'subagent'
+  /** Context step; undefined when only ccusage totals are available. */
+  step?: number
+  requests?: number
+  /** Cost split by token type. */
+  parts?: { input: number; output: number; cacheWrite: number; cacheRead: number }
+  /** True when `parts` is estimated from list-price ratios rather than logged by the tool. */
+  partsEstimated?: boolean
+  /** True when the model has a row in the price table. */
+  priced?: boolean
+  /** Model is above its prompt-size price tier in this step. */
+  aboveTier?: boolean
+  tierAbove?: number
 }
 
 export interface SessionFact {
+  source?: SourceId
   id: string
   project: string
   firstActivity?: string

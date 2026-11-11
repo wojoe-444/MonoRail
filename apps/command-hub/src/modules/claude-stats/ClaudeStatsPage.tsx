@@ -9,12 +9,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
+import { Switch } from '@/components/ui/switch'
 import { formatCount, formatPercent, formatRelative, formatUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 
 import { BreakdownTable } from './components/BreakdownTable'
 import { CostPerMChart } from './components/CostPerMChart'
+import { FamilyShareCard } from './components/FamilyShareCard'
+import { TokenTypeCard } from './components/TokenTypeCard'
+import { buildFacts, modelSeriesKey, SOURCE_LABELS } from './facts'
 import { StackedTimeChart } from './components/StackedTimeChart'
 import { sampleReport } from './sample'
 import {
@@ -24,7 +28,6 @@ import {
   normalizePartners,
   inWindow,
   isoDate,
-  normalize,
   pctChange,
   RANGES,
   seriesOf,
@@ -35,7 +38,7 @@ import {
   type Metric,
   type RangeKey,
 } from './transform'
-import type { UsageReport } from './types'
+import type { SessionFact, SourceId, UsageReport } from './types'
 
 const MODULE_ID = 'claude-stats'
 
@@ -49,16 +52,24 @@ export default function ClaudeStatsPage() {
   const [useSample, setUseSample] = useState(!desktop)
   const [range, setRange] = useState<RangeKey>('30d')
   const [metric, setMetric] = useState<Metric>('outputTokens')
+  const [source, setSource] = useState<'all' | SourceId>('all')
+  const [breakout, setBreakout] = useState(false)
 
   const sample = useMemo(() => (useSample ? sampleReport() : undefined), [useSample])
   const report = useSample ? sample : query.data
 
+  const base = useMemo(() => (report ? buildFacts(report) : undefined), [report])
+
   const model = useMemo(() => {
-    if (!report) return undefined
-    const { facts, sessions } = normalize(report)
-    const partners = normalizePartners(report)
-    const order = seriesOrder(facts)
-    const w = windowFor(range, facts)
+    if (!report || !base) return undefined
+    const sourceOk = (s: SourceId | undefined) => source === 'all' || (s ?? 'claude-code') === source
+    const seriesKey = (f: (typeof base.facts)[number]) => modelSeriesKey(f, breakout)
+    // Ranked on every source and date so filters never repaint a model.
+    const order = seriesOrder(base.facts, 5, seriesKey)
+    const facts = base.facts.filter((f) => sourceOk(f.source))
+    const sessions = base.sessions.filter((s) => sourceOk(s.source))
+    const partners = normalizePartners(report, base.facts, source === 'all' ? undefined : source)
+    const w = windowFor(range, base.facts)
     const current = inWindow(facts, w)
     const previous = w.prev ? inWindow(facts, w.prev) : undefined
     const days = Math.round((Date.parse(w.end) - Date.parse(w.start)) / 86_400_000) + 1
@@ -72,7 +83,8 @@ export default function ClaudeStatsPage() {
       window: w,
       now: totals(current),
       prev: previous ? totals(previous) : undefined,
-      series: timeSeries(current, w, order, (f) => f.model, metric, bucket),
+      series: timeSeries(current, w, order, seriesKey, metric, bucket),
+      current,
       partners: (() => {
         const corder = comboOrder(partners.facts)
         const pf = inWindow(partners.facts, w)
@@ -92,7 +104,7 @@ export default function ClaudeStatsPage() {
           phasesBySession,
         }
       })(),
-      byModel: groupBy(current, (f) => seriesOf(f.model, order)),
+      byModel: groupBy(current, (f) => seriesOf(seriesKey(f), order)),
       byProject: groupBy(current, (f) => f.project),
       sessions: sessionsInRange.sort((a, b) => b.outputTokens - a.outputTokens),
       prevSessions: w.prev
@@ -101,9 +113,10 @@ export default function ClaudeStatsPage() {
             return d >= w.prev!.start && d <= w.prev!.end
           }).length
         : undefined,
-      empty: facts.length === 0,
+      empty: base.facts.length === 0,
+      tiered: base.facts.some((f) => f.tierAbove !== undefined),
     }
-  }, [report, range, metric])
+  }, [report, base, range, metric, source, breakout])
 
   const rangeLabel = RANGES.find((r) => r.key === range)!.label.toLowerCase()
   const prevLabel = range === 'all' ? undefined : `vs. previous ${rangeLabel.replace('last ', '')}`
@@ -145,7 +158,7 @@ export default function ClaudeStatsPage() {
       <PageHeader
         eyebrow="Insights"
         title="Claude Stats"
-        description="Claude Code output by model and project, priced as if it ran on the API. Read locally with ccusage."
+        description="Claude Code, Gemini CLI and pi output by model and project, priced as if it ran on the API. Read locally from each tool's logs."
         actions={headerActions}
       />
 
@@ -163,6 +176,21 @@ export default function ClaudeStatsPage() {
           </Button>
         </Notice>
       )}
+      {report && !useSample && report.ccusageError && (
+        <Notice icon={AlertTriangle} tone="warning">
+          ccusage failed, so Claude Code costs are list-price estimates from the logs: {report.ccusageError}
+        </Notice>
+      )}
+      {report && !useSample && report.scanError && (
+        <Notice icon={AlertTriangle} tone="warning">
+          Couldn't read the session logs, so only ccusage's daily totals are shown: {report.scanError}
+        </Notice>
+      )}
+      {base && base.unpriced.length > 0 && (
+        <Notice icon={AlertTriangle} tone="warning">
+          No list price for {base.unpriced.join(', ')}. Their cost is left out of estimates until the price table has a row for them.
+        </Notice>
+      )}
       {report?.stale && !useSample && (
         <Notice icon={AlertTriangle} tone="warning">
           Showing the last saved report because ccusage failed: {report.error}
@@ -178,8 +206,8 @@ export default function ClaudeStatsPage() {
 
       {model?.empty && (
         <Notice icon={Terminal} tone="info">
-          ccusage found no Claude Code usage on this computer. It reads the logs Claude Code writes under your user
-          folder (.claude/projects).
+          No Claude Code, Gemini CLI or pi usage was found on this computer. Each tool's logs are read from your user
+          folder (.claude, .gemini and .pi).
         </Notice>
       )}
 
@@ -193,6 +221,26 @@ export default function ClaudeStatsPage() {
               onChange={setRange}
               options={RANGES.map((r) => ({ value: r.key, label: r.label }))}
             />
+            <Segmented
+              aria-label="Source"
+              value={source}
+              onChange={setSource}
+              options={[
+                { value: 'all' as const, label: 'All sources' },
+                ...(base?.sources ?? []).map((s) => ({
+                  value: s.id,
+                  label: s.found ? SOURCE_LABELS[s.id] : `${SOURCE_LABELS[s.id]} · not found`,
+                  disabled: !s.found,
+                  title: s.found ? undefined : `No ${SOURCE_LABELS[s.id]} logs on this computer`,
+                })),
+              ]}
+            />
+            {model.tiered && (
+              <label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+                <Switch checked={breakout} onCheckedChange={setBreakout} />
+                Split models at their prompt-size price tier
+              </label>
+            )}
           </div>
 
           {/* KPI row */}
@@ -232,7 +280,8 @@ export default function ClaudeStatsPage() {
             <CardHeader className="border-b px-6 py-5">
               <CardTitle>{metric === 'cost' ? 'API-equivalent cost' : 'Output tokens'} over time</CardTitle>
               <CardDescription>
-                By model, per {model.bucket}. Hover a column for the breakdown and that {model.bucket}'s cost per
+                By model, per {model.bucket}
+                {breakout && ', with tiered models split at or below and above their prompt-size price threshold'}. Hover a column for the breakdown and that {model.bucket}'s cost per
                 million output tokens.
               </CardDescription>
               <CardAction>
@@ -279,6 +328,10 @@ export default function ClaudeStatsPage() {
             </Card>
           </div>
 
+          <TokenTypeCard facts={model.current} window={model.window} bucket={model.bucket} />
+
+          <FamilyShareCard facts={model.current} />
+
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
               <CardTitle>Session partners</CardTitle>
@@ -320,8 +373,8 @@ export default function ClaudeStatsPage() {
             ) : (
               <CardContent className="px-6 py-8 text-center text-sm text-muted-foreground">
                 {model.partners.error
-                  ? `Couldn't read session phases from the Claude Code logs: ${model.partners.error}`
-                  : 'Refresh to read session phases from your Claude Code logs.'}
+                  ? `Couldn't read session phases from the logs: ${model.partners.error}`
+                  : 'Refresh to read session phases from your logs.'}
               </CardContent>
             )}
           </Card>
@@ -329,7 +382,7 @@ export default function ClaudeStatsPage() {
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
               <CardTitle>By project</CardTitle>
-              <CardDescription>The folders your Claude Code sessions ran in.</CardDescription>
+              <CardDescription>The folders your sessions ran in.</CardDescription>
             </CardHeader>
             <CardContent className="px-0 py-1">
               <BreakdownTable
@@ -362,7 +415,7 @@ function SessionsTable({
   sessions,
   phasesBySession,
 }: {
-  sessions: ReturnType<typeof normalize>['sessions']
+  sessions: SessionFact[]
   phasesBySession: Map<string, ReturnType<typeof normalizePartners>['phases']>
 }) {
   if (!sessions.length) return <p className="px-6 py-8 text-center text-sm text-muted-foreground">No sessions in this range.</p>
@@ -384,6 +437,11 @@ function SessionsTable({
             <tr key={s.id} className="border-b transition-colors last:border-0 hover:bg-muted/50">
               <td className="max-w-64 truncate py-2.5 pr-4 pl-6 font-medium" title={s.id}>
                 {s.project}
+                {s.source && s.source !== 'claude-code' && (
+                  <Badge variant="secondary" className="ml-2">
+                    {SOURCE_LABELS[s.source]}
+                  </Badge>
+                )}
               </td>
               <td className="px-4 py-2.5">
                 <div className="flex flex-wrap items-center gap-1">

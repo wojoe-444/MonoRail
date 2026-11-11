@@ -127,12 +127,38 @@ the two extension push channels.
 
 `claude-stats` is the reference module: its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
-`asarUnpack`), caches the JSON report in its data folder, and the page
-normalizes it into day x project x model facts in `transform.ts`. Session
-partners come from `electron/modules/claude-stats-phases.cjs`, which reads
-the raw Claude Code logs and splits each session into phases (driver model +
-subagent models; new phase on driver change or a 2-hour idle gap). Phase
-cost is priced from ccusage's per-session, per-model cost per output token.
+`asarUnpack`) for Claude Code's daily API-equivalent cost, and
+`electron/modules/claude-stats-scan.cjs` reads the raw logs of every source
+it knows (Claude Code, Gemini CLI, pi; one reader each, a missing source is
+reported as not found) into day x session x model x role x 50K context-step
+rows, plus per-turn prompt sizes, compactions and session phases (driver
+model + subagent models; new phase on driver change or a 2-hour idle gap).
+Both go into one cached JSON report in its data folder. List prices, with
+prompt-size tiers, live in one table, `claude-stats-prices.json`, shared by
+the backend and the page (`src/modules/claude-stats/pricing.ts`); a test
+fails if a model in the local logs has no row. The page turns the report into
+priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
+day and model, pi's logged per-token-type cost is used as logged, anything
+else is priced from the table, and any split that is not logged is labelled
+an estimate.
+
+`agent-chat` (**Chat**, under Agents) lists every local Claude Code
+(`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
+(`~/.pi/agent/sessions` or `PI_CODING_AGENT_DIR`) session and shows one as a
+read-only transcript (`electron/modules/agent-chat.cjs`). Logs are read in
+place, never copied or cached to disk, and the page only names a session by
+the id the backend handed out, never a path. pi sessions are trees; the
+transcript follows the branch ending at the last entry. **Allowed folders**
+(`agent-chat-folders.cjs`): a chat is listed, opened or run only if its
+folder resolves (real path, following symlinks and junctions) into a git repo
+directly under the Repos folder (default `~/Repos`) or a repo added in the
+page's Folders dialog; folders are picked in the system dialog, and every
+request re-resolves them. Read limits: the list reads the 300 newest logs and
+keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
+page says when it was cut.
+
+Nav items may have one level of indented subpages (`NavItem.children` in
+`nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
 
 ### Charts
 
@@ -200,6 +226,15 @@ already syncs). Each backup is a verified `git bundle --all` file, written as
 runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
+
+GitHub+ also has **local issues** (Issues tab, `issues.cjs`): create, edit,
+comment, close and reopen, with Markdown. They are stored inside each repo,
+never in AppData: one JSON file per issue in the tree of a commit that
+`refs/local-issues` points at, written with git plumbing (`hash-object`,
+`mktree`, `commit-tree`, `update-ref` with the old value as a guard), so the
+working tree and index are never touched, every change is a commit, backups
+carry them and a normal push does not. Keep that ref out of commit feeds
+(`--exclude=refs/local-issues --all`).
 
 `jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
 tracker (own look under `.jp`, Your work / Projects / board / list / issue

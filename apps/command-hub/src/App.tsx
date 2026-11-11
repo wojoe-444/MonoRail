@@ -4,7 +4,7 @@ import { AppFrame } from '@/apps/AppFrame'
 import { findAppByPath } from '@/apps/registry'
 import { appEntryPath, rememberHubPath } from '@/apps/session'
 
-import { useNavSections, type NavItem } from '@/components/layout/nav'
+import { findNavItem, flattenNav, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -38,7 +38,7 @@ export default function App() {
   const [path, navigate] = useRoute()
   const extensionList = useExtensionList()
   const navSections = useNavSections()
-  const navItems = navSections.flatMap((s) => s.items)
+  const navItems = flattenNav(navSections)
   const activeApp = findAppByPath(path, extensionList)
   const [collapsed, setCollapsed] = useState(false)
 
@@ -56,8 +56,9 @@ export default function App() {
     [navigate],
   )
 
-  const current = navItems.find((i) => i.path === path)
-  const section = navSections.find((s) => s.items.some((i) => i.path === path))?.heading
+  const found = findNavItem(navSections, path)
+  const current = found?.item
+  const section = found?.section.heading
 
   if (activeApp) {
     return (
@@ -78,6 +79,8 @@ export default function App() {
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           <TopBar
             section={section}
+            parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
+            onNavigate={openPath}
             title={current?.label ?? 'Not found'}
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed((c) => !c)}

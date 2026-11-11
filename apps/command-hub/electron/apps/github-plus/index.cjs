@@ -2,7 +2,8 @@
 // Ported from wojoe-444/Local-Repo-UI (src/main/index.ts).
 //
 // Private data rule: the list of recently opened repo paths is kept in
-// %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Nothing
+// %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Local issues are
+// stored inside each repo under refs/local-issues (issues.cjs). Nothing
 // is sent anywhere; the only process this runs is the local `git` CLI.
 
 const fs = require('node:fs/promises')
@@ -12,6 +13,7 @@ const { BrowserWindow, dialog } = require('electron')
 const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
 const folderInit = require('./init.cjs')
+const issues = require('./issues.cjs')
 
 const RECENTS_FILE = 'recents.json'
 const SETTINGS_FILE = 'settings.json'
@@ -101,11 +103,12 @@ module.exports = {
       const recents = await readRecents(ctx)
       return Promise.all(
         recents.map(async (p) => {
-          const [activity, backup] = await Promise.all([
+          const [activity, backup, open] = await Promise.all([
             git.recentActivity(p).catch((e) => ({ path: p, name: path.basename(p), error: e.message, commits: [], branches: [] })),
             backups.get(p).catch(() => null),
+            issues.listIssues(p, 'open').catch(() => []),
           ])
-          return { ...activity, path: p, backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
+          return { ...activity, path: p, openIssues: open.length, issues: open.slice(0, 5), backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
         }),
       )
     },
@@ -124,6 +127,12 @@ module.exports = {
     countCommits: (_ctx, { repo, ref } = {}) => git.countCommits(guard(repo), ref),
     getCommit: (_ctx, { repo, sha } = {}) => git.getCommit(guard(repo), sha),
     compareRefs: (_ctx, { repo, base, head } = {}) => git.compareRefs(guard(repo), base, head),
+    listIssues: (_ctx, { repo, state } = {}) => issues.listIssues(guard(repo), state),
+    issueCounts: (_ctx, { repo } = {}) => issues.issueCounts(guard(repo)),
+    getIssue: (_ctx, { repo, number } = {}) => issues.getIssue(guard(repo), number),
+    createIssue: (_ctx, { repo, title, body } = {}) => issues.createIssue(guard(repo), { title, body }),
+    updateIssue: (_ctx, { repo, number, title, body, state } = {}) => issues.updateIssue(guard(repo), number, { title, body, state }),
+    addIssueComment: (_ctx, { repo, number, body } = {}) => issues.addComment(guard(repo), number, { body }),
     getBackup: (_ctx, { repo } = {}) => backups.get(guard(repo)),
     saveBackup: (_ctx, { repo, schedule } = {}) => backups.save(guard(repo), schedule),
     removeBackup: (_ctx, { repo } = {}) => backups.remove(guard(repo)),

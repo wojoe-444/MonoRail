@@ -1,7 +1,7 @@
 import { Component, Suspense, type ReactNode } from 'react'
 import { ArrowLeft, Moon, Sun } from 'lucide-react'
 
-import { BrandMark } from '@/components/layout/BrandMark'
+import { BrandTile } from '@/components/layout/BrandMark'
 import { currentPath, navigate } from '@/lib/router'
 import { useTheme } from '@/lib/theme'
 
@@ -34,9 +34,7 @@ export function AppFrame({ app }: { app: AppDefinition }) {
           className="group flex h-8 items-center gap-2 rounded-md bg-sidebar-primary pr-3 pl-2 text-sm font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25 transition-colors outline-none hover:bg-sidebar-primary/85 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
-          <span className="flex size-5 items-center justify-center rounded-md bg-sidebar-primary-foreground/15">
-            <BrandMark className="size-3" />
-          </span>
+          <BrandTile className="size-5 rounded-md" markClassName="size-3" />
           Back to MonoRail
         </button>
         <span className="h-5 w-px bg-sidebar-border" aria-hidden />

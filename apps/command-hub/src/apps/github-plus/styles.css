@@ -11,7 +11,7 @@
 .ghp {
   /* Light by default (GitHub light); dark under .dark, which MonoRail's theme toggle sets. */
   --bg: #ffffff; --bg2: #f6f8fa; --bg3: #eff2f5; --border: #d1d9e0; --fg: #1f2328; --muted: #59636e;
-  --link: #0969da; --green: #1a7f37; --red: #d1242f; --yellow: #9a6700; --folder: #54aeff;
+  --link: #0969da; --green: #1a7f37; --red: #d1242f; --yellow: #9a6700; --purple: #8250df; --folder: #54aeff;
   --addbg: #dafbe1; --delbg: #ffebe9; --addln: #aceebb; --delln: #ffcecb; --hunkbg: #ddf4ff;
   --warnbg: #fff8c5; --warnborder: #d4a72c; --codebg: rgba(129,139,152,.12); --accent: #1f883d;
   --btn-hover: #e6eaef; --btn-primary-border: rgba(31,35,40,.15); --check1: #eee; --check2: #fff;
@@ -20,7 +20,7 @@
 
   .dark & {
     --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d; --fg: #e6edf3; --muted: #8b949e;
-    --link: #4493f8; --green: #3fb950; --red: #f85149; --yellow: #d29922; --folder: #54aeff;
+    --link: #4493f8; --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #ab7df8; --folder: #54aeff;
     --addbg: rgba(46,160,67,.15); --delbg: rgba(248,81,73,.15); --addln: rgba(46,160,67,.3); --delln: rgba(248,81,73,.3);
     --hunkbg: rgba(56,139,253,.15); --warnbg: rgba(187,128,9,.15); --warnborder: #9e6a03; --codebg: rgba(110,118,129,.4);
     --accent: #238636; --btn-hover: #30363d; --btn-primary-border: rgba(240,246,252,.1); --check1: #222; --check2: #333;
@@ -436,4 +436,51 @@
   .empty svg { width: 32px; height: 32px; color: var(--muted); }
   .empty h3 { margin: 8px 0 4px; }
   .brand-plus { color: var(--green); margin-left: 1px; }
+
+  /* Local issues */
+  .counter { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 2em; background: var(--bg3); color: var(--fg); font-size: 12px; font-weight: 500; line-height: 18px; text-align: center; }
+  .tabs a .counter { margin-left: 2px; }
+  .grow-input { flex: 1; min-width: 0; }
+  .issue-states { gap: 16px; }
+  .issue-states button { all: unset; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); }
+  .issue-states button.active { color: var(--fg); font-weight: 600; }
+  .issue-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 16px; border-top: 1px solid var(--border); }
+  .issue-row:hover { background: var(--bg2); }
+  .issue-row > span:first-child { padding-top: 2px; }
+  .issue-open { color: var(--green); } .issue-closed { color: var(--purple); }
+  .issue-title { color: var(--fg); font-weight: 600; font-size: 15px; }
+  .issue-title:hover { color: var(--link); }
+  .issue-comments { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
+  .issue-form { display: flex; flex-direction: column; gap: 8px; }
+  .field-label { font-weight: 600; font-size: 13px; margin-top: 4px; }
+  .text-input { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font: inherit; width: 100%; }
+  .text-input:focus, .md-editor textarea:focus { outline: 2px solid var(--link); outline-offset: -1px; }
+  .md-editor { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--bg); }
+  .md-editor-tabs { display: flex; gap: 4px; padding: 6px 8px 0; background: var(--bg2); border-bottom: 1px solid var(--border); }
+  .md-editor-tabs button { background: none; border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; padding: 6px 12px; margin-bottom: -1px; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+  .md-editor-tabs button.active { background: var(--bg); border-color: var(--border); color: var(--fg); }
+  .md-editor textarea { display: block; width: 100%; resize: vertical; border: 0; padding: 8px 12px; background: var(--bg); color: var(--fg); font: inherit; font-size: 14px; min-height: 100px; }
+  .md-preview { padding: 8px 12px; min-height: 100px; }
+  .form-actions.no-rule { border-top: 0; padding-top: 12px; }
+  .issue-header { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px; }
+  .issue-title-row { display: flex; align-items: flex-start; gap: 8px; }
+  .issue-title-row h1 { font-size: 28px; font-weight: 400; margin: 0; word-break: break-word; }
+  .issue-title-edit { display: flex; gap: 8px; align-items: center; }
+  .issue-title-edit .text-input { font-size: 18px; }
+  .issue-meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .fg { color: var(--fg); }
+  .state-pill { display: inline-flex; gap: 4px; align-items: center; border-radius: 2em; padding: 4px 12px; color: #fff; font-weight: 500; font-size: 14px; }
+  .state-pill.open { background: var(--accent); } .state-pill.closed { background: var(--purple); }
+  .issue-timeline { max-width: 880px; display: flex; flex-direction: column; gap: 16px; }
+  .comment-box { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--bg); }
+  .comment-head { display: flex; gap: 6px; align-items: center; padding: 8px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 14px; }
+  .comment-body { padding: 16px; }
+  .comment-body .markdown > :first-child { margin-top: 0; } .comment-body .markdown > :last-child { margin-bottom: 0; }
+  .timeline-event { display: flex; gap: 8px; align-items: center; padding: 0 16px; font-size: 14px; }
+  .event-badge { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; align-items: center; justify-content: center; color: #fff; }
+  .event-badge.closed { background: var(--purple); } .event-badge.reopened { background: var(--accent); }
+  .composer { margin-top: 8px; }
+  .card-title .counter { margin-left: 4px; }
+  .issue-repos { margin-top: 8px; }
+  .markdown li.task-list-item { list-style: none; } .markdown li.task-list-item input { margin: 0 6px 0 -20px; vertical-align: middle; }
 }
