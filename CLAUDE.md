@@ -307,8 +307,10 @@ until the app has recorded the extension's current data version, so
 in its `.git` so the app and the server never commit at once. Tests:
 `electron/mcp/mcp.test.cjs` (includes a real stdio run).
 
-Nav items may have one level of indented subpages (`NavItem.children` in
-`nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
+Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
+module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
+a collapsible tree (plain rows on a guide line, current page tinted; open/closed
+per group in `commandHub.navOpen`), and on the icon rail as a menu.
 
 ### Charts
 

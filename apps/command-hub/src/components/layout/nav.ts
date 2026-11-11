@@ -12,7 +12,7 @@ export interface NavItem {
   label: string
   icon: IconComponent
   badge?: string
-  /** Subpages, drawn indented under this item. One level deep. */
+  /** Subpages, drawn as a collapsible tree under this item. One level deep. */
   children?: NavItem[]
 }
 
