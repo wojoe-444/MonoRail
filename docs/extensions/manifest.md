@@ -114,6 +114,40 @@ back what it returns, so `mcpTools` needs a `backend`.
 | `write` | boolean | no | `false` | `true` if it changes anything. Shown to the user and the agent, and logged as a write. |
 | `inputSchema` | object | no | no arguments | `{ "type": "object", "properties": {...}, "required": [...] }`. Properties are flat and typed (`string`, `integer`, `number`, `boolean`) with optional `description`, `enum`, `minimum`, `maximum`, `maxLength`. At most 20. MonoRail checks every call against it and refuses unknown arguments. |
 
+**List arguments.** Properties can't be arrays or objects: an agent that
+sends `"keys": ["a", "b"]` gets the error `"keys" must be a string.` Take a
+list as a string and say how in the description, then parse it in the method:
+
+```json
+"columns": { "type": "string", "maxLength": 4000, "description": "Column names as a JSON array, e.g. [\"id\", \"created_at\"]" }
+```
+
+```js
+function list(ctx, value, name) {
+  if (value === undefined) return []
+  try {
+    const v = JSON.parse(value)
+    if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return v
+  } catch {}
+  ctx.fail('BAD_ARGUMENT', `${name} must be a JSON array of strings, e.g. ["a", "b"]`)
+}
+```
+
+A comma-separated string also works for simple names. Either way MonoRail
+passes the string through unchanged.
+
+**Results.** What the method returns is sent to the agent as JSON text,
+pretty-printed with two-space indents. The text is cut at **400,000
+characters** (after indenting) and ends with
+`... (cut at 400000 characters)`; the backend's own limit of 16 MB applies
+before that. Keep answers small and let the agent ask again for more.
+
+**Tools only.** MonoRail's MCP server offers tools, nothing else. An
+extension can't publish MCP resources or prompts: `resources/list` and
+`prompts/list` answer `Method not found`. Offer saved data as a tool
+instead (for example `list_profiles` and `get_profile` with a `name`
+argument).
+
 At most 20 tools. Every extension tool, `write` or not, stays off for each
 agent until the user turns it on under **Configure > Agent access**, and
 every call is logged there. Your backend runs in the MCP server's own

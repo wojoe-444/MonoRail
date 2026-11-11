@@ -80,6 +80,40 @@ What differs:
 
 Errors you throw (or `ctx.fail`) reach the agent as the tool's error text.
 
+### Measured behavior
+
+From a test extension, calling MonoRail's MCP server the way an agent does:
+
+| What | Result |
+| --- | --- |
+| First tool call of a session (starts your backend) | about 110 ms for a small Node backend, plus whatever your `start` and first call do |
+| Later calls | 2 to 4 ms plus your method's own time |
+| A program your backend started, when the session ends normally (the agent closes stdin) | `stop(ctx)` runs; backend and program are gone |
+| The same, when the MCP server is killed outright | backend and program are gone (on Windows; see [when the program ends](non-node-runtimes.md#when-the-program-ends)) |
+| The app and an agent use the extension at once | two backend processes with different pids, `runningIn` `'app'` and `'mcp'`, on the same `dataDir` |
+
+Every agent session starts with a cold backend: nothing in memory survives
+from one session to the next, and nothing is shared with the app's backend.
+A program that takes seconds to warm up (loading a project, building an
+index) pays that on the first call of every session.
+
+What persists is `ctx.dataDir`. A file written there in one session was read
+back in the next, and the app's backend read it too. That is the supported
+way to keep expensive state:
+
+- Build the state once (in the app, or on the first call) and save it in
+  `ctx.dataDir` with a version and a key for what it was built from (a
+  project path and its last change time, for example).
+- On a cold start, load the saved file instead of rebuilding when the key
+  still matches.
+- Write it atomically (temporary file, then rename) and treat a half-built or
+  stale file as missing: the app's backend and several agent sessions can run
+  at the same time, and MonoRail doesn't lock the folder for you. Two
+  backends that each start a helper server get two servers.
+
+There is no way to keep a backend or a program running between sessions:
+when the session ends, its processes end.
+
 ## Errors
 
 Every failed call reaches the page as a `MonoRailError` with `code`,

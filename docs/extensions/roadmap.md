@@ -53,6 +53,28 @@ version now equals the API version. That leaves an extension's own version
 and `engines.monorail`. A later step could derive `engines.monorail` from the
 SDK copy when packing, so authors set only their own version.
 
+### API 1.3: what wrapping a Python tool needs
+
+Found while measuring a Python package with an MCP server and a web UI as an
+extension (see [Running Python and other runtimes](non-node-runtimes.md)).
+None of this exists yet.
+
+- **Pass `APPDATA` and `LOCALAPPDATA` to backends.** They are folder paths,
+  not secrets, and Google auth, pip and the Python install manager need them.
+  Today authors rebuild them from `USERPROFILE`, which is wrong for redirected
+  profiles. One line in `sandboxEnv` (`electron/extensions/host.cjs`).
+- **List arguments for MCP tools.** Allow `"type": "array"` with scalar
+  `items` and `maxItems` in `inputSchema` (`mcpTool` in
+  `electron/extensions/manifest.cjs`, `checkArgs` in `electron/mcp/protocol.cjs`).
+- **Named environment variables with consent**, e.g.
+  `"permissions": { "env": ["GOOGLE_APPLICATION_CREDENTIALS"] }`, shown in the
+  consent dialog and copied by `sandboxEnv`.
+- **MCP resources from extensions**, e.g. `contributes.mcpResources` mapped to
+  a backend method, with `resources/list` and `resources/read` in
+  `electron/mcp/protocol.cjs`.
+- Later: per-platform packages, and letting the MCP server reuse the app's
+  running backend instead of starting a cold one per agent session.
+
 ### Ideas
 
 - A catalog of known extensions in Settings, so users don't type a repo name.

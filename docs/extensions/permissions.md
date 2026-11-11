@@ -16,7 +16,14 @@ an update asks for more.
 | Run programs | no | no | `process`: listed programs, or `true` (**full trust**) |
 | User's environment variables | no | a minimal set, nothing secret | |
 | Workers, native addons, WASI | | no | not available yet |
-| MonoRail's data, other extensions | no | no | not available |
+| MonoRail's data (agents, chats, the coordinator), other extensions | no | no | not available (see below) |
+
+An extension can't read anything from MonoRail itself: there is no API for
+agents, chats, the coordinator, MonoRail's settings or other extensions, and
+a backend's attempt to read MonoRail's data folder fails with
+`ERR_ACCESS_DENIED`. Only a program started with the `process` permission
+can, because it isn't sandboxed (a test program read `extensions/state.json`).
+That is full trust, not a feature to build on.
 
 There is one way to grant each kind of access. A page never gets more: it
 asks its backend, and the backend has only what the user approved.
