@@ -194,7 +194,7 @@ export default function ClaudeStatsPage() {
       <PageHeader
         eyebrow="Insights"
         title="Claude Stats"
-        description="Claude Code, Gemini CLI and pi output by model and project, priced as if it ran on the API. Read locally from each tool's logs."
+        description="Claude Code, Gemini CLI and pi output by model and project, priced as if it ran on the API. Read from each tool's logs on this computer, so cloud sessions (Claude project threads, Claude Code on the web) are not included."
         actions={headerActions}
       />
 
@@ -258,7 +258,7 @@ export default function ClaudeStatsPage() {
       {model?.empty && (
         <Notice icon={Terminal} tone="info">
           No Claude Code, Gemini CLI or pi usage was found on this computer. Each tool's logs are read from your user
-          folder (.claude, .gemini and .pi).
+          folder (.claude, .gemini and .pi). Cloud sessions keep their logs on Anthropic's servers and are not counted.
         </Notice>
       )}
 
