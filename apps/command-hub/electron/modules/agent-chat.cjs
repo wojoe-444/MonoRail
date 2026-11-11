@@ -787,10 +787,10 @@ async function realCoordinatorDir(dataDir, create = false) {
 function coordinatorStatus() {
   const exe = options.findClaudeExecutable()
   if (!exe) return { ready: false, reason: sdkStatus()[0].reason }
-  if (!options.findCoordinator()) {
-    return { ready: false, reason: 'No coordinator subagent was found. Add one as ~/.claude/agents/coordinator.md, then reopen this page.' }
-  }
-  return { ready: true, note: options.coordinatorToolsNote(options.findCoordinator()) }
+  const own = options.findCoordinator()
+  // No coordinator.md: MonoRail's built-in coordinator runs instead.
+  if (!own) return { ready: true, builtin: true }
+  return { ready: true, note: options.coordinatorToolsNote(own) }
 }
 
 /** git status and diff for a chat's folder (or a new chat's repo), re-checked against the allowed folders. */

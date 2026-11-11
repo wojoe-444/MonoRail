@@ -72,7 +72,7 @@ The issue tools change only local issues: GitHub+ issues are commits on `refs/lo
 
 ### The coordinator
 
-The coordinator is the pinned entry on the Chat page: your own `coordinator` subagent (`~/.claude/agents/coordinator.md`), run by MonoRail in its own folder. It is a coordinator of coordinators, reachable in both directions.
+The coordinator is the pinned entry on the Chat page, run by MonoRail in its own folder. It works out of the box with MonoRail's built-in coordinator; if you have your own `coordinator` subagent (`~/.claude/agents/coordinator.md`), MonoRail runs that instead. It is a coordinator of coordinators, reachable in both directions.
 
 **It can reach your chats.** Besides delegating to subagents and running workflows, it gets five MonoRail tools:
 

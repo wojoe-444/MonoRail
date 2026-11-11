@@ -120,7 +120,7 @@ export function SystemPromptsDialog({ open, onOpenChange }: { open: boolean; onO
               <Label>How it is used</Label>
               {agent === 'coordinator' ? (
                 <p className="text-sm text-muted-foreground">
-                  Added after your coordinator subagent&apos;s own instructions. To change those, edit{' '}
+                  Added after the coordinator&apos;s own instructions (MonoRail&apos;s built-in ones unless you have your own). To replace those, create or edit{' '}
                   <span className="font-mono text-xs">~/.claude/agents/coordinator.md</span>.
                 </p>
               ) : (

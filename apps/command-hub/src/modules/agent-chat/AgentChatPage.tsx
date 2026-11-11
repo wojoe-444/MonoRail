@@ -535,7 +535,7 @@ function CoordinatorEntry({
   onOpen,
   onNew,
 }: {
-  status?: { ready: boolean; reason?: string; note?: string }
+  status?: { ready: boolean; reason?: string; note?: string; builtin?: boolean }
   latest?: SessionSummary
   active: boolean
   onOpen: () => void
@@ -565,7 +565,9 @@ function CoordinatorEntry({
       )}
     </div>
   )
-  const tip = ready ? status?.note : status?.reason
+  const tip = ready
+    ? (status?.note ?? (status?.builtin ? "MonoRail's built-in coordinator. To use your own, add ~/.claude/agents/coordinator.md." : undefined))
+    : status?.reason
   if (!tip) return entry
   return (
     <Tooltip>

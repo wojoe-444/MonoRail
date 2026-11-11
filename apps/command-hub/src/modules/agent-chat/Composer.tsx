@@ -431,7 +431,7 @@ export function NewChatEmpty({ repoName, sdk, coordinator }: { repoName?: string
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <div className="font-medium">New coordinator chat</div>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Runs your coordinator subagent in MonoRail&apos;s own folder. It can delegate to subagents, run workflows, and list, read and message your
+          Runs your coordinator subagent (or MonoRail&apos;s built-in one if you have no ~/.claude/agents/coordinator.md) in MonoRail&apos;s own folder. It can delegate to subagents, run workflows, and list, read and message your
           chats in allowed repos (read-only unless it asks for Agent mode; nothing that needs approval). Other agents can reach it through
           MonoRail&apos;s MCP server once you allow them under Agent access.
         </p>
