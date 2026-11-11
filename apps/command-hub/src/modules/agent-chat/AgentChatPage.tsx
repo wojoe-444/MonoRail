@@ -29,7 +29,6 @@ import {
   X,
 } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
@@ -327,61 +326,25 @@ export default function AgentChatPage() {
     return c
   }, [sessions])
 
-  return (
-    // Fills the window below the 64px top bar and the main padding, so only the panes scroll.
-    <div className="flex h-[calc(100dvh-7rem)] min-h-[32rem] flex-col gap-6 lg:h-[calc(100dvh-8rem)]">
-      <PageHeader
-        eyebrow="Agents"
-        title="Chat"
-        description="Claude Code and pi sessions in your allowed repos, read from their local logs."
-        actions={
-          <>
-            {!desktop && (
-              <Badge variant="info">
-                <FlaskConical /> Sample data
-              </Badge>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setFoldersOpen(true)}>
-              <Settings2 /> Folders
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPromptsOpen(true)}>
-              <ScrollText /> Prompts
-            </Button>
-            <Button
-              variant={panel === 'changes' ? 'secondary' : 'outline'}
-              size="sm"
-              aria-pressed={panel === 'changes'}
-              onClick={() => setPanel((p) => (p === 'changes' ? undefined : 'changes'))}
-            >
-              <GitCompare /> Changes
-            </Button>
-            <Button
-              variant={panel === 'browser' ? 'secondary' : 'outline'}
-              size="sm"
-              aria-pressed={panel === 'browser'}
-              onClick={() => setPanel((p) => (p === 'browser' ? undefined : 'browser'))}
-            >
-              <Globe /> Browser
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
-                setSendError(undefined)
-              }}
-            >
-              <Plus /> New chat
-            </Button>
-            {desktop && (
-              <Button variant="outline" size="sm" onClick={() => void list.refresh()} disabled={list.fetching}>
-                {list.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                Refresh
-              </Button>
-            )}
-          </>
-        }
-      />
+  const newChat = () => {
+    setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
+    setSendError(undefined)
+  }
+  const togglePanel = (kind: PanelKind) => setPanel((p) => (p === kind ? undefined : kind))
+  const paneTools = (
+    <>
+      <IconButton label="Changes" pressed={panel === 'changes'} onClick={() => togglePanel('changes')}>
+        <GitCompare />
+      </IconButton>
+      <IconButton label="Browser" pressed={panel === 'browser'} onClick={() => togglePanel('browser')}>
+        <Globe />
+      </IconButton>
+    </>
+  )
 
+  return (
+    // Fills the page body below the top bar, edge to edge (module layout 'fill'), so only the panes scroll.
+    <div className="flex h-full min-h-[32rem] flex-col">
       <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 
       <FoldersDialog
@@ -392,10 +355,31 @@ export default function AgentChatPage() {
         }}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-card text-card-foreground">
         {/* Session list */}
         <aside className="flex w-80 shrink-0 flex-col border-r">
           <div className="flex flex-col gap-3 border-b p-4">
+            <div className="flex items-center gap-1">
+              <Button size="sm" className="mr-auto" onClick={newChat}>
+                <Plus /> New chat
+              </Button>
+              {!desktop && (
+                <Badge variant="info" title="The browser dev server has no backend, so this is fictional sample data.">
+                  <FlaskConical /> Sample
+                </Badge>
+              )}
+              <IconButton label="Allowed folders" onClick={() => setFoldersOpen(true)}>
+                <Settings2 />
+              </IconButton>
+              <IconButton label="System prompts" onClick={() => setPromptsOpen(true)}>
+                <ScrollText />
+              </IconButton>
+              {desktop && (
+                <IconButton label="Refresh" onClick={() => void list.refresh()} disabled={list.fetching}>
+                  {list.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                </IconButton>
+              )}
+            </div>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -493,6 +477,7 @@ export default function AgentChatPage() {
                 turns={chatTurns}
                 composer={composer}
                 view={prefs.view}
+                tools={paneTools}
               />
             ) : selected ? (
               <Conversation
@@ -502,6 +487,7 @@ export default function AgentChatPage() {
                 turns={chatTurns}
                 composer={composer}
                 view={prefs.view}
+                tools={paneTools}
                 onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
               />
             ) : (
@@ -814,6 +800,7 @@ function Conversation({
   turns,
   composer,
   view,
+  tools,
   onAttach,
 }: {
   /** Missing for a new chat that has not started yet. */
@@ -828,6 +815,8 @@ function Conversation({
   turns: LiveTurn[]
   composer: ReactNode
   view: ChatView
+  /** Pane toggles (Changes, Browser), shown at the right of the header. */
+  tools?: ReactNode
   onAttach?: (turnId: string) => void
 }) {
   const desktop = isDesktop()
@@ -900,6 +889,7 @@ function Conversation({
   if (!session && turns.length === 0) {
     return (
       <>
+        <DraftHeader repoName={draftRepoName} coordinator={coordinator} tools={tools} />
         <NewChatEmpty repoName={draftRepoName} sdk={sdk} coordinator={coordinator} />
         {composer}
       </>
@@ -908,7 +898,11 @@ function Conversation({
 
   return (
     <>
-      {session && <ConversationHeader session={session} totals={totals} />}
+      {session ? (
+        <ConversationHeader session={session} totals={totals} tools={tools} />
+      ) : (
+        <DraftHeader repoName={draftRepoName} coordinator={coordinator} tools={tools} />
+      )}
       <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-6">
           {error && (
@@ -961,7 +955,15 @@ function Conversation({
   )
 }
 
-function ConversationHeader({ session, totals }: { session: SessionSummary; totals: ReturnType<typeof chatTotalView> }) {
+function ConversationHeader({
+  session,
+  totals,
+  tools,
+}: {
+  session: SessionSummary
+  totals: ReturnType<typeof chatTotalView>
+  tools?: ReactNode
+}) {
   return (
     <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b px-6 py-3">
       <SourceAvatar source={session.source} className="size-9" />
@@ -987,8 +989,60 @@ function ConversationHeader({ session, totals }: { session: SessionSummary; tota
             {session.model}
           </Badge>
         )}
+        {tools && <span className="mx-1 h-6 w-px bg-border" aria-hidden />}
+        {tools}
       </div>
     </div>
+  )
+}
+
+function DraftHeader({ repoName, coordinator, tools }: { repoName?: string; coordinator?: boolean; tools?: ReactNode }) {
+  return (
+    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b px-6 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-semibold">{coordinator ? 'New coordinator chat' : 'New chat'}</div>
+        {repoName && !coordinator && (
+          <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <FolderGit2 className="size-3.5" /> {repoName}
+          </div>
+        )}
+      </div>
+      {!coordinator && <div className="flex shrink-0 items-center gap-1">{tools}</div>}
+    </div>
+  )
+}
+
+/** A compact icon button with a tooltip; `pressed` makes it a toggle. */
+function IconButton({
+  label,
+  pressed,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string
+  pressed?: boolean
+  onClick: () => void
+  disabled?: boolean
+  children: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant={pressed ? 'secondary' : 'ghost'}
+          size="icon"
+          className="size-8"
+          aria-label={label}
+          aria-pressed={pressed}
+          onClick={onClick}
+          disabled={disabled}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

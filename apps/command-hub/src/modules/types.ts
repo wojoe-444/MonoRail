@@ -36,6 +36,12 @@ export interface ModuleDefinition {
     /** Path of a nav item to nest under as a subpage (e.g. "/agents"). Falls back to the section if missing. */
     parent?: string
   }
+  /**
+   * 'page' (default): the page sits in the centered, padded content container
+   * and starts with a PageHeader. 'fill': the page fills the whole body below
+   * the top bar, edge to edge, and handles its own scrolling (Chat).
+   */
+  layout?: 'page' | 'fill'
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType
   /**

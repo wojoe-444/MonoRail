@@ -168,7 +168,10 @@ Refresh button or the background schedule (`cache.schedule` from `start(ctx)`).
 After each build a module may write a small summary file; Home reads only those
 (`home.getSummaries`). Pages show `CacheStatusBadge` for cached data.
 
-`agent-chat` (**Chat**, under Agents) lists every local Claude Code
+`agent-chat` (**Chat**, under Agents) has no `PageHeader`: it uses module
+`layout: 'fill'` (App.tsx then drops the padded content container) and fills
+the page body edge to edge; New chat, Folders, Prompts and Refresh sit at the
+top of the chat list. It lists every local Claude Code
 (`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
 (`~/.pi/agent/sessions` or `PI_CODING_AGENT_DIR`) session and shows one as a
 read-only transcript (`electron/modules/agent-chat.cjs`). Logs are read in
@@ -211,7 +214,7 @@ not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
 (Max = xhigh). A started chat keeps its SDK; new chats pick one in the
 status bar (remembered).
 
-**System prompts** (page header "Prompts", `agent-chat-prompts.cjs`,
+**System prompts** (the scroll icon at the top of the chat list, `agent-chat-prompts.cjs`,
 `system-prompts.json` in the data folder): one per agent (Claude, pi,
 coordinator), either added to the built-in prompt (default) or replacing it
 (the page warns that this drops Claude Code's tool guidance). The main process
@@ -249,7 +252,7 @@ headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
 Scheduled and archived chats are hidden behind toggle buttons; the open chat
 always stays listed. Right-click a chat to mark it read/unread or archive it.
 
-**Side panels** (page header buttons): **Changes** runs `git status` and
+**Side panels** (icon toggles at the right of the conversation header): **Changes** runs `git status` and
 `git diff HEAD` for the chat's folder (`agent-chat-changes.cjs`; read-only,
 folder from the main process, external diff/textconv/fsmonitor off, diff cut
 at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with

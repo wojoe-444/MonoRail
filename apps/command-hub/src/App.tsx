@@ -46,6 +46,7 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
 
   const workspaceApp = activeApp && isWorkspaceApp(activeApp) ? activeApp : undefined
+  const fillPage = !workspaceApp && findModuleByPath(path)?.layout === 'fill'
 
   // Remember the hub page, so leaving a full-screen app comes back to it, and
   // where a workspace app was, so going back to it resumes there.
@@ -87,7 +88,7 @@ export default function App() {
           onNavigate={openPath}
           collapsed={collapsed}
         />
-        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp || fillPage ? 'overflow-hidden' : 'overflow-y-auto')}>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
@@ -100,6 +101,11 @@ export default function App() {
             // A workspace app owns the whole page body, with its own look and scrolling.
             <main className="min-h-0 flex-1 overflow-auto">
               <AppBody key={workspaceApp.id} app={workspaceApp} />
+            </main>
+          ) : fillPage ? (
+            // A 'fill' module owns the whole page body, edge to edge, and scrolls its own panes.
+            <main className="min-h-0 flex-1 overflow-hidden">
+              <RouteView path={path} navItems={navItems} onOpen={openPath} />
             </main>
           ) : (
             // Content container: max 1536px with 24/32px gutters
