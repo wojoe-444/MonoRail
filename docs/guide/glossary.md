@@ -102,6 +102,14 @@ An add-on page, app or tool built outside MonoRail. See
 The folder in your user profile where MonoRail keeps everything private,
 `%APPDATA%\MonoRail`. See [private data stays local](private-data.md).
 
+## Profile
+
+One person's settings and data inside MonoRail: appearance, connections,
+backups and so on. There is one profile today; Developer Mode adds a hidden,
+always-empty **New User** profile for testing. See
+[Developer Mode](setup/developer-mode.md) and, for the details,
+[Profiles](../profiles.md).
+
 ## For people and for agents
 
 The tags on every wiki page. *For people* pages are plain guides; *for

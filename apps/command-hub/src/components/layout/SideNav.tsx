@@ -16,6 +16,7 @@ import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
 import { useNavSections, type NavItem } from './nav'
+import { prefs } from '@/lib/prefs'
 
 interface SideNavProps {
   current: string
@@ -149,7 +150,7 @@ const OPEN_KEY = 'commandHub.navOpen'
 
 function readOpenState(): Record<string, boolean> {
   try {
-    const v = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}')
+    const v = JSON.parse(prefs.getItem(OPEN_KEY) ?? '{}')
     return v && typeof v === 'object' ? v : {}
   } catch {
     return {}
@@ -162,7 +163,7 @@ function useGroupOpen(path: string): [boolean, (open: boolean) => void] {
   const setOpen = (next: boolean) => {
     setOpenState(next)
     try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpenState(), [path]: next }))
+      prefs.setItem(OPEN_KEY, JSON.stringify({ ...readOpenState(), [path]: next }))
     } catch {
       // Storage unavailable: the state just isn't remembered.
     }

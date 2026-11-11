@@ -39,6 +39,7 @@ import { isDesktop, useModuleQuery } from '@/modules/client'
 import { MochiCrewDialog } from './MochiCrewDialog'
 import { sampleDetail, sampleOverview } from './sample'
 import type { AgentDefinition, AgentsOverview, DefinitionDetail, RecentSession, SessionState } from './types'
+import { prefs } from '@/lib/prefs'
 
 type KindFilter = 'all' | 'subagent' | 'skill'
 
@@ -275,7 +276,7 @@ function QuickLaunchCard({ data }: { data?: AgentsOverview }) {
   const repos = data?.repos ?? []
   const [repoPick, setRepo] = useState<string>()
   const repo = repoPick ?? repos[0]?.path
-  const [sdk, setSdk] = useState<SessionSource>(() => (localStorage.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
+  const [sdk, setSdk] = useState<SessionSource>(() => (prefs.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
   const [prompt, setPrompt] = useState('')
   const sdkInfo = data?.sdks.find((s) => s.id === sdk)
 

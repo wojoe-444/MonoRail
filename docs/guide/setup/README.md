@@ -17,6 +17,8 @@ to them:
   folder on a schedule, and keep the app current.
 - [Add extensions](extensions.md): pages, apps and agent tools built
   by others.
+- [Developer Mode](developer-mode.md): name any part of the screen in
+  feedback, and try MonoRail as a brand new user.
 
 Two pages are worth knowing before you change anything:
 

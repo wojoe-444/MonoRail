@@ -1,5 +1,6 @@
 import { ChevronRight, Maximize, Minimize, PanelLeft } from 'lucide-react'
 
+import { DevTopBarItems } from '@/components/dev/TestProfileBar'
 import { Button } from '@/components/ui/button'
 import { useFullScreen } from '@/lib/fullscreen'
 
@@ -16,7 +17,8 @@ interface TopBarProps {
 
 /**
  * 64px app bar, laid out like the Bot Dashboard's: drawer toggle, a
- * section > page breadcrumb, and the full screen toggle on the right. The
+ * section > page breadcrumb, and the full screen toggle on the right (with
+ * Developer Mode's inspect button and test-profile chip before it). The
  * color scheme and light / dark mode live in Settings > Appearance only.
  */
 export function TopBar({ section, parent, onNavigate, title, collapsed, onToggleCollapsed }: TopBarProps) {
@@ -54,6 +56,7 @@ export function TopBar({ section, parent, onNavigate, title, collapsed, onToggle
           {title}
         </span>
       </nav>
+      <DevTopBarItems />
       <Button variant="ghost" size="icon" className="-mr-2 size-8" onClick={toggle} aria-label={fsLabel} title={fsLabel}>
         {fullScreen ? <Minimize /> : <Maximize />}
       </Button>

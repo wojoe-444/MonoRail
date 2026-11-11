@@ -7,6 +7,7 @@ import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 import { findNavItem, flattenNav, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
+import { Inspector } from '@/components/dev/Inspector'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
@@ -77,6 +78,7 @@ export default function App() {
       <TooltipProvider>
         <AppFrame key={activeApp.id} app={activeApp} />
         <UpdateToast />
+        <Inspector />
       </TooltipProvider>
     )
   }
@@ -112,6 +114,7 @@ export default function App() {
         </div>
       </div>
       <UpdateToast />
+      <Inspector />
     </TooltipProvider>
   )
 }
