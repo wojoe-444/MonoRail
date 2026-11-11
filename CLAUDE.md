@@ -369,7 +369,14 @@ profile folder, and "Teach pi", which writes a MonoRail-marked
 `use-my-browser` skill to pi's skills folder (never overwrites a foreign one;
 removed when off or on removal). Actions: install in pi (terminal), get the
 extension (store page in the chosen browser), and Test connection (attach then
-detach, run with MonoRail's executable as Node, no shell). `git` stores nothing and
+detach, run with MonoRail's executable as Node, no shell). **github** is the github.com account GitHub+ uses
+(`connectors/github.cjs`, client `electron/connections/github-api.cjs`): the
+user's own GitHub CLI login (default; MonoRail runs `gh api` with fixed
+arguments, request bodies on stdin, and never reads the token), a pasted token
+(encrypted) or a Credential Manager entry read each time. `credentials()`
+returns `{ via: 'gh' }` or `{ via: 'token', token }`; only api.github.com is
+called. `hasConnection(kind)` in `index.cjs` says whether a connection is
+added without running anything. `git` stores nothing and
 reports the version, global `user.name` / `user.email` and the credential
 helper's name; it never runs `git credential`. Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
@@ -495,8 +502,26 @@ MonoRail apps create are listed with them automatically (`linked.cjs`): so
 far Jira+'s private projects repo (found with `resolveJiraDataDir`, shown as
 "Jira+ projects" with a Jira+ badge, not removable, never written to
 `recents.json` until opened). It is not added to Chat's allowed folders. It makes no
-network requests: remote images in READMEs are blocked and external links do
-nothing. Tests live in `git.test.cjs`.
+network requests of its own (remote images in READMEs are blocked and external
+links do nothing) except through the GitHub connection below. Tests live in
+`git.test.cjs`.
+
+**GitHub repos and GitHub issues** (`github.cjs`, tests `github.test.cjs`):
+once the user has added the GitHub connection on Connections (never before;
+until then the page shows a "Set up GitHub" hint and nothing runs), Home lists
+their github.com repos under "On GitHub": `/user/repos` with its default
+affiliation (owned, collaborator, organization member), so team repos they do
+not own are included. Kept in memory for 10 minutes (Refresh forces), never on
+disk. Repos that are already local (matched by the github.com remote, origin
+first, read with `git.remotes`) are left out of that list and get a cloud mark
+instead. A listed repo can be cloned into a folder the user picks (only repos
+in the fetched list, https clone URL built from the name) or opened on
+github.com. **New issues stay local by default**: the New issue page offers
+"Also create it on GitHub in owner/name" only when the repo has a github.com
+remote, and it is off on every new issue. When on, the backend creates the
+issue on the repo's own remote (never a repo named by the page), then saves
+the local issue with a `github` link (`{ repo, number, url }`); later edits
+and comments stay local. The MCP server's GitHub+ tools never publish.
 
 GitHub+ speed: starting a git process is the costly part (on Windows most of
 all, and Node starts each one on the main process), so every page uses as few

@@ -48,6 +48,7 @@ export default function IssuesPage() {
             <span className={i.state === 'open' ? 'issue-open' : 'issue-closed'}>{i.state === 'open' ? <IssueOpenIcon /> : <IssueClosedIcon />}</span>
             <div className="feed-main">
               <Link className="issue-title" to={issueLink(i.number)}>{i.title}</Link>
+              {i.github && <span className="badge" title={`Also created on GitHub as ${i.github.repo}#${i.github.number}`}>GitHub #{i.github.number}</span>}
               <div className="muted small">
                 #{i.number}{' '}
                 {i.state === 'open'

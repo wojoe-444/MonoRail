@@ -50,6 +50,7 @@ const CONNECTORS = [
   require('./connectors/pi.cjs'),
   require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
+  require('./connectors/github.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
@@ -280,6 +281,12 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       return s.account
     },
 
+    /** True once the user has added this connection. Runs nothing (no status(), no process, no request). */
+    async has(kind) {
+      connectorOf(kind)
+      return !!(await store.get(kind))
+    },
+
     /** For other backends in the main process: what a connector's credentials() returns. */
     async getCredentials(kind) {
       const c = connectorOf(kind)
@@ -322,9 +329,14 @@ function getCredentials(kind) {
   return connections().getCredentials(kind)
 }
 
+/** Whether the user has set up a connection of this kind. Checks the saved list only. */
+function hasConnection(kind) {
+  return connections().has(kind)
+}
+
 /** The Claude account type for cost views: `const { type, billedAtApiPrices } = await claudeAccount()`. */
 function claudeAccount() {
   return connections().claudeAccount()
 }
 
-module.exports = { connections, getCredentials, claudeAccount, createConnections, CONNECTORS, notAdded }
+module.exports = { connections, getCredentials, hasConnection, claudeAccount, createConnections, CONNECTORS, notAdded }

@@ -22,12 +22,16 @@ function isNotFound(code, stderr, error) {
   return /is not recognized as an internal or external command|command not found/i.test(stderr ?? '')
 }
 
-/** Run to completion: { code, stdout, stderr, notFound, timedOut }. Never throws. */
-function runTool(cmd, args, { timeoutMs = 30_000, env, cwd } = {}) {
+/**
+ * Run to completion: { code, stdout, stderr, notFound, timedOut }. Never throws.
+ * input, when given, is written to the program's stdin (request bodies go
+ * there, never on the command line).
+ */
+function runTool(cmd, args, { timeoutMs = 30_000, env, cwd, input } = {}) {
   return new Promise((resolve) => {
     let child
     try {
-      child = spawnTool(cmd, args, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+      child = spawnTool(cmd, args, { env, cwd, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] })
     } catch (error) {
       resolve({ code: -1, stdout: '', stderr: String(error.message), notFound: false, timedOut: false })
       return
@@ -39,8 +43,14 @@ function runTool(cmd, args, { timeoutMs = 30_000, env, cwd } = {}) {
       timedOut = true
       killTree(child)
     }, timeoutMs)
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
     child.stdout.on('data', (d) => (stdout += d))
     child.stderr.on('data', (d) => (stderr += d))
+    if (input !== undefined) {
+      child.stdin.on('error', () => {})
+      child.stdin.end(input)
+    }
     child.on('error', (error) => {
       clearTimeout(timer)
       resolve({ code: -1, stdout, stderr, notFound: isNotFound(-1, stderr, error), timedOut })

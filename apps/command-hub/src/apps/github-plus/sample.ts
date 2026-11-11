@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { GitHubRepo, BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -11,6 +11,30 @@ const REPO: RepoInfo = {
   isEmpty: false,
   defaultRef: 'main',
 }
+
+// Fictional github.com repositories: orbit-notes matches the local sample repo.
+const ghRepo = (fullName: string, relation: GitHubRepo['relation'], extra: Partial<GitHubRepo> = {}): GitHubRepo => ({
+  fullName,
+  owner: fullName.split('/')[0],
+  name: fullName.split('/')[1],
+  description: '',
+  private: false,
+  fork: false,
+  archived: false,
+  hasIssues: true,
+  canPush: true,
+  relation,
+  pushedAt: new Date(Date.now() - 3_600_000).toISOString(),
+  defaultBranch: 'main',
+  ...extra,
+})
+const GITHUB_REPOS: GitHubRepo[] = [
+  ghRepo('sample-dev/orbit-notes', 'owner', { description: 'A tiny note-taking library.' }),
+  ghRepo('acme-demo/platform-api', 'organization', { private: true, description: 'Team service (fictional).' }),
+  ghRepo('acme-demo/web-console', 'organization', { private: true }),
+  ghRepo('river-labs/data-pipes', 'collaborator', { description: 'Shared with you as a collaborator.' }),
+  ghRepo('sample-dev/dotfiles', 'owner', { archived: true }),
+]
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 
@@ -287,6 +311,7 @@ export const sampleApi: RepoApi = {
       backup: backup.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null,
       openIssues: issues.filter((i) => i.state === 'open').length,
       issues: issues.filter((i) => i.state === 'open').slice(0, 5).map(issueSummary),
+      github: 'sample-dev/orbit-notes',
     }
     const plain: RepoActivity = plainIsRepo
       ? { ...orbit, path: PLAIN, name: 'Job search', backup: null }
@@ -294,6 +319,12 @@ export const sampleApi: RepoApi = {
     return wait([orbit, plain, ...OTHER_REPOS, JIRA_ACTIVITY])
   },
   getLinked: () => wait([JIRA_REPO]),
+  githubRepos: () => wait({ connected: true, login: 'sample-dev', repos: GITHUB_REPOS, truncated: false, fetchedAt: new Date().toISOString() }),
+  githubTarget: (repo) => wait({ repo: repo === REPO.path ? 'sample-dev/orbit-notes' : null, connected: true }),
+  cloneGitHubRepo: async () => {
+    throw new Error('Cloning needs the desktop app.')
+  },
+  openOnGitHub: () => wait(null),
   removeRecent: () => wait([]),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {
@@ -340,11 +371,12 @@ export const sampleApi: RepoApi = {
   listIssues: (_repo, state) => wait(issues.filter((i) => state === 'all' || i.state === state).map(issueSummary)),
   issueCounts: () => wait({ open: issues.filter((i) => i.state === 'open').length, closed: issues.filter((i) => i.state === 'closed').length }),
   getIssue: async (_repo, n) => wait(findIssue(n)),
-  async createIssue(_repo, title, body) {
+  async createIssue(_repo, title, body, onGitHub) {
     if (!title.trim()) throw new Error('An issue needs a title')
     const now = new Date().toISOString()
     const number = Math.max(0, ...issues.map((i) => i.number)) + 1
-    return saveIssue({ number, title: title.trim(), body, state: 'open', author: SAMPLE_USER, createdAt: now, updatedAt: now, closedAt: null, timeline: [] })
+    const github = onGitHub ? { repo: 'sample-dev/orbit-notes', number: 40 + number, url: `https://github.com/sample-dev/orbit-notes/issues/${40 + number}` } : null
+    return saveIssue({ number, title: title.trim(), body, state: 'open', author: SAMPLE_USER, createdAt: now, updatedAt: now, closedAt: null, timeline: [], github })
   },
   async updateIssue(_repo, n, edit) {
     const i = structuredClone(findIssue(n))

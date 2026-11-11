@@ -483,4 +483,21 @@
   .card-title .counter { margin-left: 4px; }
   .issue-repos { margin-top: 8px; }
   .markdown li.task-list-item { list-style: none; } .markdown li.task-list-item input { margin: 0 6px 0 -20px; vertical-align: middle; }
+  .gh-section { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .gh-section > p.muted { margin: 0 0 8px; }
+  .gh-head { display: flex; align-items: center; justify-content: space-between; }
+  .gh-head h2 { margin: 0; }
+  .gh-head .icon-btn { display: inline-flex; align-items: center; justify-content: center; margin-right: 0; }
+  .gh-seg { display: flex; margin: 8px 0; }
+  .gh-seg button { flex: 1; justify-content: center; padding: 4px 6px; font-size: 12px; }
+  .gh-item.open > .repo-item { background: var(--bg2); }
+  .gh-detail { padding: 4px 8px 8px 36px; display: flex; flex-direction: column; gap: 4px; }
+  .gh-actions { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .gh-actions .btn { display: inline-flex; align-items: center; gap: 4px; }
+  .gh-mark { display: inline-flex; flex: none; margin-left: auto; }
+  .gh-owner { font-weight: 400; color: var(--muted); }
+  .gh-note { margin: 8px 0 0; padding: 0 8px; }
+  .issue-gh-toggle { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg2); }
+  .issue-gh-toggle .settings-hint { margin: 4px 0 0 24px; }
+  .gh-link { display: inline-flex; align-items: center; gap: 4px; }
 }
