@@ -27,6 +27,16 @@ export interface Palette {
   sh?: number
   /** Neutral palettes cut the fixed tint on text, muted text and drawer so grays stay gray. */
   neutral?: boolean
+  /**
+   * Hand-tuned tokens laid over the generated ones (e.g. a softer card or a
+   * second brand hue). Only override names `tokens()` already produces, so
+   * switching palettes never leaves a stale variable behind.
+   */
+  tune?: (dark: boolean) => Record<string, string>
+  /** `pill`: fully rounded inputs, buttons and selects, rounder cards (CSS keyed off `data-shape` on <html>). */
+  shape?: 'pill'
+  /** `leaf`: a faint frond drawn in the drawer (CSS keyed off `data-texture` on <html>). */
+  texture?: 'leaf'
 }
 
 export const DEFAULT_PALETTE = 'sand-ink'
@@ -60,6 +70,15 @@ export const PALETTES: Palette[] = [
   { id: 'sage', name: 'Sage', blurb: 'Gray-green neutrals, quiet sage accent', ph: 150, pc: 0.05, nh: 145, nc: 0.007, sidebar: 'dark', sh: 150, neutral: true },
   { id: 'true-gray', name: 'True Gray', blurb: 'Pure neutral gray, no tint at all', ph: 0, pc: 0, nh: 0, nc: 0, sidebar: 'dark', sh: 0, neutral: true },
   { id: 'sand-ink', name: 'Sand & Ink', blurb: 'Default. Cream paper, khaki accent, light drawer', ph: 80, pc: 0.07, nh: 85, nc: 0.01, sidebar: 'light', neutral: true },
+  {
+    id: 'botanical',
+    name: 'Botanical',
+    blurb: 'Forest drawer, sage paper, off-white cards, pill inputs',
+    ph: 145, pc: 0.085, nh: 140, nc: 0.012, sidebar: 'bold', sh: 148,
+    shape: 'pill',
+    texture: 'leaf',
+    tune: (dark) => botanicalTune(dark),
+  },
 ]
 
 /** Display groups, in PALETTES order. */
@@ -67,6 +86,7 @@ export const PALETTE_GROUPS: { label: string; from: number; to: number }[] = [
   { label: 'Set 1', from: 0, to: 12 },
   { label: 'Set 2', from: 12, to: 24 },
   { label: 'Neutrals (no blue or purple cast)', from: 24, to: 28 },
+  { label: 'Nature', from: 28, to: 29 },
 ]
 
 export function findPalette(id: string | null | undefined): Palette {
@@ -208,5 +228,68 @@ export function tokens(p: Palette, dark: boolean): Record<string, string> {
       'sidebar-ring': o(0.64, pc * 0.9, ph),
     })
   }
-  return t
+  return p.tune ? Object.assign(t, p.tune(dark)) : t
+}
+
+/**
+ * Botanical: deep forest and sage greens. Light mode is a sage-tinted page
+ * with warm off-white cards, sage-filled inputs and a dark green primary;
+ * the highlight is a fresh leaf green instead of the complementary hue.
+ * Dark mode is a deep forest night with sage text and a lighter leaf primary.
+ */
+function botanicalTune(dark: boolean): Record<string, string> {
+  return dark
+    ? {
+        background: o(0.19, 0.022, 152),
+        card: o(0.235, 0.028, 150),
+        popover: o(0.25, 0.028, 150),
+        foreground: o(0.95, 0.012, 130),
+        'card-foreground': o(0.95, 0.012, 130),
+        'popover-foreground': o(0.95, 0.012, 130),
+        muted: o(0.27, 0.026, 150),
+        'muted-foreground': o(0.74, 0.03, 140),
+        secondary: o(0.29, 0.03, 150),
+        input: o(0.85, 0.06, 145, 0.16),
+        primary: o(0.74, 0.12, 140),
+        'primary-foreground': o(0.2, 0.04, 150),
+        'primary-soft': o(0.31, 0.05, 145),
+        'primary-soft-foreground': o(0.88, 0.07, 140),
+        accent: o(0.31, 0.035, 145),
+        highlight: o(0.78, 0.16, 135),
+        'highlight-foreground': o(0.2, 0.05, 140),
+        'highlight-soft': o(0.31, 0.06, 135),
+        'highlight-soft-foreground': o(0.88, 0.1, 135),
+        ring: o(0.7, 0.1, 140, 0.5),
+        sidebar: o(0.27, 0.05, 150),
+        'sidebar-accent': o(0.33, 0.055, 150),
+        'sidebar-primary-foreground': o(0.27, 0.06, 150),
+      }
+    : {
+        background: o(0.955, 0.012, 140),
+        card: o(0.99, 0.004, 95),
+        popover: o(0.99, 0.004, 95),
+        foreground: o(0.25, 0.035, 150),
+        'card-foreground': o(0.25, 0.035, 150),
+        'popover-foreground': o(0.25, 0.035, 150),
+        muted: o(0.93, 0.014, 140),
+        'muted-foreground': o(0.5, 0.035, 145),
+        secondary: o(0.92, 0.018, 140),
+        'secondary-foreground': o(0.3, 0.05, 148),
+        border: o(0.9, 0.016, 140),
+        input: o(0.915, 0.016, 140),
+        primary: o(0.42, 0.085, 145),
+        'primary-foreground': o(0.985, 0.01, 130),
+        'primary-soft': o(0.92, 0.035, 140),
+        'primary-soft-foreground': o(0.38, 0.08, 145),
+        accent: o(0.92, 0.025, 140),
+        'accent-foreground': o(0.32, 0.07, 145),
+        highlight: o(0.62, 0.15, 138),
+        'highlight-foreground': o(0.99, 0.01, 135),
+        'highlight-soft': o(0.93, 0.05, 135),
+        'highlight-soft-foreground': o(0.42, 0.11, 138),
+        ring: o(0.55, 0.09, 145, 0.5),
+        sidebar: o(0.42, 0.075, 148),
+        'sidebar-accent': o(0.48, 0.075, 148),
+        'sidebar-primary-foreground': o(0.32, 0.075, 148),
+      }
 }

@@ -39,7 +39,12 @@ function apply() {
   const root = document.documentElement
   root.classList.toggle('dark', theme === 'dark')
   root.dataset.palette = palette
-  for (const [k, v] of Object.entries(tokens(findPalette(palette), theme === 'dark'))) {
+  const p = findPalette(palette)
+  if (p.shape) root.dataset.shape = p.shape
+  else delete root.dataset.shape
+  if (p.texture) root.dataset.texture = p.texture
+  else delete root.dataset.texture
+  for (const [k, v] of Object.entries(tokens(p, theme === 'dark'))) {
     root.style.setProperty(`--${k}`, v)
   }
 }
