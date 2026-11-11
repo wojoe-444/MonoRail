@@ -21,6 +21,7 @@
 
 const path = require('node:path')
 
+const cacheLib = require('../cache/index.cjs')
 const { createStore } = require('./store.cjs')
 const wincred = require('./wincred.cjs')
 
@@ -57,22 +58,33 @@ function publicJob(job) {
  * The Connections service. cipher wraps safeStorage (see store.cjs); deps are
  * passed to connectors (tests use them to stub fetch and Credential Manager).
  */
-function createConnections({ dataDir, cipher, deps = {} }) {
+function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed('connections.sign-in') }) {
   const store = createStore(dataDir, cipher)
   const lastStatus = new Map()
   const jobs = new Map()
   let jobSeq = 0
 
-  async function check(kind) {
+  // Checks spawn gcloud or call Atlassian, so a result is reused (declared
+  // in electron/cache/declared.cjs: 15 minutes after success, 2 after a
+  // failure). Editing the connection changes the definition and discards it;
+  // the Check button, a save and a finished sign-in pass force.
+  async function check(kind, { force = false } = {}) {
     const c = connectorOf(kind)
     const conn = await store.get(kind)
-    let s
-    try {
-      s = await c.status(conn, deps)
-    } catch (e) {
-      s = { state: 'error', summary: e instanceof Error ? e.message : String(e), details: [] }
-    }
-    const result = { ...s, added: !!conn, checkedAt: new Date().toISOString() }
+    const definition = { added: !!conn, values: conn?.values ?? {} }
+    const result = await checks.get(
+      kind,
+      async () => {
+        let s
+        try {
+          s = await c.status(conn, deps)
+        } catch (e) {
+          s = { state: 'error', summary: e instanceof Error ? e.message : String(e), details: [] }
+        }
+        return { ...s, added: !!conn, checkedAt: new Date().toISOString() }
+      },
+      { definition, force, failed: (r) => r.state !== 'ok' },
+    )
     if (conn) lastStatus.set(kind, result)
     return result
   }
@@ -108,7 +120,7 @@ function createConnections({ dataDir, cipher, deps = {} }) {
       // Secrets of a field that is hidden by the current choice are dropped.
       const hidden = c.fields.filter((f) => f.type === 'secret' && f.showIf && Object.entries(f.showIf).some(([k, v]) => clean[k] !== v)).map((f) => f.key)
       await store.save(kind, c.fields, { values: clean, secrets, clearSecrets: [...clearSecrets, ...hidden] })
-      return check(kind)
+      return check(kind, { force: true })
     },
 
     async remove({ kind } = {}) {
@@ -117,6 +129,7 @@ function createConnections({ dataDir, cipher, deps = {} }) {
       if (job?.state === 'running') throw new Error('Wait for the sign-in to finish, or cancel it, before removing the connection.')
       jobs.delete(kind)
       lastStatus.delete(kind)
+      checks.invalidate(kind)
       return store.remove(kind)
     },
 
@@ -148,6 +161,7 @@ function createConnections({ dataDir, cipher, deps = {} }) {
         .then(
           () => {
             job.state = 'done'
+            checks.invalidate(kind)
           },
           (e) => {
             job.state = job.cancelled ? 'cancelled' : 'failed'
