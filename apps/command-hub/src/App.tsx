@@ -1,4 +1,8 @@
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+
+import { AppFrame } from '@/apps/AppFrame'
+import { findAppByPath } from '@/apps/registry'
+import { appEntryPath, rememberHubPath } from '@/apps/session'
 
 import { allNavItems } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
@@ -26,6 +30,7 @@ function RouteView({ path }: { path: string }) {
 
 export default function App() {
   const [path, navigate] = useRoute()
+  const activeApp = findAppByPath(path)
   const [collapsed, setCollapsed] = useState(false)
   const [dark, setDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
 
@@ -33,14 +38,36 @@ export default function App() {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
 
+  // Remember the hub page, so leaving an app comes back to it.
+  useEffect(() => {
+    if (!activeApp) rememberHubPath(path)
+  }, [activeApp, path])
+
+  // Opening an app from the nav resumes it where it was left.
+  const openPath = useCallback(
+    (p: string) => {
+      const app = findAppByPath(p)
+      navigate(app && p === app.path ? appEntryPath(app) : p)
+    },
+    [navigate],
+  )
+
   const current = allNavItems.find((i) => i.path === path)
+
+  if (activeApp) {
+    return (
+      <TooltipProvider>
+        <AppFrame key={activeApp.id} app={activeApp} />
+      </TooltipProvider>
+    )
+  }
 
   return (
     <TooltipProvider>
       <div className="flex h-full overflow-hidden">
         <SideNav
           current={path}
-          onNavigate={navigate}
+          onNavigate={openPath}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((c) => !c)}
         />

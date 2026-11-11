@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { apps } from '@/apps/registry'
 import { modules } from '@/modules/registry'
 
 export interface NavItem {
@@ -22,10 +23,15 @@ export interface NavSection {
   items: NavItem[]
 }
 
-/** Built-in destinations. Modules add theirs from `src/modules/registry.ts`. */
+/** Built-in destinations. Apps come from `src/apps/registry.ts`, modules add theirs from `src/modules/registry.ts`. */
 const coreSections: NavSection[] = [
   {
     items: [{ path: '/', label: 'Home', icon: House }],
+  },
+  {
+    // Apps open full screen (src/apps); each one is listed from the app registry.
+    heading: 'Apps',
+    items: apps.map((a) => ({ path: a.path, label: a.title, icon: a.icon })),
   },
   {
     heading: 'Workspace',
