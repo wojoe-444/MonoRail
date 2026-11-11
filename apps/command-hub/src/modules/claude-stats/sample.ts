@@ -1,5 +1,5 @@
 import { addDays, isoDate } from './transform'
-import type { CcusageDailyRow, CcusageModelBreakdown, CcusageSessionRow, UsageReport } from './types'
+import type { CcusageDailyRow, CcusageModelBreakdown, CcusageSessionRow, RawPhase, UsageReport } from './types'
 
 /**
  * Fictional usage for the browser dev server and the "show sample data"
@@ -92,5 +92,37 @@ export function sampleReport(today = isoDate(new Date()), days = 120): UsageRepo
     source: 'sample',
     daily: { projects },
     sessions: { sessions },
+    partners: { idleGapMinutes: 120, phases: sessions.flatMap(samplePhases) },
   }
+}
+
+/**
+ * Fictional phases for a sample session: the biggest non-Haiku model drives
+ * with Haiku subagents; any other model gets its own later solo phase.
+ */
+function samplePhases(s: CcusageSessionRow): RawPhase[] {
+  const date = s.lastActivity.slice(0, 10)
+  const fact = (b: CcusageModelBreakdown, role: 'driver' | 'subagent') => ({
+    date,
+    model: b.modelName,
+    role,
+    input: b.inputTokens,
+    output: b.outputTokens,
+    cacheCreate: b.cacheCreationTokens,
+    cacheRead: b.cacheReadTokens,
+  })
+  const sorted = [...s.modelBreakdowns].sort((a, b) => b.outputTokens - a.outputTokens)
+  const haiku = sorted.filter((b) => b.modelName.includes('haiku'))
+  const drivers = sorted.filter((b) => !b.modelName.includes('haiku'))
+  const base = { sessionId: s.sessionId, project: s.projectPath, effort: 'high' }
+  if (!drivers.length) {
+    return [{ ...base, driver: haiku[0].modelName, start: `${date}T09:00:00Z`, end: `${date}T12:00:00Z`, facts: haiku.map((b) => fact(b, 'driver')) }]
+  }
+  return drivers.map((d, i) => ({
+    ...base,
+    driver: d.modelName,
+    start: `${date}T${String(9 + i * 4).padStart(2, '0')}:00:00Z`,
+    end: `${date}T${String(12 + i * 4).padStart(2, '0')}:00:00Z`,
+    facts: [fact(d, 'driver'), ...(i === 0 ? haiku.map((b) => fact(b, 'subagent')) : [])],
+  }))
 }
