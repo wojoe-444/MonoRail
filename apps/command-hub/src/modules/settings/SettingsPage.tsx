@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowRight, CheckCircle2, Download, Info, Loader2, Puzzle, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { DeveloperModeCard } from '@/components/dev/DeveloperModeCard'
 import { AppearanceCard } from '@/components/theme/ThemePicker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -125,6 +126,8 @@ export default function SettingsPage() {
         </Card>
 
         <AppearanceCard className="lg:col-span-3" />
+
+        <DeveloperModeCard className="lg:col-span-3" />
       </div>
     </div>
   )

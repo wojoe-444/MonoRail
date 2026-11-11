@@ -55,3 +55,28 @@ export const prefs = {
     }
   },
 }
+
+/**
+ * Point this window's preferences at a profile (machine-wide key). Called when
+ * MonoRail switches profile, and at start-up if the window and the backend
+ * disagree. The default profile is stored as no key, as it always was.
+ */
+export function setActiveProfileId(id: string): void {
+  try {
+    if (id === DEFAULT_PROFILE_ID) localStorage.removeItem(ACTIVE_KEY)
+    else localStorage.setItem(ACTIVE_KEY, id)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Forget every preference of one profile (never the default's). */
+export function clearProfilePrefs(id: string): void {
+  if (id === DEFAULT_PROFILE_ID) return
+  const prefix = `commandHub.profile.${id}.`
+  try {
+    for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key)
+  } catch {
+    /* ignore */
+  }
+}

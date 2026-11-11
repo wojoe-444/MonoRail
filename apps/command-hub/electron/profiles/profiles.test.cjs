@@ -130,3 +130,74 @@ test('folderOf accepts a plain root or a layout', () => {
   assert.equal(P.folderOf(root, 'modules/mcp'), path.join(root, 'modules', 'mcp'))
   assert.equal(P.folderOf(P.createLayout(root, 'sam'), 'modules/mcp'), path.join(root, 'profiles', 'sam', 'modules', 'mcp'))
 })
+
+test('New User: switching creates a hidden blank profile, takes effect only at the next start, and remembers the way back', async () => {
+  const root = tmp()
+  fs.writeFileSync(path.join(root, 'keep.txt'), 'mine')
+  const store = P.createProfileStore(root, { now: () => new Date('2026-11-11T12:00:00Z') })
+  await store.rename('default', 'Sample Person')
+  await store.switchTo(P.NEW_USER_ID)
+  // This run keeps its profile; the next start opens New User.
+  assert.equal(store.active().id, 'default')
+  assert.equal(store.layout().profileDir, root)
+  assert.equal(store.list().nextId, P.NEW_USER_ID)
+  const raw = JSON.parse(fs.readFileSync(path.join(root, P.PROFILES_FILE), 'utf8'))
+  assert.equal(raw.activeId, P.NEW_USER_ID)
+  assert.equal(raw.previousId, 'default')
+  assert.equal(raw.pendingReset, P.NEW_USER_ID)
+  const nu = raw.profiles.find((p) => p.id === P.NEW_USER_ID)
+  assert.equal(nu.hidden, true)
+  assert.equal(nu.blank, true)
+  assert.equal(raw.profiles.find((p) => p.id === 'default').name, 'Sample Person', 'the own profile is untouched')
+  // Next start: the New User folder is the only thing used.
+  const next = P.createProfileStore(root)
+  assert.equal(next.active().id, P.NEW_USER_ID)
+  assert.equal(next.layout().profileDir, path.join(root, 'profiles', P.NEW_USER_ID))
+  assert.equal(next.layout().folder('modules/flashcards'), path.join(root, 'profiles', P.NEW_USER_ID, 'modules', 'flashcards'))
+  assert.equal(next.layout().folder('modules/claude-stats'), path.join(root, 'modules', 'claude-stats'))
+  // Back to the own profile from there; previousId survives the trip.
+  await next.switchTo('default')
+  const back = JSON.parse(fs.readFileSync(path.join(root, P.PROFILES_FILE), 'utf8'))
+  assert.equal(back.activeId, 'default')
+  assert.equal(back.pendingReset, undefined)
+  assert.equal(fs.readFileSync(path.join(root, 'keep.txt'), 'utf8'), 'mine')
+  await assert.rejects(store.switchTo('nobody'), /No profile/)
+})
+
+test('New User reset: wipes only profiles/new-user, and only when it is active and marked', async () => {
+  const root = tmp()
+  fs.mkdirSync(path.join(root, 'modules', 'flashcards'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'modules', 'flashcards', 'decks.json'), '{}')
+  const nuDir = path.join(root, 'profiles', P.NEW_USER_ID, 'modules', 'flashcards')
+  fs.mkdirSync(nuDir, { recursive: true })
+  fs.writeFileSync(path.join(nuDir, 'decks.json'), '{"test":1}')
+  fs.mkdirSync(path.join(root, 'profiles', 'someone'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'profiles', 'someone', 'x.json'), '{}')
+
+  // No profiles.json, or default active: nothing happens.
+  assert.equal(P.resetBlankProfile(root), false)
+  assert.ok(fs.existsSync(path.join(nuDir, 'decks.json')))
+
+  await P.createProfileStore(root).switchTo(P.NEW_USER_ID)
+  assert.equal(P.resetBlankProfile(root), true)
+  assert.equal(fs.existsSync(path.join(root, 'profiles', P.NEW_USER_ID)), false)
+  assert.ok(fs.existsSync(path.join(root, 'modules', 'flashcards', 'decks.json')), 'default profile data untouched')
+  assert.ok(fs.existsSync(path.join(root, 'profiles', 'someone', 'x.json')), 'other profiles untouched')
+  const raw = JSON.parse(fs.readFileSync(path.join(root, P.PROFILES_FILE), 'utf8'))
+  assert.equal(raw.pendingReset, undefined)
+  assert.equal(raw.activeId, P.NEW_USER_ID)
+  // A second start in New User without a new switch keeps what was made since.
+  fs.mkdirSync(nuDir, { recursive: true })
+  fs.writeFileSync(path.join(nuDir, 'decks.json'), '{}')
+  assert.equal(P.resetBlankProfile(root), false)
+  assert.ok(fs.existsSync(path.join(nuDir, 'decks.json')))
+  // A damaged profiles.json never triggers a delete.
+  fs.writeFileSync(path.join(root, P.PROFILES_FILE), '{ nope')
+  assert.equal(P.resetBlankProfile(root), false)
+})
+
+test('parse: a hand-edited pendingReset never points at anything but new-user', () => {
+  const { state } = P.parseProfiles(JSON.stringify({ activeId: 'default', pendingReset: 'default', previousId: 'new-user', profiles: [{ id: 'default' }] }))
+  assert.equal(state.pendingReset, undefined)
+  assert.equal(state.previousId, undefined)
+})

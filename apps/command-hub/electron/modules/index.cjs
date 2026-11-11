@@ -31,6 +31,7 @@ const moduleBackends = [
   require('./backups.cjs'),
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
+  require('./developer.cjs'),
   require('./flashcards.cjs'),
   require('./home.cjs'),
   require('./mcp.cjs'),

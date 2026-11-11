@@ -33,6 +33,14 @@ const fsp = require('node:fs/promises')
 const path = require('node:path')
 
 const DEFAULT_PROFILE_ID = 'default'
+/**
+ * Developer Mode's test profile: hidden from profile lists, and wiped to a
+ * blank slate every time it is switched to (docs/profiles.md, "New User").
+ * Its folder is always machineDir\profiles\new-user; nothing else is ever
+ * deleted.
+ */
+const NEW_USER_ID = 'new-user'
+const NEW_USER_NAME = 'New User'
 const PROFILES_FILE = 'profiles.json'
 const PROFILES_DIR = 'profiles'
 const VERSION = 1
@@ -52,6 +60,7 @@ const SCOPES = Object.freeze({
   'modules/backups': 'profile', // global backup folder and schedule
   'modules/claude-stats': 'machine', // report built from this computer's agent logs
   'modules/connections': 'profile', // accounts and encrypted secrets
+  'modules/developer': 'machine', // Developer Mode tools; keeps no files
   'modules/extensions': 'machine', // keeps no files; extensions are machine-wide
   'modules/flashcards': 'profile', // decks, cards, study history
   'modules/home': 'profile', // keeps no files
@@ -122,12 +131,21 @@ function parseProfiles(text) {
     } catch {
       name = String(p.name).slice(0, MAX_NAME)
     }
-    profiles.push({ id: p.id, name, createdAt: typeof p.createdAt === 'string' ? p.createdAt : null })
+    const entry = { id: p.id, name, createdAt: typeof p.createdAt === 'string' ? p.createdAt : null }
+    // The New User profile is always hidden and blank, whatever the file says.
+    if (p.id === NEW_USER_ID) Object.assign(entry, { hidden: true, blank: true })
+    profiles.push(entry)
   }
   // The default profile always exists: it owns the data that was there first.
   if (!seen.has(DEFAULT_PROFILE_ID)) profiles.unshift(defaultProfile())
-  const activeId = seen.has(raw.activeId) || raw.activeId === DEFAULT_PROFILE_ID ? raw.activeId : DEFAULT_PROFILE_ID
-  return { state: { version: VERSION, activeId, profiles }, damaged: false }
+  const known = (id) => id === DEFAULT_PROFILE_ID || seen.has(id)
+  const activeId = known(raw.activeId) ? raw.activeId : DEFAULT_PROFILE_ID
+  const state = { version: VERSION, activeId, profiles }
+  // Where "Switch back" goes from a blank test profile.
+  if (known(raw.previousId) && raw.previousId !== NEW_USER_ID) state.previousId = raw.previousId
+  // A blank profile waiting to be wiped at the next start (only ever new-user).
+  if (raw.pendingReset === NEW_USER_ID && seen.has(NEW_USER_ID)) state.pendingReset = NEW_USER_ID
+  return { state, damaged: false }
 }
 
 function readProfilesSync(machineDir) {
@@ -200,19 +218,31 @@ async function writeAtomic(file, data) {
  */
 function createProfileStore(machineDir, { now = () => new Date() } = {}) {
   let cached
+  // The profile this run started with. A switch takes effect at the next
+  // start, so until then every backend keeps reading the profile it began in.
+  let running
 
   function load() {
     cached ??= readProfilesSync(machineDir)
+    running ??= cached.state.activeId
     return cached
   }
 
   function describe(p, activeId) {
-    return { id: p.id, name: p.name, createdAt: p.createdAt, active: p.id === activeId, isDefault: p.id === DEFAULT_PROFILE_ID }
+    return {
+      id: p.id,
+      name: p.name,
+      createdAt: p.createdAt,
+      active: p.id === activeId,
+      isDefault: p.id === DEFAULT_PROFILE_ID,
+      hidden: !!p.hidden,
+      blank: !!p.blank,
+    }
   }
 
   function active() {
     const { state } = load()
-    return state.profiles.find((p) => p.id === state.activeId) ?? defaultProfile()
+    return state.profiles.find((p) => p.id === running) ?? defaultProfile()
   }
 
   return {
@@ -226,9 +256,12 @@ function createProfileStore(machineDir, { now = () => new Date() } = {}) {
     list() {
       const { state, damaged } = load()
       return {
-        activeId: state.activeId,
+        activeId: running,
+        /** The profile the next start opens, when a switch is waiting for a restart. */
+        nextId: state.activeId !== running ? state.activeId : null,
+        previousId: state.previousId ?? null,
         damaged,
-        profiles: state.profiles.map((p) => ({ ...describe(p, state.activeId), dataDir: profileDir(machineDir, p.id) })),
+        profiles: state.profiles.map((p) => ({ ...describe(p, running), dataDir: profileDir(machineDir, p.id) })),
       }
     },
     /** Set a profile's display name (empty = no name). The first change creates profiles.json. */
@@ -242,19 +275,72 @@ function createProfileStore(machineDir, { now = () => new Date() } = {}) {
       const p = state.profiles.find((x) => x.id === id)
       if (!p) throw new ProfileError(`No profile "${id}".`, 'not-found')
       const next = {
-        version: VERSION,
-        activeId: state.activeId,
+        ...state,
         profiles: state.profiles.map((x) => (x.id === id ? { ...x, name: clean, createdAt: x.createdAt ?? now().toISOString() } : x)),
       }
       await writeAtomic(path.join(machineDir, PROFILES_FILE), next)
       cached = { state: next, damaged: false }
-      return describe(next.profiles.find((x) => x.id === id), next.activeId)
+      return describe(next.profiles.find((x) => x.id === id), running)
+    },
+    /**
+     * Make a profile the active one from the next start. Switching to the New
+     * User profile creates it on first use and marks it to be wiped to a blank
+     * slate at that start (resetBlankProfile), so it is empty every time.
+     * Writes profiles.json atomically, never over a damaged file. The caller
+     * restarts the app: every backend reads the active profile when it starts.
+     */
+    async switchTo(id) {
+      cached = undefined
+      const { state, damaged } = load()
+      if (damaged) {
+        throw new ProfileError(`${PROFILES_FILE} in the data folder cannot be read, so MonoRail will not overwrite it. Fix or remove the file, then try again.`, 'damaged')
+      }
+      let list = state.profiles
+      if (id === NEW_USER_ID && !list.some((p) => p.id === NEW_USER_ID)) {
+        list = [...list, { id: NEW_USER_ID, name: NEW_USER_NAME, createdAt: now().toISOString(), hidden: true, blank: true }]
+      }
+      const target = list.find((p) => p.id === id)
+      if (!target) throw new ProfileError(`No profile "${id}".`, 'not-found')
+      const next = { version: VERSION, activeId: id, profiles: list }
+      // Remember the person's own profile so the test profile can switch back.
+      const from = state.activeId !== NEW_USER_ID ? state.activeId : state.previousId
+      if (id === NEW_USER_ID) {
+        if (from) next.previousId = from
+        next.pendingReset = NEW_USER_ID
+      }
+      await writeAtomic(path.join(machineDir, PROFILES_FILE), next)
+      cached = { state: next, damaged: false }
+      return describe(target, running)
     },
     /** Forget the in-memory copy (tests, or after another process wrote the file). */
     reload() {
       cached = undefined
+      running = undefined
     },
   }
+}
+
+/**
+ * At start-up, before any backend opens a file: if the New User profile is
+ * active and marked for a reset, delete its folder (and only that folder) so
+ * it starts blank, then clear the mark. Returns true when it wiped the folder.
+ * Never touches the default profile or any other profile's data.
+ */
+function resetBlankProfile(machineDir) {
+  const file = path.join(machineDir, PROFILES_FILE)
+  const { state, damaged } = readProfilesSync(machineDir)
+  if (damaged || state.activeId !== NEW_USER_ID || state.pendingReset !== NEW_USER_ID) return false
+  const dir = profileDir(machineDir, NEW_USER_ID)
+  // Belt and braces: the folder must be exactly <machineDir>/profiles/new-user.
+  const expected = path.join(path.resolve(machineDir), PROFILES_DIR, NEW_USER_ID)
+  if (path.resolve(dir) !== expected || expected === path.resolve(machineDir)) return false
+  fs.rmSync(dir, { recursive: true, force: true })
+  const next = { ...state }
+  delete next.pendingReset
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8')
+  fs.renameSync(tmp, file)
+  return true
 }
 
 // ---------- the app's instance (main process) ----------
@@ -275,6 +361,8 @@ function appLayout() {
 
 module.exports = {
   DEFAULT_PROFILE_ID,
+  NEW_USER_ID,
+  NEW_USER_NAME,
   PROFILES_FILE,
   PROFILES_DIR,
   SCOPES,
@@ -290,5 +378,6 @@ module.exports = {
   profileDir,
   profiles,
   readProfilesSync,
+  resetBlankProfile,
   scopeOf,
 }
