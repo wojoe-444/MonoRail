@@ -141,6 +141,17 @@ projects are a git repo in `<dataDir>/local-repo` (`jira-local.cjs`, via
 `isomorphic-git`, one JSON file per ticket, one commit per change). That repo
 never gets a remote; do not add push or sync to it.
 
+`agent-chat` (**Chat**, under Agents) lists every local Claude Code
+(`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
+(`~/.pi/agent/sessions` or `PI_CODING_AGENT_DIR`) session and shows one as a
+read-only transcript (`electron/modules/agent-chat.cjs`). Logs are read in
+place, never copied or cached to disk, and the page only names a session by
+the id the backend handed out, never a path. pi sessions are trees; the
+transcript follows the branch ending at the last entry.
+
+Nav items may have one level of indented subpages (`NavItem.children` in
+`nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
+
 ### Charts
 
 Follow the data-viz rules already encoded in `components/charts/`: series
