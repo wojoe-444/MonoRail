@@ -34,6 +34,10 @@ jobs:
     # Pushes to main publish a GitHub release that the in-app updater reads.
     permissions:
       contents: write
+    # Rapid merges publish one release at a time, in order.
+    concurrency:
+      group: windows-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,25 +49,31 @@ jobs:
       - name: Stamp version
         run: node scripts/set-ci-version.cjs
       - name: Build installer
-        if: github.event_name != 'push'
         run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Build installer and publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: npm run release:win
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # electron-builder uploads the installer, blockmap and latest.yml to a
-      # draft (publishing directly races its parallel uploads). Publish it once
-      # every file is there, so the updater never sees a half-filled release.
-      - name: Publish the release
+      # Pushes to main publish one GitHub release per build. electron-builder's
+      # own publisher uploads files in parallel and each upload can create its
+      # own release for the same tag, which left latest.yml (the file the
+      # in-app updater reads) on a stray draft. So electron-builder only builds
+      # and `gh release create` uploads every file to a single release, then
+      # publishes it. A missing file fails the job instead of shipping.
+      - name: Publish release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
-        run: gh release edit "v$(node -p "require('./package.json').version")" --draft=false --latest --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          shopt -s nullglob
+          files=(release/CommandHub-Setup-"$version".exe release/CommandHub-Setup-"$version".exe.blockmap release/latest.yml)
+          for f in release/CommandHub-Setup-"$version".exe release/latest.yml; do
+            [ -f "$f" ] || { echo "missing $f"; exit 1; }
+          done
+          gh release create "v$version" "${files[@]}" --title "$version" --latest \
+            --target "$GITHUB_SHA" --notes "Built from $GITHUB_SHA." --repo "$GITHUB_REPOSITORY"
+          gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -qx latest.yml
       - uses: actions/upload-artifact@v4
         with:
           name: CommandHub-windows-setup
