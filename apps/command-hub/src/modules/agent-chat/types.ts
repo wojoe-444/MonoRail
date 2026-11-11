@@ -55,7 +55,7 @@ export interface CallUsage {
 export interface SessionList {
   sources: { id: SessionSource; label: string; found: boolean }[]
   sessions: SessionSummary[]
-  limits: { scanned: number; totalLogs: number; kept: number; dropped: number; outsideAllowed: number }
+  limits: { scanned: number; totalLogs: number; kept: number; dropped: number; outsideAllowed: number; hiddenFolders?: { path: string; count: number; gitRepo?: boolean }[] }
   folders: { reposRoot: string; reposRootFound: boolean; repoCount: number }
 }
 

@@ -110,6 +110,8 @@ test('lists only chats whose folder is in an allowed repo', async () => {
   const { sessions, limits } = await chat.listSessions(opts(home))
   assert.deepEqual(sessions.map((s) => s.id).sort(), ['claude:abc', 'pi:p1'])
   assert.equal(limits.outsideAllowed, 1)
+  // The page is told which folder holds it, and that it can be allowed.
+  assert.deepEqual(limits.hiddenFolders, [{ path: outside, count: 1, gitRepo: true }])
   assert.equal(sessions.find((s) => s.id === 'claude:abc').repo.name, 'demo-app')
   await assert.rejects(chat.getSession('claude:out', opts(home)), /not found/)
 
