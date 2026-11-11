@@ -22,7 +22,7 @@ export const jiraPlusApp: AppDefinition = {
     'deleteIssue',
     'createLocalProject',
     'updateLocalProject',
-    'saveConnection',
-    'disconnect',
+    'saveSettings',
+    'forgetLegacyConnection',
   ],
 }

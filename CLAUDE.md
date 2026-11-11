@@ -157,6 +157,24 @@ request re-resolves them. Read limits: the list reads the 300 newest logs and
 keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
 page says when it was cut.
 
+`connections` (**Connections**, under Configure) is the one place for the
+accounts MonoRail signs in with. Connectors live in `electron/connections/`
+(contract at the top of `index.cjs`): fields, a `status()` returning
+`ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
+again" that run as polled jobs, and an optional `credentials()`. Other
+backends get credentials with `require('../connections/index.cjs').getCredentials(kind)`
+in the main process; the page never receives secrets. Secret fields are
+encrypted with safeStorage in `%APPDATA%\MonoRail\modules\connections`
+(saving refuses without encryption). Connectors so far: `gcloud` (detects
+the CLI login and Application Default Credentials; sign-in runs
+`gcloud auth login` then `gcloud auth application-default login`),
+`atlassian` (site + email + API token, pasted or read each time from a named
+generic credential in Windows Credential Manager via PowerShell CredRead,
+never copied; Jira+ uses it) and `claude` (Claude Code / Agent SDK
+login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
+opens a terminal running `claude auth login`). Command-line tools only get
+fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
+
 Nav items may have one level of indented subpages (`NavItem.children` in
 `nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
 
@@ -240,9 +258,11 @@ carry them and a normal push does not. Keep that ref out of commit feeds
 tracker (own look under `.jp`, Your work / Projects / board / list / issue
 dialog) where a private local repo is a first-class project next to the
 team's real Jira projects. Team issues go through the Jira Cloud REST API
-(`electron/apps/jira-plus/cloud.cjs`; site, email and API token saved in its
-data folder with the token encrypted by `safeStorage`; only shown when the user
-connects). Private projects are a git repo in `<dataDir>/local-repo`
+(`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
+Connections (`getCredentials('atlassian')`); only shown when one is set up.
+Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token
+saved by older versions is still used when Connections has no Atlassian
+account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
 (`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
 change, the issue's git log is its History). That repo never gets a remote;
 do not add push or sync to it. Jira+ started as the `jira` module, so if

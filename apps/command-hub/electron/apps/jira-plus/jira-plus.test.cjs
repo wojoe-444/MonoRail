@@ -76,3 +76,70 @@ describe('Jira Cloud helpers', () => {
     assert.throws(() => normalizeSite(''))
   })
 })
+
+describe('team Jira connection', () => {
+  const backend = require('./index.cjs')
+  const ctxFor = () => {
+    const dataDir = join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'apps', 'jira-plus')
+    fs.mkdirSync(dataDir, { recursive: true })
+    return { dataDir, log: () => {} }
+  }
+  const realFetch = global.fetch
+  const calls = []
+  const stubFetch = () => {
+    calls.length = 0
+    global.fetch = async (url, opts) => {
+      calls.push([url, opts.headers.Authorization])
+      const body = url.endsWith('/myself') ? { accountId: 'a1', displayName: 'Casey' } : { isLast: true, issues: [] }
+      return { ok: true, status: 200, text: async () => JSON.stringify(body) }
+    }
+  }
+
+  it('uses the Atlassian connection from the Connections page', async () => {
+    stubFetch()
+    backend._setCredentialSource(async () => ({ siteUrl: 'https://team.atlassian.net', email: 'c@example.invalid', token: 't1' }))
+    const o = await backend.methods.getOverview(ctxFor())
+    assert.equal(o.connection.connected, true)
+    assert.equal(o.connection.via, 'connections')
+    assert.equal(o.connection.displayName, 'Casey')
+    assert.ok(calls.every(([url]) => url.startsWith('https://team.atlassian.net/')))
+    global.fetch = realFetch
+  })
+
+  it('falls back to the token Jira+ saved before Connections existed', async () => {
+    stubFetch()
+    backend._setCredentialSource(async () => {
+      throw new Error('Add an Atlassian connection on the Connections page first.')
+    })
+    const ctx = ctxFor()
+    fs.writeFileSync(join(ctx.dataDir, 'connection.json'), JSON.stringify({ siteUrl: 'https://old.atlassian.net', email: 'o@example.invalid', token: 't0', encrypted: false }))
+    const o = await backend.methods.getOverview(ctx)
+    assert.equal(o.connection.via, 'legacy')
+    assert.equal(o.connection.siteUrl, 'https://old.atlassian.net')
+    const after = await backend.methods.forgetLegacyConnection(ctx)
+    assert.equal(after.connected, false)
+    global.fetch = realFetch
+  })
+
+  it('reports a broken connection without hiding private projects', async () => {
+    backend._setCredentialSource(async () => {
+      throw new Error('Windows Credential Manager has no entry named "jira".')
+    })
+    const ctx = ctxFor()
+    await backend.methods.createLocalProject(ctx, { key: 'ME', name: 'Personal' })
+    const o = await backend.methods.getOverview(ctx)
+    assert.equal(o.connection.connected, false)
+    assert.match(o.connection.error, /Credential Manager/)
+    assert.deepEqual(o.projects.map((p) => p.key), ['ME'])
+  })
+
+  it('keeps the JQL as a Jira+ setting', async () => {
+    backend._setCredentialSource(async () => {
+      throw new Error('Add an Atlassian connection on the Connections page first.')
+    })
+    const ctx = ctxFor()
+    const c = await backend.methods.saveSettings(ctx, { scopeJql: 'reporter = currentUser()' })
+    assert.equal(c.scopeJql, 'reporter = currentUser()')
+    assert.equal((await backend.methods.getOverview(ctx)).connection.scopeJql, 'reporter = currentUser()')
+  })
+})

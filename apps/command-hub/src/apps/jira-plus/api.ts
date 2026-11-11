@@ -5,7 +5,6 @@ import { createSampleBackend } from './sample'
 import type {
   Comment,
   Connection,
-  ConnectionInput,
   Issue,
   IssueDetail,
   IssueFields,
@@ -33,8 +32,10 @@ export interface JiraApi {
   addComment(args: { source: Source; key: string; body: string }): Promise<Comment>
   deleteIssue(args: { source: Source; key: string }): Promise<{ ok: true }>
   createLocalProject(args: { key: string; name: string; description?: string }): Promise<Project>
-  saveConnection(args: ConnectionInput): Promise<Connection>
-  disconnect(): Promise<Connection>
+  /** Jira+'s own settings; the account itself comes from the Connections page. */
+  saveSettings(args: { scopeJql: string }): Promise<Connection>
+  /** Deletes the token Jira+ saved before the Connections page existed. */
+  forgetLegacyConnection(): Promise<Connection>
 }
 
 function desktopApi(): JiraApi {
@@ -53,8 +54,8 @@ function desktopApi(): JiraApi {
     addComment: call('addComment'),
     deleteIssue: call('deleteIssue'),
     createLocalProject: call('createLocalProject'),
-    saveConnection: call('saveConnection'),
-    disconnect: call('disconnect'),
+    saveSettings: call('saveSettings'),
+    forgetLegacyConnection: call('forgetLegacyConnection'),
   } as JiraApi
 }
 

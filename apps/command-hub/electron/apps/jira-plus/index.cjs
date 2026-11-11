@@ -6,9 +6,9 @@
 //
 // Both return the same issue shape, so the app treats them alike.
 //
-// Private data rule: the Jira site, email and API token are saved in
-// <dataDir>\connection.json, with the token encrypted by Electron
-// safeStorage. The local repo is <dataDir>\local-repo.
+// Private data rule: team Jira credentials come from the Atlassian connection
+// on the Connections page (see "connection" below); Jira+ keeps only its JQL
+// setting in <dataDir>\settings.json. The local repo is <dataDir>\local-repo.
 //
 // <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Jira+ was an app it
 // was the "jira" module, whose data lives in ...\modules\jira. If that folder
@@ -20,7 +20,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const { safeStorage } = require('electron')
 
-const { createJiraClient, normalizeSite } = require('./cloud.cjs')
+const { createJiraClient } = require('./cloud.cjs')
 const { createLocalStore } = require('./local.cjs')
 
 const CONNECTION_FILE = 'connection.json'
@@ -29,30 +29,46 @@ const RECENT_DONE = 'statusCategory != Done OR updated >= -14d'
 
 const LEGACY_DIR = ['..', '..', 'modules', 'jira']
 
-let resolvedDir
+// Keyed by ctx.dataDir: one entry in the app, one per temp folder in tests.
+const resolvedDirs = new Map()
 function dataDir(ctx) {
-  if (resolvedDir) return resolvedDir
-  const holdsData = (dir) => ['local-repo', CONNECTION_FILE].some((f) => fsSync.existsSync(path.join(dir, f)))
-  const legacy = path.resolve(ctx.dataDir, ...LEGACY_DIR)
-  resolvedDir = !holdsData(ctx.dataDir) && holdsData(legacy) ? legacy : ctx.dataDir
-  return resolvedDir
+  if (!resolvedDirs.has(ctx.dataDir)) {
+    const holdsData = (dir) => ['local-repo', CONNECTION_FILE].some((f) => fsSync.existsSync(path.join(dir, f)))
+    const legacy = path.resolve(ctx.dataDir, ...LEGACY_DIR)
+    resolvedDirs.set(ctx.dataDir, !holdsData(ctx.dataDir) && holdsData(legacy) ? legacy : ctx.dataDir)
+  }
+  return resolvedDirs.get(ctx.dataDir)
 }
 
-let store
+const stores = new Map()
 function localStore(ctx) {
-  if (!store) store = createLocalStore(path.join(dataDir(ctx), 'local-repo'))
-  return store
+  const dir = path.join(dataDir(ctx), 'local-repo')
+  if (!stores.has(dir)) stores.set(dir, createLocalStore(dir))
+  return stores.get(dir)
 }
 
 // ---------- connection ----------
+//
+// Team Jira credentials come from the Atlassian connection on the Connections
+// page (electron/connections, getCredentials('atlassian')). Installs from
+// before Connections existed may still have their own connection.json here
+// (site, email, safeStorage-encrypted token); it is used only when no
+// Atlassian connection is set up, and "Forget" deletes it. Which issues to
+// show (scopeJql) is a Jira+ setting, kept in settings.json.
 
-async function readConnection(ctx) {
+const SETTINGS_FILE = 'settings.json'
+const NOT_SET_UP = /Add an Atlassian connection/i
+
+async function readJson(file) {
   try {
-    return JSON.parse(await fs.readFile(path.join(dataDir(ctx), CONNECTION_FILE), 'utf8'))
+    return JSON.parse(await fs.readFile(file, 'utf8'))
   } catch {
     return undefined
   }
 }
+
+const readLegacy = (ctx) => readJson(path.join(dataDir(ctx), CONNECTION_FILE))
+const readSettings = async (ctx) => (await readJson(path.join(dataDir(ctx), SETTINGS_FILE))) ?? {}
 
 function decryptToken(conn) {
   if (!conn?.token) return undefined
@@ -60,38 +76,68 @@ function decryptToken(conn) {
   return conn.token
 }
 
-async function writeConnection(ctx, { siteUrl, email, token, scopeJql, accountId, displayName }) {
-  const encrypted = safeStorage.isEncryptionAvailable()
-  const data = {
-    siteUrl,
-    email,
-    scopeJql,
-    accountId,
-    displayName,
-    encrypted,
-    token: encrypted ? safeStorage.encryptString(token).toString('base64') : token,
-    savedAt: new Date().toISOString(),
+/** Tests replace this; the app reads the shared Connections service. */
+let atlassianCredentials = () => require('../../connections/index.cjs').getCredentials('atlassian')
+
+/**
+ * The team Jira connection in effect, or { missing } / { error }.
+ * Never returned to the page as is: see publicConnection.
+ */
+async function resolveConnection(ctx) {
+  const settings = await readSettings(ctx)
+  const legacy = await readLegacy(ctx)
+  const scopeJql = settings.scopeJql || legacy?.scopeJql || DEFAULT_SCOPE
+  try {
+    const { siteUrl, email, token } = await atlassianCredentials()
+    return { via: 'connections', siteUrl, email, token, scopeJql }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (!NOT_SET_UP.test(message)) return { via: 'connections', scopeJql, error: message }
   }
-  await fs.writeFile(path.join(dataDir(ctx), CONNECTION_FILE), JSON.stringify(data, null, 2))
-  return data
+  if (legacy) {
+    return {
+      via: 'legacy',
+      siteUrl: legacy.siteUrl,
+      email: legacy.email,
+      token: decryptToken(legacy),
+      scopeJql,
+      accountId: legacy.accountId,
+      displayName: legacy.displayName,
+    }
+  }
+  return { missing: true, scopeJql }
+}
+
+// Who the token belongs to, per site + email, for "assign to me" and the UI.
+const accounts = new Map()
+async function myAccount(conn, jira) {
+  if (conn.accountId) return { accountId: conn.accountId, displayName: conn.displayName }
+  const id = `${conn.siteUrl}|${conn.email}`
+  if (!accounts.has(id)) {
+    const me = await jira.myself()
+    accounts.set(id, { accountId: me.accountId, displayName: me.displayName })
+  }
+  return accounts.get(id)
 }
 
 async function client(ctx) {
-  const conn = await readConnection(ctx)
-  if (!conn) throw new Error('Connect your Jira site first.')
-  return { conn, jira: createJiraClient({ siteUrl: conn.siteUrl, email: conn.email, token: decryptToken(conn) }) }
+  const conn = await resolveConnection(ctx)
+  if (conn.missing) throw new Error('Add an Atlassian connection on the Connections page to see your team Jira.')
+  if (conn.error) throw new Error(conn.error)
+  return { conn, jira: createJiraClient({ siteUrl: conn.siteUrl, email: conn.email, token: conn.token }) }
 }
 
 /** The connection as the page may see it: never the token. */
 function publicConnection(conn, extra = {}) {
-  if (!conn) return { connected: false, scopeJql: DEFAULT_SCOPE }
+  if (conn.missing) return { connected: false, scopeJql: conn.scopeJql, ...extra }
   return {
-    connected: true,
+    connected: !conn.error,
+    via: conn.via,
     siteUrl: conn.siteUrl,
     email: conn.email,
     displayName: conn.displayName,
-    scopeJql: conn.scopeJql || DEFAULT_SCOPE,
-    encrypted: !!conn.encrypted,
+    scopeJql: conn.scopeJql,
+    error: conn.error,
     ...extra,
   }
 }
@@ -116,18 +162,24 @@ function requireSource(args) {
 
 module.exports = {
   id: 'jira-plus',
+  /** For tests: swap where Atlassian credentials come from. */
+  _setCredentialSource(fn) {
+    atlassianCredentials = fn
+    accounts.clear()
+  },
   methods: {
     /** Projects from both sources plus the Jira connection status. Jira errors don't hide local projects. */
     async getOverview(ctx) {
       const local = localStore(ctx)
-      const conn = await readConnection(ctx)
+      const conn = await resolveConnection(ctx)
       const localProjects = await local.listProjects()
 
       let jiraProjects = []
       let connection = publicConnection(conn)
-      if (conn) {
+      if (!conn.missing && !conn.error) {
         try {
           const { jira } = await client(ctx)
+          connection = publicConnection(conn, { displayName: (await myAccount(conn, jira)).displayName })
           const issues = await jira.search(`(${scopeClause(conn)}) AND (${RECENT_DONE}) ORDER BY updated DESC`)
           const byKey = new Map()
           for (const i of issues) {
@@ -161,9 +213,9 @@ module.exports = {
       const local = localStore(ctx)
       if (args?.source === 'local') return local.listIssues(args.projectKey)
 
-      const conn = await readConnection(ctx)
+      const conn = await resolveConnection(ctx)
       const jiraIssues = async (projectKey) => {
-        if (!conn) return []
+        if (conn.missing) return []
         const { jira } = await client(ctx)
         const project = projectKey ? `project = ${jqlString(projectKey)} AND ` : ''
         return jira.search(`${project}(${scopeClause(conn)}) AND (${RECENT_DONE}) ORDER BY updated DESC`)
@@ -197,7 +249,8 @@ module.exports = {
       const { conn, jira } = await client(ctx)
       const summary = String(args.summary ?? '').trim()
       if (!summary) throw new Error('A ticket needs a summary.')
-      const key = await jira.createIssue({ ...args, summary, accountId: conn.accountId })
+      const me = await myAccount(conn, jira).catch(() => ({}))
+      const key = await jira.createIssue({ ...args, summary, accountId: me.accountId })
       return jira.getIssue(key)
     },
 
@@ -236,37 +289,25 @@ module.exports = {
     },
 
     /**
-     * saveConnection({ siteUrl, email, token?, scopeJql })
-     * Tests the credentials against /myself before saving. Leave token empty
-     * to keep the saved one (e.g. when only changing the JQL).
+     * saveSettings({ scopeJql }): which team issues to show. Checked against
+     * Jira first when a connection is set up, so a typo shows up here.
      */
-    async saveConnection(ctx, args) {
-      const prev = await readConnection(ctx)
-      const siteUrl = normalizeSite(args?.siteUrl)
-      const email = String(args?.email ?? '').trim()
-      const token = String(args?.token ?? '').trim() || decryptToken(prev)
+    async saveSettings(ctx, args) {
       const scopeJql = String(args?.scopeJql ?? '').trim() || DEFAULT_SCOPE
-      if (!email) throw new Error('Enter the email you sign in to Jira with.')
-      if (!token) throw new Error('Paste an Atlassian API token.')
-
-      const jira = createJiraClient({ siteUrl, email, token })
-      const me = await jira.myself()
-      // Validate the JQL now so a typo shows up here, not as an empty board.
-      await jira.search(`(${scopeClause({ scopeJql })}) ORDER BY updated DESC`, 1)
-      const saved = await writeConnection(ctx, {
-        siteUrl,
-        email,
-        token,
-        scopeJql,
-        accountId: me.accountId,
-        displayName: me.displayName,
-      })
-      return publicConnection(saved)
+      const conn = await resolveConnection(ctx)
+      if (!conn.missing && !conn.error) {
+        const { jira } = await client(ctx)
+        await jira.search(`(${scopeClause({ scopeJql })}) ORDER BY updated DESC`, 1)
+      }
+      const settings = { ...(await readSettings(ctx)), scopeJql }
+      await fs.writeFile(path.join(dataDir(ctx), SETTINGS_FILE), JSON.stringify(settings, null, 2))
+      return publicConnection({ ...conn, scopeJql })
     },
 
-    async disconnect(ctx) {
+    /** Deletes the token Jira+ saved itself before the Connections page existed. */
+    async forgetLegacyConnection(ctx) {
       await fs.rm(path.join(dataDir(ctx), CONNECTION_FILE), { force: true })
-      return publicConnection(undefined)
+      return publicConnection(await resolveConnection(ctx))
     },
   },
 }

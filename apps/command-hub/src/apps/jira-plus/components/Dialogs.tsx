@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Lock } from 'lucide-react'
+import { Cloud, ExternalLink, Loader2, Lock } from 'lucide-react'
+
+import { navigate } from '@/lib/router'
 
 import { errorText, jiraApi } from '../api'
 import { useJira } from '../JiraContext'
@@ -277,30 +279,25 @@ export function ProjectForm({ onCreated, onCancel, submitLabel = 'Create project
 function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { overview, refresh } = useJira()
   const connection = overview?.connection
-  const [siteUrl, setSiteUrl] = useState('')
-  const [email, setEmail] = useState('')
-  const [token, setToken] = useState('')
   const [scopeJql, setScopeJql] = useState('')
-  const [busy, setBusy] = useState<'save' | 'disconnect'>()
+  const [busy, setBusy] = useState<'save' | 'forget'>()
   const [error, setError] = useState<string>()
 
   useEffect(() => {
     if (!open) return
-    setSiteUrl(connection?.siteUrl?.replace(/^https:\/\//, '') ?? '')
-    setEmail(connection?.email ?? '')
-    setToken('')
     setScopeJql(connection?.scopeJql ?? 'assignee = currentUser()')
     setError(undefined)
   }, [open, connection])
 
   const connected = !!connection?.connected
+  const legacy = connection?.via === 'legacy'
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setBusy('save')
     setError(undefined)
     try {
-      await jiraApi().saveConnection({ siteUrl, email, token, scopeJql })
+      await jiraApi().saveSettings({ scopeJql })
       await refresh()
       onClose()
     } catch (err) {
@@ -310,84 +307,94 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
     }
   }
 
-  async function disconnect() {
-    setBusy('disconnect')
+  async function forget() {
+    setBusy('forget')
+    setError(undefined)
     try {
-      await jiraApi().disconnect()
+      await jiraApi().forgetLegacyConnection()
       await refresh()
-      onClose()
     } catch (err) {
       setError(errorText(err))
     } finally {
       setBusy(undefined)
     }
   }
+
+  /** The Atlassian account is managed by the hub, so this leaves the app for its Connections page. */
+  function openConnections() {
+    onClose()
+    navigate('/connections')
+  }
+
+  const site = connection?.siteUrl?.replace(/^https:\/\//, '')
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={connected ? 'Team Jira connection' : 'Connect your team Jira'}
-      description="Your team projects appear next to your private ones. Jira+ uses your own Atlassian API token, so you see and change exactly what you can in Jira."
+      title="Team Jira"
+      description="Your team projects appear next to your private ones. Jira+ signs in with the Atlassian account from MonoRail's Connections page, so you see and change exactly what you can in Jira."
       width={600}
       footer={
         <>
-          {connected && (
-            <button type="button" className="jp-btn jp-btn-subtle mr-auto text-(--jp-danger)" disabled={!!busy} onClick={disconnect}>
-              {busy === 'disconnect' && <Loader2 className="animate-spin" />} Disconnect
-            </button>
-          )}
+          <button type="button" className="jp-btn jp-btn-subtle mr-auto" onClick={openConnections}>
+            <ExternalLink /> {connected && !legacy ? 'Manage in Connections' : 'Open Connections'}
+          </button>
           <button type="button" className="jp-btn jp-btn-subtle" onClick={onClose}>
             Cancel
           </button>
-          <button
-            type="submit"
-            form="jp-connect"
-            className="jp-btn jp-btn-primary"
-            disabled={!!busy || !siteUrl.trim() || !email.trim() || (!connected && !token.trim())}
-          >
-            {busy === 'save' && <Loader2 className="animate-spin" />} {connected ? 'Save' : 'Connect'}
+          <button type="submit" form="jp-connect" className="jp-btn jp-btn-primary" disabled={!!busy}>
+            {busy === 'save' && <Loader2 className="animate-spin" />} Save
           </button>
         </>
       }
     >
       <form id="jp-connect" onSubmit={save}>
-        <Field id="jp-j-site" label="Jira site" required>
-          <input id="jp-j-site" className="jp-field" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="your-team.atlassian.net" />
-        </Field>
-        <Field id="jp-j-email" label="Email" required>
-          <input id="jp-j-email" type="email" autoComplete="off" className="jp-field" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field
-          id="jp-j-token"
-          label="API token"
-          required={!connected}
-          hint={
-            <>
-              Create one at{' '}
-              <a className="jp-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">
-                id.atlassian.com › Security › API tokens
-              </a>
-              .{connected && ' Leave empty to keep the saved token.'}
-            </>
-          }
-        >
-          <input
-            id="jp-j-token"
-            type="password"
-            autoComplete="off"
-            className="jp-field"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder={connected ? '••••••••••••' : ''}
-          />
-        </Field>
+        <div className="mb-4 rounded-[3px] bg-(--jp-sunken) px-3 py-2 text-sm">
+          {connected ? (
+            <div className="flex items-center gap-2">
+              <span className="size-2 shrink-0 rounded-full bg-(--jp-type-story)" />
+              <span>
+                Connected to <span className="font-medium">{site}</span>
+                {connection?.displayName && <> as {connection.displayName}</>}
+                {legacy ? ' with the token saved in Jira+.' : ' through Connections.'}
+              </span>
+            </div>
+          ) : connection?.error ? (
+            <div className="flex items-start gap-2">
+              <span className="mt-1.5 size-2 shrink-0 rounded-full bg-(--jp-pri-medium)" />
+              <span>Team Jira is unavailable: {connection.error}</span>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 text-(--jp-subtle)">
+              <Cloud className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Not connected. Add an Atlassian connection (site, email and API token) on the{' '}
+                <button type="button" className="jp-link" onClick={openConnections}>
+                  Connections page
+                </button>
+                , then come back here. Your private projects work without it.
+              </span>
+            </div>
+          )}
+        </div>
+        {legacy && (
+          <div className="mb-4 flex items-start gap-3 rounded-[3px] bg-(--jp-warning-bg) px-3 py-2 text-xs text-(--jp-warning-fg)">
+            <span className="flex-1">
+              This token was saved by an earlier version of Jira+. Add the same account on the Connections page, then forget the copy here.
+              Once Connections has an Atlassian account, Jira+ uses that one.
+            </span>
+            <button type="button" className="jp-btn h-7 shrink-0" disabled={!!busy} onClick={forget}>
+              {busy === 'forget' && <Loader2 className="animate-spin" />} Forget saved token
+            </button>
+          </div>
+        )}
         <Field id="jp-j-jql" label="Which team issues to show (JQL)" hint="Default: issues assigned to you. Done issues drop off after 14 days.">
           <input id="jp-j-jql" className="jp-field font-mono text-xs" value={scopeJql} onChange={(e) => setScopeJql(e.target.value)} />
         </Field>
         <div className="mb-4 flex items-start gap-2 rounded-[3px] bg-(--jp-sunken) px-3 py-2 text-xs text-(--jp-subtle)">
           <Lock className="mt-0.5 size-3 shrink-0" />
-          <span>Saved only on this computer, in MonoRail's data folder. The token is encrypted with Windows' data protection and is never shown again.</span>
+          <span>The filter is saved on this computer, in MonoRail's data folder. Your API token is kept by Connections, not by Jira+.</span>
         </div>
         <ErrorNote error={error} />
       </form>

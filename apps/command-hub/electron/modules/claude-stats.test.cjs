@@ -168,3 +168,37 @@ test('every model in this machine\'s logs has a price row', async () => {
   const missing = models.filter((m) => !findPrice(m))
   assert.deepEqual(missing, [], `Add these models to electron/modules/claude-stats-prices.json: ${missing.join(', ')}`)
 })
+
+test('summary: last 30 days of cost, ccusage for Claude Code, logged pi cost, top models', () => {
+  const { summarize } = require('./claude-stats.cjs')
+  const now = new Date(2026, 10, 11, 12)
+  const report = {
+    generatedAt: now.toISOString(),
+    daily: {
+      projects: {
+        demo: [
+          { date: '2026-11-10', modelBreakdowns: [{ modelName: 'claude-opus-4-6', cost: 4 }] },
+          { date: '2026-09-01', modelBreakdowns: [{ modelName: 'claude-opus-4-6', cost: 100 }] },
+        ],
+      },
+    },
+    scan: {
+      requests: [
+        // Claude Code rows are covered by ccusage and must not be counted twice.
+        { date: '2026-11-10', source: 'claude-code', model: 'claude-opus-4-6', step: 0, n: 1, input: 1e6, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, logged: null },
+        { date: '2026-11-11', source: 'pi', model: 'claude-sonnet-4-5', step: 0, n: 2, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, logged: { input: 0.5, output: 1, cacheWrite: 0, cacheRead: 0, n: 2 } },
+        { date: '2026-11-11', source: 'gemini-cli', model: 'gemini-2.5-flash', step: 0, n: 1, input: 0, output: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, logged: null },
+      ],
+    },
+  }
+  const s = summarize(report, now)
+  assert.equal(s.days.length, 30)
+  assert.equal(s.days.at(-1).date, '2026-11-11')
+  assert.equal(s.days.find((d) => d.date === '2026-11-10').cost, 4)
+  const flash = findPrice('gemini-2.5-flash').output
+  assert.ok(Math.abs(s.total - (4 + 1.5 + flash)) < 1e-9)
+  assert.deepEqual(s.topModels.map((m) => m.source).sort(), ['claude-code', 'gemini-cli', 'pi'])
+  assert.ok(s.topModels.every((m, k) => k === 0 || s.topModels[k - 1].cost >= m.cost))
+  assert.equal(s.topModels.find((m) => m.source === 'claude-code').cost, 4)
+})
+

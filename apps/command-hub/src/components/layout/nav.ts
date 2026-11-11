@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bot, BookOpen, History, House, KeyRound, LayoutGrid } from 'lucide-react'
+import { Bot, BookOpen, History, House, LayoutGrid } from 'lucide-react'
 
 import { useExtensionList } from '@/extensions/store'
 import type { ExtensionList } from '@/extensions/types'
@@ -55,8 +55,7 @@ function coreSections(): NavSection[] {
     {
       heading: 'Configure',
       items: [
-        { path: '/connections', label: 'Connections', icon: KeyRound },
-        // Settings and Extensions are modules and join this section from the registry.
+        // Connections, Extensions and Settings are modules and join this section from the registry.
       ],
     },
   ]
