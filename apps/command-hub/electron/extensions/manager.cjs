@@ -383,6 +383,7 @@ class ExtensionManager {
     if (!rec.manifest.permissions.filesystem.pickFolders) rec.entry.folders = []
     this.bump(id)
     this.save()
+    this.startIfStartup(id)
     this.onChange()
     return this.summary(this.record(id))
   }
@@ -396,6 +397,12 @@ class ExtensionManager {
     if (rec.status === 'active' && rec.manifest.backend?.activation === 'startup') this.host.ensure(this.spec(rec)).catch(() => {})
     this.onChange()
     return this.summary(rec)
+  }
+
+  /** After a stop: a backend with activation "startup" runs again right away. */
+  startIfStartup(id) {
+    const rec = this.record(id)
+    if (rec.status === 'active' && rec.manifest.backend?.activation === 'startup') this.host.ensure(this.spec(rec)).catch(() => {})
   }
 
   bump(id) {
@@ -443,6 +450,7 @@ class ExtensionManager {
     rec.entry.folders = folders
     this.save()
     await this.host.stop(id)
+    this.startIfStartup(id)
     this.onChange()
     return { path: abs, write: !!write }
   }
@@ -452,6 +460,7 @@ class ExtensionManager {
     e.folders = (e.folders ?? []).filter((f) => f.path !== folderPath)
     this.save()
     await this.host.stop(id)
+    this.startIfStartup(id)
     this.onChange()
     return this.summary(this.record(id))
   }
@@ -476,7 +485,7 @@ class ExtensionManager {
       const handled = await this.host.settingsChanged(id, () => this.settingsStore.backendValues(rec.manifest))
       if (!handled) {
         await this.host.stop(id)
-        if (rec.manifest.backend.activation === 'startup') this.host.ensure(this.spec(rec)).catch(() => {})
+        this.startIfStartup(id)
       }
     }
     const pub = this.settingsStore.publicValues(rec.manifest)
