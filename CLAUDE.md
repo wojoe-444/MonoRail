@@ -299,6 +299,17 @@ ticks "Also delete its data". The UI is Settings > Extensions
 (`src/modules/extensions`). Tests: `electron/extensions/extensions.test.cjs`
 (runs the real sandbox under Node).
 
+**SDK and starter.** `packages/extension-sdk` is the source of truth for what
+every extension carries in its `monorail-sdk/` folder: `client.js` (page
+bridge), `backend.d.ts`, `theme.css` (generated from `src/index.css`) and
+`pack.mjs` (zero-dependency packer to `<id>-<version>.monorail.zip`).
+`extensions/hello-monorail` is the starter and working sample (Vite + React +
+Tailwind page and app, notes backend, release workflow); new extension repos
+start with `npx degit wojoe-444/MonoRail/extensions/hello-monorail`. After
+changing the SDK or the design tokens run `node packages/extension-sdk/sync.mjs`;
+`npm test` fails if the copies are stale, and CI builds and packs the sample.
+The plan and author guide is `docs/extensions.md`.
+
 ## Design guidance
 
 The visual direction is **shadcn's component aesthetics + MUI's page
