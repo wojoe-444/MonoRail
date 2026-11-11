@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom'
 import { useRepo } from '../RepoContext'
-import { RepoIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon } from '../components/Icons'
-import { commitsLink, compareLink, treeLink } from '../links'
+import { RepoIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon } from '../components/Icons'
+import { backupsLink, commitsLink, compareLink, treeLink } from '../links'
 
 export default function RepoLayout() {
   const { repo, refresh, pick, restoring } = useRepo()
@@ -25,6 +25,7 @@ export default function RepoLayout() {
           <NavLink to={commitsLink(ref)}><CommitIcon /> Commits</NavLink>
           <NavLink to="/repo/branches"><BranchIcon /> Branches</NavLink>
           <NavLink to={compareLink()}><CompareIcon /> Compare</NavLink>
+          <NavLink to={backupsLink()}><BackupIcon /> Backups</NavLink>
         </nav>
       </div>
       <main className="repo-container">

@@ -151,7 +151,9 @@ To add an app:
    `electron/apps/index.cjs`. Call it with `invokeApp(id, method, args)` from
    `src/apps/client.ts`. `ctx.dataDir` is
    `%APPDATA%\Command Hub\apps\<id>`. As with modules, ship fictional
-   sample data for the browser dev server.
+   sample data for the browser dev server. A module or app backend may also
+   export `start(ctx)`, called once at startup, for work that runs without
+   its page open (GitHub+ uses it for its backup scheduler).
 
 `github-plus` (**GitHub+**) is the reference app, a port of
 `wojoe-444/Local-Repo-UI`: a GitHub-style, read-only browser for local git
@@ -162,6 +164,14 @@ repo-configured textconv/external diff, and only serves repos the user opened.
 Recent repo paths are kept in its data folder, never in the repo. It makes no
 network requests: remote images in READMEs are blocked and external links do
 nothing. Tests live in `git.test.cjs`.
+
+GitHub+ also has **scheduled backups** (Backups tab, `backup.cjs`): per repo,
+"X times per hour/day/week" into a folder the user picks (e.g. one OneDrive
+already syncs). Each backup is a verified `git bundle --all` file, written as
+`.partial` and renamed when complete, with the newest N kept. The scheduler
+runs inside Command Hub (checks every minute and at startup, so a backup
+missed while the app was closed runs once when it opens; failures retry after
+15 minutes). Schedules live in the app's data folder (`backups.json`).
 
 ## Design guidance
 

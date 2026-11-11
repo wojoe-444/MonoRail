@@ -14,3 +14,4 @@ export const CopyIcon = () => <I><rect x="5.5" y="5.5" width="8" height="8" rx="
 export const RepoIcon = () => <I><path d="M3 2.5h9.5v11H4.5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M3 12a1.5 1.5 0 0 1 1.5-1.5h8" /></I>
 export const CompareIcon = () => <I><circle cx="4" cy="3.5" r="1.5" /><circle cx="12" cy="12.5" r="1.5" /><path d="M4 5v7.5h3.5M12 11V6.5H8.5M10 8.5l-2-2 2-2" /></I>
 export const ChevronDown = () => <I size={12}><path d="M3 5.5l5 5 5-5" /></I>
+export const BackupIcon = () => <I><path d="M2.5 4.5h11v8.5h-11z" /><path d="M1.75 2.5h12.5v2H1.75zM6 7.5h4" /></I>

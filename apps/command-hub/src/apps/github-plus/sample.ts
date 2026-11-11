@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { CommitDetail, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupState, CommitDetail, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -146,6 +146,25 @@ const filesAt = (ref: string): Files => (history(ref)[0] === C3 ? FEATURE_FILES 
 const summary = ({ files: _files, ...c }: SampleCommit): CommitSummary => c
 const touches = (c: SampleCommit, path: string) => c.files.some((f) => f.newPath === path || f.newPath.startsWith(path + '/'))
 
+// Backups in the browser preview: kept in memory, nothing is written.
+const UNIT_MS = { hour: 3_600_000, day: 86_400_000, week: 604_800_000 }
+let backup: BackupState = {
+  schedule: { enabled: true, times: 1, unit: 'day', keep: 14, destination: 'C:/Users/sample/OneDrive/Backups' },
+  lastResult: { ok: true, at: day(0.3), file: 'C:/Users/sample/OneDrive/Backups/orbit-notes/orbit-notes-sample.bundle', size: 48_213 },
+  lastSuccessAt: day(0.3),
+  nextDueAt: new Date(Date.parse(day(0.3)) + UNIT_MS.day).toISOString(),
+  running: false,
+  files: [0.3, 1.3, 2.3].map((d) => {
+    const at = day(d)
+    const name = `orbit-notes-${at.slice(0, 19).replace(/:/g, '').replace('T', '_')}.bundle`
+    return { name, path: `C:/Users/sample/OneDrive/Backups/orbit-notes/${name}`, size: 48_213, createdAt: at }
+  }),
+}
+const reschedule = (b: BackupState): BackupState => ({
+  ...b,
+  nextDueAt: b.schedule?.enabled ? new Date((b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : Date.now()) + UNIT_MS[b.schedule.unit] / b.schedule.times).toISOString() : null,
+})
+
 const wait = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 60))
 
 export const sampleApi: RepoApi = {
@@ -186,6 +205,18 @@ export const sampleApi: RepoApi = {
     const c = COMMITS.find((x) => x.sha.startsWith(sha))
     if (!c) throw new Error(`Commit not found: ${sha}`)
     return wait<CommitDetail>({ ...c, truncated: false })
+  },
+  pickBackupFolder: () => wait('C:/Users/sample/OneDrive/Backups'),
+  getBackup: () => wait(backup),
+  saveBackup: async (_repo, schedule) => wait((backup = reschedule({ ...backup, schedule }))),
+  removeBackup: async () => wait((backup = { schedule: null, lastResult: null, lastSuccessAt: null, nextDueAt: null, running: false, files: [] })),
+  async runBackup() {
+    if (!backup.schedule) throw new Error('Set up backups for this repository first')
+    const at = new Date().toISOString()
+    const name = `orbit-notes-${at.slice(0, 19).replace(/:/g, '').replace('T', '_')}.bundle`
+    const file = { name, path: `${backup.schedule.destination}/orbit-notes/${name}`, size: 48_213, createdAt: at }
+    backup = reschedule({ ...backup, lastSuccessAt: at, lastResult: { ok: true, at, file: file.path, size: file.size }, files: [file, ...backup.files].slice(0, backup.schedule.keep) })
+    return wait(backup)
   },
   async compareRefs(_repo, base, head) {
     const baseShas = new Set(history(base).map((c) => c.sha))

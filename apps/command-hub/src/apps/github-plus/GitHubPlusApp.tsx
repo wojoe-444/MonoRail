@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { RepoProvider } from './RepoContext'
+import BackupsPage from './pages/BackupsPage'
 import BlobPage from './pages/BlobPage'
 import BranchesPage from './pages/BranchesPage'
 import CommitPage from './pages/CommitPage'
@@ -33,6 +34,7 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
               <Route path="commit/:sha" element={<CommitPage />} />
               <Route path="branches" element={<BranchesPage />} />
               <Route path="compare" element={<ComparePage />} />
+              <Route path="backups" element={<BackupsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

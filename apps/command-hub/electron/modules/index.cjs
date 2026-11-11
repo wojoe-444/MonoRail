@@ -23,6 +23,17 @@ function registerModuleBackends() {
     ...appBackends.map((b) => [`app:${b.id}`, { backend: b, dataDir: ['apps', b.id] }]),
   ])
 
+  // Backends may export start(ctx) for work that runs without the page open
+  // (e.g. GitHub+'s backup scheduler). Called once, after the app is ready.
+  for (const [key, entry] of byId) {
+    if (typeof entry.backend.start !== 'function') continue
+    try {
+      entry.backend.start(makeCtx(key, entry))
+    } catch (err) {
+      console.error(`[${key}] start failed`, err)
+    }
+  }
+
   ipcMain.handle('module:invoke', async (_event, payload) => {
     const { moduleId, method, args } = payload ?? {}
     const entry = byId.get(moduleId)
@@ -30,15 +41,18 @@ function registerModuleBackends() {
     const fn = Object.hasOwn(entry.backend.methods, method) ? entry.backend.methods[method] : undefined
     if (typeof fn !== 'function') throw new Error(`Unknown method ${moduleId}.${method}`)
 
-    const dataDir = path.join(app.getPath('userData'), ...entry.dataDir)
-    fs.mkdirSync(dataDir, { recursive: true })
-    const ctx = {
-      dataDir,
-      isPackaged: app.isPackaged,
-      log: (...a) => console.log(`[${moduleId}]`, ...a),
-    }
-    return fn(ctx, args)
+    return fn(makeCtx(moduleId, entry), args)
   })
+}
+
+function makeCtx(key, entry) {
+  const dataDir = path.join(app.getPath('userData'), ...entry.dataDir)
+  fs.mkdirSync(dataDir, { recursive: true })
+  return {
+    dataDir,
+    isPackaged: app.isPackaged,
+    log: (...a) => console.log(`[${key}]`, ...a),
+  }
 }
 
 module.exports = { registerModuleBackends }

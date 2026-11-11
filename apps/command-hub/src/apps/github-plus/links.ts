@@ -6,3 +6,4 @@ export const blobLink = (ref: string, path: string): string => `/repo/blob?${q({
 export const commitsLink = (ref: string, path?: string): string => `/repo/commits?${q({ ref, path })}`
 export const commitLink = (sha: string): string => `/repo/commit/${sha}`
 export const compareLink = (base?: string, head?: string): string => `/repo/compare?${q({ base, head })}`
+export const backupsLink = (): string => '/repo/backups'

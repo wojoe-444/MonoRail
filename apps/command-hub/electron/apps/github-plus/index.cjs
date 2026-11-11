@@ -10,9 +10,16 @@ const path = require('node:path')
 const { BrowserWindow, dialog } = require('electron')
 
 const git = require('./git.cjs')
+const { createBackupService } = require('./backup.cjs')
 
 const RECENTS_FILE = 'recents.json'
 const MAX_RECENTS = 12
+
+let dataDir
+const backups = createBackupService(
+  () => dataDir,
+  (...a) => console.log('[github-plus]', ...a),
+)
 
 /** Repos the user has explicitly opened this session; every other call refuses any other path. */
 const openedRepos = new Set()
@@ -37,10 +44,21 @@ async function writeRecents(ctx, list) {
 
 module.exports = {
   id: 'github-plus',
+  /** Called once at startup: runs the backup scheduler inside Command Hub. */
+  start(ctx) {
+    dataDir = ctx.dataDir
+    backups.start()
+  },
   methods: {
     async pickRepoFolder() {
       const win = BrowserWindow.getFocusedWindow()
       const opts = { title: 'Open a local git repository', properties: ['openDirectory'] }
+      const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+      return r.canceled ? null : r.filePaths[0]
+    },
+    async pickBackupFolder() {
+      const win = BrowserWindow.getFocusedWindow()
+      const opts = { title: 'Choose where backups go', properties: ['openDirectory', 'createDirectory'] }
       const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
       return r.canceled ? null : r.filePaths[0]
     },
@@ -66,5 +84,12 @@ module.exports = {
     countCommits: (_ctx, { repo, ref } = {}) => git.countCommits(guard(repo), ref),
     getCommit: (_ctx, { repo, sha } = {}) => git.getCommit(guard(repo), sha),
     compareRefs: (_ctx, { repo, base, head } = {}) => git.compareRefs(guard(repo), base, head),
+    getBackup: (_ctx, { repo } = {}) => backups.get(guard(repo)),
+    saveBackup: (_ctx, { repo, schedule } = {}) => backups.save(guard(repo), schedule),
+    removeBackup: (_ctx, { repo } = {}) => backups.remove(guard(repo)),
+    runBackup: async (_ctx, { repo } = {}) => {
+      await backups.run(guard(repo))
+      return backups.get(repo)
+    },
   },
 }

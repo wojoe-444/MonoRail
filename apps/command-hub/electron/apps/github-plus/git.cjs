@@ -258,7 +258,15 @@ async function compareRefs(repo, base, head) {
   return { base, head, commits, files, truncated }
 }
 
+/** Write every branch and tag, with full history, to one bundle file; then check it. */
+async function createBundle(repo, file) {
+  await run(repo, ['bundle', 'create', file, '--all'])
+  await run(repo, ['bundle', 'verify', '--quiet', file])
+  return file
+}
+
 module.exports = {
+  createBundle,
   assertRef,
   assertPath,
   openRepo,

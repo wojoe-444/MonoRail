@@ -236,5 +236,23 @@
   .recent-row:hover { background: var(--bg2); }
   .flash { padding: 10px 14px; border-radius: 6px; margin: 12px 0; text-align: left; border: 1px solid var(--border); }
   .flash.error { background: var(--delbg); border-color: var(--red); } .flash.warn { background: rgba(187,128,9,.15); border-color: #9e6a03; }
+  /* Backups page */
+  .form { display: flex; flex-direction: column; gap: 16px; }
+  .form-row { display: flex; align-items: center; gap: 16px; }
+  .form-label { width: 96px; flex: none; color: var(--muted); }
+  .form-hint { margin: -8px 0 0 112px; }
+  .inline-fields { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .inline-fields.grow { flex: 1; min-width: 0; flex-wrap: nowrap; }
+  .check-row { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+  .check-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .form input.num, .form input.path, .form select { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font: inherit; }
+  .form input.num { width: 72px; } .form input.path { flex: 1; min-width: 0; font-size: 13px; }
+  .form-actions { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.danger { color: var(--red); } .btn.danger:hover:not(:disabled) { background: var(--delbg); border-color: var(--red); }
+  .flash.ok { background: var(--addbg); border-color: var(--green); }
+  .status-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; }
+  .restore-hint { border-top: 1px solid var(--border); }
+  table.files td.name.mono { width: auto; font-size: 13px; }
   .brand-plus { color: var(--green); margin-left: 1px; }
 }

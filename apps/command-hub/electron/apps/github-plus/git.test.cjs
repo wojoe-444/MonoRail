@@ -125,3 +125,57 @@ describe('parseDiff', () => {
     )
   })
 })
+
+describe('backups', () => {
+  const { createBackupService } = require('./backup.cjs')
+  const { readdirSync } = require('node:fs')
+
+  it('writes verified bundles, keeps the newest N, and schedules the next run', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'ghp-data-'))
+    const dest = mkdtempSync(join(tmpdir(), 'ghp-dest-'))
+    const svc = createBackupService(() => dataDir)
+    const repo = (await git.openRepo(dir)).path
+
+    await assert.rejects(svc.run(repo), /Set up backups/)
+    await assert.rejects(svc.save(repo, { enabled: true, times: 0, unit: 'day', keep: 2, destination: dest }))
+    await assert.rejects(svc.save(repo, { enabled: true, times: 1, unit: 'year', keep: 2, destination: dest }))
+
+    const saved = await svc.save(repo, { enabled: true, times: 1, unit: 'day', keep: 2, destination: dest })
+    assert.equal(saved.schedule.times, 1)
+    assert.ok(Date.parse(saved.nextDueAt) <= Date.now(), 'first backup is due right away')
+
+    for (let i = 0; i < 3; i++) {
+      await svc.run(repo)
+      await new Promise((r) => setTimeout(r, 1100)) // distinct second-resolution names
+    }
+    const state = await svc.get(repo)
+    assert.equal(state.files.length, 2)
+    assert.equal(state.lastResult.ok, true)
+    const due = Date.parse(state.nextDueAt) - Date.parse(state.lastSuccessAt)
+    assert.equal(due, 86_400_000)
+    assert.ok(!readdirSync(join(dest, state.files[0].path.split(/[\\/]/).at(-2))).some((n) => n.endsWith('.partial')))
+
+    // Not due again yet, so a tick adds nothing.
+    await svc.tick()
+    assert.equal((await svc.get(repo)).files.length, 2)
+
+    // The bundle restores with plain git clone, with every branch.
+    const restored = join(mkdtempSync(join(tmpdir(), 'ghp-restore-')), 'r')
+    execFileSync('git', ['clone', '-q', state.files[0].path, restored])
+    const branches = execFileSync('git', ['branch', '-r'], { cwd: restored, encoding: 'utf8' })
+    assert.match(branches, /feature\/x/)
+  })
+
+  it('records failures and retries later instead of every minute', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'ghp-data-'))
+    const svc = createBackupService(() => dataDir)
+    const empty = mkdtempSync(join(tmpdir(), 'ghp-empty-'))
+    execFileSync('git', ['init', '-q'], { cwd: empty })
+    const repo = (await git.openRepo(empty)).path
+    await svc.save(repo, { enabled: true, times: 4, unit: 'hour', keep: 3, destination: mkdtempSync(join(tmpdir(), 'ghp-dest-')) })
+    await assert.rejects(svc.run(repo), /no commits/)
+    const state = await svc.get(repo)
+    assert.equal(state.lastResult.ok, false)
+    assert.equal(Date.parse(state.nextDueAt) - Date.parse(state.lastResult.at), 15 * 60_000)
+  })
+})
