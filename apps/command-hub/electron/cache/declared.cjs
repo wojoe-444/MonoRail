@@ -127,7 +127,7 @@ const CACHES = Object.freeze([
 
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
-  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'coordinator/', 'turn-locks/'],
+  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'spending.json', 'spending.json.lock', 'coordinator/', 'turn-locks/'],
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
@@ -144,7 +144,7 @@ const DATA_FILES = Object.freeze({
  */
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
-  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
+  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) and, only while the user has the spending limit on, its settings and dollars spent per day (spending.json, plus its lock file while a change is written) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
   'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached. Links between tasks and repositories (repo-links.json) keep issue keys, repo folders and repo names only, never ticket text.',
   'modules/backups': 'The global backup folder setting (folder, frequency, which pages are included) and the last result per page (time, file name, size or error). Backups themselves go to the folder the user picked, never into AppData.',
   'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
