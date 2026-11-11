@@ -22,6 +22,7 @@ const { app, ipcMain } = require('electron')
 const moduleBackends = [
   require('./agent-chat.cjs'),
   require('./agents.cjs'),
+  require('./backups.cjs'),
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
   require('./flashcards.cjs'),

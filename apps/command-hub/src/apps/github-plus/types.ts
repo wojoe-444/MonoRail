@@ -114,7 +114,21 @@ export interface BackupSchedule {
   times: number
   unit: BackupUnit
   keep: number
+  /** Own folder; empty when the schedule follows the global folder. */
   destination: string
+  /** Back up into <global folder>/github-plus/<repo>/ (Settings > Backups). */
+  useGlobalFolder?: boolean
+  /** Take times, unit and keep from the global setting. */
+  useGlobalFrequency?: boolean
+}
+
+/** The global backup setting as GitHub+ sees it. */
+export interface GlobalBackupSummary {
+  enabled: boolean
+  folder: string
+  times: number
+  unit: BackupUnit
+  keep: number
 }
 
 export interface BackupFile {
@@ -130,6 +144,13 @@ export type BackupResult =
 
 export interface BackupState {
   schedule: BackupSchedule | null
+  /** The schedule with the global settings applied; null when there is none or it cannot run. */
+  effective?: { destination: string; times: number; unit: BackupUnit; keep: number } | null
+  /** Why the schedule cannot run (it follows the global folder, which is off). */
+  problem?: string | null
+  global?: GlobalBackupSummary
+  /** <global folder>/github-plus while the global folder is on. */
+  globalFolder?: string | null
   lastResult: BackupResult | null
   lastSuccessAt: string | null
   nextDueAt: string | null

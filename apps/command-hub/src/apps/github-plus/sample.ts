@@ -193,6 +193,10 @@ let backup: BackupState = {
   lastResult: { ok: true, at: day(0.3), file: 'C:/Users/sample/OneDrive/Backups/orbit-notes/orbit-notes-sample.bundle', size: 48_213 },
   lastSuccessAt: day(0.3),
   nextDueAt: new Date(Date.parse(day(0.3)) + UNIT_MS.day).toISOString(),
+  effective: { destination: 'C:/Users/sample/OneDrive/Backups', times: 1, unit: 'day', keep: 14 },
+  problem: null,
+  global: { enabled: true, folder: 'C:/Users/sample/OneDrive/MonoRail backups', times: 1, unit: 'day', keep: 14 },
+  globalFolder: 'C:/Users/sample/OneDrive/MonoRail backups/github-plus',
   running: false,
   files: [0.3, 1.3, 2.3].map((d) => {
     const at = day(d)
@@ -200,10 +204,16 @@ let backup: BackupState = {
     return { name, path: `C:/Users/sample/OneDrive/Backups/orbit-notes/${name}`, size: 48_213, createdAt: at }
   }),
 }
-const reschedule = (b: BackupState): BackupState => ({
-  ...b,
-  nextDueAt: b.schedule?.enabled ? new Date((b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : Date.now()) + UNIT_MS[b.schedule.unit] / b.schedule.times).toISOString() : null,
-})
+const reschedule = (b: BackupState): BackupState => {
+  const s = b.schedule
+  const f = s?.useGlobalFrequency && b.global ? b.global : s
+  const effective = s && f ? { destination: s.useGlobalFolder ? b.globalFolder ?? '' : s.destination, times: f.times, unit: f.unit, keep: f.keep } : null
+  return {
+    ...b,
+    effective,
+    nextDueAt: s?.enabled && effective ? new Date((b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : Date.now()) + UNIT_MS[effective.unit] / effective.times).toISOString() : null,
+  }
+}
 
 const wait = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 60))
 
@@ -430,13 +440,14 @@ export const sampleApi: RepoApi = {
   pickBackupFolder: () => wait('C:/Users/sample/OneDrive/Backups'),
   getBackup: () => wait(backup),
   saveBackup: async (_repo, schedule) => wait((backup = reschedule({ ...backup, schedule }))),
-  removeBackup: async () => wait((backup = { schedule: null, lastResult: null, lastSuccessAt: null, nextDueAt: null, running: false, files: [] })),
+  removeBackup: async () => wait((backup = { ...backup, schedule: null, effective: null, lastResult: null, lastSuccessAt: null, nextDueAt: null, running: false, files: [] })),
   async runBackup() {
     if (!backup.schedule) throw new Error('Set up backups for this repository first')
     const at = new Date().toISOString()
     const name = `orbit-notes-${at.slice(0, 19).replace(/:/g, '').replace('T', '_')}.bundle`
-    const file = { name, path: `${backup.schedule.destination}/orbit-notes/${name}`, size: 48_213, createdAt: at }
-    backup = reschedule({ ...backup, lastSuccessAt: at, lastResult: { ok: true, at, file: file.path, size: file.size }, files: [file, ...backup.files].slice(0, backup.schedule.keep) })
+    const eff = backup.effective ?? { destination: backup.schedule.destination, keep: backup.schedule.keep }
+    const file = { name, path: `${eff.destination}/orbit-notes/${name}`, size: 48_213, createdAt: at }
+    backup = reschedule({ ...backup, lastSuccessAt: at, lastResult: { ok: true, at, file: file.path, size: file.size }, files: [file, ...backup.files].slice(0, eff.keep) })
     return wait(backup)
   },
   async compareRefs(_repo, base, head) {
