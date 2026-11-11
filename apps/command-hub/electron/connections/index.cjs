@@ -15,6 +15,8 @@
 //   actions    [{ id, label, description, showWhen[], steps?, run(conn, job) }]
 //              e.g. "Sign in again". run may be long; the page polls the job.
 //   credentials? (conn) => what other backends need to call the service.
+//   afterSave? (conn, deps) => runs after the connection is saved, before
+//              the check (pi writes its scoped models into pi's settings).
 //
 // Other backends reach a connection through getCredentials(kind) below, in
 // the main process. The page only ever sees describe-level data.
@@ -25,7 +27,13 @@ const cacheLib = require('../cache/index.cjs')
 const { createStore } = require('./store.cjs')
 const wincred = require('./wincred.cjs')
 
-const CONNECTORS = [require('./connectors/gcloud.cjs'), require('./connectors/atlassian.cjs'), require('./connectors/claude.cjs')]
+const CONNECTORS = [
+  require('./connectors/gcloud.cjs'),
+  require('./connectors/atlassian.cjs'),
+  require('./connectors/claude.cjs'),
+  require('./connectors/pi.cjs'),
+  require('./connectors/git.cjs'),
+]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
 const OUTPUT_LIMIT = 8_000
@@ -144,6 +152,13 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       // Secrets of a field that is hidden by the current choice are dropped.
       const hidden = c.fields.filter((f) => f.type === 'secret' && f.showIf && Object.entries(f.showIf).some(([k, v]) => clean[k] !== v)).map((f) => f.key)
       await store.save(kind, c.fields, { values: clean, secrets, clearSecrets: [...clearSecrets, ...hidden] })
+      if (c.afterSave) {
+        try {
+          await c.afterSave(await store.get(kind), deps)
+        } finally {
+          checks.invalidate(kind)
+        }
+      }
       return check(kind, { force: true })
     },
 

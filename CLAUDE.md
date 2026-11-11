@@ -312,7 +312,18 @@ through claude.ai does not mean a subscription: Enterprise logins bill at API
 prices. Anything that shows Claude costs uses it (`claudeAccount()` in
 `electron/connections/index.cjs`, `useClaudeAccount()` and
 `ClaudeAccountBadge` in `src/modules/connections`; Claude Stats shows it, Home
-reads it from `connections.summary`). Command-line tools only get
+reads it from `connections.summary`). `pi` detects the pi coding agent with
+Chat's `findPiSdk` (either npm package name), its version, and the providers
+in pi's `auth.json` (names and login kind only; credential values are dropped
+on parse). Its one setting is **scoped models** (default
+`anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5,
+anthropic/claude-opus-5-5`): saving the connection (connector `afterSave`) or
+its "Apply scoped models" action writes them as `enabledModels` in pi's global
+`settings.json` (`PI_CODING_AGENT_DIR` or `~/.pi/agent`), as pi's own
+`/scoped-models` does, under pi's `settings.json.lock` and keeping every other
+key; the check flags when pi's list has drifted. `git` stores nothing and
+reports the version, global `user.name` / `user.email` and the credential
+helper's name; it never runs `git credential`. Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
 `mcp` (**Agent access**, under Configure) shows how to connect agents to

@@ -229,3 +229,106 @@ test('checks are reused until forced or the connection changes', async () => {
   await svc.save({ kind: 'atlassian', values: { siteUrl: 'e.atlassian.net', tokenSource: 'direct', email: 'a@example.com' } })
   assert.equal(calls.at(-1).url, 'https://e.atlassian.net/rest/api/3/myself')
 })
+
+// ---------- pi ----------
+
+const pi = require('./connectors/pi.cjs')._internal
+const gitc = require('./connectors/git.cjs')._internal
+const fakePiSdk = () => ({ name: '@earendil-works/pi-coding-agent', version: '1.5.2', dir: '/x', entry: '/x/dist/index.js' })
+
+test('pi: saving writes scoped models into pi settings and keeps the rest', async () => {
+  const piAgentDir = tmp()
+  const settingsFile = path.join(piAgentDir, 'settings.json')
+  fs.writeFileSync(settingsFile, JSON.stringify({ theme: 'dark', enabledModels: ['openai/*'] }))
+  fs.writeFileSync(path.join(piAgentDir, 'auth.json'), JSON.stringify({ anthropic: { type: 'oauth', access: 'secret-access', refresh: 'secret-refresh' } }))
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { piAgentDir, findPiSdk: fakePiSdk } })
+
+  const s = await svc.save({ kind: 'pi', values: { scopedModels: pi.DEFAULT_SCOPED_MODELS.join(', ') } })
+  const written = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+  assert.deepEqual(written, { theme: 'dark', enabledModels: pi.DEFAULT_SCOPED_MODELS })
+  assert.equal(s.state, 'ok')
+  assert.match(s.summary, /3 scoped models/)
+  assert.ok(!JSON.stringify(s).includes('secret-'), 'never returns pi credentials')
+  assert.ok(!fs.existsSync(`${settingsFile}.lock`), 'releases the lock')
+
+  // /scoped-models changed it in pi: the check says so, Apply puts it back.
+  fs.writeFileSync(settingsFile, JSON.stringify({ theme: 'dark', enabledModels: ['anthropic/claude-opus-5-5'] }))
+  const drift = await svc.check('pi', { force: true })
+  assert.equal(drift.state, 'error')
+  await svc.runAction({ kind: 'pi', action: 'apply-scoped-models' })
+  await new Promise((r) => setTimeout(r, 50))
+  assert.deepEqual(JSON.parse(fs.readFileSync(settingsFile, 'utf8')).enabledModels, pi.DEFAULT_SCOPED_MODELS)
+
+  // An empty list means all models: the key is removed.
+  await svc.save({ kind: 'pi', values: { scopedModels: '' } })
+  assert.deepEqual(JSON.parse(fs.readFileSync(settingsFile, 'utf8')), { theme: 'dark' })
+})
+
+test('pi: refuses odd patterns and unreadable settings, waits for pi lock', async () => {
+  assert.deepEqual(pi.parsePatterns('a/b,  c/d\nc/d '), ['a/b', 'c/d'])
+  assert.throws(() => pi.validatePatterns(['anthropic/x; rm -rf']), /not a model pattern/)
+  assert.doesNotThrow(() => pi.validatePatterns(['anthropic/*sonnet*:high', 'openai/gpt-5.5']))
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { piAgentDir: tmp(), findPiSdk: fakePiSdk } })
+  await assert.rejects(svc.save({ kind: 'pi', values: { scopedModels: 'bad"model' } }), /not a model pattern/)
+
+  const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'settings.json'), '{ not json')
+  await assert.rejects(pi.applyScopedModels(dir, ['a/b']))
+  assert.equal(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'), '{ not json', 'leaves a broken file alone')
+
+  // A fresh lock held by pi: wait, then give up with a readable message.
+  const dir2 = tmp()
+  fs.mkdirSync(path.join(dir2, 'settings.json.lock'))
+  await assert.rejects(pi.withPiLock(path.join(dir2, 'settings.json'), async () => {}, { attempts: 2, delayMs: 5 }), /busy/)
+  // A stale one (older than 10 s) is taken over.
+  const old = new Date(Date.now() - 60_000)
+  fs.utimesSync(path.join(dir2, 'settings.json.lock'), old, old)
+  assert.equal(await pi.applyScopedModels(dir2, ['a/b']), true)
+})
+
+test('pi: status when missing or not signed in', () => {
+  assert.equal(pi.summarize({ sdk: undefined, settings: {} }).state, 'unavailable')
+  const s = pi.summarize({ sdk: { name: '@mariozechner/pi-coding-agent', version: '0.9.0' }, settings: {}, providers: [] })
+  assert.equal(s.state, 'needs-setup')
+  assert.match(s.details[0].value, /old package name/)
+})
+
+// ---------- git ----------
+
+test('git: version, identity and credential helper', () => {
+  const ok = (stdout) => ({ code: 0, stdout, stderr: '' })
+  const unset = { code: 1, stdout: '', stderr: '' }
+  assert.equal(gitc.summarize({ version: { code: -1, stdout: '', stderr: '', notFound: true } }).state, 'unavailable')
+
+  const s = gitc.summarize({ version: ok('git version 2.47.1.windows.1\n'), name: ok('Sam Demo\n'), email: ok('sam@example.com\n'), helpers: ok('manager\n') })
+  assert.equal(s.state, 'ok')
+  assert.equal(s.details.find((d) => d.label === 'Credential helper').value, 'Git Credential Manager')
+
+  const n = gitc.summarize({ version: ok('git version 2.45.0\n'), name: unset, email: ok('sam@example.com\n'), helpers: unset })
+  assert.equal(n.state, 'needs-setup')
+  assert.match(n.summary, /user\.name is not set/)
+  assert.equal(n.details.find((d) => d.label === 'Credential helper').ok, false)
+
+  // An empty entry resets the list, as git does; paths show their name only.
+  assert.deepEqual(gitc.parseHelpers('store\n\nC:/Program Files/Git/mingw64/bin/git-credential-manager.exe\n').map(gitc.helperName), ['manager'])
+  assert.equal(gitc.helperName('!f() { echo secret; }; f'), 'custom script')
+})
+
+test('git: status runs only fixed, safe arguments and never asks for credentials', async () => {
+  const calls = []
+  const runTool = async (cmd, args) => {
+    calls.push([cmd, ...args])
+    return { code: 0, stdout: args[0] === '--version' ? 'git version 2.47.1' : 'x', stderr: '' }
+  }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { runTool } })
+  const s = await svc.save({ kind: 'git' })
+  assert.equal(s.state, 'ok')
+  for (const c of calls) {
+    for (const a of c) assert.match(a, SAFE_ARG)
+    assert.ok(!c.includes('credential') && !c.includes('fill'))
+  }
+})
+
+test('pi: scoped list is shown grouped by provider', () => {
+  assert.equal(pi.shortList(['anthropic/a', 'openai/b', 'anthropic/c', '*sonnet*']), 'anthropic: a, c; openai: b; *sonnet*')
+})
