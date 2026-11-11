@@ -243,3 +243,30 @@ test('the changes panel reads git status and the diff against HEAD', async () =>
   assert.match(r.diff, /-one\n\+two/)
   assert.equal(r.diffCut, false)
 })
+
+// ---------------------------------------------------------------------------
+// Coordinator
+
+test('the coordinator may only delegate and run workflows, with no MCP servers', () => {
+  const o = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, mode: 'agent', coordinator: true }), cwd: '/c', executable: '/c' })
+  assert.equal(o.agent, 'coordinator')
+  assert.deepEqual(o.tools, ['Agent', 'Workflow'])
+  assert.deepEqual(o.allowedTools, ['Agent', 'Workflow'])
+  assert.deepEqual(o.mcpServers, {})
+  assert.equal(o.strictMcpConfig, true)
+  assert.equal(o.permissionMode, 'dontAsk')
+  assert.throws(() => opts.validateJob({ ...job, sdk: 'pi', coordinator: true }), /Claude/)
+})
+
+test('the coordinator subagent is found in the Claude config folder', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'coord-'))
+  assert.equal(opts.findCoordinator({}, home), undefined)
+  fs.mkdirSync(path.join(home, '.claude', 'agents'), { recursive: true })
+  fs.writeFileSync(path.join(home, '.claude', 'agents', 'coordinator.md'), '---\nname: coordinator\n---\n')
+  assert.ok(opts.findCoordinator({}, home))
+})
+
+test('reasoning is requested only when asked for', () => {
+  assert.equal(opts.buildClaudeOptions({ job: opts.validateJob({ ...job }), cwd: '/r', executable: '/c' }).thinking, undefined)
+  assert.deepEqual(opts.buildClaudeOptions({ job: opts.validateJob({ ...job, reasoning: true }), cwd: '/r', executable: '/c' }).thinking, { type: 'adaptive', display: 'summarized' })
+})
