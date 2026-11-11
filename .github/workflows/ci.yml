@@ -54,6 +54,15 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # electron-builder uploads the installer, blockmap and latest.yml to a
+      # draft (publishing directly races its parallel uploads). Publish it once
+      # every file is there, so the updater never sees a half-filled release.
+      - name: Publish the release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: gh release edit "v$(node -p "require('./package.json').version")" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: CommandHub-windows-setup
