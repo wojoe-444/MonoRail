@@ -12,6 +12,8 @@ export interface NavItem {
   label: string
   icon: IconComponent
   badge?: string
+  /** Subpages, drawn indented under this item. One level deep. */
+  children?: NavItem[]
 }
 
 export interface NavSection {
@@ -37,9 +39,17 @@ function coreSections(): NavSection[] {
     {
       heading: 'Workspace',
       items: [
-        { path: '/agents', label: 'Agents', icon: Bot, badge: '4' },
-        { path: '/runs', label: 'Runs', icon: History },
-        { path: '/library', label: 'Library', icon: BookOpen },
+        {
+          path: '/agents',
+          label: 'Agents',
+          icon: Bot,
+          badge: '4',
+          // Agent Chat (a module) joins these through nav.parent.
+          children: [
+            { path: '/agents/runs', label: 'Runs', icon: History },
+            { path: '/agents/library', label: 'Library', icon: BookOpen },
+          ],
+        },
       ],
     },
     {
@@ -57,15 +67,41 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
   const sections = coreSections().filter((s) => s.items.length > 0 || s.heading === 'Configure')
   const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
   for (const m of sorted) {
+    const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
+    const parent = m.nav.parent ? findNavItem(sections, m.nav.parent)?.item : undefined
+    if (parent) {
+      parent.children = [...(parent.children ?? []), item]
+      continue
+    }
     let section = sections.find((s) => s.heading === m.nav.section)
     if (!section) {
       section = { heading: m.nav.section, items: [] }
       const configureIdx = sections.findIndex((s) => s.heading === 'Configure')
       sections.splice(configureIdx === -1 ? sections.length : configureIdx, 0, section)
     }
-    section.items.push({ path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge })
+    section.items.push(item)
   }
   return sections
+}
+
+/** Every item, subpages included, in drawer order. */
+export function flattenNav(sections: NavSection[]): NavItem[] {
+  return sections.flatMap((s) => s.items.flatMap((i) => [i, ...(i.children ?? [])]))
+}
+
+/** Find an item (or subpage) by path, with its section and parent item. */
+export function findNavItem(
+  sections: NavSection[],
+  path: string,
+): { item: NavItem; section: NavSection; parent?: NavItem } | undefined {
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.path === path) return { item, section }
+      const child = item.children?.find((c) => c.path === path)
+      if (child) return { item: child, section, parent: item }
+    }
+  }
+  return undefined
 }
 
 /** Nav sections, updated when extensions are installed, removed or toggled. */
