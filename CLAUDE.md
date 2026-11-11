@@ -40,6 +40,7 @@ Run from `apps/command-hub/`:
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |
+| `npm test` | Node tests for backends (`electron/**/*.test.cjs`) |
 | `npm run dist:win` | Build the installer `release/CommandHub-Setup-<version>.exe` |
 | `npm run dist:win:portable` | Build a portable `.exe` (cannot self-update) |
 
@@ -60,6 +61,7 @@ major/minor in `package.json` by hand; never publish from a local machine.
   `nav.ts` (the single list of navigation items).
 - `pages/` built-in pages (Home and placeholders).
 - `modules/` feature modules (see below). `modules/registry.ts` lists them.
+- `apps/` full-screen apps (see below). `apps/registry.ts` lists them.
 - `components/charts/` data-viz primitives: series palette, `StatTile`,
   `Legend`, `ChartTooltipContent`. Charts use Recharts.
 - `lib/router.ts` tiny hash router (`useRoute`, `navigate`); hash routes work
@@ -114,6 +116,62 @@ fold into "Other"), rank entities on the full dataset so filters never
 repaint them, one y-axis per chart, a legend for 2+ series, a table view
 beside every chart, thin marks (bars <= 24px, 2px lines), and one hero
 figure per page.
+
+## Apps: full-screen experiences inside the hub
+
+An **app** is the second building block, next to modules. Where a module is
+one page inside the hub's drawer and top bar, an app takes over the whole
+window and may look and feel like its own product: its own colors, fonts,
+layout and in-app routing. Apps are listed in the **Apps** nav section, right
+under Home. The contract is `AppDefinition` in `src/apps/types.ts`.
+
+The one thing an app never owns is the **hub bar**: `src/apps/AppFrame.tsx`
+renders a 48px bar above every app, in the hub's dark drawer color, with a
+"Back to Command Hub" button, the app's icon and name, and an "App" chip.
+That is how users leave any app; do not hide, restyle or duplicate it inside
+an app. Leaving returns to the hub page the user came from, and reopening an
+app from the nav resumes where it was left (`src/apps/session.ts`). An error
+boundary keeps the bar on screen if an app crashes.
+
+To add an app:
+
+1. `src/apps/<id>/index.ts` exports an `AppDefinition` (id, title,
+   description, icon, `path: '/apps/<id>'`, lazy `component`).
+2. Add it to `src/apps/registry.ts`. The nav and router pick it up.
+3. The root component receives `basePath` (`/apps/<id>`). Everything under
+   that hash path belongs to the app, so it can run its own router, e.g.
+   react-router's `<HashRouter basename={basePath}>`.
+4. Scope all of the app's CSS under one root class (GitHub+ uses `.ghp` with
+   CSS nesting) so nothing leaks into the hub after the app is closed. Avoid
+   class names that are Tailwind utilities (`container`, `hidden`, ...).
+   Tailwind preflight still applies, so restore browser defaults you rely on
+   (heading sizes, list bullets) inside the scope.
+5. If it needs local data, write `electron/apps/<id>/index.cjs` exporting
+   `{ id, methods }` (same shape as a module backend) and add it to
+   `electron/apps/index.cjs`. Call it with `invokeApp(id, method, args)` from
+   `src/apps/client.ts`. `ctx.dataDir` is
+   `%APPDATA%\Command Hub\apps\<id>`. As with modules, ship fictional
+   sample data for the browser dev server. A module or app backend may also
+   export `start(ctx)`, called once at startup, for work that runs without
+   its page open (GitHub+ uses it for its backup scheduler).
+
+`github-plus` (**GitHub+**) is the reference app, a port of
+`wojoe-444/Local-Repo-UI`: a GitHub-style, read-only browser for local git
+repositories (code, README, file viewer, history, commits with diffs,
+branches, compare). Its backend (`electron/apps/github-plus/git.cjs`) only
+runs the local `git` CLI, validates refs and paths from the renderer, disables
+repo-configured textconv/external diff, and only serves repos the user opened.
+Recent repo paths are kept in its data folder, never in the repo. It makes no
+network requests: remote images in READMEs are blocked and external links do
+nothing. Tests live in `git.test.cjs`.
+
+GitHub+ also has **scheduled backups** (Backups tab, `backup.cjs`): per repo,
+"X times per hour/day/week" into a folder the user picks (e.g. one OneDrive
+already syncs). Each backup is a verified `git bundle --all` file, written as
+`.partial` and renamed when complete, with the newest N kept. The scheduler
+runs inside Command Hub (checks every minute and at startup, so a backup
+missed while the app was closed runs once when it opens; failures retry after
+15 minutes). Schedules live in the app's data folder (`backups.json`).
 
 ## Design guidance
 
