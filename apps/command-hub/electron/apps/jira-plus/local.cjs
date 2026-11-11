@@ -1,6 +1,6 @@
 // Local Jira: personal projects backed by a git repository under AppData.
 //
-//   %APPDATA%\MonoRail\modules\jira\local-repo\
+//   %APPDATA%\MonoRail\apps\jira-plus\local-repo\
 //     README.md
 //     projects/<KEY>/project.json        { key, name, description, nextNumber, created }
 //     projects/<KEY>/issues/<KEY>-<n>.json
@@ -116,6 +116,14 @@ function createLocalStore(repoDir) {
     return projects.sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  async function projectNameOf(key) {
+    try {
+      return (await readJson(projectFile(key))).name
+    } catch {
+      return undefined
+    }
+  }
+
   async function readIssue(key) {
     return readJson(path.join(repoDir, issueRel(key)))
   }
@@ -135,9 +143,10 @@ function createLocalStore(repoDir) {
       return []
     }
     const issues = await Promise.all(files.map((f) => readJson(path.join(dir, f)).catch(() => undefined)))
+    const projectName = await projectNameOf(projectKey)
     return issues
       .filter(Boolean)
-      .map(summarize)
+      .map((raw) => ({ ...summarize(raw), projectName }))
       .sort((a, b) => b.updated.localeCompare(a.updated))
   }
 
@@ -161,6 +170,7 @@ function createLocalStore(repoDir) {
     const current = raw.status
     return {
       ...summarize(raw),
+      projectName: await projectNameOf(raw.projectKey),
       comments: raw.comments ?? [],
       history: await history(key),
       transitions: STATUSES.filter((s) => s.name !== current).map((s) => ({

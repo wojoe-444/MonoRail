@@ -526,7 +526,7 @@ test('D2: snapshots answer what changed since the previous scan, with a CSV hist
 })
 
 test('caches refuse a data folder that is not their own', () => {
-  const { ctx } = tmpDir('modules/jira')
+  const { ctx } = tmpDir('apps/jira-plus')
   assert.throws(() => cache.report(ctx, 'claude-stats.usage', { build: async () => 1 }), /belongs to modules\/claude-stats/)
   assert.throws(() => new HistoryCache(ctx.dataDir, 'test.report'), /not a history cache/)
   assert.throws(() => new IncrementalCache(ctx.dataDir, 'test.report', lineCounter([])), /not an incremental cache/)

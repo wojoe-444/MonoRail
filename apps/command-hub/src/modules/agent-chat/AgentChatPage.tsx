@@ -1,18 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Brain,
   Check,
   ChevronRight,
-  Copy,
   FlaskConical,
   FolderGit2,
   GitBranch,
   Loader2,
   MessagesSquare,
+  Plus,
   RefreshCw,
   Search,
-  SendHorizontal,
   Settings2,
   Sparkles,
   User,
@@ -29,16 +28,21 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { ChatMarkdown } from './ChatMarkdown'
+import { Composer, DeniedRow, NewChatEmpty, TurnFooter, useComposerPrefs } from './Composer'
+import { contextUse, turnToMessages } from './live'
 import { FoldersDialog } from './FoldersDialog'
-import { sampleSessions, sampleTranscripts } from './sample'
+import { sampleComposer, sampleSessions, sampleTranscripts } from './sample'
 import {
   SOURCE_LABEL,
   type ChatBlock,
   type ChatMessage,
+  type ComposerInfo,
+  type LiveTurn,
   type SessionList,
   type SessionSource,
   type SessionSummary,
   type SessionTranscript,
+  type TurnPoll,
 } from './types'
 
 type Filter = 'all' | SessionSource
@@ -75,6 +79,20 @@ export default function AgentChatPage() {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
   const [foldersOpen, setFoldersOpen] = useState(false)
+  const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
+  const composerInfo = desktop ? composerQuery.data : sampleComposer
+  const prefs = useComposerPrefs(composerInfo)
+  /** A new chat being composed: its key and the project it will run in. */
+  const [draft, setDraft] = useState<{ key: string; repo?: string }>()
+  const [turns, setTurns] = useState<LiveTurn[]>([])
+  const turnsRef = useRef(turns)
+  useLayoutEffect(() => {
+    turnsRef.current = turns
+  })
+  /** Chats created on this page keep their view (and live turns) when they get a session id. */
+  const [viewKeys, setViewKeys] = useState<Record<string, string>>({})
+  const [pendingSessions, setPendingSessions] = useState<Record<string, SessionSummary>>({})
+  const [sendError, setSendError] = useState<{ key: string; message: string }>()
 
   const sessions = useMemo(() => data?.sessions ?? [], [data])
   const visible = useMemo(() => {
@@ -86,7 +104,127 @@ export default function AgentChatPage() {
     )
   }, [sessions, filter, query])
 
-  const selected = sessions.find((s) => s.id === selectedId) ?? visible[0]
+  const selected = draft
+    ? undefined
+    : (sessions.find((s) => s.id === selectedId) ?? (selectedId ? pendingSessions[selectedId] : undefined) ?? visible[0])
+  const chatKey = draft?.key ?? selected?.id
+  const chatTurns = turns.filter((t) => t.chatKey === chatKey || (t.sessionId && `claude:${t.sessionId}` === chatKey))
+  const runningTurn = chatTurns.find((t) => t.status === 'running')
+  const lastWithUsage = [...chatTurns].reverse().find((t) => contextUse(t))
+
+  // Poll running turns for new events (the renderer bridge has no push channel for them).
+  const runningIds = turns
+    .filter((t) => t.status === 'running')
+    .map((t) => t.turnId)
+    .join(',')
+  useEffect(() => {
+    if (!runningIds || !desktop) return
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout>
+    const tick = async () => {
+      for (const id of runningIds.split(',')) {
+        const t = turnsRef.current.find((x) => x.turnId === id)
+        if (!t) continue
+        let p: TurnPoll
+        try {
+          p = await invokeModule<TurnPoll>('agent-chat', 'pollTurn', { turnId: id, after: t.next })
+        } catch (e) {
+          p = { status: 'failed', startedAt: t.startedAt, endedAt: Date.now(), next: t.next + 1, events: [{ t: 'error', message: e instanceof Error ? e.message : String(e) }] }
+        }
+        if (stopped) return
+        setTurns((prev) =>
+          prev.map((x) =>
+            x.turnId === id
+              ? { ...x, events: [...x.events, ...p.events], next: p.next, status: p.status, sessionId: p.sessionId ?? x.sessionId, endedAt: p.endedAt }
+              : x,
+          ),
+        )
+        // A new chat got its session id: it becomes a normal chat, keeping its view.
+        if (p.sessionId && !t.sessionId && t.chatKey.startsWith('draft:')) {
+          const id2 = `claude:${p.sessionId}`
+          setViewKeys((v) => ({ ...v, [id2]: t.chatKey }))
+          setPendingSessions((v) => ({
+            ...v,
+            [id2]: {
+              id: id2,
+              source: 'claude',
+              sessionId: p.sessionId!,
+              title: t.prompt.slice(0, 100),
+              preview: t.prompt.slice(0, 160),
+              project: t.repo?.name ?? '',
+              cwd: t.repo?.path,
+              startedAt: t.startedAt,
+              updatedAt: Date.now(),
+              sizeBytes: 0,
+              repo: t.repo ?? { name: '', path: '' },
+            },
+          }))
+          setDraft((d) => {
+            if (d?.key === t.chatKey) {
+              setSelectedId(id2)
+              return undefined
+            }
+            return d
+          })
+        }
+        if (p.status !== 'running') void list.refresh()
+      }
+      if (!stopped) timer = setTimeout(tick, 300)
+    }
+    timer = setTimeout(tick, 150)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runningIds, desktop])
+
+  async function send(prompt: string): Promise<boolean> {
+    if (!chatKey) return false
+    setSendError(undefined)
+    const repo = draft ? composerInfo?.repos.find((r) => r.path === draft.repo) : undefined
+    try {
+      const { turnId } = await invokeModule<{ turnId: string }>('agent-chat', 'startTurn', {
+        ...(draft ? { repo: draft.repo } : { chatId: selected?.id }),
+        prompt,
+        mode: prefs.mode,
+        model: prefs.model,
+        effort: prefs.effort,
+      })
+      setTurns((prev) => [...prev, { turnId, chatKey, prompt, startedAt: Date.now(), status: 'running', events: [], next: 0, repo }])
+      return true
+    } catch (e) {
+      setSendError({ key: chatKey, message: e instanceof Error ? e.message : String(e) })
+      return false
+    }
+  }
+
+  function stop() {
+    if (runningTurn) void invokeModule('agent-chat', 'stopTurn', { turnId: runningTurn.turnId })
+  }
+
+  /** A turn already running in the backend (e.g. the page was left and reopened): follow it. */
+  function attach(turnId: string, key: string) {
+    if (turnsRef.current.some((t) => t.turnId === turnId)) return
+    setTurns((prev) => [...prev, { turnId, chatKey: key, prompt: '', startedAt: Date.now(), status: 'running', events: [], next: 0 }])
+  }
+
+  const composer = (
+    <Composer
+      info={composerInfo}
+      prefs={prefs}
+      source={selected?.source ?? 'claude'}
+      isNew={!!draft}
+      repo={draft?.repo}
+      onRepo={(path) => setDraft((d) => (d ? { ...d, repo: path } : d))}
+      branch={selected?.branch}
+      running={runningTurn}
+      error={sendError && sendError.key === chatKey ? sendError.message : undefined}
+      onSend={send}
+      onStop={stop}
+      context={contextUse(lastWithUsage)}
+    />
+  )
   const counts = useMemo(() => {
     const c = { all: sessions.length, claude: 0, pi: 0 }
     for (const s of sessions) c[s.source]++
@@ -109,6 +247,15 @@ export default function AgentChatPage() {
             )}
             <Button variant="outline" size="sm" onClick={() => setFoldersOpen(true)}>
               <Settings2 /> Folders
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
+                setSendError(undefined)
+              }}
+            >
+              <Plus /> New chat
             </Button>
             {desktop && (
               <Button variant="outline" size="sm" onClick={() => void list.refresh()} disabled={list.fetching}>
@@ -169,7 +316,10 @@ export default function AgentChatPage() {
             loading={desktop && list.loading}
             error={desktop ? list.error : undefined}
             selectedId={selected?.id}
-            onSelect={setSelectedId}
+            onSelect={(id) => {
+              setDraft(undefined)
+              setSelectedId(id)
+            }}
             sources={data?.sources}
             filtered={sessions.length > 0}
             limits={data?.limits}
@@ -180,8 +330,22 @@ export default function AgentChatPage() {
 
         {/* Conversation */}
         <section className="flex min-w-0 flex-1 flex-col">
-          {selected ? (
-            <Conversation key={selected.id} session={selected} />
+          {draft ? (
+            <Conversation
+              key={draft.key}
+              draftRepoName={composerInfo?.repos.find((r) => r.path === draft.repo)?.name}
+              turns={chatTurns}
+              composer={composer}
+            />
+          ) : selected ? (
+            <Conversation
+              key={viewKeys[selected.id] ?? selected.id}
+              session={selected}
+              skipHistory={!!viewKeys[selected.id]}
+              turns={chatTurns}
+              composer={composer}
+              onAttach={(turnId) => attach(turnId, selected.id)}
+            />
           ) : (
             <EmptyState
               icon={MessagesSquare}
@@ -355,38 +519,70 @@ function SourceAvatar({ source, className }: { source: SessionSource; className?
 // ---------------------------------------------------------------------------
 // Conversation
 
-function Conversation({ session }: { session: SessionSummary }) {
+function Conversation({
+  session,
+  draftRepoName,
+  skipHistory,
+  turns,
+  composer,
+  onAttach,
+}: {
+  /** Missing for a new chat that has not started yet. */
+  session?: SessionSummary
+  draftRepoName?: string
+  /** Chats started on this page show their live turns instead of re-reading the log. */
+  skipHistory?: boolean
+  turns: LiveTurn[]
+  composer: ReactNode
+  onAttach?: (turnId: string) => void
+}) {
   const desktop = isDesktop()
+  const noHistory = !session || skipHistory
   // The browser dev server has no backend: start from the fictional transcript.
   const [transcript, setTranscript] = useState<SessionTranscript | undefined>(() =>
-    desktop ? undefined : (sampleTranscripts[session.id] ?? { id: session.id, messages: [] }),
+    noHistory ? { id: session?.id ?? '', messages: [] } : desktop ? undefined : (sampleTranscripts[session.id] ?? { id: session.id, messages: [] }),
   )
   const [error, setError] = useState<Error>()
   const [shown, setShown] = useState(PAGE)
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
 
+  // History is read once when the chat opens; turns sent from here are shown live after it.
+  const sessionId = session?.id
   useEffect(() => {
-    if (!desktop) return
+    if (!desktop || noHistory || !sessionId) return
     let live = true
-    invokeModule<SessionTranscript>('agent-chat', 'getSession', { id: session.id }).then(
+    invokeModule<SessionTranscript>('agent-chat', 'getSession', { id: sessionId }).then(
       (t) => live && setTranscript(t),
       (e: unknown) => live && setError(e instanceof Error ? e : new Error(String(e))),
+    )
+    invokeModule<string | null>('agent-chat', 'runningTurn', { chatId: sessionId }).then(
+      (turnId) => live && turnId && onAttach?.(turnId),
+      () => undefined,
     )
     return () => {
       live = false
     }
-  }, [desktop, session.id, session.updatedAt])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktop, noHistory, sessionId])
 
   const messages = transcript?.messages ?? []
   const hidden = Math.max(0, messages.length - shown)
   const visible = hidden ? messages.slice(hidden) : messages
 
-  // Open at the latest message, like a chat app.
+  // Open at the latest message, like a chat app, and follow a live turn while
+  // the reader is at the bottom.
+  const liveSize = turns.reduce((n, t) => n + t.events.length, 0)
   useLayoutEffect(() => {
     const el = scroller.current
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight
-  }, [transcript])
+  }, [transcript, liveSize])
+
+  function onScroll() {
+    const el = scroller.current
+    if (el) stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
+  const source = session?.source ?? 'claude'
 
   function showEarlier() {
     const el = scroller.current
@@ -398,10 +594,19 @@ function Conversation({ session }: { session: SessionSummary }) {
     })
   }
 
+  if (!session && turns.length === 0) {
+    return (
+      <>
+        <NewChatEmpty repoName={draftRepoName} />
+        {composer}
+      </>
+    )
+  }
+
   return (
     <>
-      <ConversationHeader session={session} />
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
+      {session && <ConversationHeader session={session} />}
+      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-6">
           {error && (
             <div className="flex items-center gap-2 rounded-lg bg-destructive-soft px-4 py-3 text-sm text-destructive-soft-foreground">
@@ -413,7 +618,7 @@ function Conversation({ session }: { session: SessionSummary }) {
               <Loader2 className="size-4 animate-spin" /> Loading conversation…
             </div>
           )}
-          {transcript && messages.length === 0 && (
+          {transcript && messages.length === 0 && turns.length === 0 && (
             <div className="py-16 text-center text-sm text-muted-foreground">This session has no messages to show.</div>
           )}
           {transcript?.truncated && hidden === 0 && (
@@ -427,11 +632,21 @@ function Conversation({ session }: { session: SessionSummary }) {
             </Button>
           )}
           {visible.map((m, i) => (
-            <MessageView key={hidden + i} message={m} source={session.source} />
+            <MessageView key={hidden + i} message={m} source={source} />
+          ))}
+          {turns.map((t) => (
+            <div key={t.turnId} className="flex flex-col gap-6">
+              {turnToMessages(t)
+                .filter((m) => m.role !== 'user' || t.prompt)
+                .map((m, i) => (
+                  <MessageView key={i} message={m} source={source} />
+                ))}
+              <TurnFooter turn={t} />
+            </div>
           ))}
         </div>
       </div>
-      <Composer session={session} />
+      {composer}
     </>
   )
 }
@@ -484,6 +699,8 @@ function MessageView({ message, source }: { message: ChatMessage; source: Sessio
           {message.blocks.map((b, i) =>
             b.type === 'tool' ? (
               <ToolCall key={i} block={b} />
+            ) : b.type === 'denied' ? (
+              <DeniedRow key={i} block={b} />
             ) : (
               <div
                 key={i}
@@ -522,6 +739,8 @@ function MessageView({ message, source }: { message: ChatMessage; source: Sessio
             <Thinking key={i} text={g.text} />
           ) : g.type === 'text' ? (
             <ChatMarkdown key={i} text={g.text} />
+          ) : g.type === 'denied' ? (
+            <DeniedRow key={i} block={g} />
           ) : null,
         )}
       </div>
@@ -599,41 +818,6 @@ function ToolPane({ label, text }: { label: string; text: string }) {
       <pre className="max-h-72 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
         {text}
       </pre>
-    </div>
-  )
-}
-
-/** The usual chat composer, read-only for now: transcripts come from the logs. */
-function Composer({ session }: { session: SessionSummary }) {
-  const [copied, setCopied] = useState(false)
-  const command =
-    session.source === 'claude'
-      ? `${session.cwd ? `cd "${session.cwd}" && ` : ''}claude --resume ${session.sessionId}`
-      : undefined
-
-  async function copy() {
-    if (!command) return
-    await navigator.clipboard.writeText(command)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <div className="shrink-0 border-t p-4">
-      <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-xl border bg-muted/50 py-2 pr-2 pl-4">
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-          Read-only. {command ? 'Continue this session in Claude Code.' : 'Continue this session in pi.'}
-        </span>
-        {command && (
-          <Button variant="outline" size="sm" onClick={() => void copy()} title={command}>
-            {copied ? <Check /> : <Copy />}
-            {copied ? 'Copied' : 'Copy resume command'}
-          </Button>
-        )}
-        <Button size="icon" className="size-8" disabled aria-label="Send (not available)">
-          <SendHorizontal />
-        </Button>
-      </div>
     </div>
   )
 }
