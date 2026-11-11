@@ -44,5 +44,6 @@ confirm (More info > Run anyway).
 ## Private data
 
 This repo is public. Anything personal (API keys, tokens, settings, run
-history) is stored in `%APPDATA%\MonoRail` on your machine and is never
-committed. See [CLAUDE.md](CLAUDE.md).
+history) is stored in `%APPDATA%\MonoRail` on your machine (older installs
+keep their original `command-hub` or `MonoHub` folder; Settings shows which)
+and is never committed. See [CLAUDE.md](CLAUDE.md).

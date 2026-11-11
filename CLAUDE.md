@@ -31,11 +31,14 @@ purpose. Changing any of them breaks updates or strands the user's data:
 - `window.commandHub`, `CommandHubBridge` and the `commandHub.*`
   localStorage keys are internal and were left as they are.
 
-`electron/userData.cjs` runs before the app is ready and moves the old
-data folder (`%APPDATA%\MonoHub`, or before that `%APPDATA%\command-hub`;
-whichever holds data, newest name first) to `%APPDATA%\MonoRail` once, as a
-whole: safeStorage's key is in that folder's `Local State`, so never move
-only `modules/`. If the move fails it keeps using the old folder.
+`electron/userData.cjs` picks the data folder before the app is ready: the
+existing one that holds data, newest name first (`%APPDATA%\MonoRail`, then
+`MonoHub`, `command-hub`, `Command Hub`), or a new `MonoRail` folder on a
+clean machine. It **never moves, renames or copies** a data folder: an earlier
+version renamed the old folder on startup and caused trouble for a test
+user. Always reach the folder through `app.getPath('userData')` /
+`ctx.dataDir`; the paths below say `%APPDATA%\MonoRail`, but older installs
+keep their original folder.
 
 ## The one hard rule: private data stays in AppData
 
