@@ -635,7 +635,7 @@ function sdkStatus() {
       id: 'pi',
       label: 'pi',
       ready: !!piSdk,
-      reason: piSdk ? undefined : 'pi was not found on this machine. Install it with "npm install -g @mariozechner/pi-coding-agent", sign in once in a terminal, then reopen this page.',
+      reason: piSdk ? undefined : 'pi was not found on this machine. Install it with "npm install -g @earendil-works/pi-coding-agent", sign in once in a terminal, then reopen this page.',
     },
   ]
 }

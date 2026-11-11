@@ -220,6 +220,41 @@ test('the pi SDK is found behind the pi command', () => {
   const found = opts.findPiSdk({ PATH: path.join(base, 'bin') }, base)
   assert.equal(found?.version, '9.9.9')
   assert.equal(opts.findPiSdk({ PATH: path.join(base, 'nowhere') }, base), undefined)
+  fs.rmSync(base, { recursive: true, force: true })
+})
+
+test('the renamed pi package is found through a command shim', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-shim-'))
+  const name = process.platform === 'win32' ? 'pi.cmd' : 'pi'
+  const makePkg = (dir, pkgName, version) => {
+    fs.mkdirSync(path.join(dir, 'dist'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: pkgName, version }))
+  }
+  // npm's .cmd shim: the package beside the shim, named relative to %dp0%.
+  const npmDir = path.join(base, 'npm')
+  makePkg(path.join(npmDir, 'node_modules', '@earendil-works', 'pi-coding-agent'), '@earendil-works/pi-coding-agent', '1.5.2')
+  fs.writeFileSync(
+    path.join(npmDir, name),
+    '@ECHO off\r\nSETLOCAL\r\n"%_prog%"  "%dp0%\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js" %*\r\n',
+  )
+  const found = opts.findPiSdk({ PATH: npmDir }, base)
+  assert.equal(found?.name, '@earendil-works/pi-coding-agent')
+  assert.equal(found?.version, '1.5.2')
+
+  // A shim (pnpm style) that names the package by an absolute path somewhere else.
+  const store = path.join(base, 'store', 'node_modules', '@earendil-works', 'pi-coding-agent')
+  makePkg(store, '@earendil-works/pi-coding-agent', '2.0.0')
+  const shimDir = path.join(base, 'shims')
+  fs.mkdirSync(shimDir)
+  fs.writeFileSync(path.join(shimDir, name), `#!/bin/sh\nexec node "${path.join(store, 'dist', 'bundle', 'cli.js')}" "$@"\n`)
+  assert.equal(opts.findPiSdk({ PATH: shimDir }, base)?.version, '2.0.0')
+
+  // Something else called pi is not taken for it.
+  const other = path.join(base, 'other')
+  makePkg(path.join(other, 'node_modules', '@someone', 'pi-coding-agent'), '@someone/pi-coding-agent', '0.0.1')
+  fs.writeFileSync(path.join(other, name), '"%dp0%\\node_modules\\@someone\\pi-coding-agent\\cli.js"')
+  assert.equal(opts.findPiSdk({ PATH: other }, base), undefined)
+  fs.rmSync(base, { recursive: true, force: true })
 })
 
 // ---------------------------------------------------------------------------

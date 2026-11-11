@@ -198,39 +198,93 @@ async function piPathAllowed(root, cwd, target) {
  */
 function findPiSdk(env = process.env, home = os.homedir()) {
   const win = process.platform === 'win32'
+  const local = env.LOCALAPPDATA || path.join(home, 'AppData', 'Local')
   const dirs = [
     ...(env.PATH || env.Path || '').split(path.delimiter).filter(Boolean),
-    ...(win && env.APPDATA ? [path.join(env.APPDATA, 'npm')] : []),
+    // Where package managers put global commands when PATH does not say (a
+    // shell profile can add them, which an app started from the Start menu
+    // never sees).
+    ...(env.npm_config_prefix ? [env.npm_config_prefix, path.join(env.npm_config_prefix, 'bin')] : []),
+    ...(win ? [path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'npm')] : []),
+    ...(win ? [path.join(local, 'pnpm'), path.join(local, 'Volta', 'bin')] : []),
+    ...(env.PNPM_HOME ? [env.PNPM_HOME] : []),
+    ...(env.NVM_SYMLINK ? [env.NVM_SYMLINK] : []),
+    ...(win ? [path.join(home, 'scoop', 'shims'), 'C:\\Program Files\\nodejs'] : []),
+    path.join(home, '.bun', 'bin'),
     path.join(home, '.npm-global', 'bin'),
     path.join(home, '.local', 'bin'),
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
   ]
-  const pkgDir = (d) => {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8'))
-      if (pkg.name === '@mariozechner/pi-coding-agent') return { dir: d, entry: path.join(d, 'dist', 'index.js'), version: pkg.version }
-    } catch {
-      // not it
-    }
-    return undefined
-  }
+  const seen = new Set()
   for (const dir of dirs) {
-    for (const name of win ? ['pi.cmd', 'pi.exe', 'pi'] : ['pi']) {
+    const key = win ? dir.toLowerCase() : dir
+    if (seen.has(key)) continue
+    seen.add(key)
+    for (const name of win ? ['pi.cmd', 'pi.ps1', 'pi.exe', 'pi'] : ['pi']) {
       const bin = path.join(dir, name)
       if (!fs.existsSync(bin)) continue
-      // npm on Windows: <prefix>\pi.cmd next to <prefix>\node_modules
-      // npm on POSIX: <prefix>/bin/pi -> ../lib/node_modules/.../dist/cli.js
-      const candidates = [path.join(dir, 'node_modules', '@mariozechner', 'pi-coding-agent'), path.join(dir, '..', 'lib', 'node_modules', '@mariozechner', 'pi-coding-agent')]
-      try {
-        let d = path.dirname(fs.realpathSync(bin))
-        for (let i = 0; i < 4; i++, d = path.dirname(d)) candidates.unshift(d)
-      } catch {
-        // broken link
-      }
-      for (const c of candidates) {
-        const found = pkgDir(c)
-        if (found) return found
+      const found = piSdkNear(dir, bin)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+/** The pi package names, newest first (pi moved from @mariozechner to @earendil-works). */
+const PI_PACKAGES = ['@earendil-works/pi-coding-agent', '@mariozechner/pi-coding-agent']
+
+function piPackageAt(d) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8'))
+    if (PI_PACKAGES.includes(pkg.name)) return { dir: d, entry: path.join(d, 'dist', 'index.js'), version: pkg.version, name: pkg.name }
+  } catch {
+    // not it
+  }
+  return undefined
+}
+
+/** The pi package a `pi` command in `dir` runs, if it can be found from the command. */
+function piSdkNear(dir, bin) {
+  const candidates = []
+  const add = (p) => p && candidates.push(p)
+  // The command's real file (a POSIX symlink into the package, or a shim).
+  try {
+    let d = path.dirname(fs.realpathSync(bin))
+    for (let i = 0; i < 5; i++, d = path.dirname(d)) add(d)
+  } catch {
+    // broken link
+  }
+  // npm/pnpm/bun shims (.cmd, .ps1, sh) name the script they run: look for a
+  // path to the package in the shim's text.
+  try {
+    if (fs.statSync(bin).size < 64 * 1024) {
+      const text = fs.readFileSync(bin, 'utf8')
+      const re = /([^"'\s]*?node_modules[\\/](@[\w.-]+)[\\/]pi-coding-agent)[\\/]/g
+      let m
+      while ((m = re.exec(text))) {
+        const p = m[1].replace(/^(%~?dp0%?|\$basedir|%dp0%)[\\/]?/i, '')
+        add(path.isAbsolute(p) ? p : path.join(dir, p))
       }
     }
+  } catch {
+    // unreadable
+  }
+  // Layouts by convention: <prefix>\pi.cmd beside <prefix>\node_modules (npm on
+  // Windows), <prefix>/bin/pi beside <prefix>/lib/node_modules (npm on POSIX),
+  // pnpm's global store, bun's global folder, Volta's package images.
+  const local = path.dirname(dir)
+  for (const pkg of PI_PACKAGES) {
+    const rel = pkg.split('/')
+    add(path.join(dir, 'node_modules', ...rel))
+    add(path.join(dir, '..', 'lib', 'node_modules', ...rel))
+    add(path.join(dir, 'global', '5', 'node_modules', ...rel))
+    add(path.join(dir, '..', 'install', 'global', 'node_modules', ...rel))
+    add(path.join(local, 'tools', 'image', 'packages', pkg, 'node_modules', ...rel))
+  }
+  for (const c of candidates) {
+    const found = piPackageAt(c)
+    if (found) return found
   }
   return undefined
 }
@@ -276,4 +330,4 @@ function findClaudeExecutable(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-module.exports = { COORDINATOR_TOOLS, findCoordinator, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
+module.exports = { COORDINATOR_TOOLS, findCoordinator, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, PI_PACKAGES, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }

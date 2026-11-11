@@ -187,8 +187,10 @@ runs only in its own folder, re-checked against the allowed folders. The
 running cost total per session is kept in `costs.json` in the module's data
 folder (numbers only) so a resumed turn's own cost can be worked out.
 **pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
-agent SDK, found behind the `pi` command (`findPiSdk`); MonoRail does not
-bundle it. pi has no approval prompts, so its limits are the tool list and a
+agent SDK, found behind the `pi` command (`findPiSdk`: PATH plus the usual
+npm/pnpm/bun/Volta/scoop folders, reading the command's shim to find the
+package; `@earendil-works/pi-coding-agent`, or `@mariozechner/...` for pi 0.x).
+MonoRail does not bundle it; the worker handles pi 1.x (`ModelRuntime`) and 0.x. pi has no approval prompts, so its limits are the tool list and a
 path guard: Ask gets read/grep/find/ls, Agent adds edit/write, every tool path
 must resolve (real path) inside the chat's repo, the user's pi extensions are
 not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
