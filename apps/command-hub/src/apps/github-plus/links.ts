@@ -10,3 +10,4 @@ export const backupsLink = (): string => '/repo/backups'
 export const issuesLink = (state?: 'closed'): string => `/repo/issues${state ? '?state=closed' : ''}`
 export const issueLink = (n: number): string => `/repo/issues/${n}`
 export const newIssueLink = (): string => '/repo/issues/new'
+export const tasksLink = (): string => '/repo/tasks'

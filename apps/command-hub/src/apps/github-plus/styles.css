@@ -448,6 +448,16 @@
   .issue-row:hover { background: var(--bg2); }
   .issue-row > span:first-child { padding-top: 2px; }
   .issue-open { color: var(--green); } .issue-closed { color: var(--purple); }
+  /* Jira+ tasks linked to the repo */
+  .task-todo { color: var(--muted); } .task-progress { color: var(--link); } .task-done { color: var(--green); }
+  .task-error { color: var(--yellow); }
+  .link-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 3px; }
+  .gh-tasks { list-style: none; margin: 4px 0 0; padding: 0; }
+  .gh-tasks li { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
+  .task-pick-list { max-height: 320px; overflow-y: auto; }
+  .task-pick { all: unset; box-sizing: border-box; display: flex; gap: 12px; align-items: center; width: 100%; padding: 8px 16px; border-top: 1px solid var(--border); cursor: pointer; }
+  .task-pick:hover, .task-pick:focus-visible { background: var(--bg2); }
+  .task-pick:disabled { opacity: .5; cursor: default; }
   .issue-title { color: var(--fg); font-weight: 600; font-size: 15px; }
   .issue-title:hover { color: var(--link); }
   .issue-comments { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }

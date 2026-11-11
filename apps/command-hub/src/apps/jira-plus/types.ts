@@ -101,3 +101,18 @@ export interface NewIssue extends IssueFields {
 
 /** Selected scope in the project list. */
 export type Scope = { kind: 'all' } | { kind: 'project'; source: Source; key: string }
+
+/** A repository linked to a task (stored in Jira+'s data folder only, never in Jira or GitHub). */
+export interface RepoLink {
+  /** Identifies the repo within the task's links (for unlinking). */
+  id: string
+  repo: {
+    /** local: a git repo on this computer; github: a repo on github.com that is not cloned here. */
+    kind: 'local' | 'github'
+    path?: string
+    /** "owner/name" on github.com (for a local repo: its github.com remote, if any). */
+    github?: string | null
+    name: string
+  }
+  linkedAt: string
+}

@@ -11,6 +11,7 @@ import { useJira } from '../JiraContext'
 import type { IssueDetail, IssueFields } from '../types'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './Menu'
 import { ErrorNote } from './Modal'
+import { RepoLinks } from './RepoLinks'
 
 /** The issue view: Jira's large modal with the ticket on the left and Details on the right. */
 export function IssueModal() {
@@ -154,6 +155,12 @@ export function IssueModal() {
                         </div>
                       </DetailRow>
                     </dl>
+                  </div>
+                  <div className="rounded-[3px] border border-(--jp-border)">
+                    <div className="border-b border-(--jp-border) px-4 py-3 font-semibold">Repositories</div>
+                    <div className="p-4 pt-3">
+                      <RepoLinks key={`${issue.source}:${issue.key}`} source={issue.source} issueKey={issue.key} />
+                    </div>
                   </div>
                   <div className="px-1 text-xs leading-5 text-(--jp-subtlest)">
                     <div>Created {formatRelative(issue.created)}</div>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { navigate } from '@/lib/router'
 import { api } from '../api'
-import type { GitHubRepo, GitHubRepos } from '../types'
+import type { GitHubRepo, GitHubRepos, LinkedTask } from '../types'
+import { openInJiraPlus } from '../../jira-plus/handoff'
 import { fullDate, timeAgo } from '../util'
 import { CloudIcon, ExternalIcon, RefreshIcon } from './Icons'
 
@@ -17,8 +18,10 @@ let lastRepos: GitHubRepos | null = null
  * computer yet (owned, shared with them, and their organizations'). Nothing is
  * fetched until GitHub is set up on the Connections page.
  */
-export default function GitHubRepoList({ filter, localGitHub, onCloned }: {
+export default function GitHubRepoList({ filter, localGitHub, onCloned, taskCounts }: {
   filter: string
+  /** Jira+ tasks linked per lowercased "owner/name". */
+  taskCounts?: Record<string, number>
   /** Lowercased "owner/name" of the github.com remotes of the local repos, to leave those out. */
   localGitHub: Set<string>
   /** Called with the cloned repo's path; the home page opens it. */
@@ -96,6 +99,7 @@ export default function GitHubRepoList({ filter, localGitHub, onCloned }: {
                   <span className="ellipsis"><span className="gh-owner">{r.owner}/</span>{r.name}</span>
                   {r.private && <span className="badge">Private</span>}
                   {r.archived && <span className="badge">Archived</span>}
+                  {(taskCounts?.[r.fullName.toLowerCase()] ?? 0) > 0 && <span className="badge" title="Jira+ tasks linked to this repository">{taskCounts![r.fullName.toLowerCase()]} task{taskCounts![r.fullName.toLowerCase()] === 1 ? '' : 's'}</span>}
                 </button>
               </div>
               {open && (
@@ -105,6 +109,7 @@ export default function GitHubRepoList({ filter, localGitHub, onCloned }: {
                     {[RELATION_LABEL[r.relation], r.fork && 'Fork', ].filter(Boolean).join(' · ')}
                     {r.pushedAt && <>{r.relation !== 'owner' || r.fork ? ' · ' : ''}<span title={fullDate(r.pushedAt)}>pushed {timeAgo(r.pushedAt)}</span></>}
                   </div>
+                  {(taskCounts?.[r.fullName.toLowerCase()] ?? 0) > 0 && <RepoTasks fullName={r.fullName} />}
                   <div className="gh-actions">
                     <button className="btn" disabled={busy !== null} onClick={() => void clone(r)} title="Pick a folder; GitHub+ clones the repository into it and opens it">{busy === r.fullName ? 'Cloning…' : 'Clone…'}</button>
                     <button className="btn" onClick={() => void api.openOnGitHub(r.fullName).catch((e: Error) => setError(e.message))}>Open on GitHub <ExternalIcon /></button>
@@ -122,5 +127,26 @@ export default function GitHubRepoList({ filter, localGitHub, onCloned }: {
       {onComputer > 0 && <p className="muted small gh-note">{onComputer} more {onComputer === 1 ? 'is' : 'are'} already on this computer, listed above.</p>}
       {data?.truncated && <p className="muted small gh-note">Only your 1,000 most recently pushed repositories are listed.</p>}
     </div>
+  )
+}
+
+/** Jira+ tasks linked to a repo on GitHub, shown when its row is open. */
+function RepoTasks({ fullName }: { fullName: string }) {
+  const [tasks, setTasks] = useState<LinkedTask[] | null>(null)
+  useEffect(() => {
+    let live = true
+    api.linkedTasksOnGitHub(fullName).then((t) => live && setTasks(t), () => live && setTasks([]))
+    return () => { live = false }
+  }, [fullName])
+  if (!tasks?.length) return null
+  return (
+    <ul className="gh-tasks">
+      {tasks.map((t) => (
+        <li key={`${t.source}:${t.key}`}>
+          <span className="mono muted">{t.key}</span>
+          <button className="link-btn ellipsis" title="Open in Jira+" onClick={() => openInJiraPlus(t.source, t.key)}>{t.summary ?? t.key}</button>
+        </li>
+      ))}
+    </ul>
   )
 }
