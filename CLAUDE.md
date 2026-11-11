@@ -182,7 +182,10 @@ transcript follows the branch ending at the last entry. **Allowed folders**
 folder resolves (real path, following symlinks and junctions) into a git repo
 directly under the Repos folder (default `~/Repos`) or a repo added in the
 page's Folders dialog; folders are picked in the system dialog, and every
-request re-resolves them. Read limits: the list reads the 300 newest logs and
+request re-resolves them. Hidden chats show as one "Allow folders" button
+that opens that dialog, which lists the folders they ran in grouped by their
+git repo (never the home folder or a drive root) with a one-click Allow; the
+backend's `allowHiddenRepo` only accepts a repo its last list offered. Read limits: the list reads the 300 newest logs and
 keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
 page says when it was cut.
 

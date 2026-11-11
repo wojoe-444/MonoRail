@@ -8,7 +8,6 @@ import {
   Check,
   ChevronRight,
   FlaskConical,
-  Folder,
   FolderGit2,
   FolderPlus,
   GitBranch,
@@ -349,6 +348,7 @@ export default function AgentChatPage() {
 
       <FoldersDialog
         open={foldersOpen}
+        hidden={data?.limits ? { count: data.limits.outsideAllowed, folders: data.limits.hiddenFolders ?? [] } : undefined}
         onOpenChange={setFoldersOpen}
         onChanged={() => {
           if (desktop) void list.refresh()
@@ -739,35 +739,19 @@ function ListLimits({ limits, onOpenFolders }: { limits?: SessionList['limits'];
   const hidden = limits.outsideAllowed
   if (!notes.length && !hidden) return null
   return (
-    <div className="space-y-3 px-3 py-3 text-xs text-muted-foreground">
+    <div className="space-y-2 px-3 py-3 text-xs text-muted-foreground">
       {notes.length > 0 && <p>{notes.join(' ')}</p>}
-      {hidden > 0 && (
-        <div className="space-y-2 rounded-lg border p-3">
-          <p>
-            {hidden} {hidden === 1 ? 'chat is' : 'chats are'} hidden because {hidden === 1 ? 'it ran' : 'they ran'} outside your allowed repos. Chat
-            only lists, opens and runs chats in repos you allow, so an agent started here can never reach other folders.
-          </p>
-          {!!limits.hiddenFolders?.length && (
-            <ul className="space-y-1">
-              {limits.hiddenFolders.map((f) => (
-                <li key={f.path} className="flex items-center gap-2" title={f.path}>
-                  <Folder className="size-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate font-mono">{f.path}</span>
-                  {f.gitRepo === false && <span className="shrink-0 rounded bg-muted px-1">not a repo</span>}
-                  <span className="shrink-0 tabular-nums">{f.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {limits.hiddenFolders?.some((f) => f.gitRepo === false) && (
-            <p>Folders that are not a git repo (your home folder, for example) cannot be allowed. Start those chats inside a repo instead.</p>
-          )}
-          {onOpenFolders && (
-            <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={onOpenFolders}>
-              <FolderPlus /> Allow folders…
-            </Button>
-          )}
-        </div>
+      {hidden > 0 && onOpenFolders && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 w-full text-xs"
+          onClick={onOpenFolders}
+          title={`${hidden} ${hidden === 1 ? 'chat ran' : 'chats ran'} outside your allowed repos`}
+        >
+          <FolderPlus /> Allow folders
+          <span className="ml-auto rounded-full bg-muted px-1.5 tabular-nums">{hidden} hidden</span>
+        </Button>
       )}
     </div>
   )
