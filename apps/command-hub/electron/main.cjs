@@ -1,14 +1,14 @@
-// Electron main process for the MonoHub desktop app.
+// Electron main process for the MonoRail desktop app.
 //
 // Private data rule: anything user-specific (API keys, tokens, local settings,
 // run history) is stored under app.getPath('userData'), which on Windows is
-// %APPDATA%\MonoHub. That folder is outside the repo and is never committed.
+// %APPDATA%\MonoRail. That folder is outside the repo and is never committed.
 
 const path = require('node:path')
 const { app, BrowserWindow, shell } = require('electron')
 
 const { setupUserData } = require('./userData.cjs')
-// Before anything touches userData: moves %APPDATA%\command-hub to MonoHub once.
+// Before anything touches userData: moves the old data folder to %APPDATA%\MonoRail once.
 setupUserData(app)
 
 const { registerModuleBackends } = require('./modules/index.cjs')
@@ -21,7 +21,7 @@ function createWindow() {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    title: 'MonoHub',
+    title: 'MonoRail',
     backgroundColor: '#f8f9fc',
     autoHideMenuBar: true,
     show: false,

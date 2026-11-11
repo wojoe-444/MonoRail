@@ -197,7 +197,7 @@ export function HomePage() {
       </section>
 
       <Separator />
-      <footer className="pb-2 text-xs text-muted-foreground">MonoHub · v0.1.0</footer>
+      <footer className="pb-2 text-xs text-muted-foreground">MonoRail · v0.1.0</footer>
     </div>
   )
 }

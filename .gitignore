@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------
 # PRIVATE DATA NEVER BELONGS IN THIS PUBLIC REPO.
 # User-specific data (API keys, tokens, settings, run history, logs)
-# lives in local AppData (%APPDATA%\MonoHub on Windows). These
+# lives in local AppData (%APPDATA%\MonoRail on Windows). These
 # rules are a safety net in case any of it ends up in the working tree.
 # ------------------------------------------------------------------
 AppData/

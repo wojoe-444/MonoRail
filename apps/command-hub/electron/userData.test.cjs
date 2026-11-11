@@ -1,4 +1,4 @@
-// Tests for the Command Hub -> MonoHub data folder move. Run with `npm test`.
+// Tests for the Command Hub / MonoHub -> MonoRail data folder move. Run with `npm test`.
 
 const { describe, it } = require('node:test')
 const assert = require('node:assert/strict')
@@ -8,12 +8,12 @@ const { join } = require('node:path')
 
 const { resolveUserDataDir } = require('./userData.cjs')
 
-const fresh = () => mkdtempSync(join(tmpdir(), 'monohub-appdata-'))
+const fresh = () => mkdtempSync(join(tmpdir(), 'monorail-appdata-'))
 
 describe('resolveUserDataDir', () => {
-  it('uses MonoHub on a clean machine', () => {
+  it('uses MonoRail on a clean machine', () => {
     const root = fresh()
-    assert.deepEqual(resolveUserDataDir(root), { dir: join(root, 'MonoHub') })
+    assert.deepEqual(resolveUserDataDir(root), { dir: join(root, 'MonoRail') })
   })
 
   it('moves the old Command Hub folder, keeping its contents', () => {
@@ -22,7 +22,7 @@ describe('resolveUserDataDir', () => {
     mkdirSync(join(old, 'modules', 'jira', 'local-repo'), { recursive: true })
     writeFileSync(join(old, 'modules', 'jira', 'connection.json'), '{"token":"x"}')
     const r = resolveUserDataDir(root)
-    assert.equal(r.dir, join(root, 'MonoHub'))
+    assert.equal(r.dir, join(root, 'MonoRail'))
     assert.equal(r.migratedFrom, old)
     assert.equal(existsSync(old), false)
     assert.equal(readFileSync(join(r.dir, 'modules', 'jira', 'connection.json'), 'utf8'), '{"token":"x"}')
@@ -48,11 +48,33 @@ describe('resolveUserDataDir', () => {
     assert.equal(resolveUserDataDir(root).migratedFrom, join(root, 'Command Hub'))
   })
 
-  it('leaves the old folder alone once MonoHub exists', () => {
+  it('moves the MonoHub folder from the previous release, with Local State', () => {
     const root = fresh()
-    mkdirSync(join(root, 'MonoHub'))
+    const old = join(root, 'MonoHub')
+    mkdirSync(join(old, 'modules', 'jira'), { recursive: true })
+    writeFileSync(join(old, 'Local State'), '{"os_crypt":{"encrypted_key":"k"}}')
+    writeFileSync(join(old, 'modules', 'jira', 'connection.json'), '{"encrypted":true}')
+    const r = resolveUserDataDir(root)
+    assert.equal(r.dir, join(root, 'MonoRail'))
+    assert.equal(r.migratedFrom, old)
+    assert.equal(existsSync(old), false)
+    assert.equal(readFileSync(join(r.dir, 'Local State'), 'utf8'), '{"os_crypt":{"encrypted_key":"k"}}')
+    assert.ok(existsSync(join(r.dir, 'modules', 'jira', 'connection.json')))
+  })
+
+  it('prefers MonoHub over an older command-hub folder when both hold data', () => {
+    const root = fresh()
+    mkdirSync(join(root, 'command-hub', 'modules'), { recursive: true })
+    mkdirSync(join(root, 'MonoHub', 'modules'), { recursive: true })
+    assert.equal(resolveUserDataDir(root).migratedFrom, join(root, 'MonoHub'))
+    assert.ok(existsSync(join(root, 'command-hub')))
+  })
+
+  it('leaves old folders alone once MonoRail exists', () => {
+    const root = fresh()
+    mkdirSync(join(root, 'MonoRail'))
     mkdirSync(join(root, 'Command Hub'))
-    assert.deepEqual(resolveUserDataDir(root), { dir: join(root, 'MonoHub') })
+    assert.deepEqual(resolveUserDataDir(root), { dir: join(root, 'MonoRail') })
     assert.ok(existsSync(join(root, 'Command Hub')))
   })
 
@@ -79,6 +101,6 @@ describe('resolveUserDataDir', () => {
       require('node:fs').renameSync(a, b)
     }
     const r = resolveUserDataDir(root, { rename: flaky, delayMs: 1 })
-    assert.equal(r.dir, join(root, 'MonoHub'))
+    assert.equal(r.dir, join(root, 'MonoRail'))
   })
 })

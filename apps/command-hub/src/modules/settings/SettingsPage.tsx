@@ -18,7 +18,7 @@ const MODULE_ID = 'settings'
 const browserStatus: AppStatus = {
   currentVersion: '0.0.0-dev',
   electronVersion: '–',
-  dataDir: '%APPDATA%\\MonoHub',
+  dataDir: '%APPDATA%\\MonoRail',
   updatesSupported: false,
   unsupportedReason: 'Updates work in the installed desktop app, not in the browser.',
   state: 'idle',
@@ -85,7 +85,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>About</CardTitle>
-            <CardDescription>This copy of MonoHub.</CardDescription>
+            <CardDescription>This copy of MonoRail.</CardDescription>
           </CardHeader>
           <Separator />
           <CardContent>
@@ -162,7 +162,7 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
         <div className="flex flex-col gap-2">
           <Progress value={pct} />
           <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-            <span>Downloading {status.latestVersion}. MonoHub restarts when it finishes.</span>
+            <span>Downloading {status.latestVersion}. MonoRail restarts when it finishes.</span>
             <span>
               {formatBytes(status.progress?.transferred ?? 0)} / {formatBytes(status.progress?.total ?? 0)} ({pct}%)
             </span>
@@ -203,7 +203,7 @@ function headline(s: AppStatus, checking: boolean): string {
     case 'downloaded':
       return `Version ${s.latestVersion} is ready to install`
     case 'not-available':
-      return 'MonoHub is up to date'
+      return 'MonoRail is up to date'
     case 'error':
       return 'Could not check for updates'
     default:

@@ -10,12 +10,12 @@
 // folder (OneDrive etc.) never uploads half a file. The newest `keep` bundles
 // are kept; older ones for that repo are deleted.
 //
-// The scheduler runs inside MonoHub: it checks once a minute and once at
+// The scheduler runs inside MonoRail: it checks once a minute and once at
 // startup, so a backup that came due while the app was closed runs as soon
 // as it opens (one catch-up run, not one per missed slot).
 //
 // Private data rule: schedules and results live in
-// %APPDATA%\MonoHub\apps\github-plus\backups.json.
+// %APPDATA%\MonoRail\apps\github-plus\backups.json.
 
 const fs = require('node:fs/promises')
 const path = require('node:path')

@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 /**
  * The module contract.
  *
- * A module is a self-contained feature of MonoHub: it owns one nav entry,
+ * A module is a self-contained feature of MonoRail: it owns one nav entry,
  * one route, one page, and (optionally) a backend data source that runs in the
  * Electron main process. Adding a module is:
  *
