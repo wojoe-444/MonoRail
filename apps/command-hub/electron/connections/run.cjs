@@ -23,11 +23,11 @@ function isNotFound(code, stderr, error) {
 }
 
 /** Run to completion: { code, stdout, stderr, notFound, timedOut }. Never throws. */
-function runTool(cmd, args, { timeoutMs = 30_000, env } = {}) {
+function runTool(cmd, args, { timeoutMs = 30_000, env, cwd } = {}) {
   return new Promise((resolve) => {
     let child
     try {
-      child = spawnTool(cmd, args, { env, stdio: ['ignore', 'pipe', 'pipe'] })
+      child = spawnTool(cmd, args, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] })
     } catch (error) {
       resolve({ code: -1, stdout: '', stderr: String(error.message), notFound: false, timedOut: false })
       return

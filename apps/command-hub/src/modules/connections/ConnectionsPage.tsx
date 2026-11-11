@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Cloud,
   ExternalLink,
+  GitBranch,
   KeyRound,
   Loader2,
   LogIn,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   ShieldAlert,
   Sparkles,
+  SquareTerminal,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -38,7 +40,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles } as const
+const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },
@@ -258,8 +260,8 @@ export default function ConnectionsPage() {
           <DialogHeader>
             <DialogTitle>Remove {removing?.title}?</DialogTitle>
             <DialogDescription>
-              MonoRail forgets this connection and any token it saved. Accounts signed in outside MonoRail (gcloud, Claude Code, Credential Manager) are not
-              signed out.
+              MonoRail forgets this connection and any token it saved. Accounts and tools set up outside MonoRail (gcloud, Claude Code, pi, git, Credential
+              Manager) are not signed out or changed, and pi keeps its current scoped models.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

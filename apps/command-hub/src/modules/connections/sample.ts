@@ -42,7 +42,33 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  pi: {
+    state: 'ok',
+    summary: 'pi 1.5.2 is ready with 3 scoped models.',
+    details: [
+      { label: 'pi', value: '1.5.2' },
+      { label: 'Signed in to', value: 'anthropic (login)' },
+      { label: 'Scoped in pi', value: 'anthropic: claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5' },
+      { label: 'Matches this connection', value: 'Yes', ok: true },
+    ],
+    added: true,
+    checkedAt: at,
+  },
+  git: {
+    state: 'ok',
+    summary: 'git 2.47.1.windows.1 is set up.',
+    details: [
+      { label: 'git', value: '2.47.1.windows.1' },
+      { label: 'user.name', value: 'Sam Demo', ok: true },
+      { label: 'user.email', value: 'sam.demo@example.com', ok: true },
+      { label: 'Credential helper', value: 'Git Credential Manager', ok: true },
+    ],
+    added: true,
+    checkedAt: at,
+  },
 }
+
+const PI_DEFAULT_MODELS = 'anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5'
 
 export const sampleList: ConnectionsList = {
   encryptionAvailable: true,
@@ -109,6 +135,38 @@ export const sampleList: ConnectionsList = {
       ],
       actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running claude auth login.', showWhen: ['expired', 'needs-setup', 'ok', 'error'] }],
     },
+    {
+      kind: 'pi',
+      title: 'pi',
+      description: 'The pi coding agent that Chat runs pi sessions with, and the models it is scoped to.',
+      icon: 'terminal',
+      fields: [
+        {
+          key: 'scopedModels',
+          label: 'Scoped models',
+          type: 'text',
+          defaultValue: PI_DEFAULT_MODELS,
+          placeholder: PI_DEFAULT_MODELS,
+          help: "The models pi cycles through and offers, as pi's /scoped-models saves them (provider/model, comma separated; globs like anthropic/*sonnet* work). Saving writes them to pi's settings. Leave empty to allow all models.",
+        },
+      ],
+      actions: [
+        {
+          id: 'apply-scoped-models',
+          label: 'Apply scoped models',
+          description: "Writes this connection's scoped models to pi's settings again (for example after /scoped-models changed them).",
+          showWhen: ['ok', 'error', 'needs-setup'],
+        },
+      ],
+    },
+    {
+      kind: 'git',
+      title: 'Git',
+      description: 'The git that GitHub+ and Chat run: its version, commit identity and credential helper.',
+      icon: 'git',
+      fields: [],
+      actions: [],
+    },
   ],
   connections: [
     {
@@ -134,6 +192,22 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.claude,
+    },
+    {
+      kind: 'pi',
+      values: { scopedModels: PI_DEFAULT_MODELS },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.pi,
+    },
+    {
+      kind: 'git',
+      values: {},
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.git,
     },
   ],
 }
