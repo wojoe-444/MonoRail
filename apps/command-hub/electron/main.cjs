@@ -8,7 +8,7 @@ const path = require('node:path')
 const { app, BrowserWindow, shell } = require('electron')
 
 const { setupUserData } = require('./userData.cjs')
-// Before anything touches userData: moves the old data folder to %APPDATA%\MonoRail once.
+// Before anything touches userData: picks the existing data folder (never moves it).
 setupUserData(app)
 
 const { registerModuleBackends } = require('./modules/index.cjs')

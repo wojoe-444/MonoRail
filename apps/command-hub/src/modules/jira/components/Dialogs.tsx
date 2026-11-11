@@ -392,7 +392,7 @@ export function ConnectJiraDialog({ open, onOpenChange, connection, onSaved }: C
           <div className="flex items-start gap-2 rounded-lg bg-muted px-4 py-3 text-xs text-muted-foreground">
             <Lock className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              Saved only on this computer, in %APPDATA%\MonoRail. The token is encrypted with Windows' data protection and is never shown again.
+              Saved only on this computer, in MonoRail's data folder (Settings shows where). The token is encrypted with Windows' data protection and is never shown again.
             </span>
           </div>
           <ErrorNote error={error} />
