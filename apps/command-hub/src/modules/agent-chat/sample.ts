@@ -39,6 +39,7 @@ export const sampleSessions: SessionList = {
       updatedAt: now - 4 * 60 * min,
       sizeBytes: 21_000,
       total: { usd: 0.12, complete: true },
+      unread: true,
       repo: { name: 'seed-catalog', path: '/home/demo/Repos/seed-catalog' },
     },
     {
@@ -55,6 +56,7 @@ export const sampleSessions: SessionList = {
       updatedAt: now - 25 * 60 * min,
       sizeBytes: 9_000,
       total: { complete: false, reason: 'no-record' },
+      scheduled: true,
       repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
   ],

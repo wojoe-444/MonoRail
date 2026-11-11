@@ -4,7 +4,7 @@ import type { Backend, BackendContext } from './backend'
 
 export interface TestOptions {
   /** monorail.json contents; read from `root` when omitted. */
-  manifest?: { id?: string; name?: string; version?: string; permissions?: object; backend?: { main: string } }
+  manifest?: { id?: string; name?: string; version?: string; permissions?: object; backend?: { main: string }; settings?: { key: string; type?: string; default?: unknown }[] }
   /** Data folder; a temporary one (deleted by close()) when omitted. */
   dataDir?: string
   extensionDir?: string
@@ -14,6 +14,8 @@ export interface TestOptions {
   secrets?: Record<string, string>
   /** false simulates a computer without encryption (EXT_SECRETS_UNAVAILABLE). */
   secretsAvailable?: boolean
+  /** Settings values "the user entered"; defaults come from manifest.settings. */
+  settings?: Record<string, unknown>
 }
 
 export interface LoadOptions extends TestOptions {
@@ -43,6 +45,8 @@ export interface LoadedBackend extends TestRecord {
   ctx: BackendContext
   backend: Backend
   invoke<T = unknown>(method: string, args?: unknown): Promise<T>
+  /** Simulate saving settings: settingsChanged(), or stop() + start(). */
+  changeSettings(values: Record<string, unknown>): Promise<void>
   close(opts?: { keepData?: boolean }): Promise<void>
 }
 

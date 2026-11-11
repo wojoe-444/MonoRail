@@ -38,6 +38,19 @@ export interface MonoRailClient {
   pickFolder(options?: { write?: boolean }): Promise<GrantedFolder | null>
   /** Open an https:// link in the user's browser. */
   openExternal(url: string): Promise<void>
+  /** Settings declared in monorail.json (API 1.1). Secret values are never sent to pages. */
+  getSettings<V extends Record<string, unknown> = Record<string, unknown>>(): Promise<SettingsSnapshot<V>>
+  /** The user saved new settings. Returns an unsubscribe function. */
+  onSettings<V extends Record<string, unknown> = Record<string, unknown>>(cb: (s: SettingsSnapshot<V>) => void): () => void
+  /** Show this extension's settings form in MonoRail. */
+  openSettings(): Promise<void>
+}
+
+export interface SettingsSnapshot<V = Record<string, unknown>> {
+  /** Every non-secret field: the saved value, else the default, else null (false for booleans). */
+  values: V
+  /** Per secret field: whether a value is saved. */
+  secrets: Record<string, boolean>
 }
 
 export const monorail: MonoRailClient

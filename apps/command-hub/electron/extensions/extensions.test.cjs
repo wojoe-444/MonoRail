@@ -415,3 +415,110 @@ test('a migrate that throws stops the start and runs again next time', async () 
   assert.equal(m.state.dataVersions['hello-test'], 'explode')
   await host.stopAll()
 })
+
+// ---------------------------------------------------------------- settings --
+
+const { SettingsStore } = require('./settings.cjs')
+
+const SETTINGS = [
+  { key: 'server', type: 'string', title: 'Server', required: true, default: 'localhost' },
+  { key: 'port', type: 'number', title: 'Port', min: 1, max: 65535, default: 25565 },
+  { key: 'auto', type: 'boolean', title: 'Reconnect' },
+  { key: 'mode', type: 'select', title: 'Mode', options: ['survival', { value: 'creative', label: 'Creative' }], default: 'survival' },
+  { key: 'token', type: 'secret', title: 'Token', required: true },
+]
+
+test('settings in the manifest are validated and normalized', () => {
+  const m = manifest.validateManifest(baseManifest({ settings: SETTINGS }))
+  assert.equal(m.settings.length, 5)
+  assert.deepEqual(m.settings[3].options, [{ value: 'survival', label: 'survival' }, { value: 'creative', label: 'Creative' }])
+  assert.deepEqual(manifest.validateManifest(baseManifest()).settings, [])
+  const bad = (settings, re) => assert.throws(() => manifest.validateManifest(baseManifest({ settings })), re)
+  bad([{ key: '1x', title: 'X' }], /key must start with a letter/)
+  bad([{ key: 'a', title: 'A' }, { key: 'a', title: 'B' }], /Two settings use the key "a"/)
+  bad([{ key: 'a', title: 'A', type: 'color' }], /type must be one of/)
+  bad([{ key: 'a', title: 'A', type: 'number', default: 'x' }], /default: must be a number/)
+  bad([{ key: 'a', title: 'A', type: 'secret', default: 'x' }], /cannot have a default/)
+  bad([{ key: 'a', title: 'A', type: 'select', options: [] }], /options must be/)
+  bad([{ key: 'a', title: 'A', type: 'select', options: ['x'], default: 'y' }], /must be one of x/)
+})
+
+const SETTINGS_BACKEND = (withHook) => `
+let started = 0
+module.exports = {
+  async start() { started++ },
+  ${withHook ? `async settingsChanged(ctx, values) { globalThis.changed = values },` : ''}
+  methods: {
+    async read(ctx) { return { values: await ctx.settings.get(), started, changed: globalThis.changed ?? null } },
+  },
+}
+`
+
+function settingsManager() {
+  const userData = tmp('userdata')
+  const secretStore = new SecretStore({ root: path.join(userData, 'extension-secrets'), cipher: fakeCipher() })
+  const settingsStore = new SettingsStore({ root: path.join(userData, 'extension-settings'), secretStore })
+  const pushed = []
+  let m
+  const host = new BackendHost({
+    execPath: process.execPath,
+    apiVersion: manifest.API_VERSION,
+    secrets: (id) => secretStore.forExtension(id),
+    settings: (id) => settingsStore.backendValues(m.record(id).manifest),
+  })
+  hosts.push(host)
+  m = new ExtensionManager({ userData, host, secretStore, settingsStore, onSettings: (id, v) => pushed.push([id, v]) })
+  m.init()
+  return { m, host, userData, pushed }
+}
+
+for (const withHook of [true, false]) {
+  test(`settings reach the backend and pages (${withHook ? 'settingsChanged' : 'restart'})`, async () => {
+    const dir = tmp('set')
+    writeExtension(dir, baseManifest({ backend: { main: 'backend/index.cjs' }, settings: SETTINGS }))
+    fs.writeFileSync(path.join(dir, 'backend', 'index.cjs'), SETTINGS_BACKEND(withHook))
+    const { m, host, userData, pushed } = settingsManager()
+    await m.confirm((await m.inspect({ kind: 'folder', path: dir })).token)
+
+    assert.deepEqual(m.summary(m.record('hello-test')).settingsMissing, ['Token'])
+    let r = await m.invoke('hello-test', 'read')
+    assert.deepEqual(r.values, { server: 'localhost', port: 25565, auto: false, mode: 'survival', token: null })
+
+    await assert.rejects(m.saveSettings('hello-test', { port: 70000 }), { code: 'EXT_INVALID_SETTINGS', details: { field: 'port' } })
+    await m.saveSettings('hello-test', { server: '' })
+    assert.equal(m.getSettings('hello-test').values.server, 'localhost', 'an emptied field falls back to its default')
+    await assert.rejects(m.saveSettings('hello-test', { nope: 1 }), /no setting "nope"/)
+
+    const pub = await m.saveSettings('hello-test', { port: 25570, auto: true, token: 's3cret' })
+    assert.deepEqual(pub, { values: { server: 'localhost', port: 25570, auto: true, mode: 'survival' }, secrets: { token: true } })
+    assert.deepEqual(pushed.at(-1), ['hello-test', pub], 'open pages are told, without the secret')
+    assert.deepEqual(m.summary(m.record('hello-test')).settingsMissing, [])
+    assert.ok(!fs.readFileSync(path.join(userData, 'extension-secrets', 'hello-test.settings.json'), 'utf8').includes('s3cret'))
+
+    r = await m.invoke('hello-test', 'read')
+    assert.equal(r.values.token, 's3cret')
+    assert.equal(r.values.port, 25570)
+    if (withHook) {
+      assert.equal(r.started, 1, 'not restarted')
+      assert.equal(r.changed.port, 25570)
+    } else {
+      assert.equal(r.changed, null)
+    }
+
+    await m.saveSettings('hello-test', { token: null, port: null })
+    assert.deepEqual(m.getSettings('hello-test').secrets, { token: false })
+    assert.equal(m.getSettings('hello-test').values.port, 25565, 'null resets to the default')
+    await m.uninstall('hello-test', { deleteData: true })
+    assert.ok(!fs.existsSync(path.join(userData, 'extension-settings', 'hello-test.json')))
+    await host.stopAll()
+  })
+}
+
+test('the reserved "monorail." event channel is refused', async () => {
+  const src = writeExtension(tmp('chan'))
+  fs.appendFileSync(path.join(src, 'backend', 'index.cjs'), `\nmodule.exports.methods.reserved = async (ctx) => ctx.emit('monorail.settings', {})\n`)
+  const { m, host } = newManager()
+  await m.confirm((await m.inspect({ kind: 'folder', path: src })).token)
+  await assert.rejects(m.invoke('hello-test', 'reserved'), { code: 'EXT_BAD_PAYLOAD' })
+  await host.stopAll()
+})

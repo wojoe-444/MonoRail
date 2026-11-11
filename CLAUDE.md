@@ -214,6 +214,15 @@ changed after it), pi's is every paid entry in the file, abandoned branches
 included; past the 4 MB read limit only spend since opening is counted, and
 the page says so. A total never reads complete when it is not.
 
+**List flags** (`agent-chat-state.cjs`, `chat-state.json` in the data folder,
+keyed by chat id, flags and times only): unread (the log changed after the
+chat was last seen, or marked by hand; an opened unread chat stays unread
+until it is left; a reply that finishes while watching counts as seen),
+archived, and started-here. Claude chats whose log says they were started
+headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
+Scheduled and archived chats are hidden behind toggle buttons; the open chat
+always stays listed. Right-click a chat to mark it read/unread or archive it.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
@@ -420,6 +429,14 @@ before `start()` when the version that last used the data folder changed
 (`state.json` `dataVersions`); `ctx.emit` is fire and forget (dropped with no
 page open, JSON under 1 MB). Program names in `permissions.process` match
 without `.exe`/`.cmd`/`.bat`/`.com` on both sides.
+Settings (`settings.cjs`, API 1.1): the manifest's `settings` list (string,
+text, number, boolean, select, secret) becomes a generated form in Settings >
+Extensions (`modules/extensions/SettingsDialog.tsx`). MonoRail validates and
+stores values in `extension-settings/<id>.json`, secret fields encrypted in
+`extension-secrets/<id>.settings.json`; backends read `ctx.settings.get()`,
+pages `monorail.getSettings()` (no secret values) and get
+`monorail.onSettings` via the reserved `monorail.settings` event channel. On
+save a backend's `settingsChanged(ctx, values)` runs, or it is restarted.
 
 **Install, update, remove** (`manager.cjs`, `install.cjs`). Sources: a
 folder (copied), a `.zip`, the latest GitHub release of `owner/name` (the

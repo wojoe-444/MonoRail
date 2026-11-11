@@ -59,6 +59,10 @@ export interface ExtensionSummary {
   contributes: { modules: ModuleContribution[]; apps: AppContribution[] }
   backend?: { activation: 'onDemand' | 'startup'; state: 'running' | 'starting' | 'stopped' | 'crashed'; error?: string }
   update?: { version: string; notes?: string; publishedAt?: string }
+  /** Fields declared under "settings" in monorail.json. */
+  settings: SettingField[]
+  /** Titles of required settings that have no value yet. */
+  settingsMissing: string[]
   dataDir: string
   extensionDir: string
 }
@@ -93,4 +97,27 @@ export interface LogLine {
   at: string
   level: 'info' | 'warn' | 'error'
   line: string
+}
+
+/** One field of an extension's settings form (electron/extensions/manifest.cjs normalizeSettings). */
+export interface SettingField {
+  key: string
+  type: 'string' | 'text' | 'number' | 'boolean' | 'select' | 'secret'
+  title: string
+  description: string
+  required?: boolean
+  placeholder?: string
+  maxLength?: number
+  min?: number
+  max?: number
+  step?: number
+  options?: { value: string; label: string }[]
+  default?: string | number | boolean
+}
+
+export interface SettingsSnapshot {
+  fields: SettingField[]
+  values: Record<string, string | number | boolean | null>
+  /** Per secret field: whether one is saved. */
+  secrets: Record<string, boolean>
 }
