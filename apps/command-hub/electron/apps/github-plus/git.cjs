@@ -258,6 +258,43 @@ async function compareRefs(repo, base, head) {
   return { base, head, commits, files, truncated }
 }
 
+/**
+ * A dashboard summary of one repo: newest commits on any branch, and the
+ * most recently updated branches with ahead/behind against the default.
+ */
+async function recentActivity(repo, { commits = 10, branches = 6 } = {}) {
+  const info = await openRepo(repo)
+  if (info.isEmpty) return { ...info, commits: [], branches: [] }
+  const log = parseLog(await text(info.path, ['log', '--all', '--date-order', `--format=${LOG_FMT}`, '-n', String(commits), '--']))
+  const SEP = '\x1f'
+  const out = await text(info.path, [
+    'for-each-ref',
+    `--format=%(refname:short)${SEP}%(objectname)${SEP}%(committerdate:iso-strict)${SEP}%(authorname)${SEP}%(contents:subject)`,
+    '--sort=-committerdate',
+    `--count=${branches}`,
+    'refs/heads',
+  ])
+  const list = out.split('\n').filter(Boolean).map((line) => {
+    const [name, sha, date, author, subject] = line.split(SEP)
+    return { name, sha, date, author, subject, isDefault: name === info.defaultRef }
+  })
+  if (info.defaultRef) {
+    await Promise.all(
+      list.filter((b) => !b.isDefault).map(async (b) => {
+        try {
+          const [behind, ahead] = (await text(info.path, ['rev-list', '--left-right', '--count', `${assertRef(info.defaultRef)}...refs/heads/${b.name}`]))
+            .trim().split(/\s+/).map(Number)
+          b.ahead = ahead
+          b.behind = behind
+        } catch {
+          /* ignore */
+        }
+      }),
+    )
+  }
+  return { ...info, commits: log, branches: list }
+}
+
 /** Write every branch and tag, with full history, to one bundle file; then check it. */
 async function createBundle(repo, file) {
   await run(repo, ['bundle', 'create', file, '--all'])
@@ -267,6 +304,7 @@ async function createBundle(repo, file) {
 
 module.exports = {
   createBundle,
+  recentActivity,
   assertRef,
   assertPath,
   openRepo,

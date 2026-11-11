@@ -146,3 +146,30 @@ export interface GitHubPlusSettings {
   /** Make plain folders into repos without asking. Off by default. */
   autoInitFolders: boolean
 }
+
+export interface ActiveBranch {
+  name: string
+  sha: string
+  date: string
+  author: string
+  subject: string
+  isDefault: boolean
+  ahead?: number
+  behind?: number
+}
+
+/** One recently opened repo, as summarized for the home dashboard. */
+export interface RepoActivity {
+  path: string
+  name: string
+  defaultRef?: string | null
+  currentBranch?: string | null
+  isEmpty?: boolean
+  /** Set when the repo could not be read (moved, deleted, no longer a repo). */
+  error?: string
+  /** Newest commits on any branch. */
+  commits: CommitSummary[]
+  /** Most recently updated branches. */
+  branches: ActiveBranch[]
+  backup: Pick<BackupState, 'schedule' | 'lastResult' | 'nextDueAt'> | null
+}

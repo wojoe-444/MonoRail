@@ -93,6 +93,22 @@ module.exports = {
       await fs.writeFile(path.join(ctx.dataDir, SETTINGS_FILE), JSON.stringify(next, null, 2))
       return next
     },
+    /**
+     * Home dashboard: activity across the recently opened repos. Reads only
+     * paths from the stored recents list, never paths sent by the page.
+     */
+    async getActivity(ctx) {
+      const recents = await readRecents(ctx)
+      return Promise.all(
+        recents.map(async (p) => {
+          const [activity, backup] = await Promise.all([
+            git.recentActivity(p).catch((e) => ({ path: p, name: path.basename(p), error: e.message, commits: [], branches: [] })),
+            backups.get(p).catch(() => null),
+          ])
+          return { ...activity, path: p, backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
+        }),
+      )
+    },
     async getRecents(ctx) {
       return readRecents(ctx)
     },
