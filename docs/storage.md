@@ -14,8 +14,8 @@ For a cleanup plan, add **Storage Detective** from the [Agent Catalog](agent-cat
 
 ## It only looks
 
-The page never deletes, moves, renames or copies anything it measures. The one
-file it writes is its own history (below), in MonoRail's data folder. Its only actions open a folder in Explorer and open the
+The page never deletes, moves, renames or copies anything it measures. The only
+files it writes are its own history (below) and your free-space goals, both in MonoRail's data folder. Its only actions open a folder in Explorer and open the
 Windows storage settings. That is on purpose: an earlier version of MonoRail
 renamed a data folder on its own and caused trouble, so nothing in MonoRail
 touches your folders without you.
@@ -29,6 +29,22 @@ touches your folders without you.
   shown as "≥" stopped there, so the real size is larger. Each row shows how
   much it grew or shrank since the scan before.
 - **Over time**: drive free space and folder sizes as a chart or a table.
+  Pick one drive to zoom in on it; your goal shows as a dashed line.
+
+## Free-space goal
+
+Each drive card has **Set a free-space goal**: how many GB you want to keep
+free on that drive (for example 50 GB on C:). The card then shows how close
+you are, how much more to free, or "Goal met" with what is to spare, and the
+[Over time](#what-it-shows) chart draws the goal as a dashed line in the
+drive's color. **Change** edits or removes it.
+
+A goal is only a target to aim for: setting one never deletes or moves
+anything. Use the rows marked [Safe to clear](#history) and each tool's own
+cleanup to get there. Goals belong to the computer, like the drives, so they
+are the same in every [profile](profiles.md). They are kept in `goals.json` in
+the Storage data folder (drive letters and numbers only), so an agent reading
+the Storage history can find them there too.
 
 ## History
 

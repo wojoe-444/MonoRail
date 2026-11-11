@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 import { ChartTooltipContent } from '@/components/charts/ChartTooltip'
 import { Legend } from '@/components/charts/Legend'
@@ -9,7 +9,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Separator } from '@/components/ui/separator'
 import { formatBytes } from '@/lib/format'
 
-import type { StorageHistory } from './types'
+import type { DriveGoal, StorageHistory } from './types'
 
 type Metric = 'drives' | 'folders'
 type View = 'chart' | 'table'
@@ -35,9 +35,11 @@ interface Row {
  * Storage over time, from the saved history: free space per drive (every scan
  * plus a background sample every few hours) or folder sizes (scans only).
  */
-export function HistoryCard({ history, error }: { history?: StorageHistory; error?: Error }) {
+export function HistoryCard({ history, error, goals = {} }: { history?: StorageHistory; error?: Error; goals?: Record<string, DriveGoal> }) {
   const [metric, setMetric] = useState<Metric>('drives')
   const [view, setView] = useState<View>('chart')
+  /** One drive at a time, so a small drive and its goal are not squashed by a big one. */
+  const [driveFilter, setDriveFilter] = useState('all')
   const snapshots = useMemo(() => history?.snapshots ?? [], [history])
 
   const { series, rows, empty } = useMemo(() => {
@@ -45,7 +47,9 @@ export function HistoryCard({ history, error }: { history?: StorageHistory; erro
       // Drives ranked once by size, so a drive keeps its color.
       const sizes = new Map<string, number>()
       for (const s of snapshots) for (const d of s.drives) sizes.set(d.id, Math.max(sizes.get(d.id) ?? 0, d.total))
-      const series: Series[] = [...sizes.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([id]) => ({ key: id, label: `${id} free` }))
+      const series: Series[] = [...sizes.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([id]) => ({ key: id, label: goals[id] ? `${id} free (goal ${formatBytes(goals[id].freeBytes)})` : `${id} free` }))
       const rows: Row[] = snapshots.map((s) => ({ t: Date.parse(s.takenAt), values: Object.fromEntries(s.drives.map((d) => [d.id, d.free])) }))
       return { series, rows, empty: rows.length === 0 }
     }
@@ -63,12 +67,17 @@ export function HistoryCard({ history, error }: { history?: StorageHistory; erro
       truncated: Object.fromEntries((s.locations ?? []).map((l) => [l.id, l.truncated])),
     }))
     return { series, rows, empty: rows.length === 0 }
-  }, [metric, snapshots])
+  }, [metric, snapshots, goals])
 
-  const lines = metric === 'folders' ? series.slice(0, MAX_LINES) : series.slice(0, 6)
-  const order = lines.map((s) => s.key)
+  const allLines = metric === 'folders' ? series.slice(0, MAX_LINES) : series.slice(0, 6)
+  // Colors come from the full list, so picking one drive never repaints it.
+  const order = allLines.map((s) => s.key)
+  const shownDrive = metric === 'drives' && allLines.some((s) => s.key === driveFilter) ? driveFilter : 'all'
+  const lines = shownDrive === 'all' ? allLines : allLines.filter((s) => s.key === shownDrive)
   const scanCount = snapshots.filter((s) => s.kind === 'scan').length
   const first = snapshots[0]
+  // Goals are drawn as dashed lines in their drive's color, on the drive chart only.
+  const goalLines = metric === 'drives' ? lines.filter((s) => goals[s.key]).map((s) => ({ key: s.key, bytes: goals[s.key].freeBytes })) : []
 
   return (
     <Card>
@@ -76,11 +85,19 @@ export function HistoryCard({ history, error }: { history?: StorageHistory; erro
         <CardTitle>Over time</CardTitle>
         <CardDescription>
           {metric === 'drives'
-            ? 'Free space per drive, saved with every scan and sampled every 6 hours while MonoRail runs.'
+            ? `Free space per drive, saved with every scan and sampled every 6 hours while MonoRail runs.${goalLines.length ? ' Dashed lines are your free-space goals.' : ''}`
             : `Folder sizes from each scan you ran${series.length > MAX_LINES ? ` (the ${MAX_LINES} largest drawn; the table has all)` : ''}.`}
           {first && ` Since ${dateOnly.format(new Date(first.takenAt))}, ${scanCount} ${scanCount === 1 ? 'scan' : 'scans'}.`}
         </CardDescription>
         <CardAction className="flex flex-wrap justify-end gap-2">
+          {metric === 'drives' && view === 'chart' && allLines.length > 1 && (
+            <Segmented
+              aria-label="Drive"
+              value={shownDrive}
+              onChange={setDriveFilter}
+              options={[{ value: 'all', label: 'All' }, ...allLines.map((s) => ({ value: s.key, label: s.key }))]}
+            />
+          )}
           <Segmented
             aria-label="What to show"
             value={metric}
@@ -114,7 +131,7 @@ export function HistoryCard({ history, error }: { history?: StorageHistory; erro
         ) : view === 'chart' ? (
           <>
             {lines.length > 1 && <Legend shape="line" items={lines.map((s) => ({ key: s.key, label: s.label, color: colorForSeries(order, s.key) }))} />}
-            <HistoryChart rows={rows} lines={lines} order={order} />
+            <HistoryChart rows={rows} lines={lines} order={order} goals={goalLines} />
           </>
         ) : (
           <HistoryTable rows={rows} series={series} />
@@ -124,7 +141,7 @@ export function HistoryCard({ history, error }: { history?: StorageHistory; erro
   )
 }
 
-function HistoryChart({ rows, lines, order }: { rows: Row[]; lines: Series[]; order: string[] }) {
+function HistoryChart({ rows, lines, order, goals }: { rows: Row[]; lines: Series[]; order: string[]; goals: { key: string; bytes: number }[] }) {
   const data = rows.map((r) => ({ t: r.t, ...Object.fromEntries(lines.map((s) => [s.key, r.values[s.key] ?? null])) }))
   const fewPoints = rows.length <= 12
   return (
@@ -156,6 +173,17 @@ function HistoryChart({ rows, lines, order }: { rows: Row[]; lines: Series[]; or
             )
           }}
         />
+        {goals.map((g) => (
+          <ReferenceLine
+            key={`goal-${g.key}`}
+            y={g.bytes}
+            ifOverflow="extendDomain"
+            stroke={colorForSeries(order, g.key)}
+            strokeWidth={1.5}
+            strokeDasharray="6 4"
+            label={{ value: `${g.key} goal`, position: 'insideTopRight', fill: 'var(--muted-foreground)', fontSize: 11 }}
+          />
+        ))}
         {lines.map((s) => (
           <Line
             key={s.key}

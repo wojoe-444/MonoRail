@@ -4,8 +4,9 @@
 // Read-only by design. Nothing here deletes, moves, renames or copies a file
 // or folder it measures. Drives are read on request (and sampled every few
 // hours while the app runs), the folder scan runs only when the user asks
-// (startScan), and the one thing written is the history snapshot in this
-// module's own data folder, through the shared cache primitive. The only
+// (startScan), and the only things written are the history snapshot in this
+// module's own data folder, through the shared cache primitive, and the
+// free-space goals the user sets (storage-goals.cjs). The only
 // actions open a folder in Explorer or the Windows storage settings, both by
 // location id, never by a path from the page.
 // Folder contents are never read, only names and sizes; links and junctions
@@ -272,6 +273,8 @@ async function listDrives({ platform = process.platform, env = process.env, home
 // location's largest children. Declared as the 'storage.history' cache.
 
 const cache = require('../cache/index.cjs')
+// Free-space goals live in their own file (storage-goals.cjs), so this file stays write-free.
+const { goalsView, setGoal } = require('./storage-goals.cjs')
 
 const HISTORY_ID = 'storage.history'
 /** A drives-only sample is due when the newest snapshot is this old. */
@@ -414,7 +417,14 @@ module.exports = {
   },
   methods: {
     async getDrives(ctx) {
-      return { platform: process.platform, drives: await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }) }
+      const [drives, goals] = await Promise.all([listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }), goalsView(ctx.dataDir)])
+      return { platform: process.platform, drives, ...goals }
+    },
+    /** Set or clear a drive's free-space goal: `{ drive: 'C:', freeBytes: number | null }`. */
+    async setGoal(ctx, args) {
+      const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir })
+      const goals = await setGoal(ctx.dataDir, { drive: args?.drive, freeBytes: args?.freeBytes ?? null }, drives.map((d) => d.id))
+      return { goals }
     },
     async getScan(ctx) {
       await restoreLastScan(ctx).catch(() => {})
