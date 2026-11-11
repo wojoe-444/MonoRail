@@ -51,3 +51,16 @@ export function formatIn(iso: string, now = Date.now()): string {
   if (h < 24) return `in ${h} h`
   return `in ${Math.round(h / 24)} d`
 }
+
+/** 512 B / 4.2 KB / 38 MB / 1.4 GB / 2.1 TB (powers of 1024, as Explorer shows them) */
+export function formatBytes(n: number | undefined): string {
+  if (n === undefined || !Number.isFinite(n)) return '–'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = Math.max(0, n)
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${i === 0 ? Math.round(v) : v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`
+}
