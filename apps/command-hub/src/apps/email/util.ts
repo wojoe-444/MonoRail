@@ -109,3 +109,13 @@ export function linkify(text: string): { text: string; href?: string }[] {
   if (last < text.length) out.push({ text: text.slice(last) })
   return out
 }
+
+/** How an account is named in the UI: its name, else its address. */
+export function accountLabel(a: { name?: string; address?: string } | null | undefined): string {
+  return a?.name || a?.address || 'Inbox'
+}
+
+/** What an account's avatar tile is drawn from (address when there is one). */
+export function accountAvatar(a: { name?: string; address?: string } | null | undefined): string {
+  return a?.address || a?.name || '?'
+}

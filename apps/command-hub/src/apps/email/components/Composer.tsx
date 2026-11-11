@@ -24,7 +24,7 @@ export default function Composer() {
     }
   }, [compose])
 
-  if (!compose || !account) return null
+  if (!compose || !account || account.readOnly) return null
   const dirty = !!(draft.to || draft.subject || draft.body)
 
   const close = () => {
@@ -63,7 +63,7 @@ export default function Composer() {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void send()
           }}
         >
-          <div className="eml-from">From <b>{account.address}</b></div>
+          <div className="eml-from">From <b>{account.address || account.name}</b></div>
           <DraftFields draft={draft} onChange={setDraft} />
           {error && <p className="eml-error">{error}</p>}
           <footer>

@@ -95,7 +95,7 @@ async function signIn(env, config, { signal } = {}) {
     if (!SCOPES.every((s) => granted.includes(s))) throw new Error('Gmail access was not granted. Tick the Gmail box on the consent screen and try again.')
     const profile = await apiJson(env.fetch, tokens.access_token, '/profile')
     return {
-      account: { address: profile.emailAddress, name: profile.emailAddress },
+      account: { key: String(profile.emailAddress).toLowerCase(), address: profile.emailAddress, name: profile.emailAddress },
       credentials: { refreshToken: tokens.refresh_token, scope: tokens.scope },
       // Handed to createSession so the first calls skip a refresh.
       accessToken: { token: tokens.access_token, expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000 },
@@ -221,7 +221,7 @@ function createSession(env, { config, credentials, onCredentials, accessToken })
   }
 
   return {
-    capabilities: { labels: true, multipleLabels: true, search: true },
+    capabilities: { labels: true, multipleLabels: true, search: true, folderTree: false, fullStoreSearch: false, daysBack: true, unreadFilter: true },
 
     async listFolders() {
       const { labels = [] } = await call('/labels')
@@ -239,10 +239,12 @@ function createSession(env, { config, credentials, onCredentials, accessToken })
       return [...system, ...user]
     },
 
-    async listThreads({ folderId, query, pageToken, pageSize = 25 } = {}) {
+    async listThreads({ folderId, query, pageToken, pageSize = 25, daysBack, unreadOnly } = {}) {
       const qs = new URLSearchParams({ maxResults: String(Math.min(Math.max(pageSize, 1), 50)) })
-      if (folderId) qs.append('labelIds', folderId)
-      if (query) qs.set('q', String(query))
+      // A search looks through all mail, like Gmail's own search box.
+      if (folderId && !query) qs.append('labelIds', folderId)
+      const q = [query, daysBack ? `newer_than:${Math.round(daysBack)}d` : '', unreadOnly ? 'is:unread' : ''].filter(Boolean).join(' ')
+      if (q) qs.set('q', q)
       if (pageToken) qs.set('pageToken', String(pageToken))
       const list = await call(`/threads?${qs}`)
       const meta = new URLSearchParams({ format: 'metadata' })
@@ -322,6 +324,8 @@ module.exports = {
   kind: 'gmail',
   label: 'Google (Gmail)',
   description: 'Sign in with Google. Uses your own Google Cloud OAuth client (Desktop app type).',
+  setup: 'oauth',
+  capabilities: { labels: true, folderTree: false, fullStoreSearch: false, queryHint: 'Search mail (from:, subject:, has:attachment …)', attachmentsHint: 'Open the message in Gmail to download attachments' },
   configFields: [
     { key: 'clientId', label: 'OAuth client ID', placeholder: '1234567890-abc.apps.googleusercontent.com', help: 'From Google Cloud Console > Google Auth Platform > Clients.' },
     { key: 'clientSecret', label: 'Client secret', secret: true, placeholder: 'GOCSPX-…', help: 'Shown next to the client ID. Stored encrypted on this PC.' },

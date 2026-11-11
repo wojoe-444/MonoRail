@@ -474,7 +474,34 @@ token. Mail is fetched on demand and never written to disk. HTML mail renders
 in a sandboxed iframe without scripts, with remote images blocked until the
 user asks. IMAP or other providers go in as new connector modules. The app is
 self-contained (only `src/apps/email` and `electron/apps/email`) so it can
-move into an extension later. Tests live in `email.test.cjs`.
+move into an extension later. Tests live in `email.test.cjs` and
+`outlook.test.cjs`.
+
+**Outlook** (`connectors/outlook.cjs`, setup `discover`) uses the classic
+Outlook already running and signed in on the PC, over COM, with no OAuth or
+app registration. Each call runs `connectors/outlook.ps1` once in a hidden
+Windows PowerShell 5.1 process (`helper.cjs`: script on stdin, arguments as
+base64 JSON in `MONORAIL_ARGS`, never on the command line or pasted into code;
+minimal environment; hard timeout; at most 3 at a time; one JSON answer). The
+script attaches with `GetActiveObject` (never starts Outlook), checks Outlook
+is running first (error code `not-running`, shown with Retry) and must never
+read `Namespace.CurrentUser` (it raises Outlook's address-access prompt; a
+test checks). New Outlook has no COM. Setup lists the stores Outlook has open;
+an account is one store keyed by StoreID (`account.key`; Gmail's key is the
+address), with a display name and an optional address. Shared stores start
+**read-only**: the backend refuses every write method for a read-only account
+(`assertWritable`), and the page hides write actions. Folders are a tree with
+path ids (`Inbox\Reports`); the standard folders use INBOX, DRAFT, SENT, SPAM,
+TRASH in any language; a per-account skip list (paths) hides subtrees and
+keeps slow mailboxes from being walked. Message ids carry the long EntryID and
+the internet message ID: when the EntryID fails (mail moved, e.g. to Archive)
+the helper looks it up again and the new id is handed back; lists are
+deduplicated by internet message ID. Search looks in the open folder; **All
+folders** is an opt-in that stops after 60 s and returns what it found, marked.
+All connectors take a days-back and unread filter, and `searchAccounts`
+searches several chosen inboxes at once (`search.cjs`: merged newest first,
+deduplicated across accounts, per-account errors kept apart). The Windows CI
+job runs the real script (expects `not-running`), so syntax errors fail CI.
 
 ## Extensions: modules and apps from other repositories
 
