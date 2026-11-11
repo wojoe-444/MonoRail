@@ -21,3 +21,4 @@ export const CommentIcon = () => <I><path d="M2 3h12v8H7l-3 2.5V11H2z" /></I>
 export const CloudIcon = () => <I><path d="M4.5 12.5h7a3 3 0 0 0 .4-5.97A4 4 0 0 0 4.3 6.6 3 3 0 0 0 4.5 12.5z" /></I>
 export const ExternalIcon = () => <I size={12}><path d="M9.5 2.5h4v4M13.5 2.5L8 8M12 9.5v4H2.5V4H6.5" /></I>
 export const RefreshIcon = () => <I size={14}><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" /></I>
+export const TaskIcon = () => <I><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8.2l1.8 1.8 3.4-3.6" /></I>

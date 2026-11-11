@@ -15,5 +15,5 @@ export const storageModule: ModuleDefinition = {
   path: '/storage',
   nav: { section: 'Utilities' },
   component: lazy(() => import('./StoragePage')),
-  dataMethods: ['getDrives', 'getScan', 'startScan', 'openLocation', 'openStorageSettings'],
+  dataMethods: ['getDrives', 'getScan', 'startScan', 'getHistory', 'openLocation', 'openStorageSettings'],
 }

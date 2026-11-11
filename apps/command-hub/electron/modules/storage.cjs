@@ -2,10 +2,12 @@
 // what MonoRail, agents, developer caches and a few well-known folders take up.
 //
 // Read-only by design. Nothing here deletes, moves, renames or copies a file
-// or folder, and nothing is written to disk: drives are read on request, the
-// folder scan runs only when the user asks (startScan) and its result lives in
-// memory while the app runs. The only actions open a folder in Explorer or the
-// Windows storage settings, both by location id, never by a path from the page.
+// or folder it measures. Drives are read on request (and sampled every few
+// hours while the app runs), the folder scan runs only when the user asks
+// (startScan), and the one thing written is the history snapshot in this
+// module's own data folder, through the shared cache primitive. The only
+// actions open a folder in Explorer or the Windows storage settings, both by
+// location id, never by a path from the page.
 // Folder contents are never read, only names and sizes; links and junctions
 // are counted as entries but never followed.
 
@@ -261,12 +263,96 @@ async function listDrives({ platform = process.platform, env = process.env, home
   return out
 }
 
-// ---- The scan job (in memory only) -------------------------------------------
+// ---- History (modules/storage/history.json) ---------------------------------
+//
+// Each finished scan is saved as a snapshot (drives + every measured location),
+// and while the app runs a drives-only sample is added when the newest
+// snapshot is older than DRIVE_SAMPLE_MS. Only numbers, the location list the
+// page already shows and its local paths; never file names deeper than a
+// location's largest children. Declared as the 'storage.history' cache.
+
+const cache = require('../cache/index.cjs')
+
+const HISTORY_ID = 'storage.history'
+/** A drives-only sample is due when the newest snapshot is this old. */
+const DRIVE_SAMPLE_MS = 6 * 60 * 60 * 1000
+const SAMPLE_CHECK_MS = 60 * 60 * 1000
+
+function history(ctx) {
+  return cache.history(ctx, HISTORY_ID)
+}
+
+const driveFacts = (drives) => drives.map((d) => ({ id: d.id, total: d.total, free: d.free }))
+
+/** What a location keeps in history: the row the page draws, nothing more. */
+function savedLocation(l) {
+  const { id, group, label, path: p, kind, advice, note, tip, bytes, files, dirs, skipped, truncated, children, childCount } = l
+  return { id, group, label, path: p, kind, advice, note, tip, exists: true, bytes, files, dirs, skipped, truncated, children, childCount }
+}
+
+async function saveScan(ctx, result) {
+  const drives = await listDrives({ rootDir: ctx.rootDir }).catch(() => [])
+  await history(ctx).add({ kind: 'scan', tookMs: result.tookMs, drives: driveFacts(drives), locations: result.locations.map(savedLocation) })
+}
+
+async function sampleDrives(ctx, { now = Date.now() } = {}) {
+  const h = history(ctx)
+  const latest = await h.latest()
+  if (latest && now - Date.parse(latest.takenAt) < DRIVE_SAMPLE_MS) return false
+  const drives = await listDrives({ rootDir: ctx.rootDir })
+  if (!drives.length) return false
+  await h.add({ kind: 'drives', drives: driveFacts(drives) })
+  return true
+}
+
+/** The page's over-time view: every snapshot, oldest first, sizes only. */
+async function historyView(ctx) {
+  const all = await history(ctx).list()
+  return {
+    sampleEveryMs: DRIVE_SAMPLE_MS,
+    snapshots: all.map(({ takenAt, data }) => ({
+      takenAt,
+      kind: data.kind,
+      drives: data.drives ?? [],
+      locations: data.kind === 'scan' ? (data.locations ?? []).map((l) => ({ id: l.id, label: l.label, group: l.group, bytes: l.bytes, truncated: !!l.truncated })) : undefined,
+    })),
+  }
+}
+
+/** Sizes from the scan before the one shown, for "+1.2 GB since <date>". */
+function previousSizes(scans, shownAt) {
+  const before = scans.filter((s) => s.takenAt < shownAt).at(-1)
+  if (!before) return undefined
+  return { takenAt: before.takenAt, sizes: Object.fromEntries(before.data.locations.filter((l) => l.bytes !== undefined).map((l) => [l.id, l.bytes])) }
+}
+
+// ---- The scan job (memory, plus the saved snapshot above) ---------------------
 
 let scan = { state: 'idle' }
+/** Set once the last saved scan has been read back after a restart. */
+let restored = false
 
-function scanView() {
-  return { ...scan, locations: scan.locations ? [...scan.locations] : undefined }
+async function restoreLastScan(ctx) {
+  if (restored || scan.state !== 'idle') return
+  restored = true
+  const scans = (await history(ctx).list()).filter((s) => s.data.kind === 'scan')
+  const last = scans.at(-1)
+  if (last && scan.state === 'idle') {
+    scan = { state: 'done', finishedAt: last.takenAt, tookMs: last.data.tookMs, saved: true, locations: last.data.locations }
+  }
+}
+
+async function scanView(ctx) {
+  const view = { ...scan, locations: scan.locations ? [...scan.locations] : undefined }
+  if (view.finishedAt && view.locations) {
+    try {
+      const scans = (await history(ctx).list()).filter((s) => s.data.kind === 'scan')
+      view.previous = previousSizes(scans, view.finishedAt)
+    } catch {
+      /* history unreadable: no deltas */
+    }
+  }
+  return view
 }
 
 async function runScan(locs) {
@@ -287,25 +373,32 @@ async function runScan(locs) {
 }
 
 function startScan(ctx) {
-  if (scan.state === 'running') return scanView()
+  if (scan.state === 'running') return
+  restored = true
   const locs = locations({ rootDir: ctx.rootDir, isPackaged: ctx.isPackaged })
   const previous = scan.state === 'done' ? scan : undefined
-  scan = { state: 'running', startedAt: new Date().toISOString(), done: 0, total: locs.length, current: [], previous: previous && { finishedAt: previous.finishedAt } }
+  scan = { state: 'running', startedAt: new Date().toISOString(), done: 0, total: locs.length, current: [] }
   // Keep showing the last result while the new one runs.
   if (previous) scan.locations = previous.locations
   const started = Date.now()
   runScan(locs)
-    .then((results) => {
-      scan = { state: 'done', startedAt: scan.startedAt, finishedAt: new Date().toISOString(), tookMs: Date.now() - started, done: locs.length, total: locs.length, locations: results }
+    .then(async (results) => {
+      const done = { state: 'done', startedAt: scan.startedAt, finishedAt: new Date().toISOString(), tookMs: Date.now() - started, done: locs.length, total: locs.length, locations: results }
+      try {
+        await saveScan(ctx, done)
+      } catch (e) {
+        ctx.log('could not save the scan to history:', e && e.message)
+        done.notSaved = true
+      }
+      scan = done
     })
     .catch((e) => {
       ctx.log('scan failed:', e && e.message)
       scan = { state: 'error', error: 'The scan stopped unexpectedly.', locations: scan.locations }
     })
-  return scanView()
 }
 
-/** A location from the last scan, by id; the page never hands over a path. */
+/** A location from the scan shown, by id; the page never hands over a path. */
 function scannedLocation(id) {
   if (typeof id !== 'string') return undefined
   return scan.locations?.find((l) => l.id === id)
@@ -313,15 +406,26 @@ function scannedLocation(id) {
 
 module.exports = {
   id: 'storage',
+  /** Drive samples while the app runs (cheap: one statfs per drive). Folder scans only run when asked. */
+  start(ctx) {
+    const tick = () => void sampleDrives(ctx).catch((e) => ctx.log('drive sample failed:', e && e.message))
+    setTimeout(tick, 60 * 1000).unref?.()
+    setInterval(tick, SAMPLE_CHECK_MS).unref?.()
+  },
   methods: {
     async getDrives(ctx) {
       return { platform: process.platform, drives: await listDrives({ rootDir: ctx.rootDir }) }
     },
-    getScan() {
-      return scanView()
+    async getScan(ctx) {
+      await restoreLastScan(ctx).catch(() => {})
+      return scanView(ctx)
     },
-    startScan(ctx) {
-      return startScan(ctx)
+    async startScan(ctx) {
+      startScan(ctx)
+      return scanView(ctx)
+    },
+    getHistory(ctx) {
+      return historyView(ctx)
     },
     async openLocation(_ctx, args) {
       const loc = scannedLocation(args && args.id)
@@ -343,5 +447,5 @@ module.exports = {
     },
   },
   // For tests.
-  _internal: { locations, measure, measureLocation, listDrives },
+  _internal: { locations, measure, measureLocation, listDrives, sampleDrives, saveScan, historyView, previousSizes, DRIVE_SAMPLE_MS },
 }

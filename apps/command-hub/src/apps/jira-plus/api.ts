@@ -11,6 +11,7 @@ import type {
   NewIssue,
   Overview,
   Project,
+  RepoLink,
   Source,
 } from './types'
 
@@ -36,6 +37,13 @@ export interface JiraApi {
   saveSettings(args: { scopeJql: string }): Promise<Connection>
   /** Deletes the token Jira+ saved before the Connections page existed. */
   forgetLegacyConnection(): Promise<Connection>
+  /** Repos linked to a task. Links live in Jira+'s data folder only. */
+  getRepoLinks(args: { source: Source; key: string }): Promise<RepoLink[]>
+  /** Link a local repo (path) or a repo on github.com (github: "owner/name"). Returns the task's links. */
+  linkRepo(args: { source: Source; key: string; path?: string; github?: string }): Promise<RepoLink[]>
+  unlinkRepo(args: { source: Source; key: string; id: string }): Promise<RepoLink[]>
+  /** The system folder picker; null when cancelled. */
+  pickRepoFolder(): Promise<string | null>
 }
 
 function desktopApi(): JiraApi {
@@ -56,6 +64,10 @@ function desktopApi(): JiraApi {
     createLocalProject: call('createLocalProject'),
     saveSettings: call('saveSettings'),
     forgetLegacyConnection: call('forgetLegacyConnection'),
+    getRepoLinks: call('getRepoLinks'),
+    linkRepo: call('linkRepo'),
+    unlinkRepo: call('unlinkRepo'),
+    pickRepoFolder: call('pickRepoFolder'),
   } as JiraApi
 }
 

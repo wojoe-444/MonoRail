@@ -17,11 +17,14 @@
 
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const { safeStorage } = require('electron')
+const { BrowserWindow, dialog, safeStorage } = require('electron')
 
 const { createJiraClient } = require('./cloud.cjs')
 const { createLocalStore } = require('./local.cjs')
 const { resolveJiraDataDir, CONNECTION_FILE } = require('./data-dir.cjs')
+const { createRepoLinks } = require('./repo-links.cjs')
+const ghGit = require('../github-plus/git.cjs')
+const { pickGitHubRemote } = require('../github-plus/github.cjs')
 
 const DEFAULT_SCOPE = 'assignee = currentUser()'
 const RECENT_DONE = 'statusCategory != Done OR updated >= -14d'
@@ -38,6 +41,85 @@ function localStore(ctx) {
   const dir = path.join(dataDir(ctx), 'local-repo')
   if (!stores.has(dir)) stores.set(dir, createLocalStore(dir))
   return stores.get(dir)
+}
+
+// ---------- repository links ----------
+//
+// A task can be linked to local git repos and to repos on github.com
+// (repo-links.cjs, <dataDir>\repo-links.json). Links are only stored here:
+// nothing is written to Jira, GitHub or any repository. GitHub+ reads them
+// through tasksForRepo below.
+
+const linkStores = new Map()
+function repoLinks(ctx) {
+  const dir = dataDir(ctx)
+  if (!linkStores.has(dir)) linkStores.set(dir, createRepoLinks(dir))
+  return linkStores.get(dir)
+}
+
+/** A local repo as a link stores it: its root (as git reports it), name and github.com remote. Runs git only. */
+async function describeLocalRepo(dir) {
+  if (typeof dir !== 'string' || !dir.trim()) throw new Error('Pick a repository folder.')
+  const info = await ghGit.openRepo(dir)
+  const github = pickGitHubRemote(await ghGit.remotes(info.path).catch(() => []))
+  return { path: info.path, name: info.name, github }
+}
+
+/** What GitHub+ shows for a task: key, summary and status, or why it can't be read. */
+function taskRow(link, issue, error) {
+  const base = { linkId: link.id, source: link.issue.source, key: link.issue.key, linkedAt: link.linkedAt, repo: link.repo }
+  if (!issue) return { ...base, error: error ?? 'Not found' }
+  return {
+    ...base,
+    summary: issue.summary,
+    status: issue.status,
+    statusCategory: issue.statusCategory,
+    type: issue.type,
+    projectName: issue.projectName,
+    url: issue.url,
+  }
+}
+
+/**
+ * Tasks linked to a repo (by folder and/or GitHub name), with their summary
+ * and status: local tickets from the local repo, team tickets with one Jira
+ * search when an Atlassian connection is set up. Used by GitHub+.
+ */
+async function tasksForRepo(ctx, { path: p, github } = {}) {
+  const links = await repoLinks(ctx).forRepo({ path: p, github })
+  if (!links.length) return []
+  const local = links.filter((l) => l.issue.source === 'local')
+  const team = links.filter((l) => l.issue.source === 'jira')
+
+  const localRows = await Promise.all(
+    local.map((l) =>
+      localStore(ctx)
+        .getIssue(l.issue.key)
+        .then((i) => taskRow(l, i), () => taskRow(l, null, 'This ticket no longer exists in Jira+.')),
+    ),
+  )
+
+  let teamRows = []
+  if (team.length) {
+    const conn = await resolveConnection(ctx)
+    if (conn.missing || conn.error) {
+      const why = conn.missing ? 'Team Jira is not set up on the Connections page.' : conn.error
+      teamRows = team.map((l) => taskRow(l, null, why))
+    } else {
+      const { jira } = await client(ctx)
+      const keys = team.map((l) => l.issue.key)
+      let found
+      try {
+        found = await jira.search(`key in (${keys.map(jqlString).join(', ')})`, keys.length)
+      } catch {
+        // One unknown key fails the whole search: ask for each key on its own.
+        found = (await Promise.all(keys.map((k) => jira.search(`key = ${jqlString(k)}`, 1).catch(() => [])))).flat()
+      }
+      const byKey = new Map(found.map((i) => [i.key, i]))
+      teamRows = team.map((l) => taskRow(l, byKey.get(l.issue.key), 'Not found in your team Jira (or no access).'))
+    }
+  }
+  return [...localRows, ...teamRows]
 }
 
 // ---------- connection ----------
@@ -155,6 +237,8 @@ function requireSource(args) {
 
 module.exports = {
   id: 'jira-plus',
+  tasksForRepo,
+  repoLinks,
   /** For tests: swap where Atlassian credentials come from. */
   _setCredentialSource(fn) {
     atlassianCredentials = fn
@@ -270,7 +354,39 @@ module.exports = {
     /** Local tickets only: team Jira deletes stay in Jira itself. */
     async deleteIssue(ctx, args) {
       if (requireSource(args) !== 'local') throw new Error('Delete team Jira tickets in Jira.')
-      return localStore(ctx).deleteIssue(args)
+      const result = await localStore(ctx).deleteIssue(args)
+      await repoLinks(ctx).removeIssue({ source: 'local', key: args.key }).catch(() => undefined)
+      return result
+    },
+
+    /** Repos linked to a task: [{ id, repo: { kind, path?, github?, name }, linkedAt }]. */
+    getRepoLinks: (ctx, args) => repoLinks(ctx).forIssue({ source: args?.source, key: args?.key }),
+
+    /**
+     * linkRepo({ source, key, path }) links a local repo (checked with git,
+     * stored by its root and github.com remote); linkRepo({ source, key,
+     * github: 'owner/name' }) links a repo on github.com. Stored in Jira+'s
+     * data folder only. Returns the task's links.
+     */
+    async linkRepo(ctx, args) {
+      const issue = { source: requireSource(args), key: args?.key }
+      const repo = args?.path ? await describeLocalRepo(args.path) : { github: args?.github, name: args?.github }
+      await repoLinks(ctx).link(issue, repo)
+      return repoLinks(ctx).forIssue(issue)
+    },
+
+    async unlinkRepo(ctx, args) {
+      const issue = { source: requireSource(args), key: args?.key }
+      await repoLinks(ctx).unlink(issue, String(args?.id ?? ''))
+      return repoLinks(ctx).forIssue(issue)
+    },
+
+    /** The system folder picker, for linking a repo that GitHub+ has not opened. */
+    async pickRepoFolder() {
+      const win = BrowserWindow.getFocusedWindow()
+      const opts = { title: 'Link a local git repository', properties: ['openDirectory'] }
+      const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+      return r.canceled ? null : r.filePaths[0]
     },
 
     async createLocalProject(ctx, args) {

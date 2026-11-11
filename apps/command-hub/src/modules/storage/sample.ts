@@ -1,4 +1,4 @@
-import type { DrivesResult, ScanState } from './types'
+import type { DrivesResult, HistorySnapshot, ScanState, StorageHistory } from './types'
 
 const GB = 1024 ** 3
 const MB = 1024 ** 2
@@ -80,3 +80,45 @@ export const sampleScan: ScanState = {
     { id: 'hiberfil', group: 'system', label: 'Hibernation file', path: 'C:\\hiberfil.sys', kind: 'file', advice: 'keep', note: 'Used by hibernate and Fast Startup. An administrator can remove it with: powercfg /hibernate off', exists: true, bytes: 6.4 * GB, files: 1 },
   ],
 }
+
+/** Fictional history: a drive sample every 6 hours over two weeks, C: filling up, with three scans. */
+export const sampleHistory: StorageHistory = (() => {
+  const step = 6 * 3600_000
+  const n = 14 * 4
+  const end = Date.now() - 100_000
+  const snapshots: HistorySnapshot[] = []
+  for (let i = 0; i < n; i++) {
+    const t = end - (n - 1 - i) * step
+    const cFree = Math.max(5.5, 38 - i * 0.6 + Math.sin(i / 3) * 1.5) * GB
+    const drives = [
+      { id: 'C:', total: 476 * GB, free: i === n - 1 ? 6.2 * GB : cFree },
+      { id: 'D:', total: 931 * GB, free: (530 - i * 0.3) * GB },
+    ]
+    const scanAt = i === 4 || i === 30 || i === n - 1
+    if (!scanAt) {
+      snapshots.push({ takenAt: new Date(t).toISOString(), kind: 'drives', drives })
+      continue
+    }
+    const grow = i / (n - 1)
+    snapshots.push({
+      takenAt: new Date(t).toISOString(),
+      kind: 'scan',
+      drives,
+      locations: (sampleScan.locations ?? []).map((l) => ({
+        id: l.id,
+        label: l.label,
+        group: l.group,
+        truncated: !!l.truncated,
+        bytes: l.bytes === undefined ? undefined : l.id === 'claude-desktop' || l.id === 'npm-cache' ? l.bytes * (0.35 + 0.65 * grow) : l.bytes * (0.9 + 0.1 * grow),
+      })),
+    })
+  }
+  return { sampleEveryMs: step, snapshots }
+})()
+
+/** The scan before the latest one, for the change column. */
+sampleScan.previous = (() => {
+  const scans = sampleHistory.snapshots.filter((s) => s.kind === 'scan')
+  const prev = scans.at(-2)
+  return prev && { takenAt: prev.takenAt, sizes: Object.fromEntries((prev.locations ?? []).filter((l) => l.bytes !== undefined).map((l) => [l.id, l.bytes as number])) }
+})()

@@ -256,3 +256,23 @@ export interface Issue {
 export type IssueSummary = Omit<Issue, 'body' | 'timeline'> & { comments: number }
 export interface IssueCounts { open: number; closed: number }
 export interface IssueEdit { title?: string; body?: string; state?: IssueState }
+
+/** A Jira+ task linked to a repo (links are kept by Jira+, in its data folder). */
+export interface LinkedTask {
+  /** The link's repo id, for unlinking. */
+  linkId: string
+  source: 'local' | 'jira'
+  key: string
+  summary?: string
+  status?: string
+  statusCategory?: 'todo' | 'in_progress' | 'done'
+  type?: string
+  projectName?: string
+  /** Team Jira only: the issue in Jira. */
+  url?: string
+  /** Set when the task could not be read (deleted, no Jira connection, no access). */
+  error?: string
+  linkedAt: string
+}
+/** How many Jira+ tasks each repo has, keyed by folder (forward slashes) and by lowercased "owner/name". */
+export interface LinkCounts { paths: Record<string, number>; github: Record<string, number> }

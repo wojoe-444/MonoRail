@@ -6,7 +6,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const storage = require('./storage.cjs')
-const { locations, measure, measureLocation, listDrives } = storage._internal
+const { locations, measure, measureLocation, listDrives, sampleDrives, saveScan, historyView, previousSizes, DRIVE_SAMPLE_MS } = storage._internal
 
 function write(file, bytes) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -73,7 +73,7 @@ test('the backend only reads: no method writes, moves or deletes', () => {
   const src = fs.readFileSync(path.join(__dirname, 'storage.cjs'), 'utf8')
   const writes = src.match(/\b(?:fs|fsp)\.(?:rm|rmdir|unlink|rename|writeFile|appendFile|copyFile|cp|mkdir|open|truncate|symlink|link)\w*\(|trashItem/g)
   assert.equal(writes, null, `storage.cjs must not write: ${writes}`)
-  assert.deepEqual(Object.keys(storage.methods).sort(), ['getDrives', 'getScan', 'openLocation', 'openStorageSettings', 'startScan'])
+  assert.deepEqual(Object.keys(storage.methods).sort(), ['getDrives', 'getHistory', 'getScan', 'openLocation', 'openStorageSettings', 'startScan'])
 })
 
 test('listDrives finds at least the system volume', async () => {
@@ -81,4 +81,39 @@ test('listDrives finds at least the system volume', async () => {
   assert.ok(drives.length >= 1)
   assert.ok(drives.some((d) => d.system))
   for (const d of drives) assert.ok(d.total > 0 && d.free >= 0 && d.free <= d.total)
+})
+
+function ctxFor() {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-root-'))
+  const dataDir = path.join(rootDir, 'modules', 'storage')
+  fs.mkdirSync(dataDir, { recursive: true })
+  return { rootDir, dataDir, isPackaged: false, log: () => {} }
+}
+
+test('history: a scan is saved with drives, and drive samples wait 6 hours', async () => {
+  const ctx = ctxFor()
+  await saveScan(ctx, {
+    tookMs: 1200,
+    locations: [{ id: 'npm-cache', group: 'dev', label: 'npm cache', path: '/x', advice: 'safe', exists: true, bytes: 500, files: 2, truncated: false }],
+  })
+  // Just saved, so no drive sample is due yet.
+  assert.equal(await sampleDrives(ctx), false)
+  assert.equal(await sampleDrives(ctx, { now: Date.now() + DRIVE_SAMPLE_MS + 1000 }), true)
+
+  const view = await historyView(ctx)
+  assert.deepEqual(view.snapshots.map((s) => s.kind), ['scan', 'drives'])
+  assert.deepEqual(view.snapshots[0].locations, [{ id: 'npm-cache', label: 'npm cache', group: 'dev', bytes: 500, truncated: false }])
+  assert.ok(view.snapshots.every((s) => s.drives.length >= 1 && s.drives.every((d) => d.total > 0)))
+  assert.equal(view.snapshots[1].locations, undefined)
+  // Only the declared file lands in the data folder.
+  assert.deepEqual(fs.readdirSync(ctx.dataDir).filter((f) => !f.endsWith('.tmp')), ['history.json'])
+})
+
+test('history: change is measured against the scan before the one shown', () => {
+  const scans = [
+    { takenAt: '2026-11-01T10:00:00.000Z', data: { kind: 'scan', locations: [{ id: 'a', bytes: 100 }] } },
+    { takenAt: '2026-11-05T10:00:00.000Z', data: { kind: 'scan', locations: [{ id: 'a', bytes: 300 }, { id: 'b' }] } },
+  ]
+  assert.deepEqual(previousSizes(scans, '2026-11-05T10:00:00.000Z'), { takenAt: '2026-11-01T10:00:00.000Z', sizes: { a: 100 } })
+  assert.equal(previousSizes(scans, '2026-11-01T10:00:00.000Z'), undefined)
 })

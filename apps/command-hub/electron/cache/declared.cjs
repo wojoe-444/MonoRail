@@ -100,6 +100,19 @@ const CACHES = Object.freeze([
       'The last check result per added connection (state, one-line summary, hint, time), for Home and the MCP server. Never stores secrets, tokens or check details.',
   },
   {
+    id: 'storage.history',
+    folder: 'modules/storage',
+    tier: 'history',
+    storage: 'disk',
+    file: 'history.json',
+    version: 1,
+    ttlMs: 6 * HOUR,
+    keep: 500,
+    content: 'derived',
+    policy:
+      'Storage Manager snapshots for the over-time view: free space per drive (sampled every 6 hours while the app runs) and, after each scan the user starts, the size, file count, local path and largest children of each known folder. Never reads or stores file contents.',
+  },
+  {
     id: 'connections.sign-in',
     folder: 'modules/connections',
     tier: 'check',
@@ -120,7 +133,7 @@ const DATA_FILES = Object.freeze({
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
-  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/'],
+  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/', 'repo-links.json'],
 })
 
 /**
@@ -130,7 +143,7 @@ const DATA_FILES = Object.freeze({
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
   'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
-  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
+  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached. Links between tasks and repositories (repo-links.json) keep issue keys, repo folders and repo names only, never ticket text.',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 

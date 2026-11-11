@@ -51,4 +51,23 @@ export interface ScanState {
   current?: string[]
   error?: string
   locations?: StorageLocation[]
+  /** Read back from history after a restart (not scanned in this session). */
+  saved?: boolean
+  /** The scan finished but could not be written to history. */
+  notSaved?: boolean
+  /** Sizes from the scan before this one, for the change column. */
+  previous?: { takenAt: string; sizes: Record<string, number> }
+}
+
+export interface HistorySnapshot {
+  takenAt: string
+  /** 'scan': after a folder scan; 'drives': a drive sample taken in the background. */
+  kind: 'scan' | 'drives'
+  drives: { id: string; total: number; free: number }[]
+  locations?: { id: string; label: string; group: LocationGroup; bytes?: number; truncated: boolean }[]
+}
+
+export interface StorageHistory {
+  sampleEveryMs: number
+  snapshots: HistorySnapshot[]
 }

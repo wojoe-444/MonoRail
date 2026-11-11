@@ -143,3 +143,60 @@ describe('team Jira connection', () => {
     assert.equal((await backend.methods.getOverview(ctx)).connection.scopeJql, 'reporter = currentUser()')
   })
 })
+
+describe('repository links', () => {
+  const { createRepoLinks } = require('./repo-links.cjs')
+  const fresh = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'jira-plus-links-'))
+    return { dir, links: createRepoLinks(dir) }
+  }
+
+  it('links a task to local and GitHub repos and finds them from either side', async () => {
+    const { dir, links } = fresh()
+    await links.link({ source: 'local', key: 'me-4' }, { path: 'C:/Repos/app', name: 'app', github: 'acme/app' })
+    await links.link({ source: 'jira', key: 'PLAT-12' }, { github: 'acme/app' })
+    await links.link({ source: 'jira', key: 'PLAT-12' }, { path: 'C:/Repos/tools', name: 'tools' })
+
+    const me = await links.forIssue({ source: 'local', key: 'ME-4' })
+    assert.equal(me.length, 1)
+    assert.equal(me[0].repo.kind, 'local')
+    assert.equal(me[0].repo.github, 'acme/app')
+
+    // A local clone sees links made to its GitHub copy, and the GitHub copy sees links made to the clone.
+    const clone = await links.forRepo({ path: 'C:/Repos/app', github: 'acme/app' })
+    assert.deepEqual(clone.map((l) => l.issue.key).sort(), ['ME-4', 'PLAT-12'])
+    const onGitHub = await links.forRepo({ github: 'ACME/app' })
+    assert.deepEqual(onGitHub.map((l) => l.issue.key).sort(), ['ME-4', 'PLAT-12'])
+    const localOnly = await links.forRepo({ path: 'C:/Repos/tools' })
+    assert.deepEqual(localOnly.map((l) => l.issue.key), ['PLAT-12'])
+    assert.deepEqual(await links.forRepo({}), [])
+
+    // Linking again does not duplicate.
+    await links.link({ source: 'local', key: 'ME-4' }, { path: 'C:/Repos/app', name: 'app', github: 'acme/app' })
+    assert.equal((await links.forIssue({ source: 'local', key: 'ME-4' })).length, 1)
+
+    const counts = await links.counts()
+    assert.equal(counts.github['acme/app'], 2)
+
+    // Only keys, folders and names are stored.
+    const stored = JSON.parse(fs.readFileSync(join(dir, 'repo-links.json'), 'utf8'))
+    assert.equal(stored.version, 1)
+    assert.deepEqual(Object.keys(stored.links[0]).sort(), ['issue', 'linkedAt', 'repo'])
+
+    const plat = await links.forIssue({ source: 'jira', key: 'PLAT-12' })
+    assert.equal(await links.unlink({ source: 'jira', key: 'PLAT-12' }, plat[0].id), true)
+    assert.equal((await links.forIssue({ source: 'jira', key: 'PLAT-12' })).length, 1)
+    await links.removeIssue({ source: 'local', key: 'ME-4' })
+    assert.equal((await links.forRepo({ github: 'acme/app' })).length, 0)
+  })
+
+  it('keeps concurrent links and rejects bad input', async () => {
+    const { links } = fresh()
+    await Promise.all(Array.from({ length: 10 }, (_, n) => links.link({ source: 'local', key: `ME-${n + 1}` }, { github: 'acme/app' })))
+    assert.equal((await links.forRepo({ github: 'acme/app' })).length, 10)
+    await assert.rejects(links.link({ source: 'other', key: 'ME-1' }, { github: 'acme/app' }))
+    await assert.rejects(links.link({ source: 'local', key: '../x' }, { github: 'acme/app' }))
+    await assert.rejects(links.link({ source: 'local', key: 'ME-1' }, { github: 'not a repo' }))
+    await assert.rejects(links.link({ source: 'local', key: 'ME-1' }, {}))
+  })
+})
