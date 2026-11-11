@@ -1,30 +1,46 @@
-// Jira module backend: one tracker for two kinds of projects.
+// Jira+ backend: one tracker for two kinds of projects.
 //
-//   source "jira"   your team's Jira Cloud site, through the REST API
-//                   (electron/modules/jira-cloud.cjs)
+//   source "jira"   your team's Jira Cloud site, through the REST API (cloud.cjs)
 //   source "local"  personal projects kept in a git repository under AppData
-//                   (electron/modules/jira-local.cjs), never pushed anywhere
+//                   (local.cjs), never pushed anywhere
 //
-// Both return the same issue shape, so the page treats them alike.
+// Both return the same issue shape, so the app treats them alike.
 //
 // Private data rule: the Jira site, email and API token are saved in
-// %APPDATA%\MonoRail\modules\jira\connection.json, with the token encrypted
-// by Electron safeStorage. The local repo is %APPDATA%\...\jira\local-repo.
+// <dataDir>\connection.json, with the token encrypted by Electron
+// safeStorage. The local repo is <dataDir>\local-repo.
+//
+// <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Jira+ was an app it
+// was the "jira" module, whose data lives in ...\modules\jira. If that folder
+// holds data and the new one doesn't, keep using the old one in place. It is
+// never moved or copied (see "names that must not change" in CLAUDE.md).
 
+const fsSync = require('node:fs')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { safeStorage } = require('electron')
 
-const { createJiraClient, normalizeSite } = require('./jira-cloud.cjs')
-const { createLocalStore } = require('./jira-local.cjs')
+const { createJiraClient, normalizeSite } = require('./cloud.cjs')
+const { createLocalStore } = require('./local.cjs')
 
 const CONNECTION_FILE = 'connection.json'
 const DEFAULT_SCOPE = 'assignee = currentUser()'
 const RECENT_DONE = 'statusCategory != Done OR updated >= -14d'
 
+const LEGACY_DIR = ['..', '..', 'modules', 'jira']
+
+let resolvedDir
+function dataDir(ctx) {
+  if (resolvedDir) return resolvedDir
+  const holdsData = (dir) => ['local-repo', CONNECTION_FILE].some((f) => fsSync.existsSync(path.join(dir, f)))
+  const legacy = path.resolve(ctx.dataDir, ...LEGACY_DIR)
+  resolvedDir = !holdsData(ctx.dataDir) && holdsData(legacy) ? legacy : ctx.dataDir
+  return resolvedDir
+}
+
 let store
 function localStore(ctx) {
-  if (!store) store = createLocalStore(path.join(ctx.dataDir, 'local-repo'))
+  if (!store) store = createLocalStore(path.join(dataDir(ctx), 'local-repo'))
   return store
 }
 
@@ -32,7 +48,7 @@ function localStore(ctx) {
 
 async function readConnection(ctx) {
   try {
-    return JSON.parse(await fs.readFile(path.join(ctx.dataDir, CONNECTION_FILE), 'utf8'))
+    return JSON.parse(await fs.readFile(path.join(dataDir(ctx), CONNECTION_FILE), 'utf8'))
   } catch {
     return undefined
   }
@@ -56,7 +72,7 @@ async function writeConnection(ctx, { siteUrl, email, token, scopeJql, accountId
     token: encrypted ? safeStorage.encryptString(token).toString('base64') : token,
     savedAt: new Date().toISOString(),
   }
-  await fs.writeFile(path.join(ctx.dataDir, CONNECTION_FILE), JSON.stringify(data, null, 2))
+  await fs.writeFile(path.join(dataDir(ctx), CONNECTION_FILE), JSON.stringify(data, null, 2))
   return data
 }
 
@@ -99,7 +115,7 @@ function requireSource(args) {
 }
 
 module.exports = {
-  id: 'jira',
+  id: 'jira-plus',
   methods: {
     /** Projects from both sources plus the Jira connection status. Jira errors don't hide local projects. */
     async getOverview(ctx) {
@@ -249,7 +265,7 @@ module.exports = {
     },
 
     async disconnect(ctx) {
-      await fs.rm(path.join(ctx.dataDir, CONNECTION_FILE), { force: true })
+      await fs.rm(path.join(dataDir(ctx), CONNECTION_FILE), { force: true })
       return publicConnection(undefined)
     },
   },

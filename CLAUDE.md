@@ -134,13 +134,6 @@ the raw Claude Code logs and splits each session into phases (driver model +
 subagent models; new phase on driver change or a 2-hour idle gap). Phase
 cost is priced from ccusage's per-session, per-model cost per output token.
 
-`jira` is the second worked example: one tracker over two sources. Team
-tickets go through the Jira Cloud REST API (`electron/modules/jira-cloud.cjs`,
-API token encrypted with `safeStorage` in the module's data folder). Personal
-projects are a git repo in `<dataDir>/local-repo` (`jira-local.cjs`, via
-`isomorphic-git`, one JSON file per ticket, one commit per change). That repo
-never gets a remote; do not add push or sync to it.
-
 ### Charts
 
 Follow the data-viz rules already encoded in `components/charts/`: series
@@ -208,7 +201,21 @@ runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
 
-`email` (**Email**) is the second app: mail through pluggable **inbox
+`jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
+tracker (own look under `.jp`, Your work / Projects / board / list / issue
+dialog) where a private local repo is a first-class project next to the
+team's real Jira projects. Team issues go through the Jira Cloud REST API
+(`electron/apps/jira-plus/cloud.cjs`; site, email and API token saved in its
+data folder with the token encrypted by `safeStorage`; only shown when the user
+connects). Private projects are a git repo in `<dataDir>/local-repo`
+(`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
+change, the issue's git log is its History). That repo never gets a remote;
+do not add push or sync to it. Jira+ started as the `jira` module, so if
+`%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
+the backend keeps using the old folder in place. Tests live in
+`jira-plus.test.cjs`.
+
+`email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
 `electron/apps/email/connectors/index.cjs` (config fields, `signIn`,
 `createSession` returning folders/threads/modify/send); the backend

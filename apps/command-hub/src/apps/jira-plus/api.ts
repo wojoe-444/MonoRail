@@ -1,4 +1,5 @@
-import { invokeModule, isDesktop } from '@/modules/client'
+import { invokeApp } from '@/apps/client'
+import { isDesktop } from '@/modules/client'
 
 import { createSampleBackend } from './sample'
 import type {
@@ -14,11 +15,11 @@ import type {
   Source,
 } from './types'
 
-const MODULE_ID = 'jira'
+const APP_ID = 'jira-plus'
 
 /**
- * The page talks to this interface. In the desktop app it calls the backend in
- * electron/modules/jira.cjs; in the browser dev server it uses an in-memory
+ * The app talks to this interface. In the desktop app it calls the backend in
+ * electron/apps/jira-plus; in the browser dev server it uses an in-memory
  * store seeded with fictional sample data, so every screen still works.
  */
 export interface JiraApi {
@@ -40,7 +41,7 @@ function desktopApi(): JiraApi {
   const call =
     <A, R>(method: string) =>
     (args?: A) =>
-      invokeModule<R>(MODULE_ID, method, args)
+      invokeApp<R>(APP_ID, method, args)
   return {
     getOverview: call('getOverview'),
     listIssues: call('listIssues'),

@@ -1,16 +1,15 @@
 import { lazy } from 'react'
 import { SquareKanban } from 'lucide-react'
 
-import type { ModuleDefinition } from '../types'
+import type { AppDefinition } from '../types'
 
-export const jiraModule: ModuleDefinition = {
-  id: 'jira',
-  title: 'Jira',
-  description: 'Your team Jira tickets and your personal projects, side by side. Personal projects live in a local git repo.',
+export const jiraPlusApp: AppDefinition = {
+  id: 'jira-plus',
+  title: 'Jira+',
+  description: 'Every task as a Jira ticket: your private local projects next to your team Jira. Local tickets never leave this machine.',
   icon: SquareKanban,
-  path: '/jira',
-  nav: { section: 'Workspace', order: 50 },
-  component: lazy(() => import('./JiraPage')),
+  path: '/apps/jira-plus',
+  component: lazy(() => import('./JiraPlusApp')),
   dataMethods: [
     'getOverview',
     'listIssues',
