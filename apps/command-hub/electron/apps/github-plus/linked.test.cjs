@@ -39,6 +39,15 @@ describe('linked repos', () => {
     assert.deepEqual(list, [{ path: top, app: 'jira-plus', label: 'Jira+', name: 'Jira+ projects' }])
   })
 
+  it("lists Notes' repo after Jira+'s", async () => {
+    const { root, ghp } = userData()
+    gitInit(join(root, 'apps', 'jira-plus', 'local-repo'))
+    gitInit(join(root, 'modules', 'notes', 'repo'))
+    const list = await linkedRepos(ghp)
+    assert.deepEqual(list.map((l) => [l.app, l.name]), [['jira-plus', 'Jira+ projects'], ['notes', 'Notes']])
+    assert.ok(list[1].path.replace(/\\/g, '/').endsWith('modules/notes/repo'))
+  })
+
   it('finds the repo in the legacy jira module folder, in place', async () => {
     const { root, ghp } = userData()
     const legacy = join(root, 'modules', 'jira', 'local-repo')

@@ -36,6 +36,7 @@ const PROFILE_ITEMS = [
   'Connections and their secrets',
   'Backup folder and schedules',
   'Flashcards decks and study history',
+  'Notes',
   'Jira+ projects, task links and filter',
   'GitHub+ recent repos and local backups',
   'Email accounts',

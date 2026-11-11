@@ -1,8 +1,9 @@
 // Repos that other MonoRail apps create, listed in GitHub+ without the user
 // having to open them first.
 //
-// So far that is one: Jira+'s private projects repo (<Jira+ data>\local-repo,
-// see electron/apps/jira-plus/local.cjs). It appears in GitHub+'s recent
+// So far: Jira+'s private projects repo (<Jira+ data>\local-repo, see
+// electron/apps/jira-plus/local.cjs) and Notes' repo (modules\notes\repo, see
+// electron/modules/notes-store.cjs). It appears in GitHub+'s recent
 // repositories as soon as it exists, without being written to recents.json
 // (opening it then records it there like any repo). It cannot be removed from
 // the list: it goes away when the repo does.
@@ -24,6 +25,13 @@ const SOURCES = [
     label: 'Jira+',
     name: 'Jira+ projects',
     dir: (ghpDataDir) => path.join(resolveJiraDataDir(path.resolve(ghpDataDir, '..', 'jira-plus')), 'local-repo'),
+  },
+  {
+    // Notes' repo (electron/modules/notes-store.cjs): <userData>\modules\notes\repo.
+    app: 'notes',
+    label: 'Notes',
+    name: 'Notes',
+    dir: (ghpDataDir) => path.resolve(ghpDataDir, '..', '..', 'modules', 'notes', 'repo'),
   },
 ]
 
