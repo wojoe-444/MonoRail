@@ -154,8 +154,9 @@ figure per page.
 An **app** is the second building block, next to modules. Where a module is
 one page inside the hub's drawer and top bar, an app takes over the whole
 window and may look and feel like its own product: its own colors, fonts,
-layout and in-app routing. Apps are listed in the **Apps** nav section, right
-under Home. The contract is `AppDefinition` in `src/apps/types.ts`.
+layout and in-app routing. **Apps** is a single nav item right under Home; it
+opens the Apps page (`src/pages/AppsPage.tsx`), which shows every app, built
+in or from an extension, as a card. The contract is `AppDefinition` in `src/apps/types.ts`.
 
 The one thing an app never owns is the **hub bar**: `src/apps/AppFrame.tsx`
 renders a 48px bar above every app, in the drawer colors of the current
@@ -163,14 +164,14 @@ color scheme, with a "Back to MonoRail" button (filled like the active nav
 item), the app's icon and name, and an "App" chip.
 That is how users leave any app; do not hide, restyle or duplicate it inside
 an app. Leaving returns to the hub page the user came from, and reopening an
-app from the nav resumes where it was left (`src/apps/session.ts`). An error
+app from the Apps page resumes where it was left (`src/apps/session.ts`). An error
 boundary keeps the bar on screen if an app crashes.
 
 To add an app:
 
 1. `src/apps/<id>/index.ts` exports an `AppDefinition` (id, title,
    description, icon, `path: '/apps/<id>'`, lazy `component`).
-2. Add it to `src/apps/registry.ts`. The nav and router pick it up.
+2. Add it to `src/apps/registry.ts`. The Apps page and router pick it up.
 3. The root component receives `basePath` (`/apps/<id>`). Everything under
    that hash path belongs to the app, so it can run its own router, e.g.
    react-router's `<HashRouter basename={basePath}>`.

@@ -12,10 +12,11 @@ import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
 import { useRoute } from '@/lib/router'
 import { findModuleByPath } from '@/modules/registry'
+import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 
-function RouteView({ path, navItems }: { path: string; navItems: NavItem[] }) {
+function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem[]; onOpen: (path: string) => void }) {
   const mod = findModuleByPath(path)
   if (mod) {
     const Page = mod.component
@@ -26,6 +27,7 @@ function RouteView({ path, navItems }: { path: string; navItems: NavItem[] }) {
     )
   }
   if (path === '/') return <HomePage />
+  if (path === '/apps') return <AppsPage onOpen={onOpen} />
   // Extension pages are known once the installed list has loaded.
   if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
   const item = navItems.find((i) => i.path === path)
@@ -82,7 +84,7 @@ export default function App() {
           />
           {/* Content container: max 1536px with 24/32px gutters */}
           <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
-            <RouteView path={path} navItems={navItems} />
+            <RouteView path={path} navItems={navItems} onOpen={openPath} />
           </main>
         </div>
       </div>
