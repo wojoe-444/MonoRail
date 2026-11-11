@@ -151,7 +151,9 @@ Security Policy:
 
 - Only its own files: no remote scripts, styles, fonts or images (`data:` and
   `blob:` images are fine).
-- No inline `<script>`. Inline styles are allowed.
+- No inline `<script>`, and no `eval`: `new Function(...)`, `eval()` and
+  string `setTimeout` throw `Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script`.
+  Inline styles are allowed.
 - **No network**: `fetch`, XHR and WebSocket only reach your own files. Do
   network work in the backend and declare the hosts.
 - No popups, no navigating MonoRail's window, no nested frames. Links to the
@@ -161,6 +163,77 @@ Security Policy:
 `localStorage` and `IndexedDB` work and are kept per extension. For anything
 that matters, prefer the backend's data folder: it is visible to the user,
 included in "Also delete its data", and survives a profile reset.
+
+## Porting an existing web UI
+
+A UI that was written for its own local server (plain HTML pages, vendored
+libraries, `fetch()` calls to the server) runs in an extension frame with
+few changes. Measured in MonoRail's real frame, as a module page and as an app:
+
+| What | Result |
+| --- | --- |
+| Vendored Cytoscape.js 3.35 (`cytoscape.min.js` in a classic `<script>`) | Works. 300 nodes with the `cose` layout rendered in about 2 seconds. |
+| Vendored d3 7 | Works. |
+| lodash 4: `_.template` | **Fails**: it compiles with `new Function`, which the CSP blocks. The rest of lodash works. Precompile templates, or build the HTML another way. |
+| A `Worker` from a `blob:` URL | Works. |
+| Relative paths (`./css/app.css`, `../js/x.js`, `./data/x.json`) | Work, for `<link>`, `<script>`, `<img>` and `fetch`. Your `ui` folder is the origin's root, so `/css/app.css` works too. |
+| Several HTML pages, linked with `<a href="page2.html">` or `location.href` | Work, also in subfolders. Each page loads `client.js` and calls `ready()` again; it gets the same `contribution`. The hub's page header and hub bar stay. |
+| Navigating the frame to `https://...` | Ignored: the frame stays on its page. Use `openExternal`. |
+| `fetch('http://localhost:PORT/...')` | Fails with `TypeError: Failed to fetch` (CSP `connect-src`). Use a fetch shim (below). |
+
+Library code that needs `eval` is the one thing that can't run. Check a
+library before you vendor it: load it in a page and watch for
+`securitypolicyviolation` events with `script-src eval`.
+
+### A `fetch` shim
+
+Instead of rewriting every `fetch('/api/...')`, load a small module first that
+sends those calls to a backend method, which forwards them to the program's
+HTTP server (see [a helper HTTP server](non-node-runtimes.md#a-helper-http-server)):
+
+```js
+// ui/js/fetch-shim.js: load before your other scripts
+import { monorail } from './client.js'
+
+const realFetch = window.fetch.bind(window)
+window.fetch = async (input, init = {}) => {
+  const url = new URL(typeof input === 'string' ? input : input.url, location.href)
+  if (!url.pathname.startsWith('/api/')) return realFetch(input, init) // the page's own files
+  const r = await monorail.invoke('api', { path: url.pathname + url.search, method: init.method ?? 'GET', body: init.body })
+  return new Response(r.body, { status: r.status, headers: { 'content-type': r.contentType ?? 'application/json' } })
+}
+```
+
+```html
+<script type="module" src="./js/fetch-shim.js"></script>
+<script type="module" src="./js/app.js"></script>
+```
+
+Module scripts run in order, so the shim is in place before `app.js` runs.
+Classic scripts run before module scripts: if the app's own code is a classic
+`<script>`, make the shim a classic script too, or start the app after
+`monorail.ready()`. The body must be a string (use `JSON.stringify`); `FormData`
+and streams don't cross the bridge.
+
+Measured through the shim: the first call took 650 ms (it started the Python
+server), later GET and POST calls 9 ms.
+
+### Large results
+
+`invoke` results travel as JSON through MonoRail's main process. Measured
+from a page:
+
+| Result | Time for `invoke` |
+| --- | --- |
+| 1 MB string | 17 ms |
+| 5 MB string | 49 ms |
+| 15 MB string | 167 ms |
+| 48,000 small objects (4.9 MB of JSON) | 550 to 790 ms |
+| 17 MB | fails: `EXT_BAD_PAYLOAD The result of big must be under 16 MB` |
+
+Many small objects cost far more than one string of the same size. For big
+graphs or tables, page the data, or return the JSON your program already
+produced as one string and `JSON.parse` it in the page.
 
 ## Developing pages outside MonoRail
 

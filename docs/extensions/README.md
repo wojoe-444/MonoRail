@@ -18,7 +18,7 @@ that matches the installed app, offline.
 | Page | Read it for |
 | --- | --- |
 | [Manifest](manifest.md) | Every field of `monorail.json`: types, defaults, limits, the error you get |
-| [Page API](page-api.md) | `monorail-sdk/client.js`: `invoke`, events, settings, folders, theme, errors |
+| [Page API](page-api.md) | `monorail-sdk/client.js`: `invoke`, events, settings, folders, theme, errors; porting an existing web UI |
 | [Backend API](backend-api.md) | The backend module, `ctx`, hooks, error codes, events, secrets, settings |
 | [Permissions and security](permissions.md) | What a page and a backend can and can't do, and how each permission is matched |
 | [Running Python and other runtimes](non-node-runtimes.md) | Starting a non-Node program from a backend on Windows: finding or bundling it, its environment, cleanup, a helper HTTP server |

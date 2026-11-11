@@ -34,8 +34,9 @@ connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; object-src 'none'
 base-uri 'none'; form-action 'none'
 ```
 
-MonoRail also keeps frames on their own origin (`will-frame-navigate`), so a
-page can't navigate itself somewhere else. The bridge forwards only what the
+No `'unsafe-eval'`: code that compiles strings (`eval`, `new Function`,
+template engines that rely on them) fails. MonoRail also keeps frames on their own origin (`will-frame-navigate`), so a
+page can't navigate itself somewhere else; links between your own pages work. The bridge forwards only what the
 [Page API](page-api.md) lists, and only to the page's own extension.
 
 ## Backends
