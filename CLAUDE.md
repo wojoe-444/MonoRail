@@ -219,6 +219,12 @@ headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
 Scheduled and archived chats are hidden behind toggle buttons; the open chat
 always stays listed. Right-click a chat to mark it read/unread or archive it.
 
+**Side panels** (page header buttons): **Changes** runs `git status` and
+`git diff HEAD` for the chat's folder (`agent-chat-changes.cjs`; read-only,
+folder from the main process, external diff/textconv/fsmonitor off, diff cut
+at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
+"Open in new tab" going to the system browser.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
