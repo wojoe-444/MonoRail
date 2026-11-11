@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, FlaskConical, Loader2, RefreshCw, Terminal } from 'lucide-react'
 
 import { Legend } from '@/components/charts/Legend'
@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
 import { Switch } from '@/components/ui/switch'
-import { formatCount, formatPercent, formatRelative, formatUSD } from '@/lib/format'
+import { CacheStatusBadge } from '@/components/cache/CacheStatusBadge'
+import { describeCache, useCachePolling } from '@/lib/cache'
+import { formatCount, formatIn, formatPercent, formatRelative, formatUSD } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -62,7 +64,12 @@ export default function ClaudeStatsPage() {
   const [breakout, setBreakout] = useState(false)
 
   const sample = useMemo(() => (useSample ? sampleReport() : undefined), [useSample])
-  const report = useSample ? sample : query.data
+  // Opening the page only reads the saved report; builds run from Refresh or the schedule.
+  const cacheStatus = useSample ? undefined : query.data?.cache
+  const { reload } = query
+  const reread = useCallback(() => void reload({}), [reload])
+  useCachePolling(query.fetching ? undefined : cacheStatus, reread)
+  const report = useSample ? sample : query.data?.missing ? undefined : query.data
 
   const base = useMemo(() => (report ? buildFacts(report) : undefined), [report])
 
@@ -144,10 +151,8 @@ export default function ClaudeStatsPage() {
         <Badge variant="warning">
           <FlaskConical /> Sample data
         </Badge>
-      ) : report ? (
-        <Badge variant={report.stale ? 'warning' : 'success'}>
-          {report.stale ? 'Cached' : 'Live'} · updated {formatRelative(report.generatedAt)}
-        </Badge>
+      ) : cacheStatus ? (
+        <CacheStatusBadge status={cacheStatus} />
       ) : null}
       {desktop && (
         <Button
@@ -156,9 +161,10 @@ export default function ClaudeStatsPage() {
             setUseSample(false)
             void query.refresh({ refresh: true })
           }}
-          disabled={query.fetching}
+          disabled={query.fetching || !!cacheStatus?.building}
+          title="Read the logs again now, skipping the saved report"
         >
-          {query.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+          {query.fetching || cacheStatus?.building ? <Loader2 className="animate-spin" /> : <RefreshCw />}
           Refresh
         </Button>
       )}
@@ -203,16 +209,31 @@ export default function ClaudeStatsPage() {
           No list price for {base.unpriced.join(', ')}. Their cost is left out of estimates until the price table has a row for them.
         </Notice>
       )}
-      {report?.stale && !useSample && (
+      {cacheStatus?.lastError && !useSample && (
         <Notice icon={AlertTriangle} tone="warning">
-          Showing the last saved report because ccusage failed: {report.error}
+          <span>
+            {report?.generatedAt
+              ? `Showing the last good report, built ${formatRelative(report.generatedAt)}, because the last build failed: `
+              : 'The usage report could not be built: '}
+            {cacheStatus.lastError}
+            {cacheStatus.nextRetryAt && ` It is tried again automatically ${formatIn(cacheStatus.nextRetryAt)}, or press Refresh.`}
+          </span>
         </Notice>
       )}
 
-      {!report && query.loading && (
+      {!report && !useSample && desktop && (query.fetching || cacheStatus?.building) && (
         <Card className="items-center gap-3 py-16 text-center text-sm text-muted-foreground">
           <Loader2 className="size-6 animate-spin text-primary" />
-          Reading your Claude Code logs with ccusage. The first run can take a minute.
+          {query.loading ? 'Opening the saved report…' : 'Building the usage report from your local logs. The first run can take a minute.'}
+        </Card>
+      )}
+
+      {!useSample && desktop && query.data?.missing && !cacheStatus?.building && !cacheStatus?.lastError && !query.fetching && (
+        <Card className="items-center gap-3 py-16 text-center text-sm text-muted-foreground" title={cacheStatus ? describeCache(cacheStatus) : undefined}>
+          No usage report has been built yet. MonoRail builds one in the background shortly after it starts.
+          <Button variant="outline" onClick={() => void query.refresh({ refresh: true })}>
+            <RefreshCw /> Build it now
+          </Button>
         </Card>
       )}
 

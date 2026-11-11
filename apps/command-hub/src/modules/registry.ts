@@ -1,7 +1,6 @@
 import { agentChatModule } from './agent-chat'
 import { claudeStatsModule } from './claude-stats'
 import { connectionsModule } from './connections'
-import { jiraModule } from './jira'
 import { extensionsModule } from './extensions'
 import { settingsModule } from './settings'
 import { extensionModules } from '@/extensions/contributions'
@@ -11,7 +10,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [agentChatModule, jiraModule, claudeStatsModule, connectionsModule, extensionsModule, settingsModule]
+export const modules: ModuleDefinition[] = [agentChatModule, claudeStatsModule, connectionsModule, extensionsModule, settingsModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()

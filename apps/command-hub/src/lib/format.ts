@@ -40,3 +40,14 @@ export function formatRelative(iso: string, now = Date.now()): string {
   if (h < 24) return `${h} h ago`
   return `${Math.round(h / 24)} d ago`
 }
+
+/** "in 12 min" / "in 1 h" for a time in the future ("now" if it has passed). */
+export function formatIn(iso: string, now = Date.now()): string {
+  const s = Math.round((Date.parse(iso) - now) / 1000)
+  if (s <= 30) return 'now'
+  const m = Math.round(s / 60)
+  if (m < 60) return `in ${Math.max(1, m)} min`
+  const h = Math.round(m / 60)
+  if (h < 24) return `in ${h} h`
+  return `in ${Math.round(h / 24)} d`
+}

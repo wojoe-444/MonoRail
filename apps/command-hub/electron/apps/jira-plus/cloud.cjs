@@ -2,7 +2,7 @@
 //
 // Auth is an Atlassian API token (id.atlassian.com > Security > API tokens)
 // sent as Basic auth with the account email. The token is stored by
-// jira.cjs in %APPDATA%\MonoRail\modules\jira, encrypted with Electron's
+// index.cjs in %APPDATA%\MonoRail\apps\jira-plus, encrypted with Electron's
 // safeStorage (Windows DPAPI). It is never logged or returned to the page.
 //
 // Jira v3 stores rich text as Atlassian Document Format (ADF). The page works
