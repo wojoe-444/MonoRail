@@ -40,10 +40,15 @@ Run from `apps/command-hub/`:
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |
-| `npm run dist:win` | Build `release/CommandHub-<version>-portable.exe` |
+| `npm run dist:win` | Build the installer `release/CommandHub-Setup-<version>.exe` |
+| `npm run dist:win:portable` | Build a portable `.exe` (cannot self-update) |
 
 CI (`.github/workflows/ci.yml`) builds and lints on every PR and produces the
-portable `.exe` on a Windows runner as a downloadable artifact.
+installer on a Windows runner as a downloadable artifact. On every push to
+`main` it stamps the version as `<major>.<minor>.<run number>` and publishes a
+GitHub release; the Settings page (`modules/settings`, backed by
+`electron-updater`) checks those releases and installs updates in place. Bump
+major/minor in `package.json` by hand; never publish from a local machine.
 
 ## Code layout (`apps/command-hub/src`)
 
