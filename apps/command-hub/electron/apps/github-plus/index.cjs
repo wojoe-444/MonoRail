@@ -8,7 +8,7 @@
 
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const { BrowserWindow, dialog } = require('electron')
+const { BrowserWindow, dialog, shell } = require('electron')
 
 const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
@@ -136,6 +136,22 @@ module.exports = {
       const next = (await readRecents(ctx)).filter((x) => x !== p)
       await writeRecents(ctx, next)
       return next
+    },
+    /**
+     * Show a repo's folder in the system file manager (File Explorer on
+     * Windows). Only a repo opened this session or one on the stored recents
+     * list, and only a folder: shell.openPath would run a file.
+     */
+    async openInExplorer(ctx, { path: p } = {}) {
+      if (typeof p !== 'string' || !(openedRepos.has(p) || (await readRecents(ctx)).includes(p))) {
+        throw new Error('Repository has not been opened')
+      }
+      const dir = path.normalize(p)
+      const st = await fs.stat(dir).catch(() => null)
+      if (!st?.isDirectory()) throw new Error('The folder no longer exists')
+      const err = await shell.openPath(dir)
+      if (err) throw new Error(err)
+      return null
     },
     listRefs: (_ctx, { repo } = {}) => git.listRefs(guard(repo)),
     listTree: (_ctx, { repo, ref, path: p } = {}) => git.listTree(guard(repo), ref, p),

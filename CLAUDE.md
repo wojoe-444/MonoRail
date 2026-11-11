@@ -447,6 +447,11 @@ Recent repo paths are kept in its data folder, never in the repo. It makes no
 network requests: remote images in READMEs are blocked and external links do
 nothing. Tests live in `git.test.cjs`.
 
+GitHub+ can show a repo's folder in File Explorer (repo header button and
+the home page's repo list, `openInExplorer`): only for a repo opened this
+session or on its recents list, only a directory (`shell.openPath` would run a
+file).
+
 GitHub+ speed: starting a git process is the costly part (on Windows most of
 all, and Node starts each one on the main process), so every page uses as few
 as it can and `git.cjs` runs at most 6 at a time. A folder lists in one

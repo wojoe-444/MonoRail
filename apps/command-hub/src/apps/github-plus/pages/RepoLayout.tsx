@@ -1,7 +1,8 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { RepoIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon } from '../components/Icons'
+import { RepoIcon, FolderIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon } from '../components/Icons'
+import { fileManagerName } from '../util'
 import { backupsLink, commitsLink, compareLink, issuesLink, treeLink } from '../links'
 
 export default function RepoLayout() {
@@ -18,6 +19,7 @@ export default function RepoLayout() {
       <header className="topbar">
         <Link to="/" className="brand" title="GitHub+ home: open a repository">GitHub<span className="brand-plus">+</span></Link>
         <span className="spacer" />
+        <button className="btn" onClick={() => api.openInExplorer(repo.path).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))} title={`Open ${repo.path} in ${fileManagerName}`}><FolderIcon /> Open in {fileManagerName}</button>
         <button className="btn" onClick={() => refresh()} title="Re-read branches from disk">Refresh</button>
         <button className="btn" onClick={() => pick().then((ok) => ok && nav('/repo/tree'))}>Open…</button>
       </header>

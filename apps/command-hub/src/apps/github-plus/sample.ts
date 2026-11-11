@@ -280,6 +280,8 @@ export const sampleApi: RepoApi = {
     return wait([orbit, plain, ...OTHER_REPOS])
   },
   removeRecent: () => wait([]),
+  // No file manager in the browser dev server.
+  openInExplorer: () => wait(null),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {
     const files = filesAt(ref)

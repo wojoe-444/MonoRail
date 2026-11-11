@@ -18,6 +18,8 @@ export interface RepoApi {
   /** Home dashboard: activity across the recently opened repos. */
   getActivity(): Promise<RepoActivity[]>
   removeRecent(path: string): Promise<string[]>
+  /** Show the repo's folder in File Explorer (an opened or recent repo only). */
+  openInExplorer(path: string): Promise<null>
   listRefs(repo: string): Promise<RefInfo[]>
   /** Folder entries only; the last commit per entry is treeLastCommits, so the list shows first. */
   listTree(repo: string, ref: string, path: string): Promise<TreeEntry[]>
@@ -70,6 +72,7 @@ const desktopApi: RepoApi = {
   getRecents: () => call('getRecents'),
   getActivity: () => call('getActivity'),
   removeRecent: (path) => call('removeRecent', { path }),
+  openInExplorer: (path) => call('openInExplorer', { path }),
   listRefs: (repo) => call('listRefs', { repo }),
   listTree: (repo, ref, path) => call('listTree', { repo, ref, path }),
   treeLastCommits: (repo, ref, path) => call('treeLastCommits', { repo, ref, path }),
