@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { FolderPreview, GitHubPlusSettings, InitOptions, RefInfo, RepoInfo } from './types'
+import type { FolderPreview, GitHubPlusSettings, InitOptions, LinkedRepo, RefInfo, RepoInfo } from './types'
 import { api, isNotARepoError } from './api'
 
 /** Thrown by open() when the folder is not a repo and GitHub+ is offering to make it one. */
@@ -15,6 +15,8 @@ interface Ctx {
   refs: RefInfo[]
   /** Recently opened repo paths (kept in AppData by the backend), newest first. */
   recents: string[]
+  /** Repos other MonoRail apps created (Jira+'s private projects); listed after the recents, never removed. */
+  linked: LinkedRepo[]
   /** True while the last-opened repo is being restored on startup. */
   restoring: boolean
   forget(path: string): Promise<void>
@@ -40,6 +42,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
   const [refs, setRefs] = useState<RefInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [recents, setRecents] = useState<string[]>([])
+  const [linked, setLinked] = useState<LinkedRepo[]>([])
   const [restoring, setRestoring] = useState(true)
   const [initOffer, setInitOffer] = useState<FolderPreview | null>(null)
   const [settings, setSettings] = useState<GitHubPlusSettings>({ autoInitFolders: false })
@@ -104,6 +107,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true
     api.getSettings().then((s) => live && setSettings(s), () => undefined)
+    api.getLinked().then((l) => live && setLinked(l), () => undefined)
     api.getRecents().then(
       async (list) => {
         if (!live) return
@@ -119,7 +123,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
   return (
     <RepoCtx.Provider
       value={{
-        repo, refs, recents, restoring, forget, open, pick, refresh, close: () => setRepo(null), error,
+        repo, refs, recents, linked, restoring, forget, open, pick, refresh, close: () => setRepo(null), error,
         initOffer, confirmInit, cancelInit: () => setInitOffer(null), settings, saveSettings,
       }}
     >

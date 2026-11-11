@@ -2,7 +2,9 @@
 // Ported from wojoe-444/Local-Repo-UI (src/main/index.ts).
 //
 // Private data rule: the list of recently opened repo paths is kept in
-// %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Local issues are
+// %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Repos other
+// MonoRail apps created (Jira+'s private projects) are listed next to them
+// without being stored there (linked.cjs). Local issues are
 // stored inside each repo under refs/local-issues (issues.cjs). Nothing
 // is sent anywhere; the only process this runs is the local `git` CLI.
 
@@ -14,6 +16,7 @@ const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
 const folderInit = require('./init.cjs')
 const issues = require('./issues.cjs')
+const { linkedRepos, mergeRecents } = require('./linked.cjs')
 
 const RECENTS_FILE = 'recents.json'
 const SETTINGS_FILE = 'settings.json'
@@ -52,6 +55,12 @@ async function writeRecents(ctx, list) {
 // branch is checked out) are unchanged. Checking that is one git process per
 // repo instead of about a dozen for a full summary.
 const activityCache = new Map()
+
+/** Name and badge for a repo another MonoRail app created, by path. */
+async function linkedInfo(ctx, p) {
+  const l = (await linkedRepos(ctx.dataDir)).find((x) => x.path === p)
+  return l ? { name: l.name, linked: { app: l.app, label: l.label } } : {}
+}
 
 async function repoActivity(p) {
   const fp = await git.refsFingerprint(p).catch(() => null)
@@ -100,7 +109,7 @@ module.exports = {
       openedRepos.add(info.path)
       const recents = await readRecents(ctx)
       await writeRecents(ctx, [info.path, ...recents.filter((p) => p !== info.path)])
-      return info
+      return { ...info, ...(await linkedInfo(ctx, info.path)) }
     },
     /** What making a plain folder into a repo would snapshot (nothing is written). */
     previewFolder: (_ctx, { dir } = {}) => folderInit.previewFolder(dir),
@@ -116,21 +125,31 @@ module.exports = {
       return next
     },
     /**
-     * Home dashboard: activity across the recently opened repos. Reads only
-     * paths from the stored recents list, never paths sent by the page.
+     * Home dashboard: activity across the recently opened repos and the
+     * repos other MonoRail apps created. Reads only paths from the stored
+     * recents list and linked.cjs, never paths sent by the page.
      */
     async getActivity(ctx) {
-      const recents = await readRecents(ctx)
+      const [recents, linked] = await Promise.all([readRecents(ctx), linkedRepos(ctx.dataDir)])
+      const byPath = new Map(linked.map((l) => [l.path, l]))
       return Promise.all(
-        recents.map(async (p) => {
+        mergeRecents(recents, linked).map(async (p) => {
           const [activity, backup] = await Promise.all([repoActivity(p), backups.get(p).catch(() => null)])
-          return { ...activity, backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null }
+          const l = byPath.get(p)
+          return {
+            ...activity,
+            ...(l ? { name: l.name, linked: { app: l.app, label: l.label } } : {}),
+            backup: backup?.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null,
+          }
         }),
       )
     },
+    /** Repos the user opened, most recent first (the first one is reopened when GitHub+ starts). */
     async getRecents(ctx) {
       return readRecents(ctx)
     },
+    /** Repos other MonoRail apps created that exist now: [{ path, app, label, name }]. */
+    getLinked: (ctx) => linkedRepos(ctx.dataDir),
     async removeRecent(ctx, { path: p } = {}) {
       activityCache.delete(p)
       const next = (await readRecents(ctx)).filter((x) => x !== p)
