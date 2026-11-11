@@ -49,8 +49,11 @@ export interface ModuleDefinition {
 export interface CommandHubBridge {
   platform: string
   invoke<T = unknown>(moduleId: string, method: string, args?: unknown): Promise<T>
-  /** Push channels from the main process: 'extension:event' and 'extension:changed'. Returns an unsubscribe. */
-  on?(channel: 'extension:event' | 'extension:changed', cb: (payload: unknown) => void): () => void
+  /** Toggle the window's full screen mode (F11 does the same). Resolves to the new state. Desktop app only. */
+  toggleFullScreen?(): Promise<boolean>
+  isFullScreen?(): Promise<boolean>
+  /** Push channels from the main process: 'extension:event', 'extension:changed' and 'window:fullscreen' (boolean). Returns an unsubscribe. */
+  on?(channel: 'extension:event' | 'extension:changed' | 'window:fullscreen', cb: (payload: unknown) => void): () => void
 }
 
 declare global {

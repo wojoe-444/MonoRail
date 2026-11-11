@@ -23,6 +23,7 @@ function startApp() {
   registerExtensionScheme()
 
   const { registerModuleBackends } = require('./modules/index.cjs')
+  const { registerFullScreenIpc, attachFullScreen } = require('./window-fullscreen.cjs')
 
   const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
 
@@ -51,6 +52,7 @@ function startApp() {
     })
 
     win.once('ready-to-show', () => win.show())
+    attachFullScreen(win)
 
     // Open external links in the user's browser, not inside the app.
     win.webContents.setWindowOpenHandler(({ url }) => {
@@ -76,6 +78,7 @@ function startApp() {
 
   app.whenReady().then(() => {
     registerModuleBackends()
+    registerFullScreenIpc()
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
