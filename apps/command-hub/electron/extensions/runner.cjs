@@ -258,6 +258,8 @@ function makeCtx(init) {
   }
   return Object.freeze({
     apiVersion: init.apiVersion,
+    /** 'app' in MonoRail itself, 'mcp' when an agent called one of its MCP tools (API 1.2). */
+    runningIn: init.runningIn === 'mcp' ? 'mcp' : 'app',
     extension: Object.freeze({ ...init.extension }),
     dataDir: init.dataDir,
     extensionDir: init.extensionDir,

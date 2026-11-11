@@ -20,7 +20,7 @@ feature you use.
   "description": "Runs a bot on your server and shows its chat.",
   "publisher": "Example Publisher",
   "repository": "example-org/minecraft-bot",
-  "engines": { "monorail": "^1.1.0" },
+  "engines": { "monorail": "^1.2.0" },
   "icon": "icon.svg",
   "ui": "ui",
   "contributes": {
@@ -59,7 +59,7 @@ feature you use.
 | `repository` | string | no | | GitHub `owner/name` (a full `https://github.com/...` URL is shortened). **Required to install from GitHub**: it must match the repository the release came from. |
 | `icon` | path | no | a puzzle icon | A single-color SVG. MonoRail tints it like its own icons (it is used as a mask, so only its shape counts). |
 | `ui` | path | no | `"ui"` if there are contributions | The folder of built static files that MonoRail serves to your pages. |
-| `contributes` | object | see below | | `modules` and `apps`. |
+| `contributes` | object | see below | | `modules`, `apps` and (API 1.2) `mcpTools`. |
 | `backend` | object | no | | See [Backend](#backend). |
 | `permissions` | object | no | nothing | See [Permissions](#permissions). |
 | `settings` | list | no | `[]` | API 1.1. See [Settings](#settings). |
@@ -85,6 +85,40 @@ together must be unique.
 | `icon` | path | no | the extension's icon | Single-color SVG. |
 | `nav.section` | string | no (modules only) | `"Extensions"` | The menu section the module appears under. At most 40 characters. |
 | `nav.order` | number | no (modules only) | `100` | Sort order within the section, lowest first. |
+
+## MCP tools
+
+API 1.2. `contributes.mcpTools` lists tools your extension offers to agents
+(Claude Code and others) through [MonoRail's MCP server](../mcp.md). Calling
+a tool calls one of your backend methods with the agent's arguments and sends
+back what it returns, so `mcpTools` needs a `backend`.
+
+```json
+"contributes": {
+  "mcpTools": [
+    { "name": "list_notes", "title": "List notes", "description": "The notes, newest first.", "method": "listNotes" },
+    {
+      "name": "add_note", "title": "Add a note", "description": "Add a note.", "method": "addNote", "write": true,
+      "inputSchema": { "type": "object", "properties": { "text": { "type": "string", "maxLength": 500 } }, "required": ["text"] }
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Default | Rules |
+| --- | --- | --- | --- | --- |
+| `name` | string | yes | | snake_case (`a-z`, `0-9`, single `_`), at most 20 characters, unique in the list. Agents see it as `<id with _>__<name>`, e.g. `hello_monorail__list_notes`. |
+| `title` | string | yes | | At most 60 characters. Shown to the user as "<extension name>: <title>". |
+| `description` | string | yes | | At most 500 characters. What the agent reads to decide when to call it, so say what it returns. |
+| `method` | string | yes | | A method in your backend's `methods`. |
+| `write` | boolean | no | `false` | `true` if it changes anything. Shown to the user and the agent, and logged as a write. |
+| `inputSchema` | object | no | no arguments | `{ "type": "object", "properties": {...}, "required": [...] }`. Properties are flat and typed (`string`, `integer`, `number`, `boolean`) with optional `description`, `enum`, `minimum`, `maximum`, `maxLength`. At most 20. MonoRail checks every call against it and refuses unknown arguments. |
+
+At most 20 tools. Every extension tool, `write` or not, stays off for each
+agent until the user turns it on under **Configure > Agent access**, and
+every call is logged there. Your backend runs in the MCP server's own
+process when an agent calls it; see
+[`ctx.runningIn`](backend-api.md#when-an-agent-calls-a-tool).
 
 ## Backend
 

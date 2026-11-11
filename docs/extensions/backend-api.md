@@ -42,7 +42,8 @@ background from `start`, not awaited.
 
 | Property | Type | What it is |
 | --- | --- | --- |
-| `apiVersion` | string | MonoRail's extension API version, e.g. `"1.1.0"`. |
+| `apiVersion` | string | MonoRail's extension API version, e.g. `"1.2.0"`. |
+| `runningIn` | `'app'` \| `'mcp'` | API 1.2. `'mcp'` when the process was started for an agent's tool call. See [When an agent calls a tool](#when-an-agent-calls-a-tool). |
 | `extension` | `{ id, name, version }` | From your manifest. |
 | `dataDir` | string | Your private, writable folder: `%APPDATA%\MonoRail\extension-data\<id>`. Also the working directory. Kept across updates, reloads and a Remove that keeps the data. |
 | `extensionDir` | string | Your installed files (read-only). For a development folder, the folder itself. |
@@ -57,6 +58,27 @@ background from `start`, not awaited.
 The environment is minimal: `PATH`, `HOME`/`USERPROFILE`, `LANG`, `TZ` and a
 few Windows basics. Nothing from the user's environment that could hold a
 token is passed on. `TMP`, `TEMP` and `TMPDIR` point to `<dataDir>/tmp`.
+
+## When an agent calls a tool
+
+API 1.2. When an agent calls one of your [MCP tools](manifest.md#mcp-tools),
+MonoRail's MCP server (a separate process the agent started, not the app)
+starts your backend itself and calls the tool's method with the agent's
+arguments. It is the same backend file, the same sandbox and permissions,
+the same `dataDir` and granted folders, with `ctx.runningIn === 'mcp'`.
+What differs:
+
+- `ctx.secrets` rejects with `EXT_SECRETS_UNAVAILABLE`: decrypting needs the
+  app. Secret [settings](#ctxsettings) read as `null`; other settings work.
+- `ctx.emit` reaches no page.
+- `migrate()` never runs there. A tool call is refused until the app has
+  started the backend once after an install or update.
+- The app and an agent can run your backend **at the same time**, on the
+  same data folder. Write files atomically (write a temporary file, then
+  rename it) and re-read state instead of keeping it only in memory.
+- The process ends when the agent's session ends, after `stop(ctx)`.
+
+Errors you throw (or `ctx.fail`) reach the agent as the tool's error text.
 
 ## Errors
 

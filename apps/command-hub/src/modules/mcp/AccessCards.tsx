@@ -35,7 +35,7 @@ export function AgentsCard({ className }: { className?: string }) {
     <Card className={className}>
       <CardHeader>
         <CardTitle>Agents</CardTitle>
-        <CardDescription>Every agent that has connected. Write tools stay off until you turn them on here, per agent. Read tools are always available.</CardDescription>
+        <CardDescription>Every agent that has connected. Write tools and tools from extensions stay off until you turn them on here, per agent. MonoRail's own read tools are always available.</CardDescription>
         <CardAction>
           <Button variant="outline" size="sm" onClick={() => { setLive(undefined); void query.refresh() }}>
             <RefreshCw /> Refresh

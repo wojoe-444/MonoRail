@@ -18,9 +18,10 @@ const { resolveUserDataDir } = require('../userData.cjs')
 const { createMcpServer } = require('./protocol.cjs')
 const { serveStdio } = require('./stdio.cjs')
 const access = require('./access.cjs')
+const { extensionTools } = require('./extensions.cjs')
 const { readTools, writeTools } = require('./tools.cjs')
 
-const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. Write tools (raising or commenting on local issues) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
+const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. Write tools (raising or commenting on local issues) and tools from installed extensions (named <extension>__<tool>) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
 
 function defaultAppData(env = process.env, platform = process.platform, home = os.homedir()) {
   if (platform === 'win32') return env.APPDATA || path.join(home, 'AppData', 'Roaming')
@@ -41,12 +42,14 @@ function version() {
   }
 }
 
-function createServer({ rootDir, log = () => {} }) {
-  return createMcpServer({
+/** The server over `rootDir`. extensions: false leaves extension tools out (tests). */
+function createServer({ rootDir, log = () => {}, extensions = true }) {
+  const ext = extensions ? extensionTools({ rootDir, log }) : { tools: [], stop: async () => {} }
+  const server = createMcpServer({
     name: 'monorail',
     version: version(),
     instructions: INSTRUCTIONS,
-    tools: [...readTools({ rootDir }), ...writeTools({ rootDir })],
+    tools: [...readTools({ rootDir }), ...writeTools({ rootDir }), ...ext.tools],
     // The agent shows up on the Agent access page with nothing allowed.
     onInitialize: async (clientInfo) => {
       try {
@@ -67,6 +70,9 @@ function createServer({ rootDir, log = () => {} }) {
       return access.appendAudit(rootDir, { agent, tool, write, ok, ms, error: error?.slice(0, 300), did }).catch((e) => log('audit log failed:', e.message))
     },
   })
+  /** Stop the extension backends this server started. */
+  server.stop = ext.stop
+  return server
 }
 
 async function main() {
@@ -78,7 +84,9 @@ async function main() {
   const rootDir = dataDir || process.env.MONORAIL_DATA_DIR || resolveUserDataDir(defaultAppData())
   const log = (...a) => toStderr('[monorail-mcp]', ...a)
   log(`serving ${rootDir}`)
-  await serveStdio(createServer({ rootDir, log }))
+  const server = createServer({ rootDir, log })
+  await serveStdio(server)
+  await server.stop().catch(() => {})
   process.exit(0)
 }
 

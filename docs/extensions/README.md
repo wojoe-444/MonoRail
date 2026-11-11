@@ -26,4 +26,4 @@ that matches the installed app, offline.
 | [Troubleshooting](troubleshooting.md) | Symptoms, causes and fixes |
 
 [Roadmap](roadmap.md) lists what is planned. The reference pages describe only
-what MonoRail does today, in extension API **1.1**.
+what MonoRail does today, in extension API **1.2**.

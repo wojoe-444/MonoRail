@@ -5,7 +5,9 @@
 // Spec: https://modelcontextprotocol.io/specification (2025-06-18, with the
 // two earlier versions still accepted).
 //
-// A tool is { name, title, description, inputSchema, annotations?, write?, handler }.
+// A tool is { name, title, description, inputSchema, annotations?, write?, consent?, handler }.
+// write: it changes something (logged as a write). consent (default: write):
+// authorize() must allow it first.
 // handler(args, ctx) returns any JSON value; it is sent back as JSON text. A
 // thrown error becomes a tool result with isError, so the agent sees the
 // message. ctx = { agent, did(text) }: agent is the name the client gave in
@@ -95,10 +97,11 @@ function createMcpServer({ name, version, instructions, tools, onCall = () => {}
     if (!tool) throw Object.assign(new Error(`Unknown tool: ${params?.name}`), { code: ERR.invalidParams })
     const started = Date.now()
     const write = !!tool.write
+    const consent = tool.consent ?? write
     let did
     try {
       const args = checkArgs(tool.inputSchema, params.arguments)
-      if (write) {
+      if (consent) {
         if (!authorize) throw new Error('Write tools are turned off.')
         await authorize({ tool: tool.name, agent })
       }

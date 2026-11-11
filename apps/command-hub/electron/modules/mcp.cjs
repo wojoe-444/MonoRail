@@ -7,6 +7,7 @@
 const path = require('node:path')
 
 const access = require('../mcp/access.cjs')
+const { describeExtensionTools } = require('../mcp/extensions.cjs')
 const { readTools, writeTools } = require('../mcp/tools.cjs')
 const { SERVER } = require('../mcp/launch.cjs')
 
@@ -33,9 +34,26 @@ function snippets({ command, args, env }) {
   }
 }
 
+function extensionToolsSafe(ctx) {
+  try {
+    return describeExtensionTools(ctx.rootDir)
+  } catch (e) {
+    ctx.log('could not read extension tools:', e.message)
+    return []
+  }
+}
+
+/** Every tool that needs the user's OK: built-in writes and every extension tool. */
+function consentTools(ctx) {
+  return [
+    ...writeTools({ rootDir: ctx.rootDir }).map((t) => ({ name: t.name, title: t.title })),
+    ...extensionToolsSafe(ctx).map((e) => ({ name: e.name, title: e.title, extension: e.rec.manifest.name })),
+  ]
+}
+
 async function accessView(ctx) {
   const { agents } = await access.readAccess(ctx.rootDir)
-  const writes = writeTools({ rootDir: ctx.rootDir }).map((t) => ({ name: t.name, title: t.title }))
+  const writes = consentTools(ctx)
   return {
     writeTools: writes,
     agents: Object.entries(agents)
@@ -55,18 +73,22 @@ module.exports = {
         serverFile: path.basename(SERVER),
         dataDir: ctx.rootDir,
         snippets: snippets(launch),
-        tools: [...readTools({ rootDir: ctx.rootDir }), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
-          name: t.name,
-          title: t.title,
-          description: t.description,
-          readOnly: !!t.annotations?.readOnlyHint,
-        })),
+        tools: [
+          ...[...readTools({ rootDir: ctx.rootDir }), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
+            name: t.name,
+            title: t.title,
+            description: t.description,
+            readOnly: !!t.annotations?.readOnlyHint,
+            needsConsent: !!t.write,
+          })),
+          ...extensionToolsSafe(ctx).map((e) => ({ name: e.name, title: e.title, description: e.tool.description, readOnly: !e.tool.write, needsConsent: true, extension: e.rec.manifest.name })),
+        ],
       }
     },
     /** Agents that have connected, and which write tools each may use. */
     getAccess: (ctx) => accessView(ctx),
     async setAllowed(ctx, args) {
-      const tools = new Set(writeTools({ rootDir: ctx.rootDir }).map((t) => t.name))
+      const tools = new Set(consentTools(ctx).map((t) => t.name))
       if (typeof args?.agent !== 'string' || !tools.has(args?.tool)) throw new Error('Unknown agent or tool')
       await access.setAllowed(ctx.rootDir, args.agent, args.tool, !!args.allowed)
       return accessView(ctx)

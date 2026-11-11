@@ -1,4 +1,4 @@
-# MonoRail extension SDK (API 1.1)
+# MonoRail extension SDK (API 1.2)
 
 The files a MonoRail extension carries in its `monorail-sdk/` folder. No
 dependencies and nothing to install: copy the folder, or start from the

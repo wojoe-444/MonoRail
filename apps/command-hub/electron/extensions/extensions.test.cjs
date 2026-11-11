@@ -135,6 +135,34 @@ test('manifest rejects bad input', () => {
   for (const [patch, re] of bad) assert.throws(() => manifest.validateManifest(baseManifest(patch)), re, JSON.stringify(patch))
 })
 
+test('MCP tools are validated and normalized (API 1.2)', () => {
+  const backend = { main: 'b.cjs' }
+  const tool = { name: 'list_things', title: 'List things', description: 'Lists things.', method: 'listThings' }
+  const m = manifest.validateManifest(
+    baseManifest({
+      backend,
+      contributes: {
+        modules: [{ id: 'a', title: 'A', entry: 'index.html' }],
+        mcpTools: [tool, { ...tool, name: 'add_thing', method: 'addThing', write: true, inputSchema: { type: 'object', properties: { text: { type: 'string', maxLength: 10, extra: 1 } }, required: ['text', 'nope'] } }],
+      },
+    }),
+  )
+  assert.equal(m.contributes.mcpTools[0].write, false)
+  assert.deepEqual(m.contributes.mcpTools[0].inputSchema, { type: 'object', properties: {}, additionalProperties: false })
+  assert.deepEqual(m.contributes.mcpTools[1].inputSchema, { type: 'object', properties: { text: { type: 'string', maxLength: 10 } }, required: ['text'], additionalProperties: false })
+  const bad = [
+    [{ contributes: { mcpTools: [tool] } }, /needs a backend/],
+    [{ backend, contributes: { mcpTools: [{ ...tool, name: 'Bad-Name' }] } }, /snake_case/],
+    [{ backend, contributes: { mcpTools: [{ ...tool, name: 'a__b' }] } }, /snake_case/],
+    [{ backend, contributes: { mcpTools: [{ ...tool, method: '../x' }] } }, /backend method/],
+    [{ backend, contributes: { mcpTools: [tool, tool] } }, /Two MCP tools/],
+    [{ backend, contributes: { mcpTools: [{ ...tool, inputSchema: { type: 'array' } }] } }, /type": "object/],
+    [{ backend, contributes: { mcpTools: [{ ...tool, inputSchema: { type: 'object', properties: { x: { type: 'object' } } } }] } }, /type must be one of/],
+    [{ backend, contributes: { mcpTools: {} } }, /must be a list/],
+  ]
+  for (const [patch, re] of bad) assert.throws(() => manifest.validateManifest(baseManifest(patch)), re, JSON.stringify(patch))
+})
+
 test('incompatible API major is detected', () => {
   const m = manifest.validateManifest(baseManifest({ engines: { monorail: '^2.0.0' } }))
   assert.equal(manifest.apiCompatible(m), false)

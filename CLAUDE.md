@@ -292,7 +292,14 @@ self-reported `clientInfo.name`, recorded on first connect with nothing
 allowed; only the page grants). Every call goes to `audit.jsonl` (agent, tool,
 outcome, ms, a one-line `did` for writes; never arguments or results),
 shown under Activity. Both files are in `modules/mcp`. A new write tool must
-set `write: true` and call `ctx.did()`. Jira+ local writes take a lock file
+set `write: true` and call `ctx.did()`. **Extension tools** (manifest
+`contributes.mcpTools`, API 1.2; `electron/mcp/extensions.cjs`) are named
+`<id with _>__<name>`, always need consent (`consent: true`, whatever
+`write` says), and run the extension's backend in the MCP server's own
+`BackendHost` (same sandbox and data folder, `ctx.runningIn = 'mcp'`, no
+secrets since safeStorage needs Electron, never `manager.init()`; refused
+until the app has recorded the extension's current data version, so
+`migrate()` only runs in the app). Jira+ local writes take a lock file
 in its `.git` so the app and the server never commit at once. Tests:
 `electron/mcp/mcp.test.cjs` (includes a real stdio run).
 
@@ -445,7 +452,7 @@ Rules live in `electron/extensions/manifest.cjs` (with tests). Routes are
 router and `AppFrame` pick them up through `allModules()` / `allApps()` in
 the registries, fed by `src/extensions/store.ts`.
 
-**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.1.0) covers
+**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.2.0) covers
 the manifest, the backend `ctx`, and bridge protocol 1. Extensions declare
 `engines.monorail`; a non-matching extension stays installed but is not loaded.
 Adding things is a minor bump; changing or removing anything an extension can

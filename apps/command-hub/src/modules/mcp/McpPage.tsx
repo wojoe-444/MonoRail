@@ -112,7 +112,11 @@ export default function McpPage() {
                     <code className="font-mono text-xs text-muted-foreground">{t.name}</code>
                   </div>
                   <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.description}</p>
-                  {t.readOnly ? <Badge variant="success">Read-only</Badge> : <Badge variant="warning">Write, needs your OK</Badge>}
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {t.extension && <Badge variant="info">{t.extension}</Badge>}
+                    {t.readOnly ? <Badge variant="success">Read-only</Badge> : <Badge variant="warning">Write</Badge>}
+                    {t.needsConsent && <Badge variant="outline">Needs your OK</Badge>}
+                  </div>
                 </li>
               ))}
             </ul>

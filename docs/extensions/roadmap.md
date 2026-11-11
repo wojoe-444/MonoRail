@@ -13,6 +13,7 @@ only what exists today.
 | 4 | Settings declared in the manifest, with a generated form | [#37](https://github.com/wojoe-444/MonoRail/pull/37) |
 | 5 | Docs split into concepts, reference, tutorial, testing and troubleshooting; this roadmap | this set of pages |
 | 6 | In-app wiki (Help > Wiki) built from these pages | |
+| 7 | API 1.2: `contributes.mcpTools` (tools for agents through MonoRail's MCP server, each off until allowed per agent) and `ctx.runningIn` | |
 
 ## Next
 

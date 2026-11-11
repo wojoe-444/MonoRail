@@ -361,7 +361,8 @@ function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRe
   const status = STATUS[ext.status]
   const pages = ext.contributes.modules.length
   const apps = ext.contributes.apps.length
-  const parts = [pages && `${pages} page${pages === 1 ? '' : 's'}`, apps && `${apps} app${apps === 1 ? '' : 's'}`, ext.backend && 'backend'].filter(Boolean)
+  const tools = ext.contributes.mcpTools?.length ?? 0
+  const parts = [pages && `${pages} page${pages === 1 ? '' : 's'}`, apps && `${apps} app${apps === 1 ? '' : 's'}`, tools && `${tools} agent tool${tools === 1 ? '' : 's'}`, ext.backend && 'backend'].filter(Boolean)
 
   return (
     <li className="flex flex-col gap-4 px-6 py-5">
@@ -601,6 +602,7 @@ function ConsentDialog({ preview: p, busy, onCancel, onConfirm }: { preview: Ins
   const added = new Set(p.newPermissions.map((x) => x.key))
   const pages = p.contributes.modules.map((m) => m.title)
   const apps = p.contributes.apps.map((a) => a.title)
+  const tools = (p.contributes.mcpTools ?? []).map((t) => t.title)
   return (
     <Dialog open onOpenChange={(o) => !o && onCancel()}>
       <DialogContent>
@@ -618,6 +620,11 @@ function ConsentDialog({ preview: p, busy, onCancel, onConfirm }: { preview: Ins
         <div className="flex flex-col gap-1 text-sm">
           {pages.length > 0 && <div>Adds {pages.length === 1 ? 'a page' : 'pages'}: {pages.join(', ')}</div>}
           {apps.length > 0 && <div>Adds {apps.length === 1 ? 'an app' : 'apps'}: {apps.join(', ')}</div>}
+          {tools.length > 0 && (
+            <div>
+              Offers agents {tools.length === 1 ? 'a tool' : 'tools'}: {tools.join(', ')}. <span className="text-muted-foreground">Each stays off until you allow it per agent on Agent access.</span>
+            </div>
+          )}
           {p.hasBackend && <div className="text-muted-foreground">Includes a backend that runs in its own sandboxed process.</div>}
         </div>
 
