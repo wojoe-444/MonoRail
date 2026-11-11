@@ -4,7 +4,6 @@ import {
   History,
   House,
   KeyRound,
-  Settings,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -40,7 +39,7 @@ const coreSections: NavSection[] = [
     heading: 'Configure',
     items: [
       { path: '/connections', label: 'Connections', icon: KeyRound },
-      { path: '/settings', label: 'Settings', icon: Settings },
+      // Settings is a module (src/modules/settings) and joins this section from the registry.
     ],
   },
 ]

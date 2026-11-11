@@ -1,8 +1,9 @@
 import { claudeStatsModule } from './claude-stats'
+import { settingsModule } from './settings'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [claudeStatsModule]
+export const modules: ModuleDefinition[] = [claudeStatsModule, settingsModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()

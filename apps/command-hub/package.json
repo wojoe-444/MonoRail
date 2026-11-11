@@ -10,13 +10,16 @@
     "preview": "vite preview",
     "desktop": "concurrently -k \"vite --port 5173 --strictPort\" \"wait-on tcp:5173 && cross-env-shell VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "desktop:prod": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win portable"
+    "dist:win": "npm run build && electron-builder --win nsis --publish never",
+    "dist:win:portable": "npm run build && electron-builder --win portable --publish never",
+    "release:win": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.5",
     "ccusage": "^20.0.49",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.11",
     "lucide-react": "^1.71.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",

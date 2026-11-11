@@ -12,16 +12,30 @@
   "win": {
     "target": [
       {
-        "target": "portable",
+        "target": "nsis",
         "arch": [
           "x64"
         ]
       }
     ]
   },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "deleteAppDataOnUninstall": false,
+    "artifactName": "CommandHub-Setup-${version}.exe"
+  },
   "portable": {
     "artifactName": "CommandHub-${version}-portable.exe"
   },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "wojoe-444",
+      "repo": "MonoRail",
+      "releaseType": "release"
+    }
+  ],
   "asarUnpack": [
     "node_modules/@ccusage/**"
   ]
