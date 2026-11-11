@@ -252,6 +252,20 @@ settings overlay disables bypass mode; never weaken either. A continued chat
 runs only in its own folder, re-checked against the allowed folders. The
 running cost total per session is kept in `costs.json` in the module's data
 folder (numbers only) so a resumed turn's own cost can be worked out.
+**Spending limit** (Settings > General card `src/components/spending/SpendingCard.tsx`,
+self-contained so it can move; Chat's meter and banner in
+`SpendingNotice.tsx`; backend `agent-chat-spending.cjs`; guide
+`docs/guide/setup/spending-limit.md`): off by default. When on, a daily and/or
+monthly USD limit for turns MonoRail runs (Chat, coordinator and its child
+turns, `ask_coordinator`), a warning at 50/80/90%, and at the limit either
+stop new turns (default; `checkBeforeTurn` in `startTurn`, so every caller is
+covered, and "Allow one more turn" lets one through) or only warn. A running
+turn is never cut off. Each finished turn's own cost is booked from its
+`onFinish` (Claude: the delta against `costs.json`, skipped when unknown; pi:
+the logged cost). `spending.json` in Chat's data folder holds settings and
+one total per day (numbers only), is written only while the limit is on,
+synchronous with a lock file (the coordinator worker and MCP server book
+turns too), and a damaged file pauses turns until the user resets it.
 **pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
 agent SDK, found behind the `pi` command (`findPiSdk`: PATH plus the usual
 npm/pnpm/bun/Volta/scoop folders, reading the command's shim to find the

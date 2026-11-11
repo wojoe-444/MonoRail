@@ -80,6 +80,9 @@ async function tryLock(file, { staleMs }) {
         await fs.rm(file, { force: true })
       }
     } catch (e) {
+      // Windows: a lock file another holder is deleting right now can't be
+      // opened (EPERM/EACCES) until the delete finishes. That is "busy".
+      if (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES')) return undefined
       if (e.code !== 'EEXIST') throw e
       const held = await lockHolder(file)
       const age = held ? Date.now() - Date.parse(held.startedAt) : Infinity

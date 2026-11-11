@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, Info, Loader2, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SpendingCard } from '@/components/spending/SpendingCard'
 import { DeveloperModeCard } from '@/components/dev/DeveloperModeCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -68,7 +69,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="General" description="Your profile, app version and updates, and where MonoRail keeps its local data." />
+      <PageHeader title="General" description="Your profile, app version and updates, spending limit and where MonoRail keeps its local data." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <div id="settings-updates" className="scroll-mt-24 rounded-xl lg:col-span-2">
@@ -109,6 +110,10 @@ export default function SettingsPage() {
 
         <div id="settings-profile" className="scroll-mt-24 rounded-xl lg:col-span-3">
           <ProfileCard />
+        </div>
+
+        <div id="settings-spending" className="scroll-mt-24 rounded-xl lg:col-span-3">
+          <SpendingCard />
         </div>
 
         <div id="settings-developer" className="scroll-mt-24 rounded-xl lg:col-span-3">

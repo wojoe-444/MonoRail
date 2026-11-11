@@ -46,7 +46,9 @@ the request in the conversation, so nothing happens behind your back.
 
 **Plain** (the default) shows the conversation. **Detailed** also shows the
 agent's reasoning and, after each reply, what every model call cost. For the
-bigger picture over weeks, see [keep an eye on spending](spend.md).
+bigger picture over weeks, see [keep an eye on spending](spend.md). If you
+turned on a [spending limit](../setup/spending-limit.md#in-chat), the status
+bar also shows how much of it is used.
 
 ## Keeping the list tidy
 
