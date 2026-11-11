@@ -80,6 +80,8 @@ function validateJob(job) {
   if (!MODES.includes(job.mode)) throw new Error('Unknown mode')
   if (!(job.sdk === 'pi' ? PI_MODELS : CLAUDE_MODELS).some((m) => m.id === job.model)) throw new Error('Unknown model')
   if (!EFFORTS.includes(job.effort)) throw new Error('Unknown effort')
+  // Reasoning is only requested for the Detailed view (T3).
+  job.reasoning = job.reasoning === true
   return job
 }
 
@@ -102,6 +104,7 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool }) {
   if (resume) options.resume = resume
   if (job.model !== 'default') options.model = job.model
   if (job.effort !== 'default') options.effort = job.effort
+  if (job.reasoning) options.thinking = { type: 'adaptive', display: 'summarized' }
   if (job.mode === 'ask') {
     options.tools = ASK_TOOLS
     options.allowedTools = ASK_TOOLS

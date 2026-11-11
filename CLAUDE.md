@@ -195,6 +195,21 @@ not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
 (Max = xhigh). A started chat keeps its SDK; new chats pick one in the
 status bar (remembered).
 
+**Plain / Detailed** (status bar, remembered; Plain is the default). Detailed
+shows reasoning above the tool rows and, after each reply, one row per model
+call (model, cost, input, cache read, cache write, output; subagent calls
+counted apart) with the reply's total and call count. Reasoning is only
+requested from the SDK in Detailed mode, so Plain replies never have it.
+History transcripts carry `usage` per assistant message, and Claude subagent
+logs (`<session>/subagents/`) supply subagent calls. A call's cost is the
+logged cost when there is one (pi); otherwise the reply's cost is split by
+token weight (output 5x input, cache write 1.25x, cache read 0.1x) and marked
+as an estimate (`src/modules/agent-chat/cost.ts`). **Totals**: Claude's comes
+from the last cost record in `costs.json` (marked incomplete if the log
+changed after it), pi's is every paid entry in the file, abandoned branches
+included; past the 4 MB read limit only spend since opening is counted, and
+the page says so. A total never reads complete when it is not.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning

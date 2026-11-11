@@ -23,12 +23,12 @@ async function readStdin() {
   return JSON.parse(data)
 }
 
-/** SDK assistant content -> the transcript's ChatBlock shape. */
-function toBlocks(content) {
+/** SDK assistant content -> the transcript's ChatBlock shape. Reasoning only when asked for. */
+function toBlocks(content, reasoning) {
   const blocks = []
   for (const c of Array.isArray(content) ? content : []) {
     if (c?.type === 'text' && c.text?.trim()) blocks.push({ type: 'text', text: fmt.clip(c.text) })
-    else if (c?.type === 'thinking' && c.thinking?.trim()) blocks.push({ type: 'thinking', text: fmt.clip(c.thinking) })
+    else if (reasoning && c?.type === 'thinking' && c.thinking?.trim()) blocks.push({ type: 'thinking', text: fmt.clip(c.thinking) })
     else if (c?.type === 'tool_use')
       blocks.push({ type: 'tool', id: c.id, name: c.name, summary: fmt.inputSummary(c.input), input: fmt.formatInput(c.input) })
   }
@@ -84,13 +84,19 @@ async function main() {
         const e = msg.event
         if (e?.type === 'message_start') emit({ t: 'message_start', id: e.message?.id })
         else if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta') emit({ t: 'delta', text: e.delta.text })
-      } else if (msg.type === 'assistant' && !msg.parent_tool_use_id) {
+      } else if (msg.type === 'assistant') {
         const m = msg.message ?? {}
-        const blocks = toBlocks(m.content)
-        if (blocks.length) emit({ t: 'assistant', id: m.id, model: m.model, blocks })
+        const sub = !!msg.parent_tool_use_id
+        if (!sub) {
+          const blocks = toBlocks(m.content, job.reasoning)
+          if (blocks.length) emit({ t: 'assistant', id: m.id, model: m.model, blocks })
+        }
+        // One line per content block, all with the same usage: the page keeps the last per id.
         if (m.usage) {
           emit({
             t: 'usage',
+            id: m.id,
+            subagent: sub || undefined,
             model: m.model,
             input: m.usage.input_tokens ?? 0,
             cacheRead: m.usage.cache_read_input_tokens ?? 0,

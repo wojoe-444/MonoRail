@@ -23,6 +23,7 @@ export const sampleSessions: SessionList = {
       startedAt: now - 42 * min,
       updatedAt: now - 12 * min,
       sizeBytes: 48_000,
+      total: { usd: 0.84, complete: true },
       repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
     {
@@ -37,6 +38,7 @@ export const sampleSessions: SessionList = {
       startedAt: now - 5 * 60 * min,
       updatedAt: now - 4 * 60 * min,
       sizeBytes: 21_000,
+      total: { usd: 0.12, complete: true },
       repo: { name: 'seed-catalog', path: '/home/demo/Repos/seed-catalog' },
     },
     {
@@ -52,6 +54,7 @@ export const sampleSessions: SessionList = {
       startedAt: now - 26 * 60 * min,
       updatedAt: now - 25 * 60 * min,
       sizeBytes: 9_000,
+      total: { complete: false, reason: 'no-record' },
       repo: { name: 'garden-planner', path: '/home/demo/Repos/garden-planner' },
     },
   ],
@@ -77,6 +80,7 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       { role: 'user', ts: now - 42 * min, blocks: [{ type: 'text', text: 'Add a dark mode toggle to the settings page' }] },
       {
         role: 'assistant',
+        usage: { input: 1200, cacheRead: 22000, cacheWrite: 900, output: 310 },
         ts: now - 41 * min,
         model: 'claude-sonnet-demo',
         blocks: [
@@ -88,6 +92,7 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       },
       {
         role: 'assistant',
+        usage: { input: 2400, cacheRead: 26000, cacheWrite: 300, output: 400 },
         ts: now - 38 * min,
         model: 'claude-sonnet-demo',
         blocks: [
@@ -101,6 +106,7 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       { role: 'user', ts: now - 14 * min, blocks: [{ type: 'text', text: 'Looks good. Can you also follow the system setting by default?' }] },
       {
         role: 'assistant',
+        usage: { input: 3600, cacheRead: 30000, cacheWrite: 300, output: 490 },
         ts: now - 12 * min,
         model: 'claude-sonnet-demo',
         blocks: [{ type: 'text', text: 'Done. With no saved choice the app now reads `prefers-color-scheme` and updates when it changes.' }],
@@ -113,6 +119,7 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       { role: 'user', ts: now - 5 * 60 * min, blocks: [{ type: 'text', text: 'Why does the seed import skip rows with empty dates?' }] },
       {
         role: 'assistant',
+        usage: { input: 4800, cacheRead: 34000, cacheWrite: 300, output: 580, costUsd: 0.0062 },
         ts: now - 5 * 60 * min + min,
         model: 'demo-model-large',
         blocks: [
@@ -129,6 +136,7 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       { role: 'user', ts: now - 26 * 60 * min, blocks: [{ type: 'text', text: 'Write release notes for 0.4' }] },
       {
         role: 'assistant',
+        usage: { input: 6000, cacheRead: 38000, cacheWrite: 300, output: 670 },
         ts: now - 25 * 60 * min,
         model: 'claude-haiku-demo',
         blocks: [{ type: 'text', text: '## 0.4\n\n- Dark mode\n- Faster seed import\n- Fixed the frost date calculation for southern gardens' }],

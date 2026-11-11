@@ -29,13 +29,16 @@ import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { ChatMarkdown } from './ChatMarkdown'
 import { Composer, DeniedRow, NewChatEmpty, TurnFooter, useComposerPrefs } from './Composer'
-import { contextUse, turnToMessages } from './live'
+import { chatTotalView, costCalls, historyReplies, liveReplyCost } from './cost'
+import { ReplyDetails, TotalChip } from './ReplyDetails'
+import { contextUse, formatUsd, turnToMessages } from './live'
 import { FoldersDialog } from './FoldersDialog'
 import { sampleComposer, sampleSessions, sampleTranscripts } from './sample'
 import {
   SOURCE_LABEL,
   type ChatBlock,
   type ChatMessage,
+  type ChatView,
   type ComposerInfo,
   type LiveTurn,
   type SessionList,
@@ -190,6 +193,8 @@ export default function AgentChatPage() {
         prompt,
         mode: prefs.mode,
         model: prefs.modelFor(chatSdk),
+        // Reasoning is only requested for the Detailed view.
+        reasoning: prefs.view === 'detailed',
         effort: prefs.effort,
       })
       setTurns((prev) => [...prev, { turnId, chatKey, sdk: chatSdk, prompt, startedAt: Date.now(), status: 'running', events: [], next: 0, repo }])
@@ -220,6 +225,7 @@ export default function AgentChatPage() {
       onRepo={(path) => setDraft((d) => (d ? { ...d, repo: path } : d))}
       branch={selected?.branch}
       running={runningTurn}
+      lastTurn={chatTurns[chatTurns.length - 1]}
       error={sendError && sendError.key === chatKey ? sendError.message : undefined}
       onSend={send}
       onStop={stop}
@@ -338,6 +344,7 @@ export default function AgentChatPage() {
               sdk={chatSdk}
               turns={chatTurns}
               composer={composer}
+              view={prefs.view}
             />
           ) : selected ? (
             <Conversation
@@ -346,6 +353,7 @@ export default function AgentChatPage() {
               skipHistory={!!viewKeys[selected.id]}
               turns={chatTurns}
               composer={composer}
+              view={prefs.view}
               onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
             />
           ) : (
@@ -472,6 +480,12 @@ function SessionListView({
                       </span>
                       <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
+                        {s.total?.usd !== undefined && (
+                          <span className="shrink-0 font-mono tabular-nums" title={s.total.complete ? 'Total cost' : 'At least this much'}>
+                            {s.total.complete ? '' : '≥'}
+                            {formatUsd(s.total.usd)}
+                          </span>
+                        )}
                         {s.source !== 'claude' && (
                           <Badge variant="info" className="px-1.5 py-0 text-[10px]">
                             {SOURCE_LABEL[s.source]}
@@ -528,6 +542,7 @@ function Conversation({
   skipHistory,
   turns,
   composer,
+  view,
   onAttach,
 }: {
   /** Missing for a new chat that has not started yet. */
@@ -539,6 +554,7 @@ function Conversation({
   skipHistory?: boolean
   turns: LiveTurn[]
   composer: ReactNode
+  view: ChatView
   onAttach?: (turnId: string) => void
 }) {
   const desktop = isDesktop()
@@ -571,7 +587,16 @@ function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktop, noHistory, sessionId])
 
-  const messages = transcript?.messages ?? []
+  const messages = useMemo(() => transcript?.messages ?? [], [transcript])
+  const detailed = view === 'detailed'
+  // Detailed view: the model calls of each past reply, keyed by the index of its last message.
+  const replyAt = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof costCalls>>()
+    if (!detailed) return map
+    for (const r of historyReplies(messages, transcript?.subagentCalls)) map.set(r.endIndex, costCalls(r.calls))
+    return map
+  }, [detailed, messages, transcript?.subagentCalls])
+  const totals = chatTotalView(transcript?.total ?? session?.total, turns)
   const hidden = Math.max(0, messages.length - shown)
   const visible = hidden ? messages.slice(hidden) : messages
 
@@ -610,7 +635,7 @@ function Conversation({
 
   return (
     <>
-      {session && <ConversationHeader session={session} />}
+      {session && <ConversationHeader session={session} totals={totals} />}
       <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-6">
           {error && (
@@ -636,16 +661,23 @@ function Conversation({
               Show {Math.min(hidden, PAGE)} earlier messages
             </Button>
           )}
-          {visible.map((m, i) => (
-            <MessageView key={hidden + i} message={m} source={source} />
-          ))}
+          {visible.map((m, i) => {
+            const details = replyAt.get(hidden + i)
+            return (
+              <div key={hidden + i} className="contents">
+                <MessageView message={m} source={source} view={view} />
+                {details && <ReplyDetails cost={details} />}
+              </div>
+            )
+          })}
           {turns.map((t) => (
             <div key={t.turnId} className="flex flex-col gap-6">
               {turnToMessages(t)
                 .filter((m) => m.role !== 'user' || t.prompt)
                 .map((m, i) => (
-                  <MessageView key={i} message={m} source={source} />
+                  <MessageView key={i} message={m} source={source} view={view} />
                 ))}
+              {detailed && t.events.some((e) => e.t === 'usage') && <ReplyDetails cost={liveReplyCost(t)} />}
               <TurnFooter turn={t} />
             </div>
           ))}
@@ -656,7 +688,7 @@ function Conversation({
   )
 }
 
-function ConversationHeader({ session }: { session: SessionSummary }) {
+function ConversationHeader({ session, totals }: { session: SessionSummary; totals: ReturnType<typeof chatTotalView> }) {
   return (
     <div className="flex min-h-16 shrink-0 items-center gap-3 border-b px-6 py-3">
       <SourceAvatar source={session.source} className="size-9" />
@@ -675,6 +707,7 @@ function ConversationHeader({ session }: { session: SessionSummary }) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <TotalChip total={totals.total} sinceOpened={totals.sinceOpened} />
         <Badge variant={session.source === 'claude' ? 'primary' : 'info'}>{SOURCE_LABEL[session.source]}</Badge>
         {session.model && (
           <Badge variant="outline" className="font-mono">
@@ -686,7 +719,7 @@ function ConversationHeader({ session }: { session: SessionSummary }) {
   )
 }
 
-function MessageView({ message, source }: { message: ChatMessage; source: SessionSource }) {
+function MessageView({ message, source, view }: { message: ChatMessage; source: SessionSource; view: ChatView }) {
   if (message.role === 'system') {
     return (
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -724,6 +757,8 @@ function MessageView({ message, source }: { message: ChatMessage; source: Sessio
     )
   }
 
+  if (orderBlocks(message.blocks, view).length === 0) return null
+
   return (
     <div className="flex gap-3">
       <SourceAvatar source={source} className="size-8 rounded-full" />
@@ -733,7 +768,7 @@ function MessageView({ message, source }: { message: ChatMessage; source: Sessio
           {message.model && <span className="font-mono text-muted-foreground">{message.model}</span>}
           {message.ts && <span className="text-muted-foreground">{clock(message.ts)}</span>}
         </div>
-        {groupTools(message.blocks).map((g, i) =>
+        {groupTools(orderBlocks(message.blocks, view)).map((g, i) =>
           Array.isArray(g) ? (
             <div key={i} className="flex flex-col gap-1">
               {g.map((b, j) => (
@@ -755,6 +790,12 @@ function MessageView({ message, source }: { message: ChatMessage; source: Sessio
 
 type ToolBlock = Extract<ChatBlock, { type: 'tool' }>
 
+/** Reasoning shows only in Detailed view, as a block above the rest of the message (T3). */
+function orderBlocks(blocks: ChatBlock[], view: ChatView): ChatBlock[] {
+  if (view !== 'detailed') return blocks.filter((b) => b.type !== 'thinking')
+  return [...blocks.filter((b) => b.type === 'thinking'), ...blocks.filter((b) => b.type !== 'thinking')]
+}
+
 /** Runs of consecutive tool calls render as one tight stack. */
 function groupTools(blocks: ChatBlock[]): (ChatBlock | ToolBlock[])[] {
   const out: (ChatBlock | ToolBlock[])[] = []
@@ -769,7 +810,7 @@ function groupTools(blocks: ChatBlock[]): (ChatBlock | ToolBlock[])[] {
 }
 
 function Thinking({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true) // open until closed
   return (
     <div className="text-sm">
       <button
@@ -778,7 +819,7 @@ function Thinking({ text }: { text: string }) {
         aria-expanded={open}
         className="inline-flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Brain className="size-3.5" /> Thinking
+        <Brain className="size-3.5" /> Reasoning
         <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
       </button>
       {open && (

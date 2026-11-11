@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 
 import { formatDuration, formatTokens, formatUsd, turnCost } from './live'
-import type { ChatBlock, ChatMode, ComposerInfo, LiveTurn, SessionSource } from './types'
+import type { ChatBlock, ChatMode, ChatView, ComposerInfo, LiveTurn, SessionSource } from './types'
 
 const EFFORT_LABEL: Record<string, string> = {
   default: 'Default effort',
@@ -26,6 +26,7 @@ const EFFORT_LABEL: Record<string, string> = {
 const MODEL_KEY: Record<SessionSource, string> = { claude: 'commandHub.agentChat.model', pi: 'commandHub.agentChat.model.pi' }
 const EFFORT_KEY = 'commandHub.agentChat.effort'
 const SDK_KEY = 'commandHub.agentChat.sdk'
+const VIEW_KEY = 'commandHub.agentChat.view'
 
 export function modelsFor(info: ComposerInfo | undefined, sdk: SessionSource) {
   return (sdk === 'pi' ? info?.piModels : info?.models) ?? [{ id: 'default', label: 'Default' }]
@@ -39,6 +40,7 @@ export function useComposerPrefs(info: ComposerInfo | undefined) {
   const [effort, setEffortState] = useState(() => localStorage.getItem(EFFORT_KEY) ?? 'default')
   const [newSdk, setNewSdkState] = useState<SessionSource>(() => (localStorage.getItem(SDK_KEY) === 'pi' ? 'pi' : 'claude'))
   const [mode, setMode] = useState<ChatMode>('ask') // Ask is the default, every time
+  const [view, setViewState] = useState<ChatView>(() => (localStorage.getItem(VIEW_KEY) === 'detailed' ? 'detailed' : 'plain'))
   const validEffort = info?.efforts.includes(effort) ? effort : 'default'
   return {
     /** The SDK a new chat starts with (remembered). */
@@ -59,6 +61,12 @@ export function useComposerPrefs(info: ComposerInfo | undefined) {
     },
     mode,
     setMode,
+    /** Plain (default) or Detailed; remembered. */
+    view,
+    setView: (v: ChatView) => {
+      localStorage.setItem(VIEW_KEY, v)
+      setViewState(v)
+    },
   }
 }
 
@@ -76,6 +84,7 @@ export function Composer({
   onRepo,
   branch,
   running,
+  lastTurn,
   error,
   onSend,
   onStop,
@@ -90,6 +99,8 @@ export function Composer({
   onRepo?: (path: string) => void
   branch?: string
   running?: LiveTurn
+  /** The chat's newest turn sent from this page; its cost shows in the status bar. */
+  lastTurn?: LiveTurn
   error?: string
   onSend: (prompt: string) => Promise<boolean>
   onStop: () => void
@@ -227,11 +238,23 @@ export function Composer({
               { value: 'agent', label: 'Agent' },
             ]}
           />
+          <Segmented<ChatView>
+            aria-label="View"
+            value={prefs.view}
+            onChange={prefs.setView}
+            className="h-7 [&>button]:h-5 [&>button]:px-2 [&>button]:text-xs"
+            options={[
+              { value: 'plain', label: 'Plain' },
+              { value: 'detailed', label: 'Detailed' },
+            ]}
+          />
           <span className="flex-1" />
-          {running && (
+          {running ? (
             <span className="inline-flex items-center gap-1.5">
               <Loader2 className="size-3.5 animate-spin" /> Working… <RunningCost turn={running} />
             </span>
+          ) : (
+            lastTurn && <LastTurnCost turn={lastTurn} />
           )}
           {context && <ContextRing used={context.used} window={context.window} />}
         </div>
@@ -240,10 +263,18 @@ export function Composer({
   )
 }
 
+/** Spend so far in a running turn: the calls with a logged cost (pi), or the result once it lands. */
 function RunningCost({ turn }: { turn: LiveTurn }) {
   const result = [...turn.events].reverse().find((e) => e.t === 'result')
-  if (!result || result.t !== 'result' || result.costUsd === undefined) return null
-  return <span className="tabular-nums">{formatUsd(result.costUsd)}</span>
+  if (result?.t === 'result' && result.costUsd !== undefined) return <span className="tabular-nums">{formatUsd(result.costUsd)}</span>
+  const logged = turn.events.reduce((n, e) => n + (e.t === 'usage' ? (e.costUsd ?? 0) : 0), 0)
+  return logged > 0 ? <span className="tabular-nums">{formatUsd(logged)} so far</span> : null
+}
+
+function LastTurnCost({ turn }: { turn: LiveTurn }) {
+  const c = turnCost(turn)
+  if (!c || c.turnUsd === undefined) return null
+  return <span className="tabular-nums">Last turn {formatUsd(c.turnUsd)}</span>
 }
 
 /** Claude or pi for a new chat. A chat that has started keeps its SDK, shown locked. */

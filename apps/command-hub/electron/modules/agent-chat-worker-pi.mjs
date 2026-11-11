@@ -8,12 +8,12 @@ const require = createRequire(import.meta.url)
 const { piTools, piThinkingLevel, piPathAllowed } = require('./agent-chat-options.cjs')
 const { _format: fmt } = require('./agent-chat.cjs')
 
-function toBlocks(message) {
+function toBlocks(message, reasoning) {
   const blocks = []
   const content = typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : Array.isArray(message.content) ? message.content : []
   for (const c of content) {
     if (c?.type === 'text' && c.text?.trim()) blocks.push({ type: 'text', text: fmt.clip(c.text) })
-    else if (c?.type === 'thinking' && c.thinking?.trim()) blocks.push({ type: 'thinking', text: fmt.clip(c.thinking) })
+    else if (reasoning && c?.type === 'thinking' && c.thinking?.trim()) blocks.push({ type: 'thinking', text: fmt.clip(c.thinking) })
     else if (c?.type === 'toolCall') blocks.push({ type: 'tool', id: c.id, name: c.name, summary: fmt.inputSummary(c.arguments), input: fmt.formatInput(c.arguments) })
   }
   if (message.errorMessage) blocks.push({ type: 'text', text: `Error: ${fmt.oneLine(message.errorMessage, 500)}` })
@@ -99,7 +99,7 @@ export async function runPi({ job, cwd, root, sessionFile, sdkEntry }, emit) {
       case 'message_end': {
         const m = event.message
         if (m?.role !== 'assistant') break
-        const blocks = toBlocks(m)
+        const blocks = toBlocks(m, job.reasoning)
         if (blocks.length) emit({ t: 'assistant', id: `pi-${n}`, model: m.model, blocks })
         // A call to a tool this mode does not offer never reaches tool_call: show it here.
         for (const b of blocks) {
@@ -119,7 +119,7 @@ export async function runPi({ job, cwd, root, sessionFile, sdkEntry }, emit) {
         if (u) {
           calls++
           costUsd += u.cost?.total ?? 0
-          emit({ t: 'usage', model: m.model, input: u.input ?? 0, cacheRead: u.cacheRead ?? 0, cacheWrite: u.cacheWrite ?? 0, output: u.output ?? 0, costUsd: u.cost?.total })
+          emit({ t: 'usage', id: `pi-${n}`, model: m.model, input: u.input ?? 0, cacheRead: u.cacheRead ?? 0, cacheWrite: u.cacheWrite ?? 0, output: u.output ?? 0, costUsd: u.cost?.total })
         }
         break
       }
