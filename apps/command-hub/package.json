@@ -20,6 +20,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.11",
+    "isomorphic-git": "^1.44.12",
     "lucide-react": "^1.71.0",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",

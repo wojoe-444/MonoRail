@@ -1,9 +1,10 @@
 import { claudeStatsModule } from './claude-stats'
+import { jiraModule } from './jira'
 import { settingsModule } from './settings'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [claudeStatsModule, settingsModule]
+export const modules: ModuleDefinition[] = [jiraModule, claudeStatsModule, settingsModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()
