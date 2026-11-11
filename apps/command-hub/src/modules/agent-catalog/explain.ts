@@ -59,7 +59,22 @@ export const TOOL_PRESETS: Record<SubagentTool, { id: string; label: string; det
   ],
 }
 
+/** MonoRail's own read-only MCP tools (electron/mcp/tools.cjs), by tool name. */
+const MONORAIL_READ_TOOLS: Record<string, [string, string]> = {
+  storage_scan: ['Read the Storage scan', 'Drive space and folder sizes from MonoRail’s Storage page.'],
+  usage_summary: ['Read agent spending', 'Cost per day and top models from Claude Stats.'],
+  list_chat_sessions: ['List agent chats', 'Recent chats in your allowed repos.'],
+  connection_status: ['Check connections', 'Whether MonoRail’s accounts still work.'],
+  list_chats: ['List agent chats', 'Your chats in allowed repos.'],
+  read_chat: ['Read a chat', 'Catches up on another chat.'],
+}
+
 export function toolInfo(name: string, tool: SubagentTool = 'claude'): ToolInfo {
+  const own = /^mcp__monorail__(.+)$/.exec(name)
+  if (own && MONORAIL_READ_TOOLS[own[1]]) {
+    const [label, detail] = MONORAIL_READ_TOOLS[own[1]]
+    return { label, detail: `${detail} Read-only, through MonoRail’s MCP server.`, icon: Plug, power: 'read' }
+  }
   if (tool === 'pi' && PI_TOOL_INFO[name]) return PI_TOOL_INFO[name]
   if (tool === 'claude' && TOOL_INFO[name]) return TOOL_INFO[name]
   const mcp = /^mcp__([^_]+(?:_[^_]+)*)__(.+)$/.exec(name)

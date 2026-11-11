@@ -318,7 +318,10 @@ handed-over prompt is prefilled in the composer, never sent by itself.
 `<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
 `<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
 folder and Chat's allowed repos, plus the built-in coordinator (read-only,
-"Make my own copy"). A plain-language explainer per subagent
+"Make my own copy"), and built-ins from `agent-catalog-builtins.cjs` (Storage
+Detective: look-only tools plus the MCP `storage_scan` read tool, a prompt that
+never deletes or moves; "Add to Claude Code" copies it to `~/.claude/agents`;
+the browser sample must carry the same text, a test checks). A plain-language explainer per subagent
 (`src/modules/agent-catalog/explain.ts`: tools in words, strength, "It
 cannot") and create / edit / duplicate / delete
 (`electron/modules/agent-catalog.cjs`). The page names subagents by id and a
@@ -429,7 +432,8 @@ messages only (logs go to stderr, metadata only). The protocol layer
 (`protocol.cjs`, no SDK dependency) and tools (`tools.cjs`) run outside
 Electron, so tools read MonoRail's data folder from disk and never `require`
 Electron: summary files (`claude-stats.summary`, `connections.summary`, the
-latter written after every connection check), Chat's `listSessions` (allowed
+latter written after every connection check), Storage's saved scans
+(`storage_scan`), Chat's `listSessions` (allowed
 folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
 repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
 legacy folder). No tool returns secrets or tokens. **Write tools** (`write:

@@ -7,7 +7,7 @@
 // pi has no subagents of its own: these are the files pi's subagent extension
 // reads (its example extension, or a package built on it). Repos are the Chat
 // page's allowed repos, re-resolved on every call. MonoRail's built-in
-// coordinator is listed read-only.
+// subagents (agent-catalog-builtins.cjs) are listed read-only.
 //
 // Safety rules:
 //   - the page names a subagent only by the id handed out here, and a place to
@@ -25,7 +25,7 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 
 const { allowedRepos } = require('./agent-chat-folders.cjs')
-const { BUILTIN_COORDINATOR } = require('./agent-chat-options.cjs')
+const { builtins } = require('./agent-catalog-builtins.cjs')
 const { parseFrontmatter } = require('./agents-definitions.cjs')
 const { writeAtomic } = require('../cache/files.cjs')
 
@@ -152,17 +152,19 @@ async function readEntry(place, file) {
   }
 }
 
-function builtinCoordinator() {
+function builtinSummary(b) {
   return {
-    id: 'builtin:coordinator',
+    id: `builtin:${b.name}`,
     tool: 'claude',
     scope: 'builtin',
-    name: 'coordinator',
-    description: `${BUILTIN_COORDINATOR.description} Used when you have no coordinator subagent of your own.`,
-    tools: [...BUILTIN_COORDINATOR.tools],
+    name: b.name,
+    description: b.description,
+    model: b.model,
+    tools: b.tools ? [...b.tools] : undefined,
     location: 'Built in to MonoRail',
     updatedAt: 0,
     extraFields: [],
+    note: b.note,
   }
 }
 
@@ -209,9 +211,10 @@ async function listSubagents({ chatDir, env = process.env, home = os.homedir() }
     }
   }
   subagents.sort((a, b) => a.name.localeCompare(b.name) || a.tool.localeCompare(b.tool))
-  // The built-in coordinator is shown only while the user has none of their own.
-  const ownCoordinator = subagents.some((s) => s.tool === 'claude' && s.scope === 'user' && s.name === 'coordinator')
-  if (!ownCoordinator) subagents.push(builtinCoordinator())
+  // A built-in is shown only while the user has no Claude Code subagent of that name.
+  for (const b of builtins()) {
+    if (!subagents.some((s) => s.tool === 'claude' && s.scope === 'user' && s.name === b.name)) subagents.push(builtinSummary(b))
+  }
   return {
     generatedAt: Date.now(),
     subagents,
@@ -222,7 +225,8 @@ async function listSubagents({ chatDir, env = process.env, home = os.homedir() }
 }
 
 async function getSubagent(id) {
-  if (id === 'builtin:coordinator') return { ...builtinCoordinator(), prompt: BUILTIN_COORDINATOR.prompt }
+  const b = typeof id === 'string' && id.startsWith('builtin:') ? builtins().find((x) => `builtin:${x.name}` === id) : undefined
+  if (b) return { ...builtinSummary(b), prompt: b.prompt }
   const entry = typeof id === 'string' ? known.get(id) : undefined
   if (!entry) throw new Error('Subagent not found. Refresh the page and try again.')
   const r = await readEntry({ tool: entry.tool, scope: entry.scope, repo: entry.repo, display: displayFor(entry) }, entry.file).catch(() => undefined)

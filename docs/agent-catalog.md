@@ -22,6 +22,15 @@ listed too, read-only, while you have no `coordinator` subagent of your own;
 **Make my own copy** saves an editable copy to `~/.claude/agents/coordinator.md`,
 which the Coordinator then uses instead.
 
+MonoRail also ships **Storage Detective** (`storage-detective`): it reads the
+[Storage](storage.md) page's last scan through the MCP tool `storage_scan`
+([agent access](guide/agents/agent-access.md)) and its file tools, and reports
+a ranked cleanup plan with the exact command or setting for each step. Its
+tools are look-only (Read, Grep, Glob and that tool), so it cannot delete or
+move anything, and its instructions say every cleanup is the user's call, one
+item at a time. **Add to Claude Code** saves it to
+`~/.claude/agents/storage-detective.md`, where you can change it.
+
 pi has no subagents of its own. The `.pi` files are the ones pi's **subagent
 extension** reads (pi's example extension, or a package built on it); the page
 warns when it cannot find one in pi's `extensions` folder or `packages` list.

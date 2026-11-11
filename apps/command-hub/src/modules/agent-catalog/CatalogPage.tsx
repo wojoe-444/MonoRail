@@ -338,6 +338,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
   const model = modelInfo(s.model)
   const cannot = cannotDo(s.tools, s.tool)
   const builtin = s.scope === 'builtin'
+  const coordinator = builtin && s.name === 'coordinator'
   const pi = s.tool === 'pi'
   const tools = s.tools ? [...new Map(s.tools.map((t) => [toolInfo(t, s.tool).label, toolInfo(t, s.tool)])).values()] : []
   const repoPath = s.scope === 'project' ? data?.repos.find((r) => r.name === s.repo)?.path : data?.repos[0]?.path
@@ -378,7 +379,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
             )}
             {builtin ? (
               <Button onClick={onCopy}>
-                <Copy /> Make my own copy
+                <Plus /> {coordinator ? 'Make my own copy' : 'Add to Claude Code'}
               </Button>
             ) : (
               <Button onClick={onEdit}>
@@ -407,6 +408,15 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
         </CardContent>
       </Card>
 
+      {builtin && s.note && (
+        <div className="flex items-start gap-3 rounded-xl bg-info-soft px-4 py-3 text-sm text-info-soft-foreground">
+          <Lock className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {coordinator ? '' : 'This subagent ships with MonoRail. Add it to Claude Code to use it in your chats; you can change it before saving. '}
+            {s.note}
+          </span>
+        </div>
+      )}
       {s.problem && (
         <div className="flex items-start gap-3 rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive-soft-foreground">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {s.problem} Edit it to fix that.
@@ -430,7 +440,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
                 </p>
               ) : (
                 <p>
-                  In any Claude Code chat {s.scope === 'project' ? <>in <b>{s.repo}</b></> : s.scope === 'builtin' ? 'started from MonoRail’s Coordinator' : 'on this computer'}, Claude can hand a job to{' '}
+                  {builtin && !coordinator ? 'Once you add it, in' : 'In'} any Claude Code chat {s.scope === 'project' ? <>in <b>{s.repo}</b></> : coordinator ? 'started from MonoRail’s Coordinator' : 'on this computer'}, Claude can hand a job to{' '}
                   <b>{humanName(s.name)}</b> on its own when the job matches. It works in its own fresh context and hands back a summary, so the main chat stays short.
                 </p>
               )}
@@ -510,8 +520,8 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
                 <Fact label="Model" value={model.label} hint={pi && !s.model ? 'Uses the model pi is set to.' : model.detail} />
                 <Fact
                   label="Who gets it"
-                  value={s.scope === 'user' ? 'Only you, in every repo' : s.scope === 'project' ? `Everyone working in ${s.repo}` : 'MonoRail’s Coordinator'}
-                  hint={s.scope === 'project' ? 'It lives in the repo, so it is shared when the repo is pushed.' : s.scope === 'user' ? 'It lives in your home folder.' : 'Used only when you have no coordinator of your own.'}
+                  value={s.scope === 'user' ? 'Only you, in every repo' : s.scope === 'project' ? `Everyone working in ${s.repo}` : coordinator ? 'MonoRail’s Coordinator' : 'Nobody yet'}
+                  hint={s.scope === 'project' ? 'It lives in the repo, so it is shared when the repo is pushed.' : s.scope === 'user' ? 'It lives in your home folder.' : coordinator ? 'Used only when you have no coordinator of your own.' : 'Add it to Claude Code to use it in every repo.'}
                   icon={s.scope === 'project' ? Users : User}
                 />
                 <Fact label="Where it lives" value={<span className="font-mono text-xs">{s.location}</span>} />
@@ -627,10 +637,12 @@ function Editor({
       </div>
       <PageHeader
         eyebrow="Agent Catalog"
-        title={editing ? `Edit ${humanName(base.name)}` : builtinCopy ? 'Your own coordinator' : isCopy && base ? `Copy of ${humanName(base.name)}` : 'New subagent'}
+        title={editing ? `Edit ${humanName(base.name)}` : builtinCopy ? (base.name === 'coordinator' ? 'Your own coordinator' : `Add ${humanName(base.name)} to Claude Code`) : isCopy && base ? `Copy of ${humanName(base.name)}` : 'New subagent'}
         description={
           builtinCopy
-            ? 'Saved as ~/.claude/agents/coordinator.md. Once it exists, the Coordinator uses yours instead of the built-in one.'
+            ? base.name === 'coordinator'
+              ? 'Saved as ~/.claude/agents/coordinator.md. Once it exists, the Coordinator uses yours instead of the built-in one.'
+              : `Saved as ~/.claude/agents/${base.name}.md, where it is yours: change anything before saving, or later.`
             : 'Saved as a Markdown file the agent reads. Before an existing file is changed or deleted, MonoRail keeps a backup copy in its data folder.'
         }
         actions={
@@ -639,7 +651,7 @@ function Editor({
               Cancel
             </Button>
             <Button disabled={!ok || busy} onClick={() => void submit()}>
-              {busy ? <Loader2 className="animate-spin" /> : <Check />} {editing ? 'Save changes' : 'Create subagent'}
+              {busy ? <Loader2 className="animate-spin" /> : <Check />} {editing ? 'Save changes' : builtinCopy ? 'Add subagent' : 'Create subagent'}
             </Button>
           </>
         }

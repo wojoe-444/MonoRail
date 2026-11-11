@@ -24,6 +24,8 @@ export interface Subagent {
   updatedAt: number
   /** Header fields MonoRail does not edit; kept as they are on save. */
   extraFields: string[]
+  /** Built-ins only: what it needs or how it is used. */
+  note?: string
   /** Why the agent would skip this file, if it would. */
   problem?: string
 }

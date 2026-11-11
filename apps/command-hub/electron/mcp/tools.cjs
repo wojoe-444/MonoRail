@@ -54,6 +54,58 @@ function folders(rootDir) {
     githubPlus: path.join(rootDir, 'apps', 'github-plus'),
     jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
     flashcards: path.join(rootDir, 'modules', 'flashcards'),
+    storage: path.join(rootDir, 'modules', 'storage'),
+  }
+}
+
+// ---------- Storage ----------
+
+const GB = 1024 ** 3
+const gb = (bytes) => (typeof bytes === 'number' ? Math.round((bytes / GB) * 100) / 100 : undefined)
+
+/** The Storage page's last saved scan and drive sample, shaped for an agent (sizes in GB). */
+async function storageScan(storageDir, { top = 40 } = {}) {
+  const all = await cache.history({ dataDir: storageDir, log: () => {} }, 'storage.history').list()
+  const scans = all.filter((s) => s.data?.kind === 'scan')
+  const last = scans.at(-1)
+  const lastDrives = all.at(-1)
+  const drives = (lastDrives?.data?.drives ?? []).map((d) => ({ drive: d.id, totalGB: gb(d.total), freeGB: gb(d.free), usedPercent: d.total ? Math.round(((d.total - d.free) / d.total) * 100) : undefined }))
+  if (!last) {
+    return {
+      available: false,
+      reason: 'No folder scan has been saved yet. Open Utilities > Storage in MonoRail and press Scan.',
+      drives,
+      drivesSampledAt: lastDrives ? new Date(lastDrives.takenAt).toISOString() : undefined,
+    }
+  }
+  const before = scans.at(-2)
+  const prev = new Map((before?.data.locations ?? []).map((l) => [l.id, l.bytes]))
+  const locations = (last.data.locations ?? [])
+    .filter((l) => typeof l.bytes === 'number')
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, top)
+    .map((l) => ({
+      id: l.id,
+      label: l.label,
+      group: l.group,
+      path: l.path,
+      sizeGB: gb(l.bytes),
+      files: l.files,
+      advice: l.advice,
+      tip: l.tip,
+      note: l.note,
+      measuredOnlyPartly: l.truncated || undefined,
+      changeSincePreviousScanGB: prev.has(l.id) ? gb(l.bytes - prev.get(l.id)) : undefined,
+      largestChildren: (l.children ?? []).slice(0, 8).map((c) => ({ name: c.name, kind: c.kind, sizeGB: gb(c.bytes) })),
+    }))
+  return {
+    available: true,
+    scannedAt: new Date(last.takenAt).toISOString(),
+    ageHours: Math.round((Date.now() - last.takenAt) / 36e5),
+    previousScanAt: before ? new Date(before.takenAt).toISOString() : undefined,
+    adviceMeaning: { safe: 'a cache its tool rebuilds; safe to clear with that tool', review: 'may hold things the user wants; the user decides', keep: 'in use; leave alone' },
+    drives,
+    locations,
   }
 }
 
@@ -339,6 +391,21 @@ function readTools({ rootDir }) {
         const list = Object.entries(s?.summary?.connections ?? {}).map(([kind, c]) => ({ kind, ...c }))
         if (!list.length) return { connections: [], note: 'No connection has been checked yet. Add or check one on the Connections page in MonoRail.' }
         return { connections: list }
+      },
+    },
+    {
+      name: 'storage_scan',
+      title: 'Disk space and folder sizes',
+      description:
+        "The Storage page's last saved scan: free and used space per drive, and the size of known folders (MonoRail's data, agent tools, package manager caches, Temp, Downloads, system files), largest first, each with its largest subfolders, the change since the previous scan, and advice: safe (a cache its tool rebuilds), review (may hold things the user wants) or keep (in use). Sizes in GB. Read-only: MonoRail never deletes or moves anything it measures. If there is no scan yet, ask the user to press Scan on the Storage page.",
+      inputSchema: {
+        type: 'object',
+        properties: { top: { type: 'integer', minimum: 1, maximum: 100, description: 'How many folders to return, largest first (default 40).' } },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ top = 40 }) {
+        return storageScan(dir.storage, { top })
       },
     },
     {
