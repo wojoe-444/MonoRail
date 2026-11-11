@@ -321,7 +321,21 @@ anthropic/claude-opus-5-5`): saving the connection (connector `afterSave`) or
 its "Apply scoped models" action writes them as `enabledModels` in pi's global
 `settings.json` (`PI_CODING_AGENT_DIR` or `~/.pi/agent`), as pi's own
 `/scoped-models` does, under pi's `settings.json.lock` and keeping every other
-key; the check flags when pi's list has drifted. `git` stores nothing and
+key; the check flags when pi's list has drifted. Connectors may be **subconnectors**
+(`parent: '<kind>'`), drawn inside the parent's card under "Add-ons". The
+first is **pi > Playwright browser** (`connectors/pi-playwright.cjs`): pi's
+`pi-playwright` skill package drives the user's own Chrome or Edge tabs via
+`@playwright/cli attach --extension`, which opens the Playwright Extension's
+connect page (extension id `mmlmfjhmonkocbjadbfplnigmagldckm`) where the user
+picks a tab. The check reads pi's `packages` list and the installed
+package.json files, and in the browser's user data folder only the last-used
+profile name and which profile folders have the extension. It reports whether
+`PLAYWRIGHT_MCP_EXTENSION_TOKEN` is set, never its value. Settings: browser,
+profile folder, and "Teach pi", which writes a MonoRail-marked
+`use-my-browser` skill to pi's skills folder (never overwrites a foreign one;
+removed when off or on removal). Actions: install in pi (terminal), get the
+extension (store page in the chosen browser), and Test connection (attach then
+detach, run with MonoRail's executable as Node, no shell). `git` stores nothing and
 reports the version, global `user.name` / `user.email` and the credential
 helper's name; it never runs `git credential`. Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.

@@ -54,6 +54,22 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  'pi-playwright': {
+    state: 'ok',
+    summary: 'pi can drive your Google Chrome tabs, and knows how.',
+    hint: 'Test connection opens the tab prompt once, then detaches.',
+    details: [
+      { label: 'pi-playwright', value: '0.1.2', ok: true },
+      { label: 'Playwright CLI', value: '0.1.24', ok: true },
+      { label: 'Google Chrome', value: 'Found', ok: true },
+      { label: 'Playwright Extension', value: 'Installed in Default', ok: true },
+      { label: 'Tab prompt', value: 'Google Chrome asks which tab to share' },
+      { label: 'Skill for pi', value: 'use-my-browser: up to date', ok: true },
+    ],
+    actions: ['test-attach'],
+    added: true,
+    checkedAt: at,
+  },
   git: {
     state: 'ok',
     summary: 'git 2.47.1.windows.1 is set up.',
@@ -160,6 +176,42 @@ export const sampleList: ConnectionsList = {
       ],
     },
     {
+      kind: 'pi-playwright',
+      parent: 'pi',
+      title: 'Playwright browser',
+      description: "pi's Playwright skill working in your own Chrome tabs (with your logins) through the Playwright Extension.",
+      icon: 'globe',
+      fields: [
+        {
+          key: 'browser',
+          label: 'Browser',
+          type: 'select',
+          defaultValue: 'chrome',
+          options: [
+            { value: 'chrome', label: 'Google Chrome' },
+            { value: 'msedge', label: 'Microsoft Edge' },
+          ],
+          help: 'The browser that has the Playwright Extension. pi attaches to its open tabs.',
+        },
+        { key: 'profile', label: 'Browser profile folder (optional)', type: 'text', placeholder: 'Default, Profile 1, ...' },
+        {
+          key: 'teachPi',
+          label: 'Teach pi',
+          type: 'select',
+          defaultValue: 'yes',
+          options: [
+            { value: 'yes', label: 'Add a use-my-browser skill that tells pi how to attach' },
+            { value: 'no', label: 'No, I tell pi myself' },
+          ],
+        },
+      ],
+      actions: [
+        { id: 'install-skill', label: 'Install in pi', description: 'Opens a terminal that runs pi install npm:pi-playwright.', showWhen: ['needs-setup', 'error'] },
+        { id: 'open-extension-page', label: 'Get the extension', description: 'Opens the Playwright Extension in the Chrome Web Store.', showWhen: ['needs-setup'] },
+        { id: 'test-attach', label: 'Test connection', description: 'Attaches to the browser the way pi does, then detaches.', steps: 2, showWhen: ['ok'] },
+      ],
+    },
+    {
       kind: 'git',
       title: 'Git',
       description: 'The git that GitHub+ and Chat run: its version, commit identity and credential helper.',
@@ -200,6 +252,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.pi,
+    },
+    {
+      kind: 'pi-playwright',
+      values: { browser: 'chrome', profile: '', teachPi: 'yes' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses['pi-playwright'],
     },
     {
       kind: 'git',

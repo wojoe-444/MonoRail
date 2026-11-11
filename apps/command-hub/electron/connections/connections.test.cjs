@@ -332,3 +332,173 @@ test('git: status runs only fixed, safe arguments and never asks for credentials
 test('pi: scoped list is shown grouped by provider', () => {
   assert.equal(pi.shortList(['anthropic/a', 'openai/b', 'anthropic/c', '*sonnet*']), 'anthropic: a, c; openai: b; *sonnet*')
 })
+
+// ---------- pi > Playwright browser ----------
+
+const pw = require('./connectors/pi-playwright.cjs')._internal
+
+/** A pi agent dir with pi-playwright installed the way `pi install npm:pi-playwright` leaves it. */
+function fakePiWithPlaywright({ listed = true, cli = true } = {}) {
+  const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ enabledModels: ['a/b'], ...(listed ? { packages: ['npm:pi-playwright@^0.1.2'] } : {}) }))
+  const pkg = path.join(dir, 'npm', 'node_modules', 'pi-playwright')
+  fs.mkdirSync(path.join(pkg, 'skills', 'playwright-browser', 'scripts'), { recursive: true })
+  fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'pi-playwright', version: '0.1.2' }))
+  fs.writeFileSync(path.join(pkg, 'skills', 'playwright-browser', 'scripts', 'pw.js'), '')
+  if (cli) {
+    const c = path.join(dir, 'npm', 'node_modules', '@playwright', 'cli')
+    fs.mkdirSync(c, { recursive: true })
+    fs.writeFileSync(path.join(c, 'package.json'), JSON.stringify({ name: '@playwright/cli', version: '0.1.24', bin: { 'playwright-cli': 'playwright-cli.js' } }))
+    fs.writeFileSync(path.join(c, 'playwright-cli.js'), '')
+  }
+  return dir
+}
+
+/** A browser user data folder; `ext` lists profiles that have the extension, `prefs` ones that only list it in Preferences. */
+function fakeBrowser({ profiles = ['Default', 'Profile 1'], ext = [], prefs = [], lastUsed } = {}) {
+  const dir = tmp()
+  for (const p of profiles) fs.mkdirSync(path.join(dir, p), { recursive: true })
+  for (const p of ext) fs.mkdirSync(path.join(dir, p, 'Extensions', pw.EXTENSION_ID, '1.0.0'), { recursive: true })
+  for (const p of prefs) {
+    fs.writeFileSync(path.join(dir, p, 'Secure Preferences'), JSON.stringify({ extensions: { settings: { [pw.EXTENSION_ID]: { state: 1 } } }, account_info: [{ email: 'private@example.com' }] }))
+  }
+  if (lastUsed) fs.writeFileSync(path.join(dir, 'Local State'), JSON.stringify({ profile: { last_used: lastUsed, info_cache: { [lastUsed]: { name: 'Private Name' } } } }))
+  return dir
+}
+
+test('pi playwright: is a subconnector of pi', async () => {
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher() })
+  const { connectors } = await svc.list()
+  const c = connectors.find((x) => x.kind === 'pi-playwright')
+  assert.equal(c.parent, 'pi')
+  assert.ok(connectors.findIndex((x) => x.kind === 'pi') < connectors.indexOf(c))
+})
+
+test('pi playwright: finds the extension per profile, last used first, names only', async () => {
+  const b = fakeBrowser({ profiles: ['Default', 'Profile 1', 'Profile 2', 'System Profile'], ext: ['Default'], prefs: ['Profile 2'], lastUsed: 'Profile 2' })
+  const found = await pw.findExtensionProfiles(b)
+  assert.deepEqual(found.withExtension, ['Profile 2', 'Default'])
+  assert.ok(!JSON.stringify(found).includes('Private') && !JSON.stringify(found).includes('private@'), 'drops everything but folder names')
+  assert.equal((await pw.findExtensionProfiles(path.join(b, 'nope'))).found, false)
+  assert.match(pw.userDataDir('chrome', { platform: 'win32', env: { LOCALAPPDATA: 'C:\\L' }, home: 'C:\\H' }), /Google.Chrome.User Data$/)
+  assert.match(pw.userDataDir('msedge', { platform: 'darwin', env: {}, home: '/Users/x' }), /Application Support.Microsoft Edge$/)
+})
+
+test('pi playwright: recognises how pi lists the package', () => {
+  const d = '/agent'
+  assert.equal(pw.matchSource('npm:pi-playwright', d).type, 'npm')
+  assert.equal(pw.matchSource('npm:pi-playwright@0.1.2', d).dir, path.join(d, 'npm', 'node_modules', 'pi-playwright'))
+  assert.equal(pw.matchSource('npm:pi-playwright-extra', d), undefined)
+  assert.equal(pw.matchSource('git:github.com/guwidoe/pi-playwright@v0.1.2', d).dir, path.join(d, 'git', 'github.com', 'guwidoe', 'pi-playwright'))
+  assert.equal(pw.matchSource('https://github.com/guwidoe/pi-playwright.git', d).type, 'git')
+  assert.equal(pw.matchSource('../src/pi-playwright', d).type, 'local')
+})
+
+test('pi playwright: status walks through install, extension and ready', async () => {
+  const base = { findPiSdk: fakePiSdk, env: {} }
+  const status = (deps, conn) => require('./connectors/pi-playwright.cjs').status(conn, { ...base, ...deps })
+
+  assert.equal((await status({ findPiSdk: () => undefined, piAgentDir: tmp(), browserDataDir: () => fakeBrowser() })).state, 'unavailable')
+
+  const missing = await status({ piAgentDir: tmp(), browserDataDir: () => fakeBrowser({ ext: ['Default'] }) })
+  assert.equal(missing.state, 'needs-setup')
+  assert.deepEqual(missing.actions, ['install-skill'])
+
+  const piDir = fakePiWithPlaywright()
+  const noExt = await status({ piAgentDir: piDir, browserDataDir: () => fakeBrowser() })
+  assert.equal(noExt.state, 'needs-setup')
+  assert.deepEqual(noExt.actions, ['open-extension-page'])
+
+  const ready = await status({ piAgentDir: piDir, browserDataDir: () => fakeBrowser({ ext: ['Profile 1'] }) })
+  assert.equal(ready.state, 'ok')
+  assert.equal(ready.details.find((d) => d.label === 'Playwright Extension').value, 'Installed in Profile 1')
+  assert.equal(ready.details.find((d) => d.label === 'Playwright CLI').value, '0.1.24')
+
+  // A chosen profile without the extension says where it is instead.
+  const wrong = await status({ piAgentDir: piDir, browserDataDir: () => fakeBrowser({ ext: ['Profile 1'] }) }, { values: { profile: 'Default' } })
+  assert.equal(wrong.state, 'needs-setup')
+  assert.match(wrong.details.find((d) => d.label === 'Playwright Extension').value, /found in Profile 1/)
+
+  // The extension token: only whether it is set, never its value.
+  const token = await status({ piAgentDir: piDir, env: { PLAYWRIGHT_MCP_EXTENSION_TOKEN: 'secret-token-value' }, browserDataDir: () => fakeBrowser({ ext: ['Default'] }) })
+  assert.match(token.details.find((d) => d.label === 'Tab prompt').value, /Skipped/)
+  assert.ok(!JSON.stringify(token).includes('secret-token-value'))
+
+  // Installed folder without a settings entry: pi would not load it.
+  assert.equal((await status({ piAgentDir: fakePiWithPlaywright({ listed: false }), browserDataDir: () => fakeBrowser({ ext: ['Default'] }) })).state, 'needs-setup')
+  assert.equal((await status({ piAgentDir: fakePiWithPlaywright({ cli: false }), browserDataDir: () => fakeBrowser({ ext: ['Default'] }) })).state, 'error')
+})
+
+test('pi playwright: saving writes the skill, off or remove takes it away, never a foreign one', async () => {
+  const piAgentDir = fakePiWithPlaywright()
+  const browser = fakeBrowser({ ext: ['Default'] })
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { piAgentDir, findPiSdk: fakePiSdk, env: {}, browserDataDir: () => browser } })
+  const file = path.join(piAgentDir, 'skills', pw.SKILL_NAME, 'SKILL.md')
+
+  const s = await svc.save({ kind: 'pi-playwright', values: { browser: 'msedge', profile: 'Profile 1', teachPi: 'yes' } })
+  const text = fs.readFileSync(file, 'utf8')
+  assert.match(text, /^---\nname: use-my-browser\ndescription: /)
+  assert.match(text, /PLAYWRIGHT_MCP_PROFILE_DIR_NAME="Profile 1" node ".*pw\.js" attach --extension=msedge/)
+  assert.ok(text.includes(pw.SKILL_MARKER))
+  assert.ok(!text.includes('\\'), 'forward slashes only')
+  assert.equal(s.details.find((d) => d.label === 'Skill for pi').value, 'use-my-browser: up to date')
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(piAgentDir, 'settings.json'), 'utf8')).enabledModels, ['a/b'], "pi's settings are left alone")
+
+  await svc.save({ kind: 'pi-playwright', values: { browser: 'chrome', teachPi: 'no' } })
+  assert.ok(!fs.existsSync(file))
+  await svc.save({ kind: 'pi-playwright', values: { browser: 'chrome', teachPi: 'yes' } })
+  assert.ok(fs.existsSync(file))
+  await svc.remove({ kind: 'pi-playwright' })
+  assert.ok(!fs.existsSync(file), 'removed with the connection')
+
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, '---\nname: use-my-browser\ndescription: mine\n---\n')
+  await assert.rejects(svc.save({ kind: 'pi-playwright', values: { browser: 'chrome', teachPi: 'yes' } }), /did not write/)
+  assert.match(fs.readFileSync(file, 'utf8'), /description: mine/)
+  await svc.remove({ kind: 'pi-playwright' })
+  assert.ok(fs.existsSync(file), 'a foreign skill survives removal')
+
+  await assert.rejects(svc.save({ kind: 'pi-playwright', values: { browser: 'firefox' } }), /Chrome or Microsoft Edge/)
+  await assert.rejects(svc.save({ kind: 'pi-playwright', values: { profile: 'x"; rm -rf' } }), /profile folder/)
+})
+
+test('pi playwright: test attaches with the extension and detaches, passing the env through', async () => {
+  const piAgentDir = fakePiWithPlaywright()
+  const browser = fakeBrowser({ ext: ['Default'] })
+  const calls = []
+  const { EventEmitter } = require('node:events')
+  const spawnFake = (code) => (cmd, args, opts) => {
+    calls.push({ cmd, args, env: opts.env, shell: opts.shell })
+    const child = new EventEmitter()
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    setImmediate(() => {
+      if (args.includes('attach') && code) child.stderr.emit('data', 'Error: Playwright Extension not found in "x".\n')
+      child.emit('close', args.includes('attach') ? code : 0)
+    })
+    return child
+  }
+  const deps = { piAgentDir, findPiSdk: fakePiSdk, env: { PLAYWRIGHT_MCP_EXTENSION_TOKEN: 't0k' }, browserDataDir: () => browser, nodeExecutable: '/node', spawn: spawnFake(0) }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+  await svc.save({ kind: 'pi-playwright', values: { browser: 'chrome', profile: 'Default', teachPi: 'no' } })
+  await svc.runAction({ kind: 'pi-playwright', action: 'test-attach' })
+  await new Promise((r) => setTimeout(r, 50))
+  const job = svc.getJob({ kind: 'pi-playwright' })
+  assert.equal(job.state, 'done', job.error)
+  assert.match(job.note, /Connected/)
+  assert.deepEqual(calls.map((c) => c.args.slice(1)), [['-s=monorail-check', 'attach', '--extension=chrome'], ['-s=monorail-check', 'detach']])
+  assert.equal(calls[0].shell, false)
+  assert.equal(calls[0].env.ELECTRON_RUN_AS_NODE, '1')
+  assert.equal(calls[0].env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME, 'Default')
+  assert.equal(calls[0].env.PLAYWRIGHT_MCP_EXTENSION_TOKEN, 't0k', 'passed through untouched')
+  assert.ok(!JSON.stringify(job).includes('t0k'))
+
+  deps.spawn = spawnFake(1)
+  calls.length = 0
+  await svc.runAction({ kind: 'pi-playwright', action: 'test-attach' })
+  await new Promise((r) => setTimeout(r, 50))
+  const failed = svc.getJob({ kind: 'pi-playwright' })
+  assert.equal(failed.state, 'failed')
+  assert.match(failed.error, /Playwright Extension not found/)
+  assert.equal(calls.length, 2, 'detaches even after a failure')
+})

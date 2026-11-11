@@ -17,6 +17,14 @@
 //   credentials? (conn) => what other backends need to call the service.
 //   afterSave? (conn, deps) => runs after the connection is saved, before
 //              the check (pi writes its scoped models into pi's settings).
+//   afterRemove? (deps) => runs after the connection is removed (undo what
+//              afterSave wrote that only makes sense while it is set up).
+//   parent?    kind of another connector: this one is a subconnector, shown
+//              nested inside the parent's card (pi > Playwright browser).
+//
+// A status may also carry actions: [ids], the actions that fit right now;
+// the page shows only those (on top of showWhen). A running job may set
+// job.note, one line the page shows instead of the generic sign-in text.
 //
 // Other backends reach a connection through getCredentials(kind) below, in
 // the main process. The page only ever sees describe-level data.
@@ -32,6 +40,7 @@ const CONNECTORS = [
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
   require('./connectors/pi.cjs'),
+  require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
@@ -51,6 +60,7 @@ function describeConnector(c) {
     title: c.title,
     description: c.description,
     icon: c.icon,
+    parent: c.parent,
     fields: c.fields,
     actions: c.actions.map(({ id, label, description, showWhen, steps }) => ({ id, label, description, showWhen, steps })),
   }
@@ -58,8 +68,8 @@ function describeConnector(c) {
 
 function publicJob(job) {
   if (!job) return undefined
-  const { id, kind, action, state, step, steps, stepLabel, url, output, error, startedAt, endedAt } = job
-  return { id, kind, action, state, step, steps, stepLabel, url, output, error, startedAt, endedAt }
+  const { id, kind, action, state, step, steps, stepLabel, note, url, output, error, startedAt, endedAt } = job
+  return { id, kind, action, state, step, steps, stepLabel, note, url, output, error, startedAt, endedAt }
 }
 
 /**
@@ -111,7 +121,9 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
         const all = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']?.summary?.connections ?? {}
         if (result) {
           const { state, summary, hint, checkedAt, account } = result
-          all[kind] = { title: connectorOf(kind).title, state, summary, hint, checkedAt }
+          const c = connectorOf(kind)
+          const parent = c.parent ? byKind.get(c.parent) : undefined
+          all[kind] = { title: parent ? `${parent.title}: ${c.title}` : c.title, state, summary, hint, checkedAt }
           // The Claude account type (no names or emails), for Home and the MCP server.
           if (account) all[kind].account = { type: account.type, source: account.source, billedAtApiPrices: account.billedAtApiPrices }
         } else delete all[kind]
@@ -170,7 +182,9 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       lastStatus.delete(kind)
       checks.invalidate(kind)
       await saveSummary(kind, undefined)
-      return store.remove(kind)
+      const removed = await store.remove(kind)
+      await connectorOf(kind).afterRemove?.(deps)
+      return removed
     },
 
     /** Start an action. Returns the job; long ones keep running and the page polls getJob. */
