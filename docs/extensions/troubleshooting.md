@@ -52,6 +52,9 @@ Extensions). Every failed call is logged there with its code, e.g.
 | `EXT_NETWORK_DENIED ... DNS lookups of 127.0.0.1` when listening | `server.listen(port, '127.0.0.1')` needs `127.0.0.1` in `permissions.network`. | Let the started program pick the port, or list `127.0.0.1`. |
 | A program keeps running after MonoRail quits | It was started with `detached: true`. | Don't detach. On Windows a normal child ends with the backend. |
 | A program starts on Mac/Linux but not Windows | `.cmd` launchers (e.g. `npm`, `npx`) need a shell on Windows. | Run the real executable (`node path/to/cli.js`), and list `node`. |
+| Agent gets `"keys" must be a string.` | MCP tool arguments can't be lists. | Take a JSON array as a string. See [MCP tools](manifest.md#mcp-tools). |
+| Agent's result ends in `(cut at 400000 characters)` | Tool results are capped at 400,000 characters. | Return less, and offer a follow-up tool for the rest. |
+| The first tool call of every agent session is slow | Each session starts the backend cold. | Keep built state in `ctx.dataDir` and reload it. See [measured behavior](backend-api.md#measured-behavior). |
 | `EXT_SECRETS_UNAVAILABLE` | The system offers no encryption (rare on Windows). | Tell the user. Never fall back to writing the secret to a file. |
 | `EXT_BAD_PAYLOAD` | A result, argument or event isn't plain JSON (`BigInt`, a cycle, a class instance) or is too large. | Return plain objects. Convert dates to strings. Page large results. |
 | `EXT_TIMEOUT` | A call ran longer than 2 minutes. | Return right away and report progress with events. |

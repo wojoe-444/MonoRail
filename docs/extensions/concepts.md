@@ -110,3 +110,25 @@ npx degit wojoe-444/MonoRail/packages/extension-sdk monorail-sdk --force
 Your extension keeps working without a refresh. Refresh when you want a
 feature from a newer API version (and raise `engines.monorail` with it), or
 MonoRail's latest colors.
+
+## Platforms
+
+MonoRail ships for **Windows only** today: the only build is the Windows
+installer, and updates are set up only for it. The source runs on macOS and
+Linux in development, but nobody tests it there. For extensions that means:
+
+| Part | Windows | macOS and Linux |
+| --- | --- | --- |
+| Install, update, run | the installer and self-update | no build to install |
+| Extension backend sandbox (`runner.cjs`, Node's permission model, network and program guards) | yes | its tests run on Linux in CI (`npm test`), so the sandbox itself works there |
+| `ctx.secrets` and secret settings | Windows' data protection, through Electron's `safeStorage` | `safeStorage` uses the Keychain on macOS and the desktop keyring on Linux; untested |
+| A started program ending with the backend | yes, always (job object) | not guaranteed: have the program exit when its stdin closes ([details](non-node-runtimes.md#when-the-program-ends)) |
+| Program names in `permissions.process` | `.exe`, `.cmd`, `.bat`, `.com` ignored | plain names |
+| `filesystem` paths | `~/` is the user's profile folder | `~/` is the home folder |
+| MonoRail's data folder | `%APPDATA%\MonoRail` (older installs keep their old folder) | the MCP server looks in `~/Library/Application Support` (macOS) or `~/.config` (Linux) |
+| Bundled runtimes and native wheels | one OS and CPU per package | the same; packages have no per-platform variants |
+| MCP server for agents | `MonoRail.exe --mcp` | no build to point an agent at |
+
+Write paths with `path.join`, don't assume `.exe`, and keep Windows-only
+steps behind `process.platform === 'win32'` so the extension is ready if
+other builds arrive.

@@ -104,6 +104,7 @@ Installed extensions can offer their own tools ([`contributes.mcpTools`](extensi
 - **Same sandbox.** The MCP server runs the extension's backend itself, with the permissions you approved and the folders you granted, and its own data folder. Secrets stay in the app: an extension cannot read its stored secrets when called by an agent.
 - **After an install or update,** open the extension in MonoRail once before agents can use its tools, so its data is set up by the app.
 - The server reads the installed extensions when the agent starts it; restart the agent's MonoRail server to pick up a new extension.
+- Each agent session starts the extension's backend fresh and ends it with the session. Arguments are flat values only (no lists), results are cut at 400,000 characters, and extensions can't offer resources or prompts. See [MCP tools](extensions/manifest.md#mcp-tools).
 
 ## Write tools and consent
 
