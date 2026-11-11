@@ -470,6 +470,7 @@ async function listSessions(opts = {}) {
 
   const byId = new Map()
   let outsideAllowed = 0
+  const coordDir = await realCoordinatorDir(opts.dataDir)
   for (const f of scanned) {
     let s
     try {
@@ -478,6 +479,12 @@ async function listSessions(opts = {}) {
       continue
     }
     if (!s || byId.has(s.id)) continue // newest first, so a duplicate under a second config root is older
+    // Coordinator chats run in the module's own folder and are listed apart.
+    if (coordDir && s.cwd && (await real(s.cwd).catch(() => undefined)) === coordDir) {
+      known.set(s.id, { source: f.source, file: f.file, cwd: s.cwd, coordinator: true })
+      byId.set(s.id, { ...s, coordinator: true, repo: { name: 'Coordinator', path: coordDir } })
+      continue
+    }
     const repo = s.cwd ? await repoFor(folders.repos, s.cwd) : undefined
     if (!repo) {
       outsideAllowed++
@@ -540,7 +547,7 @@ async function getSession(id, opts = {}) {
   if (!entry) throw new Error('Session not found')
   // The folder may have stopped being allowed since the list was read.
   const folders = await allowedRepos(opts.dataDir, { home: opts.home })
-  if (!entry.cwd || !(await repoFor(folders.repos, entry.cwd))) throw new Error('This chat is not in an allowed folder.')
+  if (!entry.coordinator && (!entry.cwd || !(await repoFor(folders.repos, entry.cwd)))) throw new Error('This chat is not in an allowed folder.')
   const stat = await fs.promises.stat(entry.file)
   const { text, cut } = await readTailWhole(entry.file, stat.size, HISTORY_BYTES)
   const lines = parseLines(text)
@@ -639,6 +646,7 @@ async function getComposer(ctx) {
     sdks: sdkStatus(),
     models: options.CLAUDE_MODELS,
     piModels: options.PI_MODELS,
+    coordinator: coordinatorStatus(),
     efforts: options.EFFORTS,
     repos: folders.repos.map((r) => ({ name: r.name, path: r.path })),
   }
@@ -660,12 +668,15 @@ async function startTurn(ctx, args = {}) {
   let resume
   let chatKey
   let sdk
+  let coordinator = false
   if (typeof args.chatId === 'string') {
     if (!known.has(args.chatId)) await listSessions({ dataDir: ctx.dataDir })
     const entry = known.get(args.chatId)
     if (!entry) throw new Error('Session not found')
     const dir = entry.cwd ? await real(entry.cwd) : undefined
-    const repo = dir && (await repoFor(folders.repos, dir))
+    // A coordinator chat stays a coordinator chat, whatever the page asks.
+    coordinator = !!entry.coordinator && !!dir && dir === (await realCoordinatorDir(ctx.dataDir))
+    const repo = coordinator ? { path: dir } : dir && (await repoFor(folders.repos, dir))
     if (!repo) throw new Error("This chat's folder is not in an allowed repo any more.")
     cwd = dir
     root = repo.path
@@ -673,6 +684,14 @@ async function startTurn(ctx, args = {}) {
     chatKey = args.chatId
     if (sdk === 'claude') resume = args.chatId.slice('claude:'.length)
     else sessionFile = entry.file
+  } else if (args.coordinator === true) {
+    const status = coordinatorStatus()
+    if (!status.ready) throw new Error(status.reason)
+    coordinator = true
+    cwd = await realCoordinatorDir(ctx.dataDir, true)
+    root = cwd
+    sdk = 'claude'
+    chatKey = `new:${crypto.randomUUID()}`
   } else {
     const wanted = typeof args.repo === 'string' ? await real(args.repo) : undefined
     const repo = wanted && folders.repos.find((r) => r.path === wanted)
@@ -683,7 +702,8 @@ async function startTurn(ctx, args = {}) {
     chatKey = `new:${crypto.randomUUID()}`
   }
 
-  const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort })
+  if (coordinator && sdk !== 'claude') throw new Error('The coordinator runs on Claude.')
+  const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator })
   const status = sdkStatus().find((s) => s.id === sdk)
   if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
 
@@ -706,7 +726,7 @@ async function startTurn(ctx, args = {}) {
   return turnsApi.startTurn({
     chatKey,
     worker: { job, cwd, resume, executable },
-    meta: { sdk: 'claude', model: job.model, mode: job.mode, resume },
+    meta: { sdk: 'claude', model: job.model, mode: coordinator ? 'coordinator' : job.mode, resume },
     onFinish: (turn) => {
       if (turn.sessionId && !resume) chatState.markStartedHere(ctx.dataDir, `claude:${turn.sessionId}`)
       const r = turn.result
@@ -720,6 +740,27 @@ async function startTurn(ctx, args = {}) {
       return [{ t: 'cost', turnUsd: undefined, sessionUsd: r.costUsd, exact: false }]
     },
   })
+}
+
+/** The coordinator's own folder inside the module's data folder (created on demand). */
+function coordinatorDir(dataDir) {
+  return path.join(dataDir, 'coordinator')
+}
+
+async function realCoordinatorDir(dataDir, create = false) {
+  if (!dataDir) return undefined
+  const dir = coordinatorDir(dataDir)
+  if (create) fs.mkdirSync(dir, { recursive: true })
+  return fs.existsSync(dir) ? real(dir) : undefined
+}
+
+function coordinatorStatus() {
+  const exe = options.findClaudeExecutable()
+  if (!exe) return { ready: false, reason: sdkStatus()[0].reason }
+  if (!options.findCoordinator()) {
+    return { ready: false, reason: 'No coordinator subagent was found. Add one as ~/.claude/agents/coordinator.md, then reopen this page.' }
+  }
+  return { ready: true }
 }
 
 /** git status and diff for a chat's folder (or a new chat's repo), re-checked against the allowed folders. */

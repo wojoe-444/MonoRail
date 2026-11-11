@@ -16,6 +16,7 @@ import {
   Mail,
   MailOpen,
   MessagesSquare,
+  Network,
   Plus,
   RefreshCw,
   Search,
@@ -32,6 +33,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -99,7 +101,7 @@ export default function AgentChatPage() {
   const composerInfo = desktop ? composerQuery.data : sampleComposer
   const prefs = useComposerPrefs(composerInfo)
   /** A new chat being composed: its key and the project it will run in. */
-  const [draft, setDraft] = useState<{ key: string; repo?: string } | undefined>(() =>
+  const [draft, setDraft] = useState<{ key: string; repo?: string; coordinator?: boolean } | undefined>(() =>
     handoff && 'newChat' in handoff ? { key: `draft:${crypto.randomUUID()}`, repo: handoff.newChat.repo } : undefined,
   )
   useEffect(() => {
@@ -175,7 +177,17 @@ export default function AgentChatPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openedId, desktop])
-  const chatSdk = draft ? prefs.newSdk : (selected?.source ?? 'claude')
+  const isCoordinator = draft ? !!draft.coordinator : !!selected?.coordinator
+  const chatSdk = draft ? (draft.coordinator ? 'claude' : prefs.newSdk) : (selected?.source ?? 'claude')
+  // The pinned coordinator entry opens the latest coordinator chat, or starts one.
+  const latestCoordinator = sessions.find((s) => s.coordinator)
+  function openCoordinator() {
+    setSendError(undefined)
+    if (latestCoordinator) {
+      setDraft(undefined)
+      setSelectedId(latestCoordinator.id)
+    } else setDraft({ key: `draft:${crypto.randomUUID()}`, coordinator: true })
+  }
   const chatTurns = turns.filter((t) => t.chatKey === chatKey || (t.sessionId && `${t.sdk}:${t.sessionId}` === chatKey))
   const runningTurn = chatTurns.find((t) => t.status === 'running')
   const lastWithUsage = [...chatTurns].reverse().find((t) => contextUse(t))
@@ -259,7 +271,7 @@ export default function AgentChatPage() {
     const repo = draft ? composerInfo?.repos.find((r) => r.path === draft.repo) : undefined
     try {
       const { turnId } = await invokeModule<{ turnId: string }>('agent-chat', 'startTurn', {
-        ...(draft ? { repo: draft.repo, sdk: chatSdk } : { chatId: selected?.id }),
+        ...(draft ? (draft.coordinator ? { coordinator: true } : { repo: draft.repo, sdk: chatSdk }) : { chatId: selected?.id }),
         prompt,
         mode: prefs.mode,
         model: prefs.modelFor(chatSdk),
@@ -291,7 +303,8 @@ export default function AgentChatPage() {
       prefs={prefs}
       source={chatSdk}
       isNew={!!draft}
-      repo={draft?.repo}
+      coordinator={isCoordinator}
+      repo={draft?.coordinator ? 'coordinator' : draft?.repo}
       onRepo={(path) => setDraft((d) => (d ? { ...d, repo: path } : d))}
       branch={selected?.branch}
       running={runningTurn}
@@ -429,6 +442,16 @@ export default function AgentChatPage() {
               </div>
             )}
           </div>
+          <CoordinatorEntry
+            status={composerInfo?.coordinator}
+            latest={latestCoordinator}
+            active={isCoordinator}
+            onOpen={openCoordinator}
+            onNew={() => {
+              setSendError(undefined)
+              setDraft({ key: `draft:${crypto.randomUUID()}`, coordinator: true })
+            }}
+          />
           <SessionListView
             sessions={visible}
             loading={desktop && list.loading}
@@ -455,6 +478,7 @@ export default function AgentChatPage() {
               <Conversation
                 key={draft.key}
                 draftRepoName={composerInfo?.repos.find((r) => r.path === draft.repo)?.name}
+              coordinator={draft.coordinator}
                 sdk={chatSdk}
                 turns={chatTurns}
                 composer={composer}
@@ -488,6 +512,57 @@ export default function AgentChatPage() {
         </section>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Coordinator entry (F5)
+
+function CoordinatorEntry({
+  status,
+  latest,
+  active,
+  onOpen,
+  onNew,
+}: {
+  status?: { ready: boolean; reason?: string }
+  latest?: SessionSummary
+  active: boolean
+  onOpen: () => void
+  onNew: () => void
+}) {
+  const ready = !!status?.ready
+  const entry = (
+    <div className={cn('mx-2 mt-2 flex items-center gap-1 rounded-lg border', active && 'border-primary bg-primary-soft', !ready && 'opacity-60')}>
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!ready && !latest}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <Network className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Coordinator</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {latest ? `Last used ${relative(latest.updatedAt)}` : ready ? 'Start a coordinator chat' : 'Not available'}
+          </span>
+        </span>
+      </button>
+      {ready && latest && (
+        <Button variant="ghost" size="icon" className="mr-1 size-7" onClick={onNew} aria-label="New coordinator chat" title="New coordinator chat">
+          <Plus />
+        </Button>
+      )}
+    </div>
+  )
+  if (ready || !status?.reason) return entry
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{entry}</TooltipTrigger>
+      <TooltipContent className="max-w-xs">{status.reason}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -530,7 +605,10 @@ function SessionListView({
       if (!g) byRepo.set(s.repo.path, (g = { label: s.repo.name, title: s.repo.path, items: [] }))
       g.items.push(s)
     }
-    return [...byRepo.entries()].map(([key, g]) => ({ key, ...g }))
+    // Coordinator chats are listed apart, first.
+    return [...byRepo.entries()]
+      .map(([key, g]) => ({ key, ...g, coordinator: g.items.some((s) => s.coordinator) }))
+      .sort((a, b) => Number(b.coordinator) - Number(a.coordinator))
   }, [sessions])
 
   if (error) {
@@ -688,6 +766,7 @@ function SourceAvatar({ source, className }: { source: SessionSource; className?
 function Conversation({
   session,
   draftRepoName,
+  coordinator,
   sdk = 'claude',
   skipHistory,
   turns,
@@ -698,6 +777,8 @@ function Conversation({
   /** Missing for a new chat that has not started yet. */
   session?: SessionSummary
   draftRepoName?: string
+  /** A new coordinator chat. */
+  coordinator?: boolean
   /** The SDK of a new chat. */
   sdk?: SessionSource
   /** Chats started on this page show their live turns instead of re-reading the log. */
@@ -777,7 +858,7 @@ function Conversation({
   if (!session && turns.length === 0) {
     return (
       <>
-        <NewChatEmpty repoName={draftRepoName} sdk={sdk} />
+        <NewChatEmpty repoName={draftRepoName} sdk={sdk} coordinator={coordinator} />
         {composer}
       </>
     )

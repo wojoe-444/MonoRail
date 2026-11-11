@@ -229,6 +229,15 @@ folder from the main process, external diff/textconv/fsmonitor off, diff cut
 at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
 "Open in new tab" going to the system browser.
 
+**Coordinator** (pinned above the chat list): opens the latest coordinator
+chat or starts one. It runs the user's `coordinator` subagent
+(`~/.claude/agents/coordinator.md`, found by `findCoordinator`) with the
+`agent` option, in the module's own `coordinator` folder in its data folder,
+with tools limited to `Agent` and `Workflow`, `dontAsk` and no MCP servers.
+Claude only: pi has no subagents, so a coordinator job on pi is refused. Its
+chats are listed apart, first. Without the subagent the entry is greyed out
+with the reason.
+
 The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
 Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
 files: it reuses Agent Chat's session list, composer info and running turns
@@ -484,6 +493,14 @@ manifest, page-api, backend-api, permissions, lifecycle, testing,
 troubleshooting; plans only in roadmap.md). Reference pages describe what the
 code does today: update them in the same PR as any change to the manifest,
 `ctx`, the bridge, permissions or error codes.
+
+`wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
+is bundled at build time (`import.meta.glob` `?raw` in
+`src/modules/wiki/content.ts`, so it is offline and matches the installed
+version). Links between docs open in the wiki, other repo paths open on
+GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
+there. Open a page from elsewhere with `openWiki(id, anchor)` from
+`modules/wiki/store.ts`.
 
 ## Design guidance
 

@@ -25,6 +25,8 @@ export interface SessionSummary {
   archived?: boolean
   /** Run by a script, a scheduled task or another app, not started from this page. */
   scheduled?: boolean
+  /** A coordinator chat (runs in the module's own folder, listed apart). */
+  coordinator?: boolean
 }
 
 /**
@@ -105,6 +107,8 @@ export interface ComposerInfo {
   sdks: { id: SessionSource; label: string; ready: boolean; reason?: string }[]
   models: { id: string; label: string }[]
   piModels: { id: string; label: string }[]
+  /** The coordinator entry: greyed out with the reason when it cannot run. */
+  coordinator?: { ready: boolean; reason?: string }
   efforts: string[]
   repos: { name: string; path: string }[]
 }

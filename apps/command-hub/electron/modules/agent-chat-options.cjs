@@ -40,6 +40,9 @@ const MODES = ['ask', 'agent']
 
 const ASK_TOOLS = ['Read', 'Grep', 'Glob']
 
+/** The coordinator chat may only delegate (to subagents) and run workflows. */
+const COORDINATOR_TOOLS = ['Agent', 'Workflow']
+
 const DENY_MESSAGE = 'Nobody can approve tool use from the MonoRail Chat page, so this request was denied.'
 
 const PATH_KEYS = new Set(['cwd', 'pathToClaudeCodeExecutable', 'resume'])
@@ -80,6 +83,8 @@ function validateJob(job) {
   if (!MODES.includes(job.mode)) throw new Error('Unknown mode')
   if (!(job.sdk === 'pi' ? PI_MODELS : CLAUDE_MODELS).some((m) => m.id === job.model)) throw new Error('Unknown model')
   if (!EFFORTS.includes(job.effort)) throw new Error('Unknown effort')
+  job.coordinator = job.coordinator === true
+  if (job.coordinator && job.sdk !== 'claude') throw new Error('The coordinator runs on Claude.')
   // Reasoning is only requested for the Detailed view (T3).
   job.reasoning = job.reasoning === true
   return job
@@ -105,7 +110,16 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool }) {
   if (job.model !== 'default') options.model = job.model
   if (job.effort !== 'default') options.effort = job.effort
   if (job.reasoning) options.thinking = { type: 'adaptive', display: 'summarized' }
-  if (job.mode === 'ask') {
+  if (job.coordinator) {
+    // Runs as the user's "coordinator" subagent. Tools: delegate and workflow
+    // only, no MCP servers, and nothing that needs approval.
+    options.agent = 'coordinator'
+    options.permissionMode = 'dontAsk'
+    options.tools = COORDINATOR_TOOLS
+    options.allowedTools = COORDINATOR_TOOLS
+    options.mcpServers = {}
+    options.strictMcpConfig = true
+  } else if (job.mode === 'ask') {
     options.tools = ASK_TOOLS
     options.allowedTools = ASK_TOOLS
     options.mcpServers = {}
@@ -221,6 +235,18 @@ function findPiSdk(env = process.env, home = os.homedir()) {
   return undefined
 }
 
+/** The user's "coordinator" subagent definition (agents/coordinator.md in a Claude config folder), if any. */
+function findCoordinator(env = process.env, home = os.homedir()) {
+  const bases = env.CLAUDE_CONFIG_DIR
+    ? env.CLAUDE_CONFIG_DIR.split(',').map((s) => s.trim()).filter(Boolean)
+    : [path.join(home, '.claude'), path.join(home, '.config', 'claude')]
+  for (const b of bases) {
+    const f = path.join(b, 'agents', 'coordinator.md')
+    if (fs.existsSync(f)) return f
+  }
+  return undefined
+}
+
 // ---------------------------------------------------------------------------
 // Finding the user's Claude Code
 
@@ -250,4 +276,4 @@ function findClaudeExecutable(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-module.exports = { CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
+module.exports = { COORDINATOR_TOOLS, findCoordinator, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
