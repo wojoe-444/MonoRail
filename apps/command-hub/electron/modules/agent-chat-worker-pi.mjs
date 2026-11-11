@@ -2,6 +2,7 @@
 // Loaded by agent-chat-worker.mjs; emits the same events as the Claude path.
 
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
@@ -56,15 +57,26 @@ export async function runPi({ job, cwd, root, sessionFile, sdkEntry }, emit) {
 
   const agentDir = pi.getAgentDir()
   // The user's own extensions are not loaded: they could add tools (a shell).
-  const resourceLoader = new pi.DefaultResourceLoader({ cwd, agentDir, noExtensions: true, extensionFactories: [guard] })
+  const resourceLoader = new pi.DefaultResourceLoader({ cwd, agentDir, noExtensions: true, disabledBuiltinExtensions: ['mcp'], extensionFactories: [guard] })
   await resourceLoader.reload()
 
-  const authStorage = pi.AuthStorage.create()
-  const modelRegistry = pi.ModelRegistry.create(authStorage)
+  // Models and sign-in: pi 1.x has one ModelRuntime; 0.x had AuthStorage + ModelRegistry.
+  let models
+  let findModel
+  if (pi.ModelRuntime?.create) {
+    const modelRuntime = await pi.ModelRuntime.create({ authPath: path.join(agentDir, 'auth.json'), modelsPath: path.join(agentDir, 'models.json') })
+    models = { modelRuntime }
+    findModel = (provider, id) => modelRuntime.getModel(provider, id)
+  } else {
+    const authStorage = pi.AuthStorage.create()
+    const modelRegistry = pi.ModelRegistry.create(authStorage)
+    models = { authStorage, modelRegistry }
+    findModel = (provider, id) => modelRegistry.find(provider, id)
+  }
   let model
   if (job.model !== 'default') {
     const [provider, ...rest] = job.model.split('/')
-    model = modelRegistry.find(provider, rest.join('/'))
+    model = findModel(provider, rest.join('/'))
     if (!model) throw new Error(`This version of pi does not know ${job.model}. Update pi or pick another model.`)
   }
 
@@ -73,11 +85,12 @@ export async function runPi({ job, cwd, root, sessionFile, sdkEntry }, emit) {
   const { session } = await pi.createAgentSession({
     cwd,
     agentDir,
-    authStorage,
-    modelRegistry,
+    ...models,
     resourceLoader,
     sessionManager,
     tools,
+    // Belt and braces: the guard above blocks these too.
+    excludeTools: ['mcp__*', 'bash', 'powershell'],
     ...(model ? { model } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
   })
