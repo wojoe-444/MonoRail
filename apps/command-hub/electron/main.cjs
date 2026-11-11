@@ -19,6 +19,12 @@ const { registerModuleBackends } = require('./modules/index.cjs')
 
 const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
 
+/** "monorail-ext://<id>" for an extension page URL, else undefined. */
+function extensionOrigin(url) {
+  const m = /^monorail-ext:\/\/([^/?#]+)/i.exec(url ?? '')
+  return m ? `monorail-ext://${m[1].toLowerCase()}` : undefined
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -47,9 +53,11 @@ function createWindow() {
 
   // Extension pages run in iframes and must stay on their own monorail-ext://
   // origin: a frame can't navigate itself to the web (which could leak data).
+  // Other iframes (e.g. Email's srcdoc mail bodies) are not affected.
   win.webContents.on('will-frame-navigate', (event) => {
     if (event.isMainFrame) return
-    if (!event.url.startsWith('monorail-ext://') && event.url !== 'about:blank') event.preventDefault()
+    const from = extensionOrigin(event.frame?.url)
+    if (from && extensionOrigin(event.url) !== from) event.preventDefault()
   })
 
   if (isDev) {
