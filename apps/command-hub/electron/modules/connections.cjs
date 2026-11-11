@@ -7,7 +7,7 @@ module.exports = {
   id: 'connections',
   methods: {
     list: () => connections().list(),
-    check: (_ctx, args) => connections().check(args?.kind),
+    check: (_ctx, args) => connections().check(args?.kind, { force: !!args?.force }),
     save: (_ctx, args) => connections().save(args),
     remove: (_ctx, args) => connections().remove(args),
     runAction: (_ctx, args) => connections().runAction(args),
