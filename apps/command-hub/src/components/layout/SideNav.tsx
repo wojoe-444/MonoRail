@@ -52,7 +52,7 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
           collapsed && 'justify-center px-0',
         )}
       >
-        <BrandTile className="size-8" markClassName="size-[18px]" />
+        <BrandTile className="size-8" />
         {!collapsed && (
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">MonoRail</span>

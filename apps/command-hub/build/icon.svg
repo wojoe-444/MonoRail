@@ -1,37 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- MonoRail app icon: "Mochi with a halo". A soft dough gumdrop with two
+       dot eyes, circled by a tilted loop track. Drawn on a 256 grid, scaled 2x.
+       Same art as public/favicon.svg and BrandTile (src/components/layout/BrandMark.tsx). -->
   <defs>
-    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3b3b40"/>
-      <stop offset="0.48" stop-color="#141416"/>
-      <stop offset="1" stop-color="#000000"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f9a72"/>
+      <stop offset="1" stop-color="#3d6b52"/>
     </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
-      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.22"/>
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
-    </linearGradient>
-    <linearGradient id="glyph" gradientUnits="userSpaceOnUse" x1="0" y1="4" x2="0" y2="22">
+    <radialGradient id="dough" cx=".36" cy=".28" r=".85">
       <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#c9cbd2"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="1" r="0.6">
-      <stop offset="0" stop-color="#8a8f9c" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#8a8f9c" stop-opacity="0"/>
+      <stop offset=".45" stop-color="#f8f1e0"/>
+      <stop offset="1" stop-color="#dccaa4"/>
     </radialGradient>
-    <clipPath id="tile"><rect x="16" y="16" width="480" height="480" rx="112"/></clipPath>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
   </defs>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#body)"/>
-  <g clip-path="url(#tile)">
-    <rect x="16" y="256" width="480" height="240" fill="url(#glow)"/>
-    <path d="M16 16H496V214C380 262 140 262 16 214Z" fill="url(#gloss)"/>
-  </g>
-  <rect x="19" y="19" width="474" height="474" rx="109" fill="none" stroke="url(#rim)" stroke-width="6"/>
-  <g transform="translate(64 64) scale(16)" stroke="url(#glyph)" stroke-width="2.25" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 16.5V5.5l6 6.5 6-6.5v11"/>
-    <path d="M3 20.5h18"/>
+  <g transform="scale(2)">
+    <rect x="12" y="12" width="232" height="232" rx="56" fill="url(#tile)"/>
+    <g transform="rotate(-14 128 146)">
+      <path d="M26 146a102 32 0 0 1 204 0" fill="none" stroke="#fbf6e8" stroke-opacity=".55" stroke-width="10" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="128" cy="190" rx="54" ry="10" fill="#132a1f" opacity=".35" filter="url(#soft)"/>
+    <path d="M66 156c0-48 28-82 62-82s62 34 62 82c0 22-28 32-62 32s-62-10-62-32z" fill="url(#dough)"/>
+    <ellipse cx="110" cy="134" rx="6.5" ry="8.5" fill="#132a1f"/>
+    <ellipse cx="146" cy="134" rx="6.5" ry="8.5" fill="#132a1f"/>
+    <g transform="rotate(-14 128 146)">
+      <path d="M26 146a102 32 0 0 0 204 0" fill="none" stroke="#fbf6e8" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="200" cy="168" r="13" fill="#ffcf7a"/>
+    </g>
   </g>
 </svg>
