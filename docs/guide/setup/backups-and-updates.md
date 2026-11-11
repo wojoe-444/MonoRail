@@ -20,7 +20,8 @@ Each page gets its own subfolder:
 - [GitHub+](../workspace/browse-repos.md#backups) repositories, with their
   [local issues](../workspace/local-issues.md);
 - your [Jira+](../workspace/jira-plus.md#private-projects) private projects;
-- your [Flashcards](../../flashcards.md) decks.
+- your [Flashcards](../../flashcards.md) decks;
+- your [Notes](../../notes.md).
 
 **Back up now** runs a backup right away. A repository can also have its own
 folder or schedule on GitHub+'s **Backups** tab; its own settings win over

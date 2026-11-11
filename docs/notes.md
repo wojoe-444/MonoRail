@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Notes
 
 **Notes** (under Home in the nav) is an info dump: links, snippets, meeting
