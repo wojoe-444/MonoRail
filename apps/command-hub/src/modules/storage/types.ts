@@ -10,9 +10,19 @@ export interface Drive {
   holdsData: boolean
 }
 
+/** A free-space goal the user set for one drive. */
+export interface DriveGoal {
+  freeBytes: number
+  setAt?: string
+}
+
 export interface DrivesResult {
   platform: string
   drives: Drive[]
+  /** Free-space goals by drive id (machine-wide, in the Storage data folder). */
+  goals?: Record<string, DriveGoal>
+  /** The goals file is damaged: shown, and never overwritten. */
+  goalsError?: string
 }
 
 export type LocationGroup = 'monorail' | 'agents' | 'dev' | 'system'
