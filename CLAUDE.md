@@ -83,6 +83,21 @@ lower-right pop-up when an update is available: "Download and Restart",
 "Ignore for six hours" (kept in `commandHub.updateSnoozeUntil`) and X (hidden
 until the next check). It is self-contained, so it moves with Settings.
 
+**Release notes.** Each release's body is its "What's new" list, written by
+`scripts/release-notes.cjs` in the publish step from the PRs merged since the
+previous release (format and parser: `electron/release-notes.cjs`). Every PR
+description therefore gets a `## What's new` section (see
+`.github/pull_request_template.md`): one bullet per user-visible change,
+`- **Short title**: one plain sentence`, written for people using the app, not
+developers (no file names, no internals); without it the PR title is used.
+Release notes are public: no personal paths, names or test-user details (the
+script also strips home-folder paths and emails). When an update is
+available, the settings backend reads the public release list once
+(api.github.com) and keeps every release between the installed and the latest
+version (`changes`); `src/modules/settings/WhatsNew.tsx` shows them in Settings
+and, briefly, in the pop-up. The "Release notes" workflow (manual) rewrites
+older releases' notes.
+
 ## Code layout (`apps/command-hub/src`)
 
 - `components/ui/` shadcn/ui primitives. These are owned source, edit freely.

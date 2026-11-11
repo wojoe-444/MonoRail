@@ -43,6 +43,11 @@ the lower right offers:
 - **Ignore for six hours**: asks again later.
 - **X**: hides it until the next check.
 
+The pop-up also lists **what's new**: the newest few changes since the
+version you have. **Settings** shows the whole list, every change in every
+update you skipped, grouped by version. The notes come from the changes that
+went into each update, written for people using the app.
+
 You can also check at any time with **Settings > Check for updates**. Your
 data and settings stay as they are across updates, in the same [data
 folder](../private-data.md#where-your-data-lives). If the installer
