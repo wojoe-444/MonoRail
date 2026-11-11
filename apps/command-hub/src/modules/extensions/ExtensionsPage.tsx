@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
 const BACKEND = 'extensions'
-const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/tree/main/extensions'
+const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions.md'
 
 /** Shown in the browser dev server, where there is no backend. Fictional. */
 const sampleList: ExtensionList = {
