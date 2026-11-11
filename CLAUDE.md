@@ -288,6 +288,20 @@ are left out. Quick launch and "Open" hand over to Chat with
 `openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
 handed-over prompt is prefilled in the composer, never sent by itself.
 
+**Mochi crew** (`src/components/mochi/`, docs: `docs/mochi-crew.md`): agent
+characters in the K1 Mochi app-icon family (dough body, dot eyes, never a
+mouth, never a robot). A character is a role (layers of static SVG in
+`characters.ts`: body, eyes, headwear, held props, tile props) times a flavor
+(`flavors.ts`: 42 flavors of three OKLCH numbers each, expanded with a 3:1
+accessory contrast check; `Classic` is the icon's own palette and belongs to
+the Coordinator). Layers use only the flavor's CSS variables, except the fixed
+props listed in the docs. `AgentMochi` picks the role from the name (last word
+first) and then the description (`match.ts`), and the flavor from the role
+default or a hash of the name. Nothing is stored. The SVG is inserted as
+markup, so only repo-authored strings may go into it, never agent or user text.
+Shown on Agents definitions, Chat's Agent/Task tool rows and the Coordinator
+entry; Agents > Characters is the gallery.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
