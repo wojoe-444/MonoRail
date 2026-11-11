@@ -1,0 +1,10 @@
+/* Card faces in the study view: larger, centered Markdown (the base styles are .chat-md in agent-chat/chat.css). */
+.fc-face .chat-md {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  text-align: center;
+
+  & ul, & ol, & pre, & table, & blockquote { text-align: left; display: inline-block; max-width: 100%; }
+  & pre { font-size: 0.875rem; }
+}
+.fc-face-sm .chat-md { font-size: 0.9375rem; }

@@ -24,6 +24,7 @@ const moduleBackends = [
   require('./agents.cjs'),
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
+  require('./flashcards.cjs'),
   require('./home.cjs'),
   require('./mcp.cjs'),
   require('./settings.cjs'),

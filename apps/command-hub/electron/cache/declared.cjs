@@ -117,6 +117,7 @@ const DATA_FILES = Object.freeze({
   'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'coordinator/', 'turn-locks/'],
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
+  'modules/flashcards': ['decks.json', 'decks.json.lock'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
   'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/'],
@@ -130,6 +131,7 @@ const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
   'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
   'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
+  'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 
 const byId = new Map(CACHES.map((c) => [c.id, c]))

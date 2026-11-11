@@ -162,7 +162,7 @@ describe('MonoRail read tools', () => {
     const r = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     assert.ok(r.result.tools.length >= 9)
     for (const t of r.result.tools) {
-      assert.equal(t.annotations.readOnlyHint, !/^(create|comment|ask)_/.test(t.name), t.name)
+      assert.equal(t.annotations.readOnlyHint, !/^(create|comment|ask|add)_/.test(t.name), t.name)
       assert.equal(t.inputSchema.type, 'object', t.name)
       assert.match(t.name, /^[a-z_]+$/)
     }
@@ -303,6 +303,23 @@ describe('write tools and consent', () => {
     assert.equal((await call(server, 'comment_jira_plus_issue', { key: 'ME-3', body: 'Done soon.' })).isError, false)
     assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no local Jira\+ project/)
     assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no local Jira\+ issue/)
+  })
+
+  it('lists flashcard decks and adds cards only when allowed', async () => {
+    assert.deepEqual((await call(server, 'list_flashcard_decks', {})).value.decks, [])
+    assert.equal(fs.existsSync(path.join(root, 'modules', 'flashcards', 'decks.json')), false, 'a read creates no file')
+    const cards = [{ front: 'hola', back: 'hello' }, { front: 'adiós', back: 'goodbye' }]
+    assert.equal((await call(server, 'add_flashcards', { deck: 'Spanish', cards, createDeck: true })).isError, true, 'off until allowed')
+    await access.setAllowed(root, 'test-agent', 'add_flashcards', true)
+    assert.match((await call(server, 'add_flashcards', { deck: 'Spanish', cards })).text, /no deck "Spanish"/)
+    const added = await call(server, 'add_flashcards', { deck: 'Spanish', cards, createDeck: true })
+    assert.deepEqual([added.value.added, added.value.createdDeck], [2, true])
+    assert.equal((await call(server, 'add_flashcards', { deck: 'spanish', cards: [{ front: 'gracias', back: 'thanks' }] })).value.createdDeck, false)
+    const decks = (await call(server, 'list_flashcard_decks', {})).value.decks
+    assert.deepEqual(decks.map((d) => [d.name, d.cards, d.due.new]), [['Spanish', 3, 3]])
+    const listed = (await call(server, 'list_flashcards', { deck: decks[0].id, query: 'grac' })).value
+    assert.deepEqual(listed.cards.map((c) => c.front), ['gracias'])
+    assert.equal((await call(server, 'add_flashcards', { deck: 'Spanish', cards: [{ front: '' }] })).isError, true)
   })
 
   it('logs every call with what a write did, and no arguments', async () => {
