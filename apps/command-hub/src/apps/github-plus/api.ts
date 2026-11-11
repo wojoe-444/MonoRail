@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, InitOptions, CommitDetail, CommitSummary, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, InitOptions, RepoActivity, CommitDetail, CommitSummary, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
 
 /** Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call stays on this machine. */
 export interface RepoApi {
@@ -15,6 +15,8 @@ export interface RepoApi {
   saveSettings(settings: GitHubPlusSettings): Promise<GitHubPlusSettings>
   /** Recently opened repo paths, newest first. Kept in the app's AppData folder. */
   getRecents(): Promise<string[]>
+  /** Home dashboard: activity across the recently opened repos. */
+  getActivity(): Promise<RepoActivity[]>
   removeRecent(path: string): Promise<string[]>
   listRefs(repo: string): Promise<RefInfo[]>
   listTree(repo: string, ref: string, path: string): Promise<TreeEntry[]>
@@ -54,6 +56,7 @@ const desktopApi: RepoApi = {
   getSettings: () => call('getSettings'),
   saveSettings: (settings) => call('saveSettings', { settings }),
   getRecents: () => call('getRecents'),
+  getActivity: () => call('getActivity'),
   removeRecent: (path) => call('removeRecent', { path }),
   listRefs: (repo) => call('listRefs', { repo }),
   listTree: (repo, ref, path) => call('listTree', { repo, ref, path }),

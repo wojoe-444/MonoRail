@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupState, CommitDetail, RepoActivity, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -167,6 +167,35 @@ const reschedule = (b: BackupState): BackupState => ({
 
 const wait = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 60))
 
+// Two more fictional repos so the home dashboard has something to show.
+const OTHER_REPOS: RepoActivity[] = [
+  {
+    path: 'C:/Users/sample/Repos/trail-planner',
+    name: 'trail-planner',
+    defaultRef: 'main',
+    currentBranch: 'elevation-chart',
+    commits: [
+      commit('a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', [], 'Jordan Pike', 0.1, 'Draw elevation profile under the map', []),
+      commit('b2c3d4e5f60718293a4b5c6d7e8f901234567890', [], 'Jordan Pike', 1.2, 'Cache tile downloads for offline use', []),
+      commit('c3d4e5f60718293a4b5c6d7e8f90123456789012', [], 'Riley Chen', 4, 'Fix distance rounding for short trails', []),
+    ].map(summary),
+    branches: [
+      { name: 'elevation-chart', sha: 'a1b2c3d4', date: day(0.1), author: 'Jordan Pike', subject: 'Draw elevation profile under the map', isDefault: false, ahead: 3, behind: 1 },
+      { name: 'main', sha: 'c3d4e5f6', date: day(4), author: 'Riley Chen', subject: 'Fix distance rounding for short trails', isDefault: true },
+    ],
+    backup: null,
+  },
+  {
+    path: 'C:/Users/sample/Repos/recipe-box',
+    name: 'recipe-box',
+    defaultRef: 'main',
+    currentBranch: 'main',
+    commits: [commit('d4e5f60718293a4b5c6d7e8f9012345678901234', [], 'Sam Ortega', 6, 'Add shopping list export', [])].map(summary),
+    branches: [{ name: 'main', sha: 'd4e5f607', date: day(6), author: 'Sam Ortega', subject: 'Add shopping list export', isDefault: true }],
+    backup: null,
+  },
+]
+
 // A plain (non-git) folder, so the browser preview can show "Make this a git repo".
 const PLAIN = 'C:/Users/sample/Documents/Job search'
 let plainIsRepo = false
@@ -197,7 +226,25 @@ export const sampleApi: RepoApi = {
   },
   getSettings: () => wait(settings),
   saveSettings: async (s) => wait((settings = { ...s })),
-  getRecents: () => wait([REPO.path, PLAIN]),
+  getRecents: () => wait([REPO.path, PLAIN, ...OTHER_REPOS.map((r) => r.path)]),
+  async getActivity() {
+    const orbit: RepoActivity = {
+      path: REPO.path,
+      name: REPO.name,
+      defaultRef: 'main',
+      currentBranch: 'main',
+      commits: COMMITS.map(summary),
+      branches: [
+        { name: 'feature/search', sha: C3.sha, date: C3.date, author: C3.authorName, subject: C3.subject, isDefault: false, ahead: 1, behind: 0 },
+        { name: 'main', sha: C2.sha, date: C2.date, author: C2.authorName, subject: C2.subject, isDefault: true },
+      ],
+      backup: backup.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null,
+    }
+    const plain: RepoActivity = plainIsRepo
+      ? { ...orbit, path: PLAIN, name: 'Job search', backup: null }
+      : { path: PLAIN, name: 'Job search', error: `"${PLAIN}" is not inside a git repository`, commits: [], branches: [], backup: null }
+    return wait([orbit, plain, ...OTHER_REPOS])
+  },
   removeRecent: () => wait([]),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {

@@ -221,3 +221,15 @@ describe('making a plain folder a repo', () => {
     assert.equal(init.ignoreLine('a/#b [1]*.txt'), '/a/\\#b \\[1\\]\\*.txt')
   })
 })
+
+describe('dashboard activity', () => {
+  it('summarizes commits on all branches and active branches with ahead/behind', async () => {
+    const a = await git.recentActivity(dir)
+    assert.equal(a.defaultRef, 'main')
+    assert.ok(a.commits.some((c) => c.subject === 'change a'), 'includes commits from other branches')
+    const f = a.branches.find((b) => b.name === 'feature/x')
+    assert.equal(f.ahead, 1)
+    assert.equal(f.behind, 0)
+    assert.equal(a.branches.find((b) => b.name === 'main').isDefault, true)
+  })
+})
