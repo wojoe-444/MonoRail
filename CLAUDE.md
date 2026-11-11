@@ -397,7 +397,8 @@ latter written after every connection check), Chat's `listSessions` (allowed
 folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
 repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
 legacy folder). No tool returns secrets or tokens. **Write tools** (`write:
-true` in `tools.cjs`: create/comment on GitHub+ and Jira+ local issues) are
+true` in `tools.cjs`: create/comment on GitHub+ and Jira+ local issues,
+add Flashcards cards) are
 off for every agent until the user turns each one on per agent on the page;
 the server checks `access.json` on every call (`access.cjs`; the agent is the
 self-reported `clientInfo.name`, recorded on first connect with nothing
@@ -432,6 +433,20 @@ never deletes, moves, renames or copies anything it measures (a test greps the
 backend for write calls; history goes through the cache primitive); actions only open a folder in Explorer by location id or the Windows
 storage settings. Any future cleanup must be explicit, confirmed per item, and
 limited to caches marked safe.
+
+`flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
+spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
+`ChatMarkdown`) and per-day study counts (90 days) live in one file,
+`decks.json` in its data folder; nothing is cached or sent anywhere.
+`flashcards-store.cjs` has no Electron dependency because the MCP server uses
+it too: every change takes `decks.json.lock`, reads the file fresh and writes
+it atomically, and a damaged file is never treated as empty or overwritten.
+`flashcards-fsrs.cjs` is the scheduler: FSRS-5 with its default weights, learning
+steps 1m/10m, relearning 10m, per-deck target recall (default 0.9) and new
+cards per day (default 20); the page shows each rating's next interval from
+`study`. Undo keeps the last answer per deck in memory only. Do not call it or
+style it after any other product. MCP: `list_flashcard_decks`,
+`list_flashcards` (read) and `add_flashcards` (write, consent per agent).
 
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as

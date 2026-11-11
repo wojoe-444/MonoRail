@@ -11,6 +11,8 @@
 //   list_jira_plus_issues
 //   get_jira_plus_issue
 //   connection_status        Connections' last check per account (no secrets)
+//   list_flashcard_decks     Flashcards' decks with what is due (decks.json)
+//   list_flashcards          cards of one deck, optionally searched
 //
 // Write tools (writeTools below) are off for every agent until the user turns
 // them on per agent on the Agent access page (access.cjs), and every call is
@@ -18,6 +20,7 @@
 //
 //   create_github_plus_issue, comment_github_plus_issue
 //   create_jira_plus_issue, comment_jira_plus_issue
+//   add_flashcards    adds cards to a Flashcards deck (creates the deck if asked)
 //   ask_coordinator   runs a turn of the user's Chat coordinator and returns its reply
 //
 // check_coordinator_reply only reads a turn this same connection started.
@@ -35,6 +38,7 @@ const cache = require('../cache/index.cjs')
 const { readJson } = require('../cache/files.cjs')
 const issues = require('../apps/github-plus/issues.cjs')
 const { resolveJiraDataDir } = require('../apps/jira-plus/data-dir.cjs')
+const flashcards = require('../modules/flashcards-store.cjs')
 
 const MAX_TEXT = 20_000
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -49,7 +53,21 @@ function folders(rootDir) {
     agentChat: path.join(rootDir, 'modules', 'agent-chat'),
     githubPlus: path.join(rootDir, 'apps', 'github-plus'),
     jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
+    flashcards: path.join(rootDir, 'modules', 'flashcards'),
   }
+}
+
+// ---------- Flashcards ----------
+
+/** A deck by id or by name (case does not matter). */
+function flashcardDeck(data, wanted) {
+  const w = String(wanted ?? '').trim()
+  const byId = data.decks.find((d) => d.id === w)
+  if (byId) return byId
+  const byName = data.decks.filter((d) => d.name.toLowerCase() === w.toLowerCase())
+  if (byName.length === 1) return byName[0]
+  if (byName.length > 1) throw new Error(`Several decks are called "${w}". Pass the deck id from list_flashcard_decks.`)
+  return undefined
 }
 
 // ---------- GitHub+ ----------
@@ -323,6 +341,47 @@ function readTools({ rootDir }) {
         return { connections: list }
       },
     },
+    {
+      name: 'list_flashcard_decks',
+      title: 'Flashcard decks',
+      description:
+        "The user's spaced repetition decks in MonoRail's Flashcards page: id, name, description, card count and what is due today (new cards within the daily limit, learning, reviews), plus reviews done today.",
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: READ_ONLY,
+      async handler() {
+        const { decks, reviewedToday } = flashcards.listDecks(await flashcards.createStore(dir.flashcards).read(), Date.now())
+        return {
+          decks: decks.map((d) => ({ id: d.id, name: d.name, description: d.description, cards: d.counts.total, due: { new: d.counts.new, learning: d.counts.learning, review: d.counts.review }, nextDue: iso(d.counts.nextDue) })),
+          reviewedToday,
+        }
+      },
+    },
+    {
+      name: 'list_flashcards',
+      title: 'Cards of a flashcard deck',
+      description: 'Cards of one Flashcards deck (front, back, state, next due), optionally only those whose front or back contains `query`. Use it to avoid adding duplicates. At most 500 cards.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          deck: { type: 'string', maxLength: 200, description: 'Deck name or id from list_flashcard_decks.' },
+          query: { type: 'string', maxLength: 200 },
+        },
+        required: ['deck'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ deck, query }) {
+        const data = await flashcards.createStore(dir.flashcards).read()
+        const d = flashcardDeck(data, deck)
+        if (!d) throw new Error(`There is no deck "${deck}". Call list_flashcard_decks for the list.`)
+        const { cards, total } = flashcards.listCards(data, { deckId: d.id, query })
+        return {
+          deck: d.name,
+          total,
+          cards: cards.slice(0, 500).map((c) => ({ front: clip(c.front, 2000), back: clip(c.back, 2000), state: c.state, suspended: c.suspended || undefined, due: c.state === 'new' ? undefined : iso(c.due) })),
+        }
+      },
+    },
   ]
 }
 
@@ -431,6 +490,50 @@ function writeTools({ rootDir }) {
         await store.addComment({ key: k, body })
         ctx.did(`Commented on ${k}`)
         return { key: k, commented: true }
+      },
+    },
+    {
+      name: 'add_flashcards',
+      title: 'Add flashcards',
+      description:
+        'Add up to 200 cards to a Flashcards deck for the user to study with spaced repetition. Front and back are Markdown; keep each card to one fact. Pass createDeck to make the deck when no deck has that name.' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          deck: { type: 'string', minLength: 1, maxLength: 120, description: 'Deck name or id.' },
+          cards: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 200,
+            items: {
+              type: 'object',
+              properties: { front: { type: 'string', minLength: 1, maxLength: 20000 }, back: { type: 'string', maxLength: 20000 } },
+              required: ['front'],
+              additionalProperties: false,
+            },
+          },
+          createDeck: { type: 'boolean', description: 'Create the deck if it does not exist (default false).' },
+        },
+        required: ['deck', 'cards'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ deck, cards, createDeck = false }, ctx) {
+        if (!Array.isArray(cards) || cards.length === 0 || cards.length > 200) throw new Error('Pass 1 to 200 cards.')
+        const r = await flashcards.createStore(dir.flashcards).update((data, now) => {
+          let d = flashcardDeck(data, deck)
+          let created = false
+          if (!d) {
+            if (!createDeck) throw new Error(`There is no deck "${deck}". Call list_flashcard_decks, or pass createDeck: true.`)
+            d = flashcards.createDeck(data, { name: deck }, now)
+            created = true
+          }
+          const added = flashcards.addCards(data, d.id, cards, now)
+          return { deck: d.name, deckId: d.id, added: added.length, createdDeck: created }
+        })
+        ctx.did(`Added ${r.added} ${r.added === 1 ? 'card' : 'cards'} to "${r.deck}"${r.createdDeck ? ' (new deck)' : ''}`)
+        return r
       },
     },
     {

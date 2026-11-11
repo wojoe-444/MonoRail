@@ -54,6 +54,8 @@ Every tool returns JSON text. Read tools are always available; write tools need 
 | `list_jira_plus_issues` | Issues of one local project, optionally by status category | Jira+'s local repo |
 | `get_jira_plus_issue` | One local issue with comments and history | Jira+'s local repo |
 | `connection_status` | State and one-line summary of each connection, and when it was checked | Connections' last check, saved after every check. Only connections the user has set up are ever checked; nothing is checked at startup |
+| `list_flashcard_decks` | Your Flashcards decks: name, card count, what is due today, reviews done today | Flashcards' `decks.json` in the data folder |
+| `list_flashcards` | Cards of one deck (front, back, state, next due), optionally searched | Flashcards' `decks.json` |
 | `check_coordinator_reply` | The coordinator's reply to an `ask_coordinator` call that was still running | Only turns this same connection started |
 
 Results that come from a cache say when they were built. A repo is named by its folder name or by the full path `list_github_plus_repos` returns. Team Jira Cloud issues are not available through the server.
@@ -66,6 +68,7 @@ Results that come from a cache say when they were built. A repo is named by its 
 | `comment_github_plus_issue` | Comments on a local issue in a GitHub+ repo |
 | `create_jira_plus_issue` | Raises an issue in a local Jira+ project (summary, description, type, priority) |
 | `comment_jira_plus_issue` | Comments on a local Jira+ issue |
+| `add_flashcards` | Adds up to 200 cards to a Flashcards deck, creating the deck if asked |
 | `ask_coordinator` | Sends a message to your [coordinator](#the-coordinator) and waits for its reply |
 
 The issue tools change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo.
