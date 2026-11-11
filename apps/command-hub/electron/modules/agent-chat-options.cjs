@@ -152,6 +152,9 @@ function piThinkingLevel(effort) {
  */
 async function piPathAllowed(root, cwd, target) {
   const fsp = fs.promises
+  // Compare real paths on both sides (on Windows the same folder can be spelled
+  // with short 8.3 names or different letter case).
+  root = await fsp.realpath(root).catch(() => root)
   let p = typeof target === 'string' && target.trim() ? target.trim() : '.'
   if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) p = path.join(os.homedir(), p.slice(1))
   p = path.resolve(cwd, p)
