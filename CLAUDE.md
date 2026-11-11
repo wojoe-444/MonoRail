@@ -77,6 +77,11 @@ installer on a Windows runner as a downloadable artifact. On every push to
 GitHub release; the Settings page (`modules/settings`, backed by
 `electron-updater`) checks those releases and installs updates in place. Bump
 major/minor in `package.json` by hand; never publish from a local machine.
+The settings backend also checks on its own (`start()`: 30 s after startup,
+then every 4 hours), and `src/modules/settings/UpdateToast.tsx` shows a
+lower-right pop-up when an update is available: "Download and Restart",
+"Ignore for six hours" (kept in `commandHub.updateSnoozeUntil`) and X (hidden
+until the next check). It is self-contained, so it moves with Settings.
 
 ## Code layout (`apps/command-hub/src`)
 
