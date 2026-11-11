@@ -113,11 +113,23 @@ function parse(json, number) {
   }
 }
 
+// Parsed issues by repo and tip commit. A commit never changes, so this needs
+// no invalidation: any write moves the tip and the next read misses. It saves
+// two git processes on every tab badge and list (one `rev-parse` remains).
+const parsed = new Map()
+const MAX_PARSED = 24
+
 async function readAll(repo) {
   const commit = await tip(repo)
+  const key = `${repo}\0${commit}`
+  const hit = parsed.get(key)
+  if (hit) return { commit, issues: hit }
   const list = await entries(repo, commit)
   const blobs = await readBlobs(repo, list.map((e) => e.sha))
-  return { commit, issues: list.map((e, i) => parse(blobs[i], e.number)).filter(Boolean) }
+  const issues = list.map((e, i) => parse(blobs[i], e.number)).filter(Boolean)
+  parsed.set(key, issues)
+  if (parsed.size > MAX_PARSED) parsed.delete(parsed.keys().next().value)
+  return { commit, issues }
 }
 
 const summary = ({ body: _b, timeline, ...i }) => ({ ...i, comments: timeline.filter((t) => t.kind === 'comment').length })

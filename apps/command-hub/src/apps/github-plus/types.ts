@@ -27,8 +27,11 @@ export interface TreeEntry {
   path: string
   type: 'dir' | 'file' | 'submodule' | 'symlink'
   size: number | null
-  lastCommit?: { sha: string; subject: string; date: string }
+  lastCommit?: LastCommit
 }
+
+export interface LastCommit { sha: string; subject: string; date: string }
+export interface Divergence { ahead: number; behind: number }
 
 export interface CommitSummary {
   sha: string

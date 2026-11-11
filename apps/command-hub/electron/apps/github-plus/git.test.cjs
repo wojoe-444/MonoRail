@@ -42,23 +42,57 @@ describe('git service', () => {
     await assert.rejects(git.openRepo(tmpdir()))
   })
 
-  it('lists refs with ahead/behind', async () => {
+  it('lists refs, and ahead/behind as its own call', async () => {
     const refs = await git.listRefs(dir)
-    const f = refs.find((r) => r.name === 'feature/x')
-    assert.equal(f.ahead, 1)
-    assert.equal(f.behind, 0)
+    assert.ok(refs.some((r) => r.type === 'branch' && r.name === 'feature/x'))
     assert.ok(refs.some((r) => r.type === 'tag' && r.name === 'v1'))
+    const d = await git.branchDivergence(dir, 'main')
+    assert.deepEqual(d['feature/x'], { ahead: 1, behind: 0 })
+    assert.deepEqual(d.main, { ahead: 0, behind: 0 })
   })
 
-  it('lists tree dirs first with last commit', async () => {
+  it('lists tree dirs first, last commits as a second call', async () => {
     const t = await git.listTree(dir, 'main', '')
     assert.deepEqual(
       t.map((e) => e.name),
       ['src', 'bin.dat', 'README.md'],
     )
-    assert.equal(t[0].lastCommit?.subject, 'initial')
-    const sub = await git.listTree(dir, 'main', 'src')
+    assert.equal(t[0].lastCommit, undefined)
+    const last = await git.treeLastCommits(dir, 'main', '')
+    assert.deepEqual(Object.keys(last).sort(), ['README.md', 'bin.dat', 'src'])
+    assert.equal(last.src.subject, 'initial')
+    const sub = await git.listTree(dir, 'main', 'src', true)
     assert.equal(sub[0].name, 'a.ts')
+    assert.equal(sub[0].lastCommit?.subject, 'initial')
+    assert.equal((await git.treeLastCommits(dir, 'feature/x', 'src'))['a.ts'].subject, 'change a')
+    await assert.rejects(git.treeLastCommits(dir, 'no-such-branch', ''), /Unknown ref/)
+  })
+
+  it('finds the newest commit per entry in one walk, matching git log -1', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'ghp-last-'))
+    const rg = (...a) => execFileSync('git', a, { cwd: r, encoding: 'utf8' })
+    rg('init', '-q', '-b', 'main')
+    rg('config', 'user.email', 'tester@example.invalid')
+    rg('config', 'user.name', 'Tester')
+    rg('config', 'commit.gpgsign', 'false')
+    mkdirSync(join(r, 'docs', 'deep'), { recursive: true })
+    for (const f of ['one.md', 'two.md', 'three.md']) writeFileSync(join(r, 'docs', f), f)
+    writeFileSync(join(r, 'docs', 'deep', 'x.md'), 'x')
+    rg('add', '.')
+    rg('commit', '-qm', 'add docs')
+    writeFileSync(join(r, 'docs', 'two.md'), 'two v2')
+    rg('commit', '-qam', 'edit two')
+    rg('mv', 'docs/one.md', 'docs/uno.md')
+    rg('commit', '-qm', 'rename one')
+    writeFileSync(join(r, 'docs', 'deep', 'x.md'), 'x v2')
+    rg('commit', '-qam', 'edit deep')
+    const last = await git.treeLastCommits(r, 'main', 'docs')
+    for (const name of ['deep', 'two.md', 'three.md', 'uno.md']) {
+      const expected = rg('log', '-1', '--format=%s', 'main', '--', `docs/${name}`).trim()
+      assert.equal(last[name]?.subject, expected, name)
+    }
+    assert.equal(last.deep.subject, 'edit deep')
+    assert.equal(last['uno.md'].subject, 'rename one')
   })
 
   it('reads blobs', async () => {
@@ -231,6 +265,14 @@ describe('dashboard activity', () => {
     assert.equal(f.ahead, 1)
     assert.equal(f.behind, 0)
     assert.equal(a.branches.find((b) => b.name === 'main').isDefault, true)
+  })
+
+  it('gives the same ahead/behind on git older than 2.41 (one rev-list per branch)', async () => {
+    const before = await git.recentActivity(dir)
+    git._useRevListDivergence()
+    const after = await git.recentActivity(dir)
+    assert.deepEqual(after.branches, before.branches)
+    assert.deepEqual((await git.branchDivergence(dir, 'main'))['feature/x'], { ahead: 1, behind: 0 })
   })
 })
 

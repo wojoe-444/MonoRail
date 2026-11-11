@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, Issue, IssueSummary, RepoActivity, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupState, CommitDetail, Issue, IssueSummary, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -290,13 +290,21 @@ export const sampleApi: RepoApi = {
       const [name, ...rest] = p.slice(prefix.length).split('/')
       const path = prefix + name
       const isDir = rest.length > 0
-      const last = history(ref).find((c) => touches(c, path))
-      seen.set(path, { name, path, type: isDir ? 'dir' : 'file', size: isDir ? null : content.length, lastCommit: last && { sha: last.sha, subject: last.subject, date: last.date } })
+      seen.set(path, { name, path, type: isDir ? 'dir' : 'file', size: isDir ? null : content.length })
     }
     const entries = [...seen.values()].sort((a, b) => (a.type === 'dir' ? 0 : 1) - (b.type === 'dir' ? 0 : 1) || a.name.localeCompare(b.name))
     if (dir && entries.length === 0) throw new Error(`Not a tree: ${dir}`)
     return wait(entries)
   },
+  async treeLastCommits(repo, ref, dir) {
+    const out: Record<string, LastCommit> = {}
+    for (const e of await sampleApi.listTree(repo, ref, dir)) {
+      const last = history(ref).find((c) => touches(c, e.path))
+      if (last) out[e.name] = { sha: last.sha, subject: last.subject, date: last.date }
+    }
+    return wait(out)
+  },
+  branchDivergence: async () => wait(Object.fromEntries(REFS.filter((r) => r.type === 'branch').map((r) => [r.name, { ahead: r.ahead ?? 0, behind: r.behind ?? 0 }]))),
   async readBlob(_repo, ref, path) {
     const content = filesAt(ref)[path]
     if (content === undefined) throw new Error(`path '${path}' does not exist in '${ref}'`)
