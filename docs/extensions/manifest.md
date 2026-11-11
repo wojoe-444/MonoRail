@@ -1,3 +1,7 @@
+---
+audience: ai
+---
+
 # Manifest reference (`monorail.json`)
 
 Every extension has a `monorail.json` at its root. MonoRail validates it when

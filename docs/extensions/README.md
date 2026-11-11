@@ -1,3 +1,8 @@
+---
+audience: human, ai
+folder: Extensions
+---
+
 # Building MonoRail extensions
 
 An extension adds pages and full-screen apps to MonoRail without rebuilding

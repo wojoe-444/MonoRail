@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
+import { invokeModule, isDesktop } from '@/modules/client'
+
 /**
  * Developer Mode (Settings > Developer Mode, docs/developer-mode.md): extra
  * tools for testing MonoRail and giving feedback on it. Off by default.
@@ -71,4 +73,9 @@ export function useInspecting(): boolean {
     () => inspecting,
     () => false,
   )
+}
+
+/** Open or close Chromium's DevTools for the window (desktop only). */
+export function openDevTools(): void {
+  if (isDesktop()) void invokeModule('developer', 'toggleDevTools').catch(() => {})
 }

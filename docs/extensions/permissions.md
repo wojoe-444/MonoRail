@@ -1,3 +1,7 @@
+---
+audience: ai
+---
+
 # Permissions and security
 
 Extensions can come from anyone, so an extension gets nothing by default.

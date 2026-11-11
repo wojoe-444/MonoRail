@@ -1,0 +1,38 @@
+name: Release notes
+
+# Rewrites the "What's new" notes of recent releases from their merged pull
+# requests (apps/command-hub/scripts/release-notes.cjs). New releases get
+# notes from CI; this is for releases published before that, or after a PR
+# description's "What's new" section was edited.
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: How many of the newest releases to rewrite
+        default: '30'
+      force:
+        description: Also rewrite releases that already have notes
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: apps/command-hub
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rewrite notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ inputs.count }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: node scripts/release-notes.cjs --backfill "$COUNT" $FORCE

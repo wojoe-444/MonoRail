@@ -17,6 +17,8 @@ import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 import { BackupsCard } from './BackupsCard'
 import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
+import { changeItems } from './changes'
+import { WhatsNewList } from './WhatsNew'
 
 const MODULE_ID = 'settings'
 
@@ -209,19 +211,14 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
         </div>
       )}
 
-      {status.releaseNotes && (state === 'available' || state === 'downloading' || state === 'downloaded') && (
+      {(state === 'available' || state === 'downloading' || state === 'downloaded') && changeItems(status).length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">What's new</div>
-          <p className="text-sm whitespace-pre-line">{stripHtml(status.releaseNotes)}</p>
+          <WhatsNewList status={status} />
         </div>
       )}
     </>
   )
-}
-
-/** Release notes come from GitHub as HTML; show plain text. */
-function stripHtml(html: string): string {
-  return new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
 }
 
 function headline(s: AppStatus, checking: boolean): string {

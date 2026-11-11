@@ -1,3 +1,8 @@
+---
+audience: ai
+summary: How profiles scope settings and data (default profile over the existing data folder), and Developer Mode's New User test profile.
+---
+
 # Profiles
 
 A **profile** is one person's settings and data inside a copy of MonoRail:
@@ -103,6 +108,31 @@ always been used (`commandHub.palette`, `monorail.email.account`, ...); another
 profile gets the same key under `commandHub.profile.<id>.`. Session-only state
 (`sessionStorage`, for example the wiki's last page) needs nothing.
 
+## New User: Developer Mode's test profile
+
+[Developer Mode](guide/setup/developer-mode.md) adds one hidden profile, id
+`new-user` (`NEW_USER_ID`), for trying MonoRail as a first-time user.
+
+- It is listed only in Developer Mode and is always `hidden` and `blank`,
+  whatever `profiles.json` says.
+- `switchTo(id)` (profiles backend, then `restart`) writes `activeId` and,
+  for New User, `previousId` (the profile to go back to) and
+  `pendingReset: "new-user"`. It never writes over a damaged file.
+- A switch takes effect at the next start: the store keeps the profile this
+  run started with (`running`), so backends never change folders mid-run.
+- At start-up, before any backend opens a file, `resetBlankProfile()`
+  (called from `main.cjs`) deletes `<data folder>\profiles\new-user` and only
+  that folder, when New User is active and marked; then clears the mark. A
+  restart inside New User without a new switch keeps what was made there.
+- The page clears New User's `commandHub.profile.new-user.*` preferences
+  before restarting and points `commandHub.activeProfile` at the new profile;
+  at start-up it re-syncs with the backend (`syncActiveProfile`).
+- Machine-scope data (installed extensions, Claude Stats, Storage) is shared,
+  so it still shows in New User. The MCP server follows `activeId`, so agents
+  also see New User while it is open.
+- The default profile's folder is never deleted, moved or copied; tests in
+  `electron/profiles/profiles.test.cjs` check it.
+
 ## Not a lock
 
 Profiles keep people's things apart; they do not keep people out. Anyone who
@@ -114,7 +144,7 @@ with its own design.
 
 ## Phases
 
-1. **Foundation (now).** One default profile over the existing data, the scope
+1. **Foundation (done).** One default profile over the existing data, the scope
    table, the profile layout in every backend and in the MCP server, `prefs`
    for page preferences, and **Settings > Profile** to name it.
 2. **More profiles.** Create, rename, switch (restarting the window is fine)

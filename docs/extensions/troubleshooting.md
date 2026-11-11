@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Troubleshooting
 
 Start with **Backend logs** (the extension's **…** menu on Settings >

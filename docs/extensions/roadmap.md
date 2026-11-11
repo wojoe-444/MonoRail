@@ -1,3 +1,7 @@
+---
+audience: human
+---
+
 # Extensions roadmap
 
 What's planned for extensions, and what's done. The reference pages describe

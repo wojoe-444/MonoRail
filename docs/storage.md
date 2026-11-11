@@ -1,8 +1,14 @@
+---
+audience: human
+---
+
 # Storage Manager
 
 **Utilities > Storage** shows how full each drive is and what takes up the
 space: MonoRail itself, your agents, developer caches and a few well-known
 folders. It is there for the day the system drive runs out.
+
+New to MonoRail? [Private data stays local](guide/private-data.md) explains what it keeps and why it never touches your folders on its own.
 
 ## It only looks
 

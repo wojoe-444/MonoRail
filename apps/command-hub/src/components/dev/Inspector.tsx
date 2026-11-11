@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy, MousePointerClick, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { invokeModule, isDesktop } from '@/modules/client'
-import { isInspecting, setInspecting, useDevMode, useInspecting } from '@/lib/devMode'
+import { isInspecting, openDevTools, setInspecting, useDevMode, useInspecting } from '@/lib/devMode'
 
 import { describe, elementLine, inspect, type Inspection } from './inspect'
 
@@ -15,10 +14,6 @@ function pageName(): string {
   const parts = nav ? [...nav.querySelectorAll('span, button')].map((e) => e.textContent?.trim()).filter(Boolean) : []
   const hash = window.location.hash || '#/'
   return parts.length ? `${parts.join(' › ')} (${hash})` : hash
-}
-
-export function openDevTools(): void {
-  if (isDesktop()) void invokeModule('developer', 'toggleDevTools').catch(() => {})
 }
 
 /**

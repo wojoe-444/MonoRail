@@ -7,11 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { setDevMode, setInspecting, useDevMode } from '@/lib/devMode'
+import { openDevTools, setDevMode, setInspecting, useDevMode } from '@/lib/devMode'
 import { NEW_USER_ID, switchProfile, useProfiles } from '@/lib/testProfile'
 import { isDesktop } from '@/modules/client'
-
-import { openDevTools } from './Inspector'
 
 /**
  * Settings > Developer Mode (docs/developer-mode.md). Self-contained so it can

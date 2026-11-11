@@ -11,9 +11,18 @@ export interface AppStatus {
   latestVersion?: string
   releaseDate?: string
   releaseNotes?: string
+  /** Every release between the installed and the latest version, newest first. */
+  changes?: ReleaseChanges[]
   progress?: { percent: number; transferred: number; total: number; bytesPerSecond: number }
   error?: string
   lastChecked?: string
+}
+
+/** One release's "What's new" notes (electron/release-notes.cjs). Old releases have no items. */
+export interface ReleaseChanges {
+  version: string
+  date?: string
+  items: { title: string; text: string; pr?: number }[]
 }
 
 export type BackupUnit = 'hour' | 'day' | 'week'
