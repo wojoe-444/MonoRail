@@ -33,7 +33,7 @@
       "provider": "github",
       "owner": "wojoe-444",
       "repo": "MonoRail",
-      "releaseType": "release"
+      "releaseType": "draft"
     }
   ],
   "asarUnpack": [
