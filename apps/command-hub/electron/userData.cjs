@@ -1,11 +1,11 @@
-// Where MonoHub keeps its private data, and the one-time move from the old name.
+// Where MonoRail keeps its private data, and the one-time move from old names.
 //
-// The app used to be called "Command Hub". Electron named its data folder after
-// package.json "name", so installed and dev copies alike kept their data
-// (Claude Stats cache, Jira local repo and encrypted token, GitHub+ recents,
-// settings and backup schedules, localStorage) in %APPDATA%\command-hub.
-// "Command Hub" is checked too, in case a build ever used productName.
-// On first start after the rename we move the whole folder to %APPDATA%\MonoHub.
+// The app was first "Command Hub", then briefly "MonoHub", and is now
+// "MonoRail". Electron first named its data folder after package.json "name"
+// (%APPDATA%\command-hub); the MonoHub release moved it to %APPDATA%\MonoHub.
+// That folder holds everything: Claude Stats cache, Jira local repo and
+// encrypted token, GitHub+ recents, settings and backup schedules, localStorage.
+// On first start we move whichever old folder holds data to %APPDATA%\MonoRail.
 // Moving the whole folder matters: on Windows, safeStorage's key lives in the
 // folder's "Local State" file (itself protected by DPAPI for the Windows user),
 // so the Jira token decrypts only if Local State moves with connection.json.
@@ -17,8 +17,9 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
-const APP_NAME = 'MonoHub'
-const LEGACY_NAMES = ['command-hub', 'Command Hub']
+const APP_NAME = 'MonoRail'
+// Newest first: if several exist, the most recent one with data wins.
+const LEGACY_NAMES = ['MonoHub', 'command-hub', 'Command Hub']
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)

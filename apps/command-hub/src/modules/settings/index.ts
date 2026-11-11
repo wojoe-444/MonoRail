@@ -6,7 +6,7 @@ import type { ModuleDefinition } from '../types'
 export const settingsModule: ModuleDefinition = {
   id: 'settings',
   title: 'Settings',
-  description: 'App version, updates and where MonoHub keeps its local data.',
+  description: 'App version, updates and where MonoRail keeps its local data.',
   icon: Settings,
   path: '/settings',
   nav: { section: 'Configure', order: 900 },

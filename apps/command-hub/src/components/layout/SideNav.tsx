@@ -36,9 +36,9 @@ export function SideNav({ current, onNavigate, collapsed, onToggleCollapsed }: S
         {!collapsed && (
           <div className="min-w-0">
             <div className="text-sm font-semibold tracking-tight text-sidebar-accent-foreground">
-              MonoHub
+              MonoRail
             </div>
-            <div className="text-xs text-sidebar-muted-foreground">MonoRail agents</div>
+            <div className="text-xs text-sidebar-muted-foreground">Agent hub</div>
           </div>
         )}
       </div>

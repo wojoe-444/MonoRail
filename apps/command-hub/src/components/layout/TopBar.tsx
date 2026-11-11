@@ -14,7 +14,7 @@ export function TopBar({ title, dark, onToggleDark }: TopBarProps) {
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/85 px-6 backdrop-blur">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">MonoHub</span>
+        <span className="text-muted-foreground">MonoRail</span>
         <span className="text-muted-foreground/60">/</span>
         <span className="font-medium">{title}</span>
       </div>

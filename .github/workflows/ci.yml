@@ -67,8 +67,8 @@ jobs:
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
           shopt -s nullglob
-          files=(release/MonoHub-Setup-"$version".exe release/MonoHub-Setup-"$version".exe.blockmap release/latest.yml)
-          for f in release/MonoHub-Setup-"$version".exe release/latest.yml; do
+          files=(release/MonoRail-Setup-"$version".exe release/MonoRail-Setup-"$version".exe.blockmap release/latest.yml)
+          for f in release/MonoRail-Setup-"$version".exe release/latest.yml; do
             [ -f "$f" ] || { echo "missing $f"; exit 1; }
           done
           gh release create "v$version" "${files[@]}" --title "$version" --latest \
@@ -76,7 +76,7 @@ jobs:
           gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -qx latest.yml
       - uses: actions/upload-artifact@v4
         with:
-          name: MonoHub-windows-setup
+          name: MonoRail-windows-setup
           path: |
             apps/command-hub/release/*.exe
             apps/command-hub/release/latest.yml

@@ -1,6 +1,6 @@
 // Local Jira: personal projects backed by a git repository under AppData.
 //
-//   %APPDATA%\MonoHub\modules\jira\local-repo\
+//   %APPDATA%\MonoRail\modules\jira\local-repo\
 //     README.md
 //     projects/<KEY>/project.json        { key, name, description, nextNumber, created }
 //     projects/<KEY>/issues/<KEY>-<n>.json
@@ -17,7 +17,7 @@ const fsp = require('node:fs/promises')
 const path = require('node:path')
 const git = require('isomorphic-git')
 
-const AUTHOR = { name: 'MonoHub', email: 'local@monohub.invalid' }
+const AUTHOR = { name: 'MonoRail', email: 'local@monorail.invalid' }
 
 /** Workflow for local projects. Board columns group by category. */
 const STATUSES = [
@@ -29,9 +29,9 @@ const STATUSES = [
 const TYPES = ['Task', 'Bug', 'Story', 'Spike']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
-const README = `# MonoHub local Jira
+const README = `# MonoRail local Jira
 
-This repository holds your personal Jira projects. MonoHub writes one JSON
+This repository holds your personal Jira projects. MonoRail writes one JSON
 file per ticket and commits every change, so \`git log\` is each ticket's history.
 
 It lives in your local AppData and has no remote. Do not push it anywhere.

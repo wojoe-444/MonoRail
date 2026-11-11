@@ -11,7 +11,7 @@ import type { AppDefinition } from './types'
 /**
  * Full-screen host for an app. The app gets the whole window below one
  * 48px hub bar, which is the same in every app: the hub's dark drawer color,
- * the MonoHub mark, and a "Back to MonoHub" button. Apps style
+ * the MonoRail mark, and a "Back to MonoRail" button. Apps style
  * everything below it however they like, but never the bar.
  */
 export function AppFrame({ app }: { app: AppDefinition }) {
@@ -36,7 +36,7 @@ export function AppFrame({ app }: { app: AppDefinition }) {
           <span className="flex size-5 items-center justify-center rounded-md bg-sidebar-primary-foreground/15">
             <BrandMark className="size-3" />
           </span>
-          Back to MonoHub
+          Back to MonoRail
         </button>
         <span className="h-5 w-px bg-sidebar-border" aria-hidden />
         <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -80,7 +80,7 @@ class AppErrorBoundary extends Component<{ title: string; children: ReactNode },
       <div className="mx-auto max-w-xl px-6 py-16 text-center">
         <h2 className="text-lg font-semibold">{this.props.title} stopped working</h2>
         <p className="mt-2 text-sm text-muted-foreground">{this.state.error.message}</p>
-        <p className="mt-4 text-sm text-muted-foreground">Use “Back to MonoHub” above, then open the app again.</p>
+        <p className="mt-4 text-sm text-muted-foreground">Use “Back to MonoRail” above, then open the app again.</p>
       </div>
     )
   }

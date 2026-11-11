@@ -4,11 +4,11 @@ import type { LucideIcon } from 'lucide-react'
 /**
  * The app contract.
  *
- * An app is a full-screen experience that runs inside MonoHub. Unlike a
+ * An app is a full-screen experience that runs inside MonoRail. Unlike a
  * module (one page inside the hub's drawer + top bar), an app takes over the
  * whole window and may have its own look: its own colors, fonts, layout and
  * in-app routing. The hub always keeps one thing on screen: the 48px hub bar
- * from `AppFrame`, with a "Back to MonoHub" button, so the way out is the
+ * from `AppFrame`, with a "Back to MonoRail" button, so the way out is the
  * same in every app.
  *
  * Adding an app is:
