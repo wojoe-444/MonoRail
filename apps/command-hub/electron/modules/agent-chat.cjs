@@ -141,6 +141,29 @@ function inputSummary(input) {
   return ''
 }
 
+/** One model call's tokens (and its logged cost, when the log has one). */
+function claudeUsage(msg, d) {
+  const u = msg?.usage
+  if (!u || msg.model === '<synthetic>') return undefined
+  const usage = {
+    model: msg.model,
+    input: u.input_tokens ?? 0,
+    cacheRead: u.cache_read_input_tokens ?? 0,
+    cacheWrite: u.cache_creation_input_tokens ?? 0,
+    output: u.output_tokens ?? 0,
+  }
+  if (typeof d?.costUSD === 'number') usage.costUsd = d.costUSD
+  return usage
+}
+
+function piUsage(m) {
+  const u = m?.usage
+  if (!u) return undefined
+  const usage = { model: m.model, input: u.input ?? 0, cacheRead: u.cacheRead ?? 0, cacheWrite: u.cacheWrite ?? 0, output: u.output ?? 0 }
+  if (typeof u.cost?.total === 'number') usage.costUsd = u.cost.total
+  return usage
+}
+
 function contentText(content) {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -225,6 +248,9 @@ function claudeTranscript(entries) {
         messages.push(target)
         last = target
       }
+      // Every line of a reply carries the same usage; keep the last.
+      const usage = claudeUsage(msg, d)
+      if (usage) target.usage = usage
       for (const c of Array.isArray(msg.content) ? msg.content : []) {
         if (c?.type === 'text' && c.text?.trim()) target.blocks.push({ type: 'text', text: clip(c.text) })
         else if (c?.type === 'thinking' && c.thinking?.trim()) target.blocks.push({ type: 'thinking', text: clip(c.thinking) })
@@ -236,7 +262,19 @@ function claudeTranscript(entries) {
       }
     }
   }
-  return messages.filter((m) => m.blocks.length > 0).map(({ id: _id, ...m }) => m)
+  // A model call with only reasoning (hidden) still counts in Detailed view.
+  return messages.filter((m) => m.blocks.length > 0 || m.usage).map(({ id: _id, ...m }) => m)
+}
+
+/** Model calls of a Claude subagent log (one per message id), for Detailed view. */
+function claudeSubagentCalls(entries) {
+  const byId = new Map()
+  for (const d of entries) {
+    if (d.type !== 'assistant') continue
+    const usage = claudeUsage(d.message, d)
+    if (usage) byId.set(d.message.id ?? d.uuid, { ...usage, ts: toMs(d.timestamp), subagent: true })
+  }
+  return [...byId.values()]
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +340,8 @@ function piTranscript(entries) {
         }
       }
       if (m.errorMessage) blocks.push({ type: 'text', text: `Error: ${oneLine(m.errorMessage, 500)}` })
-      if (blocks.length) messages.push({ role: 'assistant', ts, model: m.model, blocks })
+      const usage = piUsage(m)
+      if (blocks.length || usage) messages.push({ role: 'assistant', ts, model: m.model, blocks, ...(usage ? { usage } : {}) })
     } else if (m.role === 'toolResult') {
       const tool = toolIndex.get(m.toolCallId)
       if (tool) {
@@ -318,6 +357,13 @@ function piTranscript(entries) {
     }
   }
   return messages
+}
+
+/** pi's spend: every paid entry in the file, abandoned branches included. */
+function piSpend(entries) {
+  let usd = 0
+  for (const d of entries) if (d.type === 'message' && d.message?.role === 'assistant') usd += d.message.usage?.cost?.total ?? 0
+  return usd
 }
 
 // ---------------------------------------------------------------------------
@@ -342,14 +388,17 @@ async function summarize(source, root, file) {
   const stat = await fs.promises.stat(file)
   const cached = summaryCache.get(file)
   if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached.summary
+  const summary = await summarizeFile(source, root, file, stat)
+  summaryCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, summary })
+  return summary
+}
+
+async function summarizeFile(source, root, file, stat) {
   const def = SOURCES[source]
   const head = parseLines(await readHead(file))
   const tail = parseLines(await readTail(file, stat.size))
   const meta = def.meta([...head, ...tail])
-  if (!meta.prompt && !meta.title) {
-    summaryCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, summary: null })
-    return null
-  }
+  if (!meta.prompt && !meta.title) return null
   const rel = path.relative(root, file).split(path.sep)
   const baseName = path.basename(file, '.jsonl')
   const sessionId = source === 'pi' ? baseName.split('_').pop() : baseName
@@ -367,8 +416,23 @@ async function summarize(source, root, file) {
     updatedAt: stat.mtimeMs,
     sizeBytes: stat.size,
   }
-  summaryCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, summary })
+  // pi's total needs the whole file; past the history limit it is unknown here.
+  if (source === 'pi' && stat.size <= HISTORY_BYTES) summary.spentUsd = piSpend(parseLines(await fs.promises.readFile(file, 'utf8')))
   return summary
+}
+
+/**
+ * A chat's total spend, or why it cannot be known.
+ *   - Claude: the last cost record MonoRail kept for the session (costs.json).
+ *   - pi: every paid entry in its file, abandoned branches included.
+ */
+function chatTotal(summary, costs) {
+  if (summary.source === 'pi') return typeof summary.spentUsd === 'number' ? { usd: summary.spentUsd, complete: true } : { complete: false, reason: 'too-big' }
+  const rec = costs?.[summary.sessionId]
+  if (!rec) return { complete: false, reason: 'no-record' }
+  // Turns run elsewhere (a terminal) after the record are not in it.
+  const stale = typeof summary.updatedAt === 'number' && summary.updatedAt > rec.at + 10_000
+  return stale ? { usd: rec.usd, complete: false, reason: 'stale' } : { usd: rec.usd, complete: true }
 }
 
 /**
@@ -416,7 +480,10 @@ async function listSessions(opts = {}) {
     known.set(s.id, { source: f.source, file: f.file, cwd: s.cwd })
     byId.set(s.id, { ...s, repo: { name: repo.name, path: repo.path } })
   }
-  const sessions = [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
+  const costs = opts.dataDir ? readCosts(opts.dataDir) : {}
+  const sessions = [...byId.values()]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map(({ spentUsd: _s, ...s }) => ({ ...s, total: chatTotal({ ...s, spentUsd: _s }, costs) }))
   return {
     sources,
     sessions: sessions.slice(0, LIST_KEEP),
@@ -459,13 +526,42 @@ async function getSession(id, opts = {}) {
   if (!entry.cwd || !(await repoFor(folders.repos, entry.cwd))) throw new Error('This chat is not in an allowed folder.')
   const stat = await fs.promises.stat(entry.file)
   const { text, cut } = await readTailWhole(entry.file, stat.size, HISTORY_BYTES)
-  const all = SOURCES[entry.source].transcript(parseLines(text))
+  const lines = parseLines(text)
+  const all = SOURCES[entry.source].transcript(lines)
   const messages = all.length > HISTORY_MESSAGES ? all.slice(-HISTORY_MESSAGES) : all
+  const subagentCalls = entry.source === 'claude' ? await readSubagentCalls(entry.file) : []
+  const sessionId = id.slice(id.indexOf(':') + 1)
+  const total =
+    entry.source === 'pi'
+      ? cut
+        ? { complete: false, reason: 'too-big' }
+        : { usd: piSpend(lines), complete: true }
+      : chatTotal({ source: 'claude', sessionId, updatedAt: stat.mtimeMs }, opts.dataDir ? readCosts(opts.dataDir) : {})
   return {
     id,
     messages,
+    subagentCalls,
+    total,
     truncated: cut || all.length > HISTORY_MESSAGES ? { bytes: cut, messages: all.length - messages.length } : undefined,
   }
+}
+
+/** Model calls from a Claude session's subagent logs (<session>/subagents/*.jsonl), within the read limit. */
+async function readSubagentCalls(file) {
+  const dir = path.join(file.slice(0, -'.jsonl'.length), 'subagents')
+  const calls = []
+  let budget = HISTORY_BYTES
+  for (const f of await listJsonl(dir, 0)) {
+    try {
+      const stat = await fs.promises.stat(f)
+      if (stat.size > budget) continue
+      budget -= stat.size
+      calls.push(...claudeSubagentCalls(parseLines(await fs.promises.readFile(f, 'utf8'))))
+    } catch {
+      // unreadable: leave it out
+    }
+  }
+  return calls
 }
 
 // ---------------------------------------------------------------------------
@@ -473,10 +569,20 @@ async function getSession(id, opts = {}) {
 
 const COSTS_FILE = 'costs.json'
 
-/** Last known running cost per session (numbers only), so a resumed turn's own cost can be split out. */
+/**
+ * Last known running cost per session: { [sessionId]: { usd, at } } (numbers
+ * only), so a resumed turn's own cost can be split out and a chat's total read.
+ * Older files stored a bare number.
+ */
 function readCosts(dataDir) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(dataDir, COSTS_FILE), 'utf8')) || {}
+    const raw = JSON.parse(fs.readFileSync(path.join(dataDir, COSTS_FILE), 'utf8')) || {}
+    const out = {}
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === 'number') out[k] = { usd: v, at: 0 }
+      else if (v && typeof v.usd === 'number') out[k] = { usd: v.usd, at: typeof v.at === 'number' ? v.at : 0 }
+    }
+    return out
   } catch {
     return {}
   }
@@ -576,7 +682,7 @@ async function startTurn(ctx, args = {}) {
   }
 
   const executable = options.findClaudeExecutable()
-  const previous = resume ? readCosts(ctx.dataDir)[resume] : undefined
+  const previous = resume ? readCosts(ctx.dataDir)[resume]?.usd : undefined
   return turnsApi.startTurn({
     chatKey,
     worker: { job, cwd, resume, executable },
@@ -585,7 +691,7 @@ async function startTurn(ctx, args = {}) {
       const r = turn.result
       if (!r || typeof r.costUsd !== 'number' || !turn.sessionId) return []
       const costs = readCosts(ctx.dataDir)
-      costs[turn.sessionId] = r.costUsd
+      costs[turn.sessionId] = { usd: r.costUsd, at: Date.now() }
       writeCosts(ctx.dataDir, costs)
       // Claude reports a resumed turn's cost as the session's running total.
       if (!resume) return [{ t: 'cost', turnUsd: r.costUsd, sessionUsd: r.costUsd, exact: true }]
@@ -635,7 +741,7 @@ module.exports = {
   },
   // Exported for tests.
   _format: { clip, oneLine, inputSummary, formatInput, contentText },
-  _internal: { startTurn, getComposer, listSessions, getSession, claudeTranscript, piTranscript, piBranch, claudeMeta, piMeta },
+  _internal: { startTurn, getComposer, listSessions, getSession, claudeTranscript, claudeSubagentCalls, piSpend, chatTotal, piTranscript, piBranch, claudeMeta, piMeta },
 }
 
 async function pickFolder(title) {

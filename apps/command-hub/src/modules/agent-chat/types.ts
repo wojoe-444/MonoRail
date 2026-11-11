@@ -18,6 +18,31 @@ export interface SessionSummary {
   sizeBytes: number
   /** The allowed repo this chat's folder is in. */
   repo: { name: string; path: string }
+  /** What the chat has cost so far, when it can be read. */
+  total?: ChatTotal
+}
+
+/**
+ * A chat's spend. `complete` is false whenever the figure may be short:
+ * too-big = the log is past the read limit, no-record = no cost record for
+ * this Claude chat, stale = turns ran elsewhere after the last record.
+ */
+export interface ChatTotal {
+  usd?: number
+  complete: boolean
+  reason?: 'too-big' | 'no-record' | 'stale'
+}
+
+/** One model call: its tokens, and its cost when the log has one. */
+export interface CallUsage {
+  model?: string
+  input: number
+  cacheRead: number
+  cacheWrite: number
+  output: number
+  costUsd?: number
+  ts?: number
+  subagent?: boolean
 }
 
 export interface SessionList {
@@ -48,6 +73,8 @@ export interface ChatMessage {
   ts?: number
   model?: string
   blocks: ChatBlock[]
+  /** Assistant messages: the model call that produced it. */
+  usage?: CallUsage
 }
 
 export interface SessionTranscript {
@@ -55,7 +82,12 @@ export interface SessionTranscript {
   messages: ChatMessage[]
   /** Set when the history was cut to the read limits. */
   truncated?: { bytes: boolean; messages: number }
+  /** Claude subagent model calls, placed in replies by time. */
+  subagentCalls?: CallUsage[]
+  total?: ChatTotal
 }
+
+export type ChatView = 'plain' | 'detailed'
 
 export const SOURCE_LABEL: Record<SessionSource, string> = { claude: 'Claude Code', pi: 'pi' }
 
@@ -79,7 +111,7 @@ export type TurnEvent =
   | { t: 'assistant'; id?: string; model?: string; blocks: ChatBlock[] }
   | { t: 'tool_result'; toolUseId: string; result: string; isError: boolean }
   | { t: 'denied'; kind: 'Denied' | 'Blocked'; tool: string; toolUseId?: string; summary?: string; reason: string }
-  | { t: 'usage'; model?: string; input: number; cacheRead: number; cacheWrite: number; output: number; costUsd?: number }
+  | { t: 'usage'; id?: string; subagent?: boolean; model?: string; input: number; cacheRead: number; cacheWrite: number; output: number; costUsd?: number }
   | { t: 'result'; subtype: string; isError: boolean; costUsd?: number; durationMs?: number; numTurns?: number; contextWindow?: number; errors?: string[] }
   | { t: 'cost'; turnUsd?: number; sessionUsd?: number; exact: boolean }
   | { t: 'error'; message: string }
