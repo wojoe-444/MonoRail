@@ -198,6 +198,25 @@ runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
 
+`email` (**Email**) is the second app: mail through pluggable **inbox
+connectors**. The connector contract is documented at the top of
+`electron/apps/email/connectors/index.cjs` (config fields, `signIn`,
+`createSession` returning folders/threads/modify/send); the backend
+(`electron/apps/email/index.cjs`) knows no provider. Gmail
+(`connectors/gmail.cjs`) is the first connector: Google sign-in via OAuth
+2.0 with PKCE and a loopback redirect (`oauth.cjs`, RFC 8252) and the Gmail
+REST API with the `gmail.modify` scope, plain `fetch`, no Google SDK. The
+user brings their own Google Cloud "Desktop app" OAuth client and pastes the
+client ID and secret into the app's setup screen (steps are on that screen).
+The secret and each account's refresh token are encrypted with safeStorage
+in `%APPDATA%\MonoRail\apps\email` (`store.cjs`, which refuses to save
+secrets when encryption is unavailable); never commit a client ID, secret or
+token. Mail is fetched on demand and never written to disk. HTML mail renders
+in a sandboxed iframe without scripts, with remote images blocked until the
+user asks. IMAP or other providers go in as new connector modules. The app is
+self-contained (only `src/apps/email` and `electron/apps/email`) so it can
+move into an extension later. Tests live in `email.test.cjs`.
+
 ## Extensions: modules and apps from other repositories
 
 The third building block. An **extension** is a module and/or app built and
