@@ -27,6 +27,7 @@ const moduleBackends = [
   require('./home.cjs'),
   require('./mcp.cjs'),
   require('./settings.cjs'),
+  require('./storage.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')

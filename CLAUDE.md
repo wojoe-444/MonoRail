@@ -388,6 +388,19 @@ until the app has recorded the extension's current data version, so
 in its `.git` so the app and the server never commit at once. Tests:
 `electron/mcp/mcp.test.cjs` (includes a real stdio run).
 
+`storage` (**Storage**, under the **Utilities** section) is the Storage
+Manager (docs: `docs/storage.md`): free/used space per drive (`fs.statfs`,
+read on open) and the size of known folders (MonoRail's data, older data
+folders, install and updater cache; Claude Code, Claude desktop, pi, Repos;
+npm/pnpm/Yarn/Bun/pip/Playwright/Electron caches; Temp, Downloads,
+hiberfil/pagefile), all built from environment folders. Folders are measured
+only when the user presses Scan (45 s per folder, links and junctions never
+followed) and the result is kept in memory only. It is **read-only**: it never
+deletes, moves, renames or copies anything (a test greps the backend for write
+calls); actions only open a folder in Explorer by location id or the Windows
+storage settings. Any future cleanup must be explicit, confirmed per item, and
+limited to caches marked safe.
+
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
 a collapsible tree (plain rows on a guide line, current page tinted; open/closed
