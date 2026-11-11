@@ -26,6 +26,8 @@ Extensions). Every failed call is logged there with its code, e.g.
 | --- | --- | --- |
 | Blank page | A script failed, or the `entry` path is wrong. | Check the entry against the files in `ui/`. Vite needs `base: './'` so asset paths are relative (the starter sets it). |
 | Inline `<script>` doesn't run | The CSP forbids inline scripts. | Move the code into a `.js` file. |
+| `... violates the following Content Security Policy directive because 'unsafe-eval' ...` | A library compiles strings (`new Function`, `eval`), e.g. lodash's `_.template`. | Use a build of the library or a feature that doesn't need `eval`. |
+| `fetch('http://localhost:...')` fails with `Failed to fetch` | Pages can't reach a local server either. | Forward the call through a backend method. See [a fetch shim](page-api.md#a-fetch-shim). |
 | `fetch('https://...')` fails | Pages have no network. | Call a backend method, and declare the host in `permissions.network`. |
 | Remote images, fonts or styles don't load | Only the extension's own files are allowed. | Bundle them into `ui/`. |
 | Module page is cut off or very tall | A `100vh` or `h-screen` layout in a module. The frame grows with your content. | Let module pages size to their content. Only apps fill the window. |
