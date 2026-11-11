@@ -16,7 +16,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { app, ipcMain } = require('electron')
 
-const moduleBackends = [require('./claude-stats.cjs'), require('./jira.cjs'), require('./settings.cjs')]
+const moduleBackends = [require('./agent-chat.cjs'), require('./claude-stats.cjs'), require('./jira.cjs'), require('./settings.cjs')]
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 

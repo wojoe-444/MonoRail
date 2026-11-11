@@ -4,7 +4,7 @@ import { BrandMark } from '@/components/layout/BrandMark'
 import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
-import { useNavSections } from './nav'
+import { useNavSections, type NavItem } from './nav'
 
 interface SideNavProps {
   current: string
@@ -56,49 +56,21 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
             )}
             {section.heading && collapsed && <div className="mx-2 mb-3 h-px bg-sidebar-border" />}
             <ul className="flex flex-col gap-1">
-              {section.items.map((item) => {
-                const active = item.path === current
-                const Icon = item.icon
-                const button = (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate(item.path)}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-                      collapsed && 'justify-center px-0',
-                      active
-                        ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
-                        : 'bg-sidebar-accent/70 text-sidebar-accent-foreground hover:bg-sidebar-accent',
-                    )}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
-                    {!collapsed && item.badge && (
-                      <span
-                        className={cn(
-                          'min-w-5 rounded-full px-1.5 text-center text-[11px] leading-5 font-semibold',
-                          active ? 'bg-sidebar-primary-foreground/20' : 'bg-warning text-black',
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                )
-                return (
-                  <li key={item.path}>
-                    {collapsed ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>{button}</TooltipTrigger>
-                        <TooltipContent side="right">{item.label}</TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      button
-                    )}
-                  </li>
-                )
-              })}
+              {section.items.map((item) => (
+                <li key={item.path}>
+                  <NavButton item={item} current={current} collapsed={collapsed} onNavigate={onNavigate} />
+                  {item.children && item.children.length > 0 && (
+                    // Subpages: the same pills, indented under their parent.
+                    <ul className={cn('mt-1 flex flex-col gap-1', !collapsed && 'ml-6')} aria-label={`${item.label} pages`}>
+                      {item.children.map((child) => (
+                        <li key={child.path}>
+                          <NavButton item={child} current={current} collapsed={collapsed} onNavigate={onNavigate} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
             </ul>
           </div>
         ))}
@@ -111,5 +83,54 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
         </div>
       )}
     </aside>
+  )
+}
+
+function NavButton({
+  item,
+  current,
+  collapsed,
+  onNavigate,
+}: {
+  item: NavItem
+  current: string
+  collapsed: boolean
+  onNavigate: (path: string) => void
+}) {
+  const active = item.path === current
+  const Icon = item.icon
+  const button = (
+    <button
+      type="button"
+      onClick={() => onNavigate(item.path)}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        collapsed && 'justify-center px-0',
+        active
+          ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
+          : 'bg-sidebar-accent/70 text-sidebar-accent-foreground hover:bg-sidebar-accent',
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
+      {!collapsed && item.badge && (
+        <span
+          className={cn(
+            'min-w-5 rounded-full px-1.5 text-center text-[11px] leading-5 font-semibold',
+            active ? 'bg-sidebar-primary-foreground/20' : 'bg-warning text-black',
+          )}
+        >
+          {item.badge}
+        </span>
+      )}
+    </button>
+  )
+  if (!collapsed) return button
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
   )
 }

@@ -33,6 +33,8 @@ export interface ModuleDefinition {
     /** Lower sorts first within the section. Defaults to 100. */
     order?: number
     badge?: string
+    /** Path of a nav item to nest under as a subpage (e.g. "/agents"). Falls back to the section if missing. */
+    parent?: string
   }
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType
