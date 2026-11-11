@@ -151,6 +151,9 @@ The page charts both: spend, output and effort mix over time by level, cost per
 model call and per million output by model and level, and thinking share of
 output by model (`effort.ts`, `components/EffortCards.tsx`). Levels are ordinal,
 so they share one hue in steps of strength; "Not logged" is the Other grey.
+Only sessions that log on this computer are counted: cloud sessions (Claude
+project threads, Claude Code on the web) keep their transcripts on Anthropic's
+servers, there is no public API for their usage, and the page header says so.
 
 **Caches** go through the shared primitive in `electron/cache/` (rules and
 examples: `docs/caching.md`). Every cache, and every other file a backend keeps
