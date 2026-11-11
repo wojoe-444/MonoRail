@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
 
@@ -90,14 +90,16 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
-  server: bridgeToken
-    ? {
-        proxy: {
+  server: {
+    // The Wiki module bundles the repo's docs/ folder (outside this app's root).
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(import.meta.dirname, '../../docs')] },
+    proxy: bridgeToken
+      ? {
           '/__bridge': {
             target: `http://127.0.0.1:${bridgePort}`,
             headers: { 'x-monorail-bridge-token': bridgeToken },
           },
-        },
-      }
-    : undefined,
+        }
+      : undefined,
+  },
 })

@@ -301,6 +301,18 @@ function findCoordinator(env = process.env, home = os.homedir()) {
   return undefined
 }
 
+/** The user's "coordinator" subagent definition (agents/coordinator.md in a Claude config folder), if any. */
+function findCoordinator(env = process.env, home = os.homedir()) {
+  const bases = env.CLAUDE_CONFIG_DIR
+    ? env.CLAUDE_CONFIG_DIR.split(',').map((s) => s.trim()).filter(Boolean)
+    : [path.join(home, '.claude'), path.join(home, '.config', 'claude')]
+  for (const b of bases) {
+    const f = path.join(b, 'agents', 'coordinator.md')
+    if (fs.existsSync(f)) return f
+  }
+  return undefined
+}
+
 // ---------------------------------------------------------------------------
 // Finding the user's Claude Code
 

@@ -38,6 +38,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { ChatMarkdown } from './ChatMarkdown'
+import { takeChatHandoff } from './handoff'
 import { Composer, DeniedRow, NewChatEmpty, TurnFooter, useComposerPrefs } from './Composer'
 import { chatTotalView, costCalls, historyReplies, liveReplyCost } from './cost'
 import { SidePanel, type PanelKind } from './Panels'
@@ -91,7 +92,9 @@ export default function AgentChatPage() {
   const data = desktop ? list.data : sampleSessions
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState<string>()
+  // Opened from the Agents overview: a session to show, or a new chat to start.
+  const [handoff] = useState(takeChatHandoff)
+  const [selectedId, setSelectedId] = useState<string | undefined>(() => (handoff && 'open' in handoff ? handoff.open : undefined))
   const [foldersOpen, setFoldersOpen] = useState(false)
   const [panel, setPanel] = useState<PanelKind>()
   const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
@@ -301,6 +304,7 @@ export default function AgentChatPage() {
       running={runningTurn}
       lastTurn={chatTurns[chatTurns.length - 1]}
       error={sendError && sendError.key === chatKey ? sendError.message : undefined}
+      initialText={handoff && 'newChat' in handoff ? handoff.newChat.prompt : undefined}
       onSend={send}
       onStop={stop}
       context={contextUse(lastWithUsage)}

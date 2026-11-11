@@ -12,6 +12,7 @@ import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
 import { useRoute } from '@/lib/router'
 import { findModuleByPath } from '@/modules/registry'
+import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -28,6 +29,7 @@ function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem
   }
   if (path === '/') return <HomePage />
   if (path === '/apps') return <AppsPage onOpen={onOpen} />
+  if (path === '/agents') return <AgentsPage />
   // Extension pages are known once the installed list has loaded.
   if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
   const item = navItems.find((i) => i.path === path)

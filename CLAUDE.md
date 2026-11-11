@@ -142,7 +142,11 @@ fails if a model in the local logs has no row. The page turns the report into
 priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
 day and model, pi's logged per-token-type cost is used as logged, anything
 else is priced from the table, and any split that is not logged is labelled
-an estimate.
+an estimate. Effort comes from Claude Code's per-response `effort`
+field and pi's `thinking_level_change` entries (followed along the branch);
+thinking tokens from Claude Code's `output_tokens_details.thinking_tokens`
+and Gemini's `thoughts`. pi logs no thinking count, so its count is estimated
+from the thinking text (~4 characters a token) and shown with "~".
 
 **Caches** go through the shared primitive in `electron/cache/` (rules and
 examples: `docs/caching.md`). Every cache, and every other file a backend keeps
@@ -479,6 +483,14 @@ manifest, page-api, backend-api, permissions, lifecycle, testing,
 troubleshooting; plans only in roadmap.md). Reference pages describe what the
 code does today: update them in the same PR as any change to the manifest,
 `ctx`, the bridge, permissions or error codes.
+
+`wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
+is bundled at build time (`import.meta.glob` `?raw` in
+`src/modules/wiki/content.ts`, so it is offline and matches the installed
+version). Links between docs open in the wiki, other repo paths open on
+GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
+there. Open a page from elsewhere with `openWiki(id, anchor)` from
+`modules/wiki/store.ts`.
 
 ## Design guidance
 

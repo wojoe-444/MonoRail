@@ -43,7 +43,6 @@ function coreSections(): NavSection[] {
           path: '/agents',
           label: 'Agents',
           icon: Bot,
-          badge: '4',
           // Agent Chat (a module) joins these through nav.parent.
           children: [
             { path: '/agents/runs', label: 'Runs', icon: History },
@@ -58,12 +57,17 @@ function coreSections(): NavSection[] {
         // Connections, Extensions and Settings are modules and join this section from the registry.
       ],
     },
+    {
+      // Last in the drawer: the Wiki module joins it from the registry.
+      heading: 'Help',
+      items: [],
+    },
   ]
 }
 
 /** Merge module nav entries into sections. New module sections go before "Configure". */
 export function buildNavSections(list: ExtensionList): NavSection[] {
-  const sections = coreSections().filter((s) => s.items.length > 0 || s.heading === 'Configure')
+  const sections = coreSections().filter((s) => s.items.length > 0 || s.heading === 'Configure' || s.heading === 'Help')
   const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
   for (const m of sorted) {
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
@@ -80,7 +84,7 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
     }
     section.items.push(item)
   }
-  return sections
+  return sections.filter((s) => s.items.length > 0 || s.heading === 'Configure')
 }
 
 /** Every item, subpages included, in drawer order. */

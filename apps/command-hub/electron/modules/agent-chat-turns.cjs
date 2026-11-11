@@ -165,6 +165,13 @@ function runningTurnFor(chatKey) {
   return running.get(chatKey)
 }
 
+/** Every running turn, metadata only (no prompt or events), for the Agents overview. */
+function runningTurns() {
+  return [...turns.values()]
+    .filter((t) => !t.endedAt)
+    .map((t) => ({ turnId: t.id, chatKey: t.chatKey, sdk: t.meta?.sdk, sessionId: t.sessionId, startedAt: t.startedAt }))
+}
+
 function stopAll() {
   for (const t of turns.values()) if (!t.endedAt) killTree(t.child)
 }
@@ -178,4 +185,4 @@ function defaultSpawn() {
   })
 }
 
-module.exports = { startTurn, pollTurn, stopTurn, stopAll, runningTurnFor, setLogger, killTree, WORKER, _turns: turns, TURN_TIMEOUT_MS }
+module.exports = { startTurn, pollTurn, stopTurn, stopAll, runningTurnFor, runningTurns, setLogger, killTree, WORKER, _turns: turns, TURN_TIMEOUT_MS }

@@ -93,12 +93,17 @@ export interface ScanRequestRow {
   role: 'driver' | 'subagent'
   /** Context step: prompts in (step*50K, (step+1)*50K]. */
   step: number
+  /** Claude Code effort or pi thinking level, when logged. */
+  effort?: string | null
   n: number
   input: number
   output: number
   cw5m: number
   cw1h: number
   cacheRead: number
+  /** Reasoning tokens (part of output); thinkingEst of them estimated from text (pi). */
+  thinking?: number
+  thinkingEst?: number
   /** Cost per token type as the tool logged it (pi), summed. */
   logged: { input: number; output: number; cacheWrite: number; cacheRead: number; n: number } | null
 }
@@ -188,6 +193,10 @@ export interface UsageFact {
   /** Model is above its prompt-size price tier in this step. */
   aboveTier?: boolean
   tierAbove?: number
+  effort?: string
+  thinkingTokens?: number
+  /** Thinking tokens estimated from text rather than logged as a count. */
+  thinkingEstimated?: number
 }
 
 export interface SessionFact {
@@ -200,4 +209,6 @@ export interface SessionFact {
   outputTokens: number
   totalTokens: number
   cost: number
+  thinkingTokens?: number
+  thinkingEstimated?: number
 }

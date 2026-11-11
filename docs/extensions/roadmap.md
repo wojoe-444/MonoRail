@@ -12,13 +12,12 @@ only what exists today.
 | 3 | API 1.1: `ctx.secrets`, error codes, `migrate`, defined event behavior, backend test helper, `.exe` matching fix, Windows CI | [#32](https://github.com/wojoe-444/MonoRail/pull/32) |
 | 4 | Settings declared in the manifest, with a generated form | [#37](https://github.com/wojoe-444/MonoRail/pull/37) |
 | 5 | Docs split into concepts, reference, tutorial, testing and troubleshooting; this roadmap | this set of pages |
+| 6 | In-app wiki (Help > Wiki) built from these pages | |
 
 ## Next
 
 - **Minecraft bot as an extension**, in its own repository, started from the
   starter. It's the first real extension, and it tests the docs end to end.
-- **In-app wiki**: these pages inside MonoRail, so they match the installed
-  version.
 
 ## Proposed
 
