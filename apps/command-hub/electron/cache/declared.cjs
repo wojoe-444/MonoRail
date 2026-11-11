@@ -132,6 +132,7 @@ const DATA_FILES = Object.freeze({
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
   'modules/notes': ['repo/'],
+  'modules/storage': ['goals.json'],
   'modules/backups': ['settings.json', 'state.json'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
