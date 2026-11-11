@@ -21,6 +21,7 @@ that matches the installed app, offline.
 | [Page API](page-api.md) | `monorail-sdk/client.js`: `invoke`, events, settings, folders, theme, errors |
 | [Backend API](backend-api.md) | The backend module, `ctx`, hooks, error codes, events, secrets, settings |
 | [Permissions and security](permissions.md) | What a page and a backend can and can't do, and how each permission is matched |
+| [Running Python and other runtimes](non-node-runtimes.md) | Starting a non-Node program from a backend on Windows: finding or bundling it, its environment, cleanup, a helper HTTP server |
 | [Lifecycle](lifecycle.md) | Install, update, reload, remove; when the backend starts and stops; what happens to data |
 | [Testing](testing.md) | Testing a backend with `node --test`, and what still needs MonoRail |
 | [Troubleshooting](troubleshooting.md) | Symptoms, causes and fixes |

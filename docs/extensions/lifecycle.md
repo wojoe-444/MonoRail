@@ -13,7 +13,10 @@ From **Settings > Extensions > Install extension**:
 
 Every install is staged first (in `extensions/.staging`) and checked: a valid
 manifest, no unsafe paths in the zip ("zip slip"), at most 200 MB zipped,
-600 MB unpacked and 30,000 files. Nothing runs until the user accepts the
+600 MB unpacked and 30,000 files. The zip and its unpacked files are held
+in memory while installing (a 195 MB package raised MonoRail's memory use by
+about 600 MB for a moment). Installed files go to `extensions/<id>/` in
+MonoRail's data folder, under `%APPDATA%` on Windows. Nothing runs until the user accepts the
 consent dialog. A staged install expires if the user doesn't confirm it within 30
 minutes.
 

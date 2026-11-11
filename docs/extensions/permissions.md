@@ -72,6 +72,9 @@ and WebSocket), direct DNS queries and UDP:
 - The host is compared as you connect to it, by name or address, without
   resolving. `fetch('http://localhost:3000')` needs `localhost`, and
   `127.0.0.1` needs `127.0.0.1`.
+- Listening is checked too when you give a host: `server.listen(0, '127.0.0.1')`
+  looks the address up, so `127.0.0.1` must be in the list (`localhost`
+  doesn't cover it).
 - Local sockets and named pipes are refused unless `network` is `true`.
 - UDP is refused unless `network` is `true`.
 - A denied connection fails with `EXT_NETWORK_DENIED`, naming the host and port.
@@ -97,13 +100,26 @@ A started program is **not sandboxed**: it runs with the user's full
 access. That's why every `process` line is shown as high risk, labeled "Full
 trust", and why you should list exact programs rather than `true`.
 
+On Windows a started program ends when the backend process ends (stop,
+crash or MonoRail quitting), unless it was started with `detached: true`.
+[Running Python and other runtimes](non-node-runtimes.md#when-the-program-ends)
+has the measurements and what to do on other systems.
+
 ### Environment
 
 The backend gets only `PATH`, `PATHEXT`, `HOME`, `USERPROFILE`, `LANG`,
-`LC_ALL`, `TZ`, a few Windows system variables, and `TMP`, `TEMP` and
-`TMPDIR` pointing into the data folder. Tokens in the user's environment
-(`GITHUB_TOKEN`, cloud credentials) are never passed on. Ask for them through
-[settings](manifest.md#settings) or `ctx.secrets` instead.
+`LC_ALL`, `TZ`, `NUMBER_OF_PROCESSORS`, `PROCESSOR_ARCHITECTURE`, the
+Windows system variables `SystemRoot`, `windir` and `ComSpec`, and `TMP`,
+`TEMP` and `TMPDIR` pointing into the data folder. On Windows, Node also adds
+`HOMEDRIVE`, `HOMEPATH`, `LOGONSERVER`, `SYSTEMDRIVE`, `USERDOMAIN` and
+`USERNAME` to every process it starts.
+
+Not passed on: tokens in the user's environment (`GITHUB_TOKEN`, cloud
+credentials, `GOOGLE_APPLICATION_CREDENTIALS`) and also `APPDATA` and
+`LOCALAPPDATA`. Ask for secrets through [settings](manifest.md#settings) or
+`ctx.secrets`. A program you start gets whatever `env` you give it; see
+[the program's environment](non-node-runtimes.md#the-programs-environment)
+for rebuilding `APPDATA` and `LOCALAPPDATA`.
 
 ## Consent
 
