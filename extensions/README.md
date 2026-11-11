@@ -1,7 +1,7 @@
 # MonoRail extensions
 
 Extensions are modules and apps for MonoRail built in their own repositories.
-The design and the full guide are in [docs/extensions.md](../docs/extensions.md).
+The full guide is in [docs/extensions](../docs/extensions/README.md).
 
 | Path | What it is |
 | --- | --- |

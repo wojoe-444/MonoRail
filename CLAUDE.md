@@ -448,7 +448,11 @@ Tailwind page and app, notes backend, release workflow); new extension repos
 start with `npx degit wojoe-444/MonoRail/extensions/hello-monorail`. After
 changing the SDK or the design tokens run `node packages/extension-sdk/sync.mjs`;
 `npm test` fails if the copies are stale, and CI builds and packs the sample.
-The plan and author guide is `docs/extensions.md`.
+The author docs are `docs/extensions/` (README index, concepts, tutorial,
+manifest, page-api, backend-api, permissions, lifecycle, testing,
+troubleshooting; plans only in roadmap.md). Reference pages describe what the
+code does today: update them in the same PR as any change to the manifest,
+`ctx`, the bridge, permissions or error codes.
 
 ## Design guidance
 

@@ -25,6 +25,7 @@ jobs:
         run: |
           version=$(node -p "require('./monorail.json').version")
           [ "v$version" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match monorail.json version $version"; exit 1; }
+      - run: npm test
       - run: npm run pack
       - name: Publish
         env:
