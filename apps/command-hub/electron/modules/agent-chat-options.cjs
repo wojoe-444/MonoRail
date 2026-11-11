@@ -12,6 +12,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { validateJobPrompt } = require('./agent-chat-prompts.cjs')
 
 /** Fixed model list for the picker. `undefined` = the CLI's own default. */
 const CLAUDE_MODELS = [
@@ -50,6 +51,12 @@ const DENY_MESSAGE = 'Nobody can approve tool use from the MonoRail Chat page, s
 
 const PATH_KEYS = new Set(['cwd', 'pathToClaudeCodeExecutable', 'resume'])
 
+/**
+ * Free text the model reads, not settings: a system prompt may mention any
+ * word. It cannot change permissions, so the bypass check skips its text.
+ */
+const TEXT_KEYS = new Set(['systemPrompt'])
+
 /** Throws if anything in the options would bypass permissions. Checks keys and values, deeply. */
 function assertNoBypass(options) {
   const seen = new Set()
@@ -66,6 +73,7 @@ function assertNoBypass(options) {
       if (/dangerously|bypass/i.test(k) && child !== undefined && child !== false && k !== 'disableBypassPermissionsMode') throw new Error(`Refusing to run: option ${k} is set.`)
       if (k === 'disableBypassPermissionsMode') continue // the setting that turns bypass off
       if (PATH_KEYS.has(k)) continue // a folder may be named anything
+      if (TEXT_KEYS.has(k) && where === 'options') continue // the user's own prompt text
       if (k === 'instance' && where.startsWith('options.mcpServers.')) continue // an in-process MCP server object
       walk(child, `${where}.${k}`)
     }
@@ -91,6 +99,8 @@ function validateJob(job) {
   if (job.coordinator && job.sdk !== 'claude') throw new Error('The coordinator runs on Claude.')
   // Reasoning is only requested for the Detailed view (T3).
   job.reasoning = job.reasoning === true
+  // The user's own system prompt for this agent, put on the job by the main process.
+  job.systemPrompt = validateJobPrompt(job.systemPrompt, job)
   return job
 }
 
@@ -114,6 +124,7 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordina
   if (job.model !== 'default') options.model = job.model
   if (job.effort !== 'default') options.effort = job.effort
   if (job.reasoning) options.thinking = { type: 'adaptive', display: 'summarized' }
+  if (job.systemPrompt) options.systemPrompt = claudeSystemPrompt(job.systemPrompt)
   if (job.coordinator) {
     // Runs as the user's "coordinator" subagent. Tools: delegate, workflow
     // and MonoRail's own chat tools (agent-chat-coordinator.cjs), no other
@@ -136,6 +147,17 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordina
   return assertNoBypass(options)
 }
 
+/**
+ * The SDK's systemPrompt for the user's own prompt. Append keeps Claude Code's
+ * prompt (for the coordinator: its subagent's prompt) and adds the text;
+ * replace sends only the text. Recorded with the conversation (snapshot), so a
+ * chat keeps the prompt it started with where Claude Code records prompts.
+ */
+function claudeSystemPrompt(p) {
+  if (p.mode === 'replace') return { type: 'custom', prompt: p.text, snapshot: true }
+  return { type: 'preset', preset: 'claude_code', append: p.text, snapshot: true }
+}
+
 // ---------------------------------------------------------------------------
 // pi
 //
@@ -155,6 +177,17 @@ function piTools(mode) {
   const tools = mode === 'agent' ? [...PI_READ_TOOLS, ...PI_WRITE_TOOLS] : [...PI_READ_TOOLS]
   if (tools.some((t) => /bash|shell|exec/i.test(t))) throw new Error('Refusing to run: pi never gets shell commands.')
   return tools
+}
+
+/**
+ * Resource loader options for the user's own pi prompt. Overrides, not
+ * systemPrompt / appendSystemPrompt: pi reads those as a file path when one
+ * by that name exists.
+ */
+function piPromptOptions(p) {
+  if (!p) return {}
+  if (p.mode === 'replace') return { systemPromptOverride: () => p.text }
+  return { appendSystemPromptOverride: (base) => [...(Array.isArray(base) ? base : []), p.text] }
 }
 
 /** Effort -> pi thinking level. Default sets none; pi clamps to what the model supports. */
@@ -359,4 +392,4 @@ function findClaudeExecutable(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-module.exports = { COORDINATOR_TOOLS, COORDINATOR_MCP_TOOLS, findCoordinator, coordinatorToolsNote, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, PI_PACKAGES, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
+module.exports = { COORDINATOR_TOOLS, COORDINATOR_MCP_TOOLS, findCoordinator, coordinatorToolsNote, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, PI_PACKAGES, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, claudeSystemPrompt, piPromptOptions, findClaudeExecutable }

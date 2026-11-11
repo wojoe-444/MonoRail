@@ -114,7 +114,7 @@ const CACHES = Object.freeze([
 
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
-  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'coordinator/', 'turn-locks/'],
+  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'coordinator/', 'turn-locks/'],
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
@@ -128,7 +128,7 @@ const DATA_FILES = Object.freeze({
  */
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
-  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
+  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
   'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
 })
 

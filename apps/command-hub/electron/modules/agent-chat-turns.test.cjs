@@ -381,3 +381,69 @@ test('a turn holds the chat lock (and its new session id) until it ends', async 
   assert.equal(locks.isLocked(dir, 'new:locked'), false)
   assert.equal(locks.isLocked(dir, 'claude:locked-new'), false)
 })
+
+// ---------------------------------------------------------------------------
+// Custom system prompts per agent
+
+const prompts = require('./agent-chat-prompts.cjs')
+
+test('a system prompt is appended to Claude Code\'s by default, or replaces it', () => {
+  const plain = opts.buildClaudeOptions({ job: opts.validateJob({ ...job }), cwd: '/r', executable: '/c' })
+  assert.equal(plain.systemPrompt, undefined)
+  const append = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, systemPrompt: { mode: 'append', text: 'Answer in French.' } }), cwd: '/r', executable: '/c' })
+  assert.deepEqual(append.systemPrompt, { type: 'preset', preset: 'claude_code', append: 'Answer in French.', snapshot: true })
+  const replace = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, systemPrompt: { mode: 'replace', text: 'You are a release bot.' } }), cwd: '/r', executable: '/c' })
+  assert.deepEqual(replace.systemPrompt, { type: 'custom', prompt: 'You are a release bot.', snapshot: true })
+  // Permissions stay as the mode sets them.
+  assert.deepEqual(replace.tools, opts.ASK_TOOLS)
+  assert.equal(replace.permissionMode, 'dontAsk')
+})
+
+test('prompt text may say anything, but bypass options are still refused', () => {
+  const o = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, systemPrompt: { mode: 'append', text: 'Never bypass code review.' } }), cwd: '/r', executable: '/c' })
+  assert.match(o.systemPrompt.append, /bypass/)
+  assert.throws(() => opts.assertNoBypass({ ...o, permissionMode: 'bypassPermissions' }), /bypass/)
+  assert.throws(() => opts.assertNoBypass({ ...o, settings: { note: 'bypass' } }), /bypass/)
+})
+
+test('the coordinator can only append to its prompt', () => {
+  const o = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, coordinator: true, systemPrompt: { mode: 'append', text: 'Be brief.' } }), cwd: '/c', executable: '/c' })
+  assert.equal(o.agent, 'coordinator')
+  assert.equal(o.systemPrompt.append, 'Be brief.')
+  assert.throws(() => opts.validateJob({ ...job, coordinator: true, systemPrompt: { mode: 'replace', text: 'x' } }), /only be added/)
+  assert.deepEqual(prompts.promptForTurn({ coordinator: { mode: 'replace', text: 'x' } }, { sdk: 'claude', coordinator: true }), { mode: 'append', text: 'x' })
+})
+
+test('bad system prompts on a job are refused', () => {
+  assert.throws(() => opts.validateJob({ ...job, systemPrompt: { mode: 'sideways', text: 'x' } }), /mode/)
+  assert.throws(() => opts.validateJob({ ...job, systemPrompt: { mode: 'append', text: '  ' } }), /Empty/)
+  assert.throws(() => opts.validateJob({ ...job, systemPrompt: { mode: 'append', text: 'x'.repeat(prompts.MAX_PROMPT + 1) } }), /too long/)
+})
+
+test('pi prompts go through the loader overrides, never as a path', () => {
+  assert.deepEqual(opts.piPromptOptions(undefined), {})
+  const r = opts.piPromptOptions({ mode: 'replace', text: 'package.json' })
+  assert.equal(r.systemPromptOverride('base'), 'package.json')
+  assert.equal(r.systemPrompt, undefined)
+  const a = opts.piPromptOptions({ mode: 'append', text: 'Be brief.' })
+  assert.deepEqual(a.appendSystemPromptOverride(['from APPEND_SYSTEM.md']), ['from APPEND_SYSTEM.md', 'Be brief.'])
+})
+
+test('system prompts are kept per agent in the data folder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mr-prompts-'))
+  try {
+    assert.deepEqual(prompts.readPrompts(dir).claude, { mode: 'append', text: '' })
+    prompts.writePrompts(dir, { claude: { mode: 'replace', text: 'Claude text' } })
+    prompts.writePrompts(dir, { pi: { mode: 'append', text: 'pi text' } })
+    const saved = prompts.readPrompts(dir)
+    assert.deepEqual(saved.claude, { mode: 'replace', text: 'Claude text' })
+    assert.deepEqual(saved.pi, { mode: 'append', text: 'pi text' })
+    assert.equal(prompts.promptForTurn(saved, { sdk: 'claude' }).mode, 'replace')
+    assert.equal(prompts.promptForTurn(saved, { sdk: 'claude', coordinator: true }), undefined)
+    assert.throws(() => prompts.writePrompts(dir, { coordinator: { mode: 'replace', text: 'x' } }), /only be added/)
+    assert.throws(() => prompts.writePrompts(dir, { gemini: { mode: 'append', text: 'x' } }), /Unknown agent/)
+    assert.deepEqual(fs.readdirSync(dir), [prompts.PROMPTS_FILE])
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})

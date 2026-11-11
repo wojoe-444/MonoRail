@@ -22,6 +22,7 @@ const turnsApi = require('./agent-chat-turns.cjs')
 const chatState = require('./agent-chat-state.cjs')
 const changesApi = require('./agent-chat-changes.cjs')
 const locks = require('./agent-chat-locks.cjs')
+const prompts = require('./agent-chat-prompts.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -723,7 +724,9 @@ async function startTurn(ctx, args = {}) {
   }
 
   if (coordinator && sdk !== 'claude') throw new Error('The coordinator runs on Claude.')
-  const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator })
+  // The system prompt comes from the data folder, never from the page's turn request.
+  const systemPrompt = prompts.promptForTurn(prompts.readPrompts(ctx.dataDir), { sdk, coordinator })
+  const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator, systemPrompt })
   const status = sdkStatus().find((s) => s.id === sdk)
   if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
 
@@ -821,6 +824,9 @@ module.exports = {
   },
   methods: {
     getComposer: async (ctx) => getComposer(ctx),
+    /** The user's own system prompts per agent (system-prompts.json in the data folder). */
+    getSystemPrompts: async (ctx) => prompts.readPrompts(ctx.dataDir),
+    setSystemPrompts: async (ctx, args) => prompts.writePrompts(ctx.dataDir, args?.prompts),
     getChanges: async (ctx, args) => getChanges(ctx, args),
     startTurn: async (ctx, args) => startTurn(ctx, args),
     pollTurn: async (_ctx, args) => turnsApi.pollTurn(args?.turnId, args?.after),

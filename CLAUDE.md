@@ -206,6 +206,20 @@ not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
 (Max = xhigh). A started chat keeps its SDK; new chats pick one in the
 status bar (remembered).
 
+**System prompts** (page header "Prompts", `agent-chat-prompts.cjs`,
+`system-prompts.json` in the data folder): one per agent (Claude, pi,
+coordinator), either added to the built-in prompt (default) or replacing it
+(the page warns that this drops Claude Code's tool guidance). The main process
+reads the file when a turn starts and puts the prompt on the job, never taken
+from the page's turn request, so coordinator child turns get it too. Claude
+gets the SDK's `systemPrompt` (preset + append, or custom; `snapshot: true`, so
+a started chat may keep its first prompt); pi gets the resource loader's
+`systemPromptOverride` / `appendSystemPromptOverride` (never the plain options,
+which pi reads as a file path), and an older pi that ignores them is refused.
+The coordinator can only append (its instructions are `coordinator.md`).
+`assertNoBypass` skips the prompt text only; a prompt never changes tools or
+permissions.
+
 **Plain / Detailed** (status bar, remembered; Plain is the default). Detailed
 shows reasoning above the tool rows and, after each reply, one row per model
 call (model, cost, input, cache read, cache write, output; subagent calls
