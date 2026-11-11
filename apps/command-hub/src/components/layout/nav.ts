@@ -43,7 +43,6 @@ function coreSections(): NavSection[] {
           path: '/agents',
           label: 'Agents',
           icon: Bot,
-          badge: '4',
           // Agent Chat (a module) joins these through nav.parent.
           children: [
             { path: '/agents/runs', label: 'Runs', icon: History },

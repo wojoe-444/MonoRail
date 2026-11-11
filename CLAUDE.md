@@ -210,6 +210,18 @@ changed after it), pi's is every paid entry in the file, abandoned branches
 included; past the 4 MB read limit only spend since opening is counted, and
 the page says so. A total never reads complete when it is not.
 
+The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
+Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
+files: it reuses Agent Chat's session list, composer info and running turns
+in process, reads the Claude Stats summary (never builds a report), and lists
+agent definitions (`agents-definitions.cjs`: Claude Code subagents in
+`.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
+`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+repo; frontmatter only, bodies on demand by id, never a path). Archived chats
+are left out. Quick launch and "Open" hand over to Chat with
+`openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
+handed-over prompt is prefilled in the composer, never sent by itself.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning

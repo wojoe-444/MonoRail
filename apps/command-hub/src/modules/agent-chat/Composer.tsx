@@ -86,6 +86,7 @@ export function Composer({
   running,
   lastTurn,
   error,
+  initialText,
   onSend,
   onStop,
   context,
@@ -102,11 +103,13 @@ export function Composer({
   /** The chat's newest turn sent from this page; its cost shows in the status bar. */
   lastTurn?: LiveTurn
   error?: string
+  /** Text the composer starts with (a prompt handed over from the Agents page). Never sent by itself. */
+  initialText?: string
   onSend: (prompt: string) => Promise<boolean>
   onStop: () => void
   context?: { used: number; window?: number }
 }) {
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText ?? '')
   const [sending, setSending] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
   const sdk = info?.sdks.find((s) => s.id === source)

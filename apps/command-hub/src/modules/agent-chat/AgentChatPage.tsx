@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { ChatMarkdown } from './ChatMarkdown'
+import { takeChatHandoff } from './handoff'
 import { Composer, DeniedRow, NewChatEmpty, TurnFooter, useComposerPrefs } from './Composer'
 import { chatTotalView, costCalls, historyReplies, liveReplyCost } from './cost'
 import { ReplyDetails, TotalChip } from './ReplyDetails'
@@ -80,13 +81,21 @@ export default function AgentChatPage() {
   const data = desktop ? list.data : sampleSessions
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState<string>()
+  // Opened from the Agents overview: a session to show, or a new chat to start.
+  const [handoff] = useState(takeChatHandoff)
+  const [selectedId, setSelectedId] = useState<string | undefined>(() => (handoff && 'open' in handoff ? handoff.open : undefined))
   const [foldersOpen, setFoldersOpen] = useState(false)
   const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
   const composerInfo = desktop ? composerQuery.data : sampleComposer
   const prefs = useComposerPrefs(composerInfo)
   /** A new chat being composed: its key and the project it will run in. */
-  const [draft, setDraft] = useState<{ key: string; repo?: string }>()
+  const [draft, setDraft] = useState<{ key: string; repo?: string } | undefined>(() =>
+    handoff && 'newChat' in handoff ? { key: `draft:${crypto.randomUUID()}`, repo: handoff.newChat.repo } : undefined,
+  )
+  useEffect(() => {
+    if (handoff && 'newChat' in handoff && handoff.newChat.sdk) prefs.setNewSdk(handoff.newChat.sdk)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [turns, setTurns] = useState<LiveTurn[]>([])
   const turnsRef = useRef(turns)
   useLayoutEffect(() => {
@@ -227,6 +236,7 @@ export default function AgentChatPage() {
       running={runningTurn}
       lastTurn={chatTurns[chatTurns.length - 1]}
       error={sendError && sendError.key === chatKey ? sendError.message : undefined}
+      initialText={handoff && 'newChat' in handoff ? handoff.newChat.prompt : undefined}
       onSend={send}
       onStop={stop}
       context={contextUse(lastWithUsage)}
