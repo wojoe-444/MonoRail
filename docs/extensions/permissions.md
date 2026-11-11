@@ -70,11 +70,11 @@ and WebSocket), direct DNS queries and UDP:
 | `true` | everything, including UDP | |
 
 - The host is compared as you connect to it, by name or address, without
-  resolving.
+  resolving. `fetch('http://localhost:3000')` needs `localhost`, and
+  `127.0.0.1` needs `127.0.0.1`.
 - Listening is checked too when you give a host: `server.listen(0, '127.0.0.1')`
   looks the address up, so `127.0.0.1` must be in the list (`localhost`
-  doesn't cover it). `fetch('http://localhost:3000')` needs `localhost`, and
-  `127.0.0.1` needs `127.0.0.1`.
+  doesn't cover it).
 - Local sockets and named pipes are refused unless `network` is `true`.
 - UDP is refused unless `network` is `true`.
 - A denied connection fails with `EXT_NETWORK_DENIED`, naming the host and port.
