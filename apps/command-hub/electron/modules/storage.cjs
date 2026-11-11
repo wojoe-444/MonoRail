@@ -291,7 +291,7 @@ function savedLocation(l) {
 }
 
 async function saveScan(ctx, result) {
-  const drives = await listDrives({ rootDir: ctx.rootDir }).catch(() => [])
+  const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }).catch(() => [])
   await history(ctx).add({ kind: 'scan', tookMs: result.tookMs, drives: driveFacts(drives), locations: result.locations.map(savedLocation) })
 }
 
@@ -299,7 +299,7 @@ async function sampleDrives(ctx, { now = Date.now() } = {}) {
   const h = history(ctx)
   const latest = await h.latest()
   if (latest && now - Date.parse(latest.takenAt) < DRIVE_SAMPLE_MS) return false
-  const drives = await listDrives({ rootDir: ctx.rootDir })
+  const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir })
   if (!drives.length) return false
   await h.add({ kind: 'drives', drives: driveFacts(drives) })
   return true
@@ -375,7 +375,7 @@ async function runScan(locs) {
 function startScan(ctx) {
   if (scan.state === 'running') return
   restored = true
-  const locs = locations({ rootDir: ctx.rootDir, isPackaged: ctx.isPackaged })
+  const locs = locations({ rootDir: ctx.machineDir ?? ctx.rootDir, isPackaged: ctx.isPackaged })
   const previous = scan.state === 'done' ? scan : undefined
   scan = { state: 'running', startedAt: new Date().toISOString(), done: 0, total: locs.length, current: [] }
   // Keep showing the last result while the new one runs.
@@ -414,7 +414,7 @@ module.exports = {
   },
   methods: {
     async getDrives(ctx) {
-      return { platform: process.platform, drives: await listDrives({ rootDir: ctx.rootDir }) }
+      return { platform: process.platform, drives: await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }) }
     },
     async getScan(ctx) {
       await restoreLastScan(ctx).catch(() => {})

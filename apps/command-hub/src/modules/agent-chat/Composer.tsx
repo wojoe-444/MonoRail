@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 import { formatDuration, formatTokens, formatUsd, turnCost } from './live'
 import type { ChatBlock, ChatMode, ChatView, ComposerInfo, LiveTurn, SessionSource } from './types'
+import { prefs } from '@/lib/prefs'
 
 const EFFORT_LABEL: Record<string, string> = {
   default: 'Default effort',
@@ -34,29 +35,29 @@ export function modelsFor(info: ComposerInfo | undefined, sdk: SessionSource) {
 
 export function useComposerPrefs(info: ComposerInfo | undefined) {
   const [models, setModels] = useState<Record<SessionSource, string>>(() => ({
-    claude: localStorage.getItem(MODEL_KEY.claude) ?? 'default',
-    pi: localStorage.getItem(MODEL_KEY.pi) ?? 'default',
+    claude: prefs.getItem(MODEL_KEY.claude) ?? 'default',
+    pi: prefs.getItem(MODEL_KEY.pi) ?? 'default',
   }))
-  const [effort, setEffortState] = useState(() => localStorage.getItem(EFFORT_KEY) ?? 'default')
-  const [newSdk, setNewSdkState] = useState<SessionSource>(() => (localStorage.getItem(SDK_KEY) === 'pi' ? 'pi' : 'claude'))
+  const [effort, setEffortState] = useState(() => prefs.getItem(EFFORT_KEY) ?? 'default')
+  const [newSdk, setNewSdkState] = useState<SessionSource>(() => (prefs.getItem(SDK_KEY) === 'pi' ? 'pi' : 'claude'))
   const [mode, setMode] = useState<ChatMode>('ask') // Ask is the default, every time
-  const [view, setViewState] = useState<ChatView>(() => (localStorage.getItem(VIEW_KEY) === 'detailed' ? 'detailed' : 'plain'))
+  const [view, setViewState] = useState<ChatView>(() => (prefs.getItem(VIEW_KEY) === 'detailed' ? 'detailed' : 'plain'))
   const validEffort = info?.efforts.includes(effort) ? effort : 'default'
   return {
     /** The SDK a new chat starts with (remembered). */
     newSdk,
     setNewSdk: (v: SessionSource) => {
-      localStorage.setItem(SDK_KEY, v)
+      prefs.setItem(SDK_KEY, v)
       setNewSdkState(v)
     },
     modelFor: (sdk: SessionSource) => (modelsFor(info, sdk).some((m) => m.id === models[sdk]) ? models[sdk] : 'default'),
     setModel: (sdk: SessionSource, v: string) => {
-      localStorage.setItem(MODEL_KEY[sdk], v)
+      prefs.setItem(MODEL_KEY[sdk], v)
       setModels((m) => ({ ...m, [sdk]: v }))
     },
     effort: validEffort,
     setEffort: (v: string) => {
-      localStorage.setItem(EFFORT_KEY, v)
+      prefs.setItem(EFFORT_KEY, v)
       setEffortState(v)
     },
     mode,
@@ -64,7 +65,7 @@ export function useComposerPrefs(info: ComposerInfo | undefined) {
     /** Plain (default) or Detailed; remembered. */
     view,
     setView: (v: ChatView) => {
-      localStorage.setItem(VIEW_KEY, v)
+      prefs.setItem(VIEW_KEY, v)
       setViewState(v)
     },
   }

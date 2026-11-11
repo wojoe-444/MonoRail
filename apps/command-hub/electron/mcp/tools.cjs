@@ -1,5 +1,6 @@
 // The MCP server's read-only tools. Each reads what MonoRail already keeps on
-// disk in its data folder (rootDir, e.g. %APPDATA%\MonoRail), or the local
+// disk in its data folder (rootDir: a data folder or a profile layout, see
+// electron/profiles; e.g. %APPDATA%\MonoRail), or the local
 // data MonoRail's own pages read, and never starts a slow build:
 //
 //   usage_summary            Claude Stats' summary file (written after each report build)
@@ -39,6 +40,7 @@ const { readJson } = require('../cache/files.cjs')
 const issues = require('../apps/github-plus/issues.cjs')
 const { resolveJiraDataDir } = require('../apps/jira-plus/data-dir.cjs')
 const flashcards = require('../modules/flashcards-store.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 
 const MAX_TEXT = 20_000
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -49,11 +51,11 @@ const minutes = (ms) => (typeof ms === 'number' ? Math.round(ms / 60000) : undef
 
 function folders(rootDir) {
   return {
-    claudeStats: path.join(rootDir, 'modules', 'claude-stats'),
-    agentChat: path.join(rootDir, 'modules', 'agent-chat'),
-    githubPlus: path.join(rootDir, 'apps', 'github-plus'),
-    jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
-    flashcards: path.join(rootDir, 'modules', 'flashcards'),
+    claudeStats: folderOf(rootDir, 'modules/claude-stats'),
+    agentChat: folderOf(rootDir, 'modules/agent-chat'),
+    githubPlus: folderOf(rootDir, 'apps/github-plus'),
+    jiraPlus: resolveJiraDataDir(folderOf(rootDir, 'apps/jira-plus')),
+    flashcards: folderOf(rootDir, 'modules/flashcards'),
   }
 }
 

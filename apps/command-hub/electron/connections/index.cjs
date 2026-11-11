@@ -306,12 +306,12 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
 // ---------- the app's instance ----------
 
 let instance
-/** The Connections service over %APPDATA%\MonoRail\modules\connections. Main process only. */
+/** The Connections service over the active profile's modules\connections (electron/profiles). Main process only. */
 function connections() {
   if (instance) return instance
-  const { app, safeStorage } = require('electron')
+  const { safeStorage } = require('electron')
   instance = createConnections({
-    dataDir: path.join(app.getPath('userData'), 'modules', 'connections'),
+    dataDir: require('../profiles/index.cjs').appLayout().folder('modules/connections'),
     cipher: {
       isAvailable: () => safeStorage.isEncryptionAvailable(),
       encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),

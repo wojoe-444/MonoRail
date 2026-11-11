@@ -15,6 +15,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const { resolveUserDataDir } = require('../userData.cjs')
+const { activeLayout } = require('../profiles/index.cjs')
 const { createMcpServer } = require('./protocol.cjs')
 const { serveStdio } = require('./stdio.cjs')
 const access = require('./access.cjs')
@@ -42,14 +43,20 @@ function version() {
   }
 }
 
-/** The server over `rootDir`. extensions: false leaves extension tools out (tests). */
-function createServer({ rootDir, log = () => {}, extensions = true }) {
-  const ext = extensions ? extensionTools({ rootDir, log }) : { tools: [], stop: async () => {} }
+/**
+ * The server over the data folder `rootDir` (the machine folder). Tools read
+ * the active profile's data (electron/profiles); extensions are machine-wide.
+ * extensions: false leaves extension tools out (tests).
+ */
+function createServer({ rootDir: machineDir, log = () => {}, extensions = true }) {
+  const layout = activeLayout(machineDir)
+  const rootDir = layout.profileDir
+  const ext = extensions ? extensionTools({ rootDir: machineDir, log }) : { tools: [], stop: async () => {} }
   const server = createMcpServer({
     name: 'monorail',
     version: version(),
     instructions: INSTRUCTIONS,
-    tools: [...readTools({ rootDir }), ...coordinatorReadTools(), ...writeTools({ rootDir }), ...ext.tools],
+    tools: [...readTools({ rootDir: layout }), ...coordinatorReadTools(), ...writeTools({ rootDir: layout }), ...ext.tools],
     // The agent shows up on the Agent access page with nothing allowed.
     onInitialize: async (clientInfo) => {
       try {

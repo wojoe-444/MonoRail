@@ -2,11 +2,18 @@
 //
 // A backend is { id, methods: { [name]: async (ctx, args) => result } }.
 // Module backends live in electron/modules, app backends in electron/apps.
-// ctx gives each one its own private data folder under AppData:
-//   ctx.dataDir  -> %APPDATA%\MonoRail\modules\<id>   (modules)
-//                   %APPDATA%\MonoRail\apps\<id>      (apps)
-//                   created on demand
-//   ctx.rootDir  -> %APPDATA%\MonoRail (only Home reads across folders, for summaries)
+// ctx gives each one its own private data folder under AppData, in the active
+// profile's folder or the machine folder by the folder's scope
+// (electron/profiles, docs/profiles.md):
+//   ctx.dataDir    -> <root>\modules\<id>   (modules)
+//                     <root>\apps\<id>      (apps)
+//                     created on demand. For the default profile <root> is
+//                     %APPDATA%\MonoRail, as it always was.
+//   ctx.profile    -> { id, name } of the active profile
+//   ctx.layout     -> resolves any folder by scope: layout.folder('modules/x')
+//   ctx.profileDir -> the active profile's data root
+//   ctx.machineDir -> %APPDATA%\MonoRail (machine-wide data)
+//   ctx.rootDir    -> same as profileDir (kept for older backends)
 //   ctx.log(...) -> console logging prefixed with the backend id
 // Every file a backend keeps in its folder, and every cache, is declared in
 // electron/cache/declared.cjs (see docs/caching.md).
@@ -16,7 +23,6 @@
 // Results must be structured-cloneable (plain JSON is safest).
 
 const fs = require('node:fs')
-const path = require('node:path')
 const { app, ipcMain } = require('electron')
 
 const moduleBackends = [
@@ -28,12 +34,14 @@ const moduleBackends = [
   require('./flashcards.cjs'),
   require('./home.cjs'),
   require('./mcp.cjs'),
+  require('./profiles.cjs'),
   require('./settings.cjs'),
   require('./storage.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 const { auditAll } = require('../cache/index.cjs')
+const { profiles } = require('../profiles/index.cjs')
 
 /**
  * Start every backend and return invoke(moduleId, method, args), the router the
@@ -43,9 +51,9 @@ const { auditAll } = require('../cache/index.cjs')
 function startModuleBackends() {
   const extensionsBackend = setupExtensions()
   const byId = new Map([
-    [extensionsBackend.id, { backend: extensionsBackend, dataDir: ['modules', extensionsBackend.id] }],
-    ...moduleBackends.map((b) => [b.id, { backend: b, dataDir: ['modules', b.id] }]),
-    ...appBackends.map((b) => [`app:${b.id}`, { backend: b, dataDir: ['apps', b.id] }]),
+    [extensionsBackend.id, { backend: extensionsBackend, folder: `modules/${extensionsBackend.id}` }],
+    ...moduleBackends.map((b) => [b.id, { backend: b, folder: `modules/${b.id}` }]),
+    ...appBackends.map((b) => [`app:${b.id}`, { backend: b, folder: `apps/${b.id}` }]),
   ])
 
   // Backends may export start(ctx) for work that runs without the page open
@@ -60,7 +68,7 @@ function startModuleBackends() {
   }
 
   // A1: report files nobody declared (a warning, never a delete).
-  void auditAll(app.getPath('userData')).catch(() => {})
+  void auditAll(profiles().layout()).catch(() => {})
 
   return async function invoke(moduleId, method, args) {
     if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
@@ -82,11 +90,18 @@ function registerModuleBackends() {
 }
 
 function makeCtx(key, entry) {
-  const dataDir = path.join(app.getPath('userData'), ...entry.dataDir)
+  const store = profiles()
+  const layout = store.layout()
+  const { id, name } = store.active()
+  const dataDir = layout.folder(entry.folder)
   fs.mkdirSync(dataDir, { recursive: true })
   return {
     dataDir,
-    rootDir: app.getPath('userData'),
+    profile: { id, name },
+    layout,
+    profileDir: layout.profileDir,
+    machineDir: layout.machineDir,
+    rootDir: layout.profileDir,
     isPackaged: app.isPackaged,
     log: (...a) => console.log(`[${key}]`, ...a),
   }

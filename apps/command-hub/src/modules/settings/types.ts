@@ -53,3 +53,22 @@ export interface BackupStatus {
   settings: GlobalBackupSettings
   pages: BackupPageStatus[]
 }
+
+export interface ProfileInfo {
+  id: string
+  name: string
+  createdAt: string | null
+  active: boolean
+  isDefault: boolean
+  /** The profile's data root. The default profile's is the data folder itself. */
+  dataDir: string
+}
+
+export interface ProfilesView {
+  activeId: string
+  /** profiles.json exists but cannot be read; MonoRail will not overwrite it. */
+  damaged: boolean
+  profiles: ProfileInfo[]
+  machineDir: string
+  scopes: { profile: string[]; machine: string[] }
+}

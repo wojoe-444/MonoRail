@@ -56,6 +56,25 @@ anything copied from the user's machine.
   If a new kind of private file appears, add a rule for it.
 - Before committing, check `git status` and the diff for anything personal.
 
+## Profiles: whose data a backend reads
+
+A **profile** is one person's settings and data (docs: `docs/profiles.md`,
+code: `electron/profiles/index.cjs`). No passwords, no sign-in, not a security
+boundary. Today there is one, the **default profile**, and its folder IS the
+data folder above: existing data is read in place and nothing is moved,
+renamed or copied to make it so. Every folder has a scope in `SCOPES`
+(`profile`: appearance, connections, backups, Flashcards, Jira+, GitHub+,
+Email, Chat state, Agent access; `machine`: updates, installed extensions,
+Claude Stats' report of this computer's logs, Storage, `profiles.json`); a
+test fails when a backend or declared data folder has none. Later profiles
+live in `<data folder>\profiles\<id>\`. Backends reach other folders with
+`ctx.layout.folder('<folder>')` (main-process singletons: `appLayout()`),
+never `app.getPath('userData')`; pages keep per-person preferences with
+`prefs` (`src/lib/prefs.ts`) instead of `localStorage`, which keeps the old
+keys for the default profile. `profiles.json` is written only when the user
+changes a profile (Settings > Profile), never over a damaged file. Copying data
+into a new profile must be user-started and per item, never automatic.
+
 ## Commands
 
 Run from `apps/command-hub/`:
@@ -115,7 +134,9 @@ To add a module:
 3. If it needs local data, write `electron/modules/<id>.cjs` exporting
    `{ id, methods: { name: async (ctx, args) => result } }` and add it to
    `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
-   (`%APPDATA%\MonoRail\modules\<id>`); keep caches and settings there.
+   (`%APPDATA%\MonoRail\modules\<id>` for the default profile); keep caches
+   and settings there. Give the folder a scope in `SCOPES`
+   (`electron/profiles/index.cjs`).
 4. In the page, call it with `useModuleQuery(id, method)` or
    `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
    browser dev server there is no backend (`isDesktop()` is false), so ship

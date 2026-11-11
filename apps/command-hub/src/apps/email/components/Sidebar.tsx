@@ -7,6 +7,7 @@ import { useMail } from '../MailContext'
 import type { Folder, FolderRole } from '../types'
 import { accountAvatar, accountLabel } from '../util'
 import { Avatar } from './Avatar'
+import { prefs } from '@/lib/prefs'
 
 const ROLE_ICON: Record<FolderRole, typeof Inbox> = {
   inbox: Inbox,
@@ -124,8 +125,8 @@ function FolderLink({ f, depth = 0, toggle, open }: { f: Folder; depth?: number;
 function FolderTree({ folders, accountId }: { folders: Folder[]; accountId: string }) {
   const { folderId = 'INBOX' } = useParams()
   const storeKey = `monorail.email.openFolders.${accountId}`
-  const [open, setOpen] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem(storeKey) ?? '["INBOX"]') as string[]))
-  useEffect(() => setOpen(new Set(JSON.parse(localStorage.getItem(storeKey) ?? '["INBOX"]') as string[])), [storeKey])
+  const [open, setOpen] = useState<Set<string>>(() => new Set(JSON.parse(prefs.getItem(storeKey) ?? '["INBOX"]') as string[]))
+  useEffect(() => setOpen(new Set(JSON.parse(prefs.getItem(storeKey) ?? '["INBOX"]') as string[])), [storeKey])
 
   const { roots, children, byId } = useMemo(() => {
     const byId = new Map(folders.map((f) => [f.id, f]))
@@ -156,7 +157,7 @@ function FolderTree({ folders, accountId }: { folders: Folder[]; accountId: stri
       const n = new Set(s)
       if (n.has(id)) n.delete(id)
       else n.add(id)
-      localStorage.setItem(storeKey, JSON.stringify([...n]))
+      prefs.setItem(storeKey, JSON.stringify([...n]))
       return n
     })
 

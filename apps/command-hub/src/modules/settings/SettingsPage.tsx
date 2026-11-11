@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { BackupsCard } from './BackupsCard'
+import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
 
 const MODULE_ID = 'settings'
@@ -67,7 +68,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Configure" title="Settings" description="Appearance, app version, updates, backups and local data." />
+      <PageHeader eyebrow="Configure" title="Settings" description="Your profile, appearance, app version, updates, backups and local data." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -101,6 +102,8 @@ export default function SettingsPage() {
             </dl>
           </CardContent>
         </Card>
+
+        <ProfileCard className="lg:col-span-3" />
 
         <BackupsCard className="lg:col-span-3" />
 
