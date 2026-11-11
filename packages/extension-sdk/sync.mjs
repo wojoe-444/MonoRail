@@ -15,6 +15,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repo = path.resolve(here, '../..')
 const check = process.argv.includes('--check')
 
+// A Windows checkout may turn LF into CRLF: read everything as LF, so the
+// generated files and the --check comparison don't depend on git settings.
+const read = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
+
 /** Files every extension carries in its monorail-sdk/ folder. */
 export const SDK_FILES = ['client.js', 'client.d.ts', 'backend.d.ts', 'testing.mjs', 'testing.d.ts', 'theme.css', 'pack.mjs', 'README.md']
 
@@ -39,30 +43,30 @@ export function buildTheme(indexCss) {
 }
 
 const targets = new Map()
-targets.set(path.join(here, 'theme.css'), buildTheme(fs.readFileSync(path.join(repo, 'apps/command-hub/src/index.css'), 'utf8')))
+targets.set(path.join(here, 'theme.css'), buildTheme(read(path.join(repo, 'apps/command-hub/src/index.css'))))
 for (const f of SDK_FILES) {
-  const content = f === 'theme.css' ? targets.get(path.join(here, 'theme.css')) : fs.readFileSync(path.join(here, f), 'utf8')
+  const content = f === 'theme.css' ? targets.get(path.join(here, 'theme.css')) : read(path.join(here, f))
   targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk', f), content)
 }
 
 // One version number for the SDK: the extension API version MonoRail implements.
-const apiVersion = /const API_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(repo, 'apps/command-hub/electron/extensions/manifest.cjs'), 'utf8'))?.[1]
+const apiVersion = /const API_VERSION = '([^']+)'/.exec(read(path.join(repo, 'apps/command-hub/electron/extensions/manifest.cjs')))?.[1]
 if (!apiVersion) throw new Error('API_VERSION not found in manifest.cjs; update sync.mjs')
 const clientFile = path.join(here, 'client.js')
-targets.set(clientFile, fs.readFileSync(clientFile, 'utf8').replace(/export const SDK_VERSION = '[^']*'/, `export const SDK_VERSION = '${apiVersion}'`))
+targets.set(clientFile, read(clientFile).replace(/export const SDK_VERSION = '[^']*'/, `export const SDK_VERSION = '${apiVersion}'`))
 targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk/client.js'), targets.get(clientFile))
 const pkgFile = path.join(here, 'package.json')
-const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
+const pkg = JSON.parse(read(pkgFile))
 pkg.version = apiVersion
 pkg.files = SDK_FILES
 targets.set(pkgFile, JSON.stringify(pkg, null, 2) + '\n')
 const readme = path.join(here, 'README.md')
-targets.set(readme, fs.readFileSync(readme, 'utf8').replace(/^# MonoRail extension SDK \(API [^)]*\)/m, `# MonoRail extension SDK (API ${apiVersion.split('.').slice(0, 2).join('.')})`))
+targets.set(readme, read(readme).replace(/^# MonoRail extension SDK \(API [^)]*\)/m, `# MonoRail extension SDK (API ${apiVersion.split('.').slice(0, 2).join('.')})`))
 targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk/README.md'), targets.get(readme))
 
 let stale = 0
 for (const [file, content] of targets) {
-  const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined
+  const current = fs.existsSync(file) ? read(file) : undefined
   if (current === content) continue
   stale++
   if (check) console.error(`out of date: ${path.relative(repo, file)}`)
