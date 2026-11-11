@@ -4,11 +4,25 @@
   "directories": {
     "output": "release"
   },
-  "files": ["dist/**/*", "electron/**/*", "package.json"],
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
   "win": {
-    "target": [{ "target": "portable", "arch": ["x64"] }]
+    "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
   },
   "portable": {
     "artifactName": "CommandHub-${version}-portable.exe"
-  }
+  },
+  "asarUnpack": [
+    "node_modules/@ccusage/**"
+  ]
 }
