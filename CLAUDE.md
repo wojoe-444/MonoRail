@@ -839,7 +839,9 @@ Colors are OKLCH CSS variables mapped to Tailwind via `@theme inline` in
 `src/index.css`. Use tokens, never raw hex values in components.
 
 - **Palettes.** `src/lib/palettes.ts` holds the color schemes ported from
-  the Bot Dashboard (Set 1, Set 2, Neutrals). Each is a few numbers (primary
+  the Bot Dashboard plus the Nature schemes, shown in collapsible sets
+  (`PALETTE_GROUPS`: Paper, Nature, Ocean & Night, Warm, Neutrals; collapsed
+  by default below 1280px wide). Each is a few numbers (primary
   hue/chroma, neutral hue/chroma, drawer style dark/light/bold) that
   `tokens()` expands into every token for light and dark. `lib/theme.ts`
   writes them on `<html>`; the choice is kept in `commandHub.palette`, the
