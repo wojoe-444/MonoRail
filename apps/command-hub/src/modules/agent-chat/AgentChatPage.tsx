@@ -10,6 +10,8 @@ import {
   FlaskConical,
   FolderGit2,
   GitBranch,
+  GitCompare,
+  Globe,
   Loader2,
   Mail,
   MailOpen,
@@ -37,6 +39,7 @@ import { ChatMarkdown } from './ChatMarkdown'
 import { takeChatHandoff } from './handoff'
 import { Composer, DeniedRow, NewChatEmpty, TurnFooter, useComposerPrefs } from './Composer'
 import { chatTotalView, costCalls, historyReplies, liveReplyCost } from './cost'
+import { SidePanel, type PanelKind } from './Panels'
 import { ReplyDetails, TotalChip } from './ReplyDetails'
 import { contextUse, formatUsd, turnToMessages } from './live'
 import { FoldersDialog } from './FoldersDialog'
@@ -91,6 +94,7 @@ export default function AgentChatPage() {
   const [handoff] = useState(takeChatHandoff)
   const [selectedId, setSelectedId] = useState<string | undefined>(() => (handoff && 'open' in handoff ? handoff.open : undefined))
   const [foldersOpen, setFoldersOpen] = useState(false)
+  const [panel, setPanel] = useState<PanelKind>()
   const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
   const composerInfo = desktop ? composerQuery.data : sampleComposer
   const prefs = useComposerPrefs(composerInfo)
@@ -323,6 +327,22 @@ export default function AgentChatPage() {
               <Settings2 /> Folders
             </Button>
             <Button
+              variant={panel === 'changes' ? 'secondary' : 'outline'}
+              size="sm"
+              aria-pressed={panel === 'changes'}
+              onClick={() => setPanel((p) => (p === 'changes' ? undefined : 'changes'))}
+            >
+              <GitCompare /> Changes
+            </Button>
+            <Button
+              variant={panel === 'browser' ? 'secondary' : 'outline'}
+              size="sm"
+              aria-pressed={panel === 'browser'}
+              onClick={() => setPanel((p) => (p === 'browser' ? undefined : 'browser'))}
+            >
+              <Globe /> Browser
+            </Button>
+            <Button
               size="sm"
               onClick={() => {
                 setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
@@ -429,31 +449,40 @@ export default function AgentChatPage() {
         </aside>
 
         {/* Conversation */}
-        <section className="flex min-w-0 flex-1 flex-col">
-          {draft ? (
-            <Conversation
-              key={draft.key}
-              draftRepoName={composerInfo?.repos.find((r) => r.path === draft.repo)?.name}
-              sdk={chatSdk}
-              turns={chatTurns}
-              composer={composer}
-              view={prefs.view}
-            />
-          ) : selected ? (
-            <Conversation
-              key={viewKeys[selected.id] ?? selected.id}
-              session={selected}
-              skipHistory={!!viewKeys[selected.id]}
-              turns={chatTurns}
-              composer={composer}
-              view={prefs.view}
-              onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
-            />
-          ) : (
-            <EmptyState
-              icon={MessagesSquare}
-              title={desktop && list.loading ? 'Reading session logs…' : 'No session selected'}
-              text="Pick a session on the left to read it here."
+        <section className="flex min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {draft ? (
+              <Conversation
+                key={draft.key}
+                draftRepoName={composerInfo?.repos.find((r) => r.path === draft.repo)?.name}
+                sdk={chatSdk}
+                turns={chatTurns}
+                composer={composer}
+                view={prefs.view}
+              />
+            ) : selected ? (
+              <Conversation
+                key={viewKeys[selected.id] ?? selected.id}
+                session={selected}
+                skipHistory={!!viewKeys[selected.id]}
+                turns={chatTurns}
+                composer={composer}
+                view={prefs.view}
+                onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
+              />
+            ) : (
+              <EmptyState
+                icon={MessagesSquare}
+                title={desktop && list.loading ? 'Reading session logs…' : 'No session selected'}
+                text="Pick a session on the left to read it here."
+              />
+            )}
+          </div>
+          {panel && (
+            <SidePanel
+              kind={panel}
+              target={draft ? { repo: draft.repo } : selected && !selected.id.startsWith('draft:') ? { chatId: selected.id } : undefined}
+              onClose={() => setPanel(undefined)}
             />
           )}
         </section>
@@ -811,9 +840,9 @@ function Conversation({
 
 function ConversationHeader({ session, totals }: { session: SessionSummary; totals: ReturnType<typeof chatTotalView> }) {
   return (
-    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b px-6 py-3">
+    <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b px-6 py-3">
       <SourceAvatar source={session.source} className="size-9" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-56 flex-1">
         <div className="truncate font-semibold">{session.title}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1" title={session.cwd}>

@@ -47,7 +47,7 @@ import { invokeModule, isDesktop } from '@/modules/client'
 import { SettingsDialog } from './SettingsDialog'
 
 const BACKEND = 'extensions'
-const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions.md'
+const DOCS_URL = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions/README.md'
 
 /** Shown in the browser dev server, where there is no backend. Fictional. */
 const sampleList: ExtensionList = {

@@ -142,7 +142,11 @@ fails if a model in the local logs has no row. The page turns the report into
 priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
 day and model, pi's logged per-token-type cost is used as logged, anything
 else is priced from the table, and any split that is not logged is labelled
-an estimate.
+an estimate. Effort comes from Claude Code's per-response `effort`
+field and pi's `thinking_level_change` entries (followed along the branch);
+thinking tokens from Claude Code's `output_tokens_details.thinking_tokens`
+and Gemini's `thoughts`. pi logs no thinking count, so its count is estimated
+from the thinking text (~4 characters a token) and shown with "~".
 
 **Caches** go through the shared primitive in `electron/cache/` (rules and
 examples: `docs/caching.md`). Every cache, and every other file a backend keeps
@@ -218,6 +222,12 @@ archived, and started-here. Claude chats whose log says they were started
 headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
 Scheduled and archived chats are hidden behind toggle buttons; the open chat
 always stays listed. Right-click a chat to mark it read/unread or archive it.
+
+**Side panels** (page header buttons): **Changes** runs `git status` and
+`git diff HEAD` for the chat's folder (`agent-chat-changes.cjs`; read-only,
+folder from the main process, external diff/textconv/fsmonitor off, diff cut
+at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
+"Open in new tab" going to the system browser.
 
 The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
 Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
@@ -469,7 +479,11 @@ Tailwind page and app, notes backend, release workflow); new extension repos
 start with `npx degit wojoe-444/MonoRail/extensions/hello-monorail`. After
 changing the SDK or the design tokens run `node packages/extension-sdk/sync.mjs`;
 `npm test` fails if the copies are stale, and CI builds and packs the sample.
-The plan and author guide is `docs/extensions.md`.
+The author docs are `docs/extensions/` (README index, concepts, tutorial,
+manifest, page-api, backend-api, permissions, lifecycle, testing,
+troubleshooting; plans only in roadmap.md). Reference pages describe what the
+code does today: update them in the same PR as any change to the manifest,
+`ctx`, the bridge, permissions or error codes.
 
 ## Design guidance
 

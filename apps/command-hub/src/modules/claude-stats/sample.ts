@@ -63,20 +63,25 @@ export function sampleReport(today = isoDate(new Date()), days = 120): UsageRepo
         let turn = 0
         const start = Date.parse(`${date}T09:00:00`) + Math.floor(rand() * 8) * 3_600_000
         const phaseFacts = new Map<string, RawPhase['facts'][number]>()
+        // Claude Code logs an effort level, pi a thinking level; Gemini CLI neither.
+        const effort = d.source === 'gemini-cli' ? undefined : (['medium', 'high', 'high', 'xhigh'] as const)[Math.floor(rand() * 4)]
         const add = (model: string, role: 'driver' | 'subagent', p: number, output: number, ts: number) => {
           const step = contextStep(p)
           const cacheRead = Math.round(p * 0.9)
           const cw = Math.round(p * 0.06)
           const input = Math.max(Math.round(p - cacheRead - cw), 0)
-          const key = `${date}|${sessionId}|${model}|${role}|${step}`
+          const key = `${date}|${sessionId}|${model}|${role}|${step}|${effort}`
           let row = reqRows.get(key)
           if (!row) {
-            row = { date, source: d.source, project, sessionId, model, role, step, n: 0, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, logged: null }
+            row = { date, source: d.source, project, sessionId, model, role, step, effort, n: 0, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, thinking: 0, thinkingEst: 0, logged: null }
             reqRows.set(key, row)
           }
           row.n++
           row.input += input
           row.output += output
+          const thinking = Math.round(output * (effort === 'xhigh' ? 0.5 : effort === 'high' ? 0.35 : 0.2))
+          row.thinking! += thinking
+          if (d.source === 'pi') row.thinkingEst! += thinking
           row.cw5m += cw
           row.cacheRead += cacheRead
           if (d.source === 'pi') {
@@ -125,7 +130,7 @@ export function sampleReport(today = isoDate(new Date()), days = 120): UsageRepo
           sessionId,
           project,
           driver: d.model,
-          effort: 'high',
+          effort,
           start: new Date(start).toISOString(),
           end: new Date(end).toISOString(),
           facts: [...phaseFacts.values()],

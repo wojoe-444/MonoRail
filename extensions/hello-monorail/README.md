@@ -22,6 +22,7 @@ Then change `id`, `name`, `publisher` and `repository` in `monorail.json`.
 | `monorail.json` | The manifest: what the extension adds and what it may access |
 | `src/` | The UI (Vite + React + Tailwind). Builds to `ui/`, which MonoRail serves |
 | `backend/index.cjs` | The backend, run by MonoRail in its own sandboxed process |
+| `test/` | Backend tests (`npm test`) |
 | `monorail-sdk/` | Page client, backend types, MonoRail's design tokens, the packager |
 | `.github/workflows/release.yml` | Publishes a release when you push a `v*` tag |
 
@@ -45,5 +46,12 @@ git push --follow-tags     # the workflow builds, packs and publishes the releas
 `npm run pack` writes `release/<id>-<version>.monorail.zip` locally, which can
 also be installed with **From a .zip**.
 
-See the [extension guide](https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions.md)
-for the full manifest, permissions and API.
+## Test
+
+`npm test` runs `test/*.test.mjs` with `node --test`. `monorail-sdk/testing.mjs`
+loads the backend without MonoRail (temporary data folder, in-memory secrets
+and settings). Permissions are not enforced there, so check them in MonoRail.
+
+See the [extension docs](https://github.com/wojoe-444/MonoRail/blob/main/docs/extensions/README.md):
+tutorial, manifest reference, page and backend API, permissions, lifecycle and
+troubleshooting.
