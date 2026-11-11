@@ -1,0 +1,35 @@
+{
+  "manifestVersion": 1,
+  "id": "hello-monorail",
+  "name": "Hello MonoRail",
+  "version": "1.0.0",
+  "description": "The starter extension: a page, a full-screen app and a small backend that keeps notes.",
+  "publisher": "MonoRail",
+  "repository": "wojoe-444/MonoRail",
+  "engines": { "monorail": "^1.0.0" },
+  "icon": "icon.svg",
+  "ui": "ui",
+  "contributes": {
+    "modules": [
+      {
+        "id": "hello",
+        "title": "Hello",
+        "description": "Notes kept by an extension backend, live events and folder access.",
+        "entry": "index.html",
+        "nav": { "section": "Extensions", "order": 100 }
+      }
+    ],
+    "apps": [
+      {
+        "id": "board",
+        "title": "Notes Board",
+        "description": "The same notes, as a full-screen app.",
+        "entry": "index.html#board"
+      }
+    ]
+  },
+  "backend": { "main": "backend/index.cjs", "activation": "onDemand" },
+  "permissions": {
+    "filesystem": { "pickFolders": true }
+  }
+}

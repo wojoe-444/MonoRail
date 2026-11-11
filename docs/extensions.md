@@ -13,8 +13,8 @@ Extensions.
 
 | Step | What | State |
 | --- | --- | --- |
-| 1 | Runtime: manifest + versioned API, install/update/remove, sandboxed UI and backend, Settings > Extensions | [PR #13](https://github.com/wojoe-444/MonoRail/pull/13) |
-| 2 | SDK (`packages/extension-sdk`), starter/sample extension (`extensions/hello-monorail`), packaging script, release workflow for extension repos, CI checks | Next PR |
+| 1 | Runtime: manifest + versioned API, install/update/remove, sandboxed UI and backend, Settings > Extensions | Done ([PR #13](https://github.com/wojoe-444/MonoRail/pull/13)) |
+| 2 | SDK (`packages/extension-sdk`), starter/sample extension (`extensions/hello-monorail`), packaging script, release workflow for extension repos, CI checks | [PR #17](https://github.com/wojoe-444/MonoRail/pull/17) |
 | 3 | Minecraft bot moved into its own repo as an extension | After step 2 |
 | Later | Ideas below, as real extensions need them | Not started |
 
@@ -172,7 +172,7 @@ Where things live (always under MonoRail's AppData folder, never in a repo):
 source, granted permissions and folders), `extension-data/<id>` (the
 extension's own data).
 
-## Building an extension (step 2)
+## Building an extension
 
 1. Start from the template:
    `npx degit wojoe-444/MonoRail/extensions/hello-monorail my-extension`
