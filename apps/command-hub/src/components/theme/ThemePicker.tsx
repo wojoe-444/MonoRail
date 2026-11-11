@@ -1,16 +1,7 @@
-import { Check, ChevronDown, Moon, Palette as PaletteIcon, Sun } from 'lucide-react'
+import { Check } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { findPalette, PALETTE_GROUPS, PALETTES, tokens, type Palette } from '@/lib/palettes'
+import { PALETTE_GROUPS, PALETTES, tokens, type Palette } from '@/lib/palettes'
 import { usePalette, useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -27,58 +18,6 @@ export function Swatches({ p, dark, className }: { p: Palette; dark: boolean; cl
   )
 }
 
-/** Top-bar color scheme picker: the current scheme's name, a menu of every scheme with its swatches. */
-export function ThemeSelect({ className }: { className?: string }) {
-  const [palette, setPalette] = usePalette()
-  const [theme] = useTheme()
-  const dark = theme === 'dark'
-  const current = findPalette(palette)
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={cn('w-48 justify-start font-normal', className)} aria-label="Color scheme">
-          <PaletteIcon className="text-muted-foreground" />
-          <span className="flex-1 truncate text-left">{current.name}</span>
-          <ChevronDown className="text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-[min(70vh,560px)] min-w-64 overflow-y-auto">
-        {PALETTE_GROUPS.map((g, gi) => (
-          <div key={g.label} role="group" aria-label={g.label}>
-            {gi > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuLabel className="text-[11px] tracking-wider">{g.label}</DropdownMenuLabel>
-            {PALETTES.slice(g.from, g.to).map((p) => (
-              <DropdownMenuItem key={p.id} onSelect={() => setPalette(p.id)} className="gap-3">
-                <Swatches p={p} dark={dark} className="w-16 shrink-0" />
-                <span className="flex-1">{p.name}</span>
-                {p.id === palette && <Check className="text-primary" />}
-              </DropdownMenuItem>
-            ))}
-          </div>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-/** Light / dark toggle for the top bar. */
-export function ModeToggle({ className }: { className?: string }) {
-  const [theme, toggle] = useTheme()
-  const dark = theme === 'dark'
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      onClick={toggle}
-      className={className}
-      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={dark ? 'Light mode' : 'Dark mode'}
-    >
-      {dark ? <Sun /> : <Moon />}
-    </Button>
-  )
-}
-
 /** Settings card: light / dark mode and every color scheme as a card with swatches. */
 export function AppearanceCard({ className }: { className?: string }) {
   const [palette, setPalette] = usePalette()
@@ -89,7 +28,7 @@ export function AppearanceCard({ className }: { className?: string }) {
       <CardHeader>
         <CardTitle>Appearance</CardTitle>
         <CardDescription>
-          Pick a color scheme. It applies instantly and is remembered. The same picker lives in the top bar.
+          Pick light or dark mode and a color scheme. They apply instantly and are remembered.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">

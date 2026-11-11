@@ -99,7 +99,7 @@ major/minor in `package.json` by hand; never publish from a local machine.
   palette), fonts, chart series.
 - `lib/palettes.ts` the color schemes; `lib/theme.ts` applies the chosen
   palette and light/dark mode; `components/theme/ThemePicker.tsx` holds the
-  top-bar picker, the mode toggle and the Settings "Appearance" card.
+  Settings "Appearance" card, the only place to pick them.
 
 ## Modules: the main building block
 
@@ -122,8 +122,10 @@ To add a module:
    fictional sample data for that case.
 
 The renderer stays sandboxed: `electron/preload.cjs` exposes only
-`window.commandHub.invoke(moduleId, method, args)` and `on(channel, cb)` for
-the two extension push channels.
+`window.commandHub.invoke(moduleId, method, args)`, `on(channel, cb)` for
+the two extension push channels and `window:fullscreen`, and
+`toggleFullScreen()` / `isFullScreen()` (`electron/window-fullscreen.cjs`:
+F11 or the top-bar button toggles the window's full screen mode).
 
 `claude-stats` is the reference module: its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
@@ -733,9 +735,9 @@ numbers in JetBrains Mono Variable (`font-mono`). Use the primitives in
   "Agent hub") is the same height as the top bar and has a bottom border;
   the drawer footer shows the version and a desktop / browser badge.
 - **Top bar.** Drawer toggle, a divider, a `Section > Page` breadcrumb, and
-  on the right the color scheme picker and the light/dark toggle. Nothing
-  else lives there unless it is page-wide status (the Bot Dashboard puts
-  live pills there).
+  on the right the full screen toggle (F11). Color scheme and light/dark mode
+  are only in Settings > Appearance. Nothing else lives there unless it is
+  page-wide status (the Bot Dashboard puts live pills there).
 - **Navigation.** Items grouped into sections with small uppercase overline
   labels; 40px rows on soft pills (`bg-sidebar-accent`); the active item is
   filled with `bg-sidebar-primary` and a soft colored shadow. Count badges

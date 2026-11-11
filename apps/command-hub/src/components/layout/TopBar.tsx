@@ -1,7 +1,7 @@
-import { ChevronRight, PanelLeft } from 'lucide-react'
+import { ChevronRight, Maximize, Minimize, PanelLeft } from 'lucide-react'
 
-import { ModeToggle, ThemeSelect } from '@/components/theme/ThemePicker'
 import { Button } from '@/components/ui/button'
+import { useFullScreen } from '@/lib/fullscreen'
 
 interface TopBarProps {
   /** Nav section of the current page, e.g. "Workspace". Home has none. */
@@ -16,10 +16,12 @@ interface TopBarProps {
 
 /**
  * 64px app bar, laid out like the Bot Dashboard's: drawer toggle, a
- * section > page breadcrumb, then the color scheme picker and the
- * light / dark toggle on the right.
+ * section > page breadcrumb, and the full screen toggle on the right. The
+ * color scheme and light / dark mode live in Settings > Appearance only.
  */
 export function TopBar({ section, parent, onNavigate, title, collapsed, onToggleCollapsed }: TopBarProps) {
+  const { fullScreen, toggle } = useFullScreen()
+  const fsLabel = fullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)'
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/85 px-6 backdrop-blur">
       <Button
@@ -52,10 +54,9 @@ export function TopBar({ section, parent, onNavigate, title, collapsed, onToggle
           {title}
         </span>
       </nav>
-      <div className="flex items-center gap-2">
-        <ThemeSelect className="hidden sm:flex" />
-        <ModeToggle />
-      </div>
+      <Button variant="ghost" size="icon" className="-mr-2 size-8" onClick={toggle} aria-label={fsLabel} title={fsLabel}>
+        {fullScreen ? <Minimize /> : <Maximize />}
+      </Button>
     </header>
   )
 }
