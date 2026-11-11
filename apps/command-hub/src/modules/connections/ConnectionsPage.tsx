@@ -5,6 +5,7 @@ import {
   Cloud,
   ExternalLink,
   GitBranch,
+  Globe,
   KeyRound,
   Loader2,
   LogIn,
@@ -40,7 +41,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch } as const
+const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },
@@ -169,9 +170,59 @@ export default function ConnectionsPage() {
   }
 
   const added = useMemo(() => new Map((list?.connections ?? []).map((c) => [c.kind, c])), [list])
-  const yours = (list?.connectors ?? []).filter((c) => added.has(c.kind))
-  const available = (list?.connectors ?? []).filter((c) => !added.has(c.kind))
-  const needsAttention = yours.filter((c) => statuses[c.kind] && statuses[c.kind].state !== 'ok').length
+  const topLevel = (list?.connectors ?? []).filter((c) => !c.parent)
+  const yours = topLevel.filter((c) => added.has(c.kind))
+  const available = topLevel.filter((c) => !added.has(c.kind))
+  const addedSubs = (list?.connectors ?? []).filter((c) => c.parent && added.has(c.kind))
+  const needsAttention = [...yours, ...addedSubs].filter((c) => statuses[c.kind] && statuses[c.kind].state !== 'ok').length
+
+  /** A connector's subconnectors, drawn inside its card. */
+  function subconnectors(parent: Connector) {
+    const subs = (list?.connectors ?? []).filter((c) => c.parent === parent.kind)
+    if (!subs.length) return undefined
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Add-ons</div>
+        {subs.map((c) => renderCard(c, true))}
+      </div>
+    )
+  }
+
+  function renderCard(c: Connector, nested = false) {
+    const connection = added.get(c.kind)
+    if (!connection) {
+      return (
+        <AvailableCard
+          key={c.kind}
+          connector={c}
+          detected={statuses[c.kind]}
+          busy={!!checking[c.kind]}
+          nested={nested}
+          onAdd={() => (c.fields.length ? setEditing(c) : void addWithoutFields(c.kind))}
+        >
+          {!nested && subconnectors(c)}
+        </AvailableCard>
+      )
+    }
+    return (
+      <ConnectionCard
+        key={c.kind}
+        connector={c}
+        connection={connection}
+        status={statuses[c.kind]}
+        checking={!!checking[c.kind]}
+        job={jobs[c.kind]}
+        nested={nested}
+        onCheck={() => void check(c.kind, true)}
+        onAction={(a) => void runAction(c.kind, a)}
+        onCancel={() => void cancelJob(c.kind)}
+        onEdit={() => setEditing(c)}
+        onRemove={() => setRemoving(c)}
+      >
+        {!nested && subconnectors(c)}
+      </ConnectionCard>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -205,21 +256,7 @@ export default function ConnectionsPage() {
             note={needsAttention ? `${needsAttention} need${needsAttention === 1 ? 's' : ''} attention` : undefined}
           />
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 2xl:grid-cols-3">
-            {yours.map((c) => (
-              <ConnectionCard
-                key={c.kind}
-                connector={c}
-                connection={added.get(c.kind)!}
-                status={statuses[c.kind]}
-                checking={!!checking[c.kind]}
-                job={jobs[c.kind]}
-                onCheck={() => void check(c.kind, true)}
-                onAction={(a) => void runAction(c.kind, a)}
-                onCancel={() => void cancelJob(c.kind)}
-                onEdit={() => setEditing(c)}
-                onRemove={() => setRemoving(c)}
-              />
-            ))}
+            {yours.map((c) => renderCard(c))}
           </div>
         </section>
       )}
@@ -227,16 +264,8 @@ export default function ConnectionsPage() {
       {available.length > 0 && (
         <section className="flex flex-col gap-4">
           <SectionHeading title={yours.length ? 'Add a connection' : 'Set up a connection'} />
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
-            {available.map((c) => (
-              <AvailableCard
-                key={c.kind}
-                connector={c}
-                detected={statuses[c.kind]}
-                busy={!!checking[c.kind]}
-                onAdd={() => (c.fields.length ? setEditing(c) : void addWithoutFields(c.kind))}
-              />
-            ))}
+          <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 2xl:grid-cols-3">
+            {available.map((c) => renderCard(c))}
           </div>
         </section>
       )}
@@ -262,6 +291,7 @@ export default function ConnectionsPage() {
             <DialogDescription>
               MonoRail forgets this connection and any token it saved. Accounts and tools set up outside MonoRail (gcloud, Claude Code, pi, git, Credential
               Manager) are not signed out or changed, and pi keeps its current scoped models.
+              {removing?.kind === 'pi-playwright' && ' The use-my-browser skill MonoRail wrote for pi is removed; pi-playwright and the browser extension stay installed.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -316,12 +346,12 @@ function Notice({ tone, children }: { tone: 'info' | 'warning' | 'destructive'; 
   )
 }
 
-function ConnectorIcon({ connector, state, checking }: { connector: Connector; state?: ConnectionState; checking?: boolean }) {
+function ConnectorIcon({ connector, state, checking, small }: { connector: Connector; state?: ConnectionState; checking?: boolean; small?: boolean }) {
   const Icon = ICONS[connector.icon as keyof typeof ICONS] ?? KeyRound
   const tone = checking || !state ? 'bg-primary-soft text-primary-soft-foreground' : STATE_LOOK[state].tile
   return (
-    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', tone)}>
-      <Icon className="size-5" />
+    <div className={cn('flex shrink-0 items-center justify-center rounded-lg', small ? 'size-8' : 'size-10', tone)}>
+      <Icon className={small ? 'size-4' : 'size-5'} />
     </div>
   )
 }
@@ -354,18 +384,24 @@ interface ConnectionCardProps {
   onCancel: () => void
   onEdit: () => void
   onRemove: () => void
+  /** A subconnector, drawn inside its parent's card. */
+  nested?: boolean
+  children?: React.ReactNode
 }
 
-function ConnectionCard({ connector, connection, status, checking, job, onCheck, onAction, onCancel, onEdit, onRemove }: ConnectionCardProps) {
+/** Nested (subconnector) cards: a quieter, tighter card inside the parent's. */
+const NESTED_CARD = 'gap-4 rounded-lg bg-muted/40 py-4 ring-foreground/10 [&>[data-slot=card-content]]:px-4 [&>[data-slot=card-header]]:px-4'
+
+function ConnectionCard({ connector, connection, status, checking, job, onCheck, onAction, onCancel, onEdit, onRemove, nested, children }: ConnectionCardProps) {
   const running = job?.state === 'running'
-  const actions = connector.actions.filter((a) => !status || a.showWhen.includes(status.state))
+  const actions = connector.actions.filter((a) => !status || (a.showWhen.includes(status.state) && (!status.actions || status.actions.includes(a.id))))
   const attention = status && status.state !== 'ok'
 
   return (
-    <Card>
+    <Card className={cn(nested && NESTED_CARD)}>
       <CardHeader>
-        <div className="flex items-center gap-4">
-          <ConnectorIcon connector={connector} state={status?.state} checking={checking && !status} />
+        <div className={cn('flex items-center', nested ? 'gap-3' : 'gap-4')}>
+          <ConnectorIcon connector={connector} state={status?.state} checking={checking && !status} small={nested} />
           <div className="min-w-0">
             <CardTitle className="flex flex-wrap items-center gap-2">
               {connector.title} <StateBadge status={status} checking={checking} />
@@ -460,6 +496,7 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
         {connection.updatedAt && connector.fields.length > 0 && (
           <div className="text-xs text-muted-foreground">Settings saved {formatRelative(connection.updatedAt)}</div>
         )}
+        {children}
       </CardContent>
     </Card>
   )
@@ -497,7 +534,7 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
               {job.steps > 1 ? `Step ${Math.max(job.step, 1)} of ${job.steps}: ` : ''}
               {job.stepLabel ?? 'Working…'}
             </div>
-            <div className="mt-1">Finish signing in in the browser window that opened.</div>
+            <div className="mt-1">{job.note ?? 'Finish signing in in the browser window that opened.'}</div>
           </div>
           <Button size="sm" variant="outline" onClick={onCancel}>
             Cancel
@@ -516,7 +553,7 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
       <div className="flex flex-col gap-2 rounded-lg bg-destructive-soft px-4 py-3 text-sm text-destructive-soft-foreground">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span className="break-words">{job.state === 'cancelled' ? 'Sign-in cancelled.' : job.error}</span>
+          <span className="break-words">{job.state === 'cancelled' ? 'Cancelled.' : job.error}</span>
         </div>
         {job.output.trim() && (
           <details>
@@ -524,6 +561,13 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
             <pre className="mt-2 max-h-48 overflow-auto font-mono text-xs whitespace-pre-wrap">{job.output.trim()}</pre>
           </details>
         )}
+      </div>
+    )
+  }
+  if (job.note) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-success-soft px-4 py-3 text-sm text-success-soft-foreground">
+        <CheckCircle2 className="size-4 shrink-0" /> {job.note}
       </div>
     )
   }
@@ -541,14 +585,23 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
   )
 }
 
-function AvailableCard({ connector, detected, busy, onAdd }: { connector: Connector; detected?: ConnectionStatus; busy: boolean; onAdd: () => void }) {
-  // For detect-only connectors (no fields) show what was found on this PC.
-  const showDetected = detected && (connector.fields.length === 0 || detected.account)
+interface AvailableCardProps {
+  connector: Connector
+  detected?: ConnectionStatus
+  busy: boolean
+  onAdd: () => void
+  nested?: boolean
+  children?: React.ReactNode
+}
+
+function AvailableCard({ connector, detected, busy, onAdd, nested, children }: AvailableCardProps) {
+  // For detect-only connectors (no fields) and subconnectors, show what was found on this PC.
+  const showDetected = detected && (connector.fields.length === 0 || detected.account || nested)
   return (
-    <Card className="gap-4">
+    <Card className={cn('gap-4', nested && NESTED_CARD)}>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-start gap-4">
-          <ConnectorIcon connector={connector} />
+        <div className={cn('flex items-start', nested ? 'gap-3' : 'gap-4')}>
+          <ConnectorIcon connector={connector} small={nested} />
           <div className="min-w-0 flex-1">
             <div className="font-medium">{connector.title}</div>
             <div className="mt-1 text-sm text-muted-foreground">{connector.description}</div>
@@ -567,6 +620,7 @@ function AvailableCard({ connector, detected, busy, onAdd }: { connector: Connec
             {busy ? <Loader2 className="animate-spin" /> : <Plus />} Set up
           </Button>
         </div>
+        {children}
       </CardContent>
     </Card>
   )

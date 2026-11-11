@@ -31,6 +31,8 @@ export interface Connector {
   title: string
   description: string
   icon: string
+  /** A subconnector: shown nested inside this connector's card (pi > Playwright browser). */
+  parent?: string
   fields: ConnectorField[]
   actions: ConnectorAction[]
 }
@@ -40,6 +42,8 @@ export interface ConnectionStatus {
   summary: string
   hint?: string
   details: { label: string; value?: string; ok?: boolean }[]
+  /** When set, only these actions fit the current state. */
+  actions?: string[]
   /** Claude only: how the login is billed. */
   account?: ClaudeAccount
   added: boolean
@@ -54,6 +58,8 @@ export interface ConnectionJob {
   step: number
   steps: number
   stepLabel?: string
+  /** One line about what to do now, shown instead of the generic sign-in text. */
+  note?: string
   url?: string
   output: string
   error?: string
