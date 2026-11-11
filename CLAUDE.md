@@ -238,6 +238,18 @@ Claude only: pi has no subagents, so a coordinator job on pi is refused. Its
 chats are listed apart, first. Without the subagent the entry is greyed out
 with the reason.
 
+The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
+Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
+files: it reuses Agent Chat's session list, composer info and running turns
+in process, reads the Claude Stats summary (never builds a report), and lists
+agent definitions (`agents-definitions.cjs`: Claude Code subagents in
+`.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
+`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+repo; frontmatter only, bodies on demand by id, never a path). Archived chats
+are left out. Quick launch and "Open" hand over to Chat with
+`openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
+handed-over prompt is prefilled in the composer, never sent by itself.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
