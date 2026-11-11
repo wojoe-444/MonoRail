@@ -29,9 +29,10 @@ const PAGES = Object.freeze([
   { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.' },
   { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.' },
   { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.' },
+  { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.' },
 ])
 /** Pages the global schedule backs up itself (GitHub+ runs its own per-repo schedules). */
-const GLOBAL_ITEMS = Object.freeze(['jira-plus', 'flashcards'])
+const GLOBAL_ITEMS = Object.freeze(['jira-plus', 'flashcards', 'notes'])
 
 const DEFAULTS = Object.freeze({
   enabled: false,
@@ -39,7 +40,7 @@ const DEFAULTS = Object.freeze({
   times: 1,
   unit: 'day',
   keep: 14,
-  items: Object.freeze({ 'jira-plus': true, flashcards: true }),
+  items: Object.freeze({ 'jira-plus': true, flashcards: true, notes: true }),
 })
 
 const globalDir = (userData) => path.join(userData, ...FOLDER)

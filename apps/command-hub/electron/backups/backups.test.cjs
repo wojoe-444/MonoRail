@@ -26,7 +26,7 @@ describe('global backup settings', () => {
     await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 2, unit: 'day', keep: 3, items: { flashcards: false } })
     const g = await globalLib.readGlobal(userData)
     assert.equal(g.enabled, true)
-    assert.deepEqual(g.items, { 'jira-plus': true, flashcards: false })
+    assert.deepEqual(g.items, { 'jira-plus': true, flashcards: false, notes: true })
     for (const p of globalLib.PAGES) assert.equal(globalLib.pageRoot(g, p.id), join(root, p.id))
     assert.throws(() => globalLib.pageRoot(g, 'nope'))
     // Settings stay in AppData, next to nothing else.
@@ -108,7 +108,7 @@ describe('global backup schedule', () => {
 
   it('excluded pages are not scheduled', async () => {
     const { userData, root, svc } = setup()
-    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false } })
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false } })
     await svc.tick()
     const st = await svc.status()
     for (const p of st.pages.filter((x) => x.id !== 'github-plus')) assert.equal(p.nextDueAt, null)

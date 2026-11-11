@@ -1,0 +1,117 @@
+// Tests for notes-store.cjs: Markdown files in a local git repo, batched commits.
+
+const { describe, it } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const { mkdtempSync, readdirSync, writeFileSync, existsSync } = fs
+const { tmpdir } = require('node:os')
+const { join } = require('node:path')
+const git = require('isomorphic-git')
+
+const { createNotesStore, titleOf, excerptOf, slugOf } = require('./notes-store.cjs')
+
+const tmp = () => mkdtempSync(join(tmpdir(), 'notes-'))
+const commits = async (dir) => (await git.log({ fs, dir })).map((c) => c.commit.message.trim())
+
+describe('notes text helpers', () => {
+  it('takes the title from the first line and the excerpt from the rest', () => {
+    assert.equal(titleOf('\n\n# Standup  \n- a\n'), 'Standup')
+    assert.equal(titleOf('   '), 'Untitled')
+    assert.equal(excerptOf('# T\n- one\n1. two `x`\n> three'), 'one two x three')
+    assert.equal(slugOf('Café: ideas & plans!'), 'cafe-ideas-plans')
+    assert.equal(slugOf('Untitled'), 'note')
+    assert.equal(slugOf('???'), 'note')
+  })
+})
+
+describe('notes store', () => {
+  it('creates the repo with a README and no remote', async () => {
+    const data = tmp()
+    const s = createNotesStore(data)
+    const l = await s.list()
+    assert.deepEqual(l.notes, [])
+    assert.ok(existsSync(join(data, 'repo', 'README.md')))
+    assert.deepEqual(await git.listRemotes({ fs, dir: join(data, 'repo') }), [])
+    assert.deepEqual(await commits(join(data, 'repo')), ['Create notes repository'])
+    s.close()
+  })
+
+  it('names a new note after its title until the first commit, then keeps the name', async () => {
+    const data = tmp()
+    const s = createNotesStore(data, { commitAfterMs: 60_000 })
+    const n = await s.create('')
+    assert.match(n.id, /^\d{4}-\d{2}-\d{2}-note$/)
+    assert.equal(n.committed, false)
+    const saved = await s.save(n.id, '# Standup scratch\n- check the cache\n')
+    assert.match(saved.id, /^\d{4}-\d{2}-\d{2}-standup-scratch$/)
+    assert.equal(saved.title, 'Standup scratch')
+    assert.deepEqual(readdirSync(join(data, 'repo', 'notes')), [`${saved.id}.md`])
+
+    await s.flush()
+    const after = await s.get(saved.id)
+    assert.equal(after.committed, true)
+    const renamed = await s.save(saved.id, '# Something else\n')
+    assert.equal(renamed.id, saved.id)
+    await s.flush()
+    const log = await commits(join(data, 'repo'))
+    assert.equal(log.length, 3)
+    assert.equal(log[1], 'Notes: new "Standup scratch"')
+    assert.equal(log[0], 'Notes: "Something else"')
+    const h = await s.history(saved.id)
+    assert.equal(h.length, 2)
+    assert.equal((await s.version(saved.id, h[1].oid)).body, '# Standup scratch\n- check the cache\n')
+    s.close()
+  })
+
+  it('does not commit a blank new note, so it can still take its title as its name', async () => {
+    const data = tmp()
+    const s = createNotesStore(data)
+    const n = await s.create('')
+    await s.flush()
+    assert.equal((await commits(join(data, 'repo'))).length, 1)
+    assert.equal((await s.get(n.id)).committed, false)
+    const saved = await s.save(n.id, 'Printer setup\nqueue floor2')
+    assert.match(saved.id, /-printer-setup$/)
+    await s.flush()
+    assert.equal((await s.get(saved.id)).committed, true)
+    s.close()
+  })
+
+  it('batches saves into one commit after a quiet spell', async () => {
+    const data = tmp()
+    const s = createNotesStore(data, { commitAfterMs: 50 })
+    const n = await s.create('# A\n')
+    await s.save(n.id, '# A\nmore')
+    await s.save(n.id, '# A\nmore and more')
+    await new Promise((r) => setTimeout(r, 300))
+    const log = await commits(join(data, 'repo'))
+    assert.equal(log.length, 2)
+    assert.equal((await s.get(n.id)).committed, true)
+    s.close()
+  })
+
+  it('commits files added outside MonoRail, searches, and deletes with history kept', async () => {
+    const data = tmp()
+    const s = createNotesStore(data)
+    await s.list()
+    writeFileSync(join(data, 'repo', 'notes', 'wifi.md'), '# Office wifi\nRotates on Mondays\n')
+    writeFileSync(join(data, 'repo', 'notes', 'Bad Name.md'), 'ignored: not a note id')
+    assert.deepEqual((await s.list('mondays')).notes.map((n) => n.id), ['wifi'])
+    assert.deepEqual((await s.list('nothing like this')).notes, [])
+    await s.flush()
+    await s.remove('wifi')
+    assert.deepEqual((await s.list()).notes, [])
+    const log = await commits(join(data, 'repo'))
+    assert.equal(log[0], 'Notes: delete wifi')
+    assert.equal((await s.history('wifi')).length, 2)
+    s.close()
+  })
+
+  it('refuses ids that could leave the notes folder', async () => {
+    const s = createNotesStore(tmp())
+    await assert.rejects(s.get('../README'), /Unknown note/)
+    await assert.rejects(s.save('..\\x', 'a'), /Unknown note/)
+    await assert.rejects(s.version('wifi', 'HEAD'), /Unknown version/)
+    s.close()
+  })
+})

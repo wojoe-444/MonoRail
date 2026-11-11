@@ -448,6 +448,16 @@ cards per day (default 20); the page shows each rating's next interval from
 style it after any other product. MCP: `list_flashcard_decks`,
 `list_flashcards` (read) and `add_flashcards` (write, consent per agent).
 
+`notes` (**Notes**, a subpage of Home; docs: `docs/notes.md`) is an
+unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
+line = title) in a local git repo in its data folder (`repo/`), via
+isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
+writes the file; commits are batched (a minute of quiet, leaving the note, or
+the next start), a blank new note is never committed, and a note's file
+follows its title only until its first commit. The repo never gets a remote.
+GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
+item (`notes`, bundle).
+
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
 a collapsible tree (plain rows on a guide line, current page tinted; open/closed
