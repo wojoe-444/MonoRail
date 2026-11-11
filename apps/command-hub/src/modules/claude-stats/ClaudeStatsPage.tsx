@@ -61,6 +61,7 @@ export default function ClaudeStatsPage() {
   const [metric, setMetric] = useState<Metric>('outputTokens')
   const [source, setSource] = useState<'all' | SourceId>('all')
   const [breakout, setBreakout] = useState(false)
+  const [splitEffort, setSplitEffort] = useState(false)
 
   const sample = useMemo(() => (useSample ? sampleReport() : undefined), [useSample])
   // Opening the page only reads the saved report; builds run from Refresh or the schedule.
@@ -104,8 +105,10 @@ export default function ClaudeStatsPage() {
       compactions: inWindow(report.scan?.compactions ?? [], w).filter((c) => sourceOk(c.source)),
       hasScan: !!report.scan,
       partners: (() => {
-        const corder = comboOrder(partners.facts)
-        const pf = inWindow(partners.facts, w)
+        // Optional split by effort (Claude Code) / thinking level (pi): the phase's most common level.
+        const all = splitEffort ? partners.facts.map((f) => ({ ...f, combo: `${f.combo} · ${effortLabel(f.effort)}` })) : partners.facts
+        const corder = comboOrder(all)
+        const pf = inWindow(all, w)
         const phasesBySession = new Map<string, typeof partners.phases>()
         for (const ph of partners.phases) {
           const list = phasesBySession.get(ph.sessionId) ?? []
@@ -124,6 +127,17 @@ export default function ClaudeStatsPage() {
       })(),
       // Every model gets its own row; models outside the color slots share the "Other" color.
       byModel: groupBy(current, seriesKey),
+      thinkingByModel: (() => {
+        const m = new Map<string, { tokens: number; est: number }>()
+        for (const f of current) {
+          const k = seriesKey(f)
+          const t = m.get(k) ?? { tokens: 0, est: 0 }
+          t.tokens += f.thinkingTokens ?? 0
+          t.est += f.thinkingEstimated ?? 0
+          m.set(k, t)
+        }
+        return m
+      })(),
       byProject: groupBy(current, (f) => f.project),
       sessions: sessionsInRange.sort((a, b) => b.outputTokens - a.outputTokens),
       prevSessions: w.prev
@@ -135,7 +149,7 @@ export default function ClaudeStatsPage() {
       empty: base.facts.length === 0,
       tiered: base.facts.some((f) => f.tierAbove !== undefined),
     }
-  }, [report, base, range, metric, source, breakout])
+  }, [report, base, range, metric, source, breakout, splitEffort])
 
   const rangeLabel = RANGES.find((r) => r.key === range)!.label.toLowerCase()
   const prevLabel = range === 'all' ? undefined : `vs. previous ${rangeLabel.replace('last ', '')}`
@@ -356,6 +370,7 @@ export default function ClaudeStatsPage() {
                   rows={model.byModel}
                   label="Model"
                   colorOf={(k) => colorForSeries(model.order, k)}
+                  extra={{ header: 'Thinking', value: (r) => formatThinking(model.thinkingByModel.get(r.key)) }}
                 />
               </CardContent>
             </Card>
@@ -393,6 +408,12 @@ export default function ClaudeStatsPage() {
                 {Math.round(model.partners.idleGapMinutes / 60)} idle hours, so earlier work in a resumed session
                 isn't counted as a partner.
               </CardDescription>
+              <CardAction>
+                <label className="flex items-center gap-2 text-sm whitespace-nowrap text-muted-foreground">
+                  <Switch checked={splitEffort} onCheckedChange={setSplitEffort} />
+                  Split by effort
+                </label>
+              </CardAction>
             </CardHeader>
             {model.partners.available ? (
               <>
@@ -480,6 +501,9 @@ function SessionsTable({
             <th className="px-4 py-2.5 font-medium">Partners, by phase</th>
             <th className="px-4 py-2.5 font-medium">Last active</th>
             <th className="px-4 py-2.5 text-right font-medium">Output</th>
+            <th className="px-4 py-2.5 text-right font-medium" title="Reasoning tokens, part of output. ~ = estimated from the thinking text (pi logs no count).">
+              Thinking
+            </th>
             <th className="px-4 py-2.5 text-right font-medium">API cost</th>
             <th className="py-2.5 pr-6 pl-4 text-right font-medium">$ / M output</th>
           </tr>
@@ -504,6 +528,11 @@ function SessionsTable({
                           <Badge variant="secondary" title={`${formatCount(p.outputTokens)} output · ${formatUSD(p.cost)}`}>
                             {p.combo}
                           </Badge>
+                          {p.effort && (
+                            <Badge variant="outline" title="Effort (Claude Code) or thinking level (pi), as logged">
+                              {p.effort}
+                            </Badge>
+                          )}
                         </span>
                       ))
                     : s.models.map((m) => (
@@ -517,6 +546,9 @@ function SessionsTable({
                 {new Date(s.lastActivity).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               </td>
               <td className="px-4 py-2.5 text-right">{formatCount(s.outputTokens)}</td>
+              <td className="px-4 py-2.5 text-right text-muted-foreground">
+                {formatThinking({ tokens: s.thinkingTokens ?? 0, est: s.thinkingEstimated ?? 0 })}
+              </td>
               <td className="px-4 py-2.5 text-right">{formatUSD(s.cost)}</td>
               <td className="py-2.5 pr-6 pl-4 text-right font-medium">
                 {formatUSD(s.outputTokens ? (s.cost / s.outputTokens) * 1e6 : undefined)}
@@ -549,4 +581,15 @@ function Notice({
       {children}
     </div>
   )
+}
+
+/** Effort for a phase: Claude Code's effort level or pi's thinking level, as logged. */
+function effortLabel(effort: string | undefined): string {
+  return effort ? `${effort} effort` : 'effort not logged'
+}
+
+/** Thinking tokens, with "~" when part of the count was estimated from text (pi logs no count). */
+function formatThinking(t: { tokens: number; est: number } | undefined): string {
+  if (!t || !t.tokens) return '–'
+  return `${t.est > 0 ? '~' : ''}${formatCount(t.tokens)}`
 }

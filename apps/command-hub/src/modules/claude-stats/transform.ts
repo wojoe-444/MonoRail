@@ -271,6 +271,8 @@ export interface PartnerFact {
   role: 'driver' | 'subagent'
   outputTokens: number
   cost: number
+  /** The phase's effort (Claude Code) or thinking level (pi), when logged. */
+  effort?: string
 }
 
 export interface PhaseSummary {
@@ -354,6 +356,7 @@ export function normalizePartners(
         role: f.role,
         outputTokens: f.output,
         cost: c,
+        effort: p.effort,
       })
     }
     phases.push({

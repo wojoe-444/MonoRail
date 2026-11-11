@@ -202,3 +202,47 @@ test('summary: last 30 days of cost, ccusage for Claude Code, logged pi cost, to
   assert.equal(s.topModels.find((m) => m.source === 'claude-code').cost, 4)
 })
 
+
+test('effort and thinking tokens: Claude Code effort field, pi thinking level per branch', async () => {
+  const home = tmpHome()
+  const proj = path.join(home, '.claude', 'projects', '-home-demo-app')
+  fs.mkdirSync(proj, { recursive: true })
+  const think = (tokens) => ({ message: { id: `m${tokens}`, model: 'claude-opus-4-6', usage: { input_tokens: 1, output_tokens: 500, output_tokens_details: { thinking_tokens: tokens } } } })
+  fs.writeFileSync(
+    path.join(proj, 'e1.jsonl'),
+    [
+      claudeLine('2026-11-05T10:00:00Z', 'claude-opus-4-6', { sessionId: 'e1', effort: 'high', ...think(120) }),
+      claudeLine('2026-11-05T10:01:00Z', 'claude-opus-4-6', { sessionId: 'e1', effort: 'low', ...think(30) }),
+    ].join('\n') + '\n',
+  )
+  const pi = path.join(home, '.pi', 'agent', 'sessions', '--home-demo-app--')
+  fs.mkdirSync(pi, { recursive: true })
+  const msg = (id, parentId, text) =>
+    JSON.stringify({
+      type: 'message', id, parentId, timestamp: '2026-11-05T11:00:00Z',
+      message: { role: 'assistant', model: 'claude-sonnet-4-5', content: [{ type: 'thinking', thinking: text }], usage: { input: 1, output: 100, cacheRead: 0, cacheWrite: 0 } },
+    })
+  fs.writeFileSync(
+    path.join(pi, 'p2.jsonl'),
+    [
+      JSON.stringify({ type: 'session', id: 'p2', cwd: '/home/demo/app', timestamp: '2026-11-05T11:00:00Z' }),
+      JSON.stringify({ type: 'thinking_level_change', id: 'a', parentId: null, timestamp: '2026-11-05T11:00:00Z', thinkingLevel: 'medium' }),
+      msg('b', 'a', 'x'.repeat(400)),
+      JSON.stringify({ type: 'thinking_level_change', id: 'c', parentId: 'b', timestamp: '2026-11-05T11:00:00Z', thinkingLevel: 'high' }),
+      msg('d', 'c', 'y'.repeat(80)),
+      // A branch from before the change keeps the earlier level.
+      msg('e', 'b', ''),
+    ].join('\n') + '\n',
+  )
+  const r = await scanAll({ env: {}, home })
+  const cc = r.requests.filter((x) => x.source === 'claude-code')
+  assert.deepEqual(cc.map((x) => [x.effort, x.thinking]).sort(), [['high', 120], ['low', 30]])
+  const p = r.requests.filter((x) => x.source === 'pi')
+  const by = Object.fromEntries(p.map((x) => [x.effort, x]))
+  assert.equal(by.medium.n, 2)
+  assert.equal(by.medium.thinking, 100)
+  assert.equal(by.medium.thinkingEst, 100)
+  assert.equal(by.high.thinking, 20)
+  const phase = r.phases.find((x) => x.source === 'pi')
+  assert.equal(phase.effort, 'medium')
+})
