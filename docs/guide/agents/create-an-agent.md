@@ -22,9 +22,18 @@ A subagent is one small text file. Claude Code looks for them in two places:
   `.claude\agents` folder inside that [repository](../glossary.md#repository).
 
 MonoRail reads both, for your home folder and for every folder you have
-[allowed in Chat](chat.md#which-chats-are-listed).
+[allowed in Chat](chat.md#which-chats-are-listed). pi runs subagents through
+its subagent extension, from `.pi\agent\agents` in your home folder and
+`.pi\agents` in a repository; MonoRail reads those too.
 
-## Write one
+## The easy way: Agents > Catalog
+
+The [Agent Catalog](../../agent-catalog.md) lists every Claude Code and pi
+subagent, explains each one in plain words (what it can do, what it cannot,
+when it gets used), and has a form to create, edit, duplicate or delete them.
+Before it changes or deletes a file, it keeps a backup copy.
+
+## Write one by hand
 
 Make a file called, for example, `release-notes.md` in one of those folders:
 
