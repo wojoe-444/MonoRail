@@ -21,6 +21,7 @@ const options = require('./agent-chat-options.cjs')
 const turnsApi = require('./agent-chat-turns.cjs')
 const chatState = require('./agent-chat-state.cjs')
 const changesApi = require('./agent-chat-changes.cjs')
+const locks = require('./agent-chat-locks.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -707,10 +708,14 @@ async function startTurn(ctx, args = {}) {
   const status = sdkStatus().find((s) => s.id === sdk)
   if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
 
+  // One turn per chat across the app, coordinator workers and the MCP server.
+  const lock = ctx.dataDir ? (key) => locks.acquire(ctx.dataDir, key) : undefined
+
   if (sdk === 'pi') {
     const piSdk = options.findPiSdk()
     return turnsApi.startTurn({
       chatKey,
+      lock,
       worker: { job, cwd, root, sessionFile, sdkEntry: piSdk.entry },
       meta: { sdk: 'pi', model: job.model, mode: job.mode, resume: sessionFile ? chatKey.slice('pi:'.length) : undefined },
       // pi logs a cost on every model call, so a turn's cost is exact.
@@ -725,7 +730,10 @@ async function startTurn(ctx, args = {}) {
   const previous = resume ? readCosts(ctx.dataDir)[resume]?.usd : undefined
   return turnsApi.startTurn({
     chatKey,
-    worker: { job, cwd, resume, executable },
+    lock,
+    // A coordinator turn gets the module's data folder, so its tools can
+    // list and message the allowed chats (agent-chat-coordinator.cjs).
+    worker: { job, cwd, resume, executable, dataDir: coordinator ? ctx.dataDir : undefined },
     meta: { sdk: 'claude', model: job.model, mode: coordinator ? 'coordinator' : job.mode, resume },
     onFinish: (turn) => {
       if (turn.sessionId && !resume) chatState.markStartedHere(ctx.dataDir, `claude:${turn.sessionId}`)
@@ -760,7 +768,7 @@ function coordinatorStatus() {
   if (!options.findCoordinator()) {
     return { ready: false, reason: 'No coordinator subagent was found. Add one as ~/.claude/agents/coordinator.md, then reopen this page.' }
   }
-  return { ready: true }
+  return { ready: true, note: options.coordinatorToolsNote(options.findCoordinator()) }
 }
 
 /** git status and diff for a chat's folder (or a new chat's repo), re-checked against the allowed folders. */

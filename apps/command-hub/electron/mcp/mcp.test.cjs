@@ -162,7 +162,7 @@ describe('MonoRail read tools', () => {
     const r = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     assert.ok(r.result.tools.length >= 9)
     for (const t of r.result.tools) {
-      assert.equal(t.annotations.readOnlyHint, !/^(create|comment)_/.test(t.name), t.name)
+      assert.equal(t.annotations.readOnlyHint, !/^(create|comment|ask)_/.test(t.name), t.name)
       assert.equal(t.inputSchema.type, 'object', t.name)
       assert.match(t.name, /^[a-z_]+$/)
     }
@@ -269,6 +269,15 @@ describe('write tools and consent', () => {
     assert.equal(r.isError, true)
     assert.match(r.text, /has not allowed "test-agent"/)
     assert.equal((await issues.listIssues(repo, 'all')).length, 2)
+  })
+
+  it('asking the coordinator needs consent, and only this connection can read its replies', async () => {
+    const r = await call(server, 'ask_coordinator', { message: 'What are my agents doing?' })
+    assert.equal(r.isError, true)
+    assert.match(r.text, /has not allowed "test-agent" to use ask_coordinator/)
+    const c = await call(server, 'check_coordinator_reply', { turnId: 'someone-elses-turn' })
+    assert.equal(c.isError, true)
+    assert.match(c.text, /only replies asked for on this connection/)
   })
 
   it('runs a write the user allowed, for that agent and tool only', async () => {

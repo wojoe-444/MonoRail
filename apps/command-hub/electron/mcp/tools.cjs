@@ -18,6 +18,9 @@
 //
 //   create_github_plus_issue, comment_github_plus_issue
 //   create_jira_plus_issue, comment_jira_plus_issue
+//   ask_coordinator   runs a turn of the user's Chat coordinator and returns its reply
+//
+// check_coordinator_reply only reads a turn this same connection started.
 //
 // Rules: nothing here returns a secret or a token or makes a network request,
 // and no read tool writes a file. Repos and folders are the ones the user already allowed in
@@ -428,7 +431,62 @@ function writeTools({ rootDir }) {
         return { key: k, commented: true }
       },
     },
+    {
+      name: 'ask_coordinator',
+      title: "Ask the user's coordinator",
+      description:
+        "Send a message to the user's coordinator in MonoRail (their Claude agent that coordinates their other agent sessions; it can read and message the user's chats in allowed repos) and wait for its reply. Continues the coordinator's latest chat unless newChat is true. If the reply takes longer than waitSeconds, returns a turnId for check_coordinator_reply. Refused while the coordinator is already busy." +
+        NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          message: { type: 'string', minLength: 1, maxLength: 100000 },
+          newChat: { type: 'boolean', description: 'Start a new coordinator chat instead of continuing the latest one.' },
+          waitSeconds: { type: 'integer', minimum: 0, maximum: 1200, description: 'How long to wait for the reply (default 300).' },
+        },
+        required: ['message'],
+        additionalProperties: false,
+      },
+      annotations: { ...WRITE, openWorldHint: true },
+      write: true,
+      async handler({ message, newChat = false, waitSeconds = 300 }, ctx) {
+        const { askCoordinator } = require('../modules/agent-chat-coordinator.cjs')
+        const r = await askCoordinator({ dataDir: dir.agentChat, agent: ctx.agent, message, newChat, waitSeconds })
+        if (r.turnId) myTurns.add(r.turnId)
+        ctx.did(`Asked the coordinator (${r.status})`)
+        return r
+      },
+    },
   ]
 }
 
-module.exports = { readTools, writeTools, folders }
+/** Coordinator turns this server process started (so only it can read them back). */
+const myTurns = new Set()
+
+/** Reading back a coordinator reply this connection asked for. No consent needed: the turn id only exists here. */
+function coordinatorReadTools() {
+  return [
+    {
+      name: 'check_coordinator_reply',
+      title: 'Check a coordinator reply',
+      description: 'Wait for the reply to an ask_coordinator call that returned while the coordinator was still working.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          turnId: { type: 'string', maxLength: 100 },
+          waitSeconds: { type: 'integer', minimum: 0, maximum: 1200, description: 'How long to wait (default 300).' },
+        },
+        required: ['turnId'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ turnId, waitSeconds = 300 }) {
+        if (!myTurns.has(turnId)) throw new Error('Unknown turnId: only replies asked for on this connection can be checked.')
+        const { waitForTurn } = require('../modules/agent-chat-coordinator.cjs')
+        return waitForTurn(turnId, waitSeconds)
+      },
+    },
+  ]
+}
+
+module.exports = { readTools, writeTools, coordinatorReadTools, folders }

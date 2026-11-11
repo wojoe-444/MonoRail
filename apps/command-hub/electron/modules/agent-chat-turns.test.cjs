@@ -305,3 +305,79 @@ test('reasoning is requested only when asked for', () => {
   assert.equal(opts.buildClaudeOptions({ job: opts.validateJob({ ...job }), cwd: '/r', executable: '/c' }).thinking, undefined)
   assert.deepEqual(opts.buildClaudeOptions({ job: opts.validateJob({ ...job, reasoning: true }), cwd: '/r', executable: '/c' }).thinking, { type: 'adaptive', display: 'summarized' })
 })
+
+test('the coordinator gets MonoRail chat tools only when its worker has them', () => {
+  const server = { type: 'sdk', name: 'monorail', instance: { note: 'bypass words inside the server object are not options' } }
+  const o = opts.buildClaudeOptions({ job: opts.validateJob({ ...job, coordinator: true }), cwd: '/c', executable: '/c', coordinatorServer: server })
+  assert.deepEqual(o.tools, ['Agent', 'Workflow'])
+  assert.deepEqual(o.allowedTools, ['Agent', 'Workflow', ...opts.COORDINATOR_MCP_TOOLS])
+  assert.equal(o.mcpServers.monorail, server)
+  assert.equal(o.strictMcpConfig, true)
+  assert.equal(o.permissionMode, 'dontAsk')
+  // Only the coordinator: a normal chat never gets them.
+  const plain = opts.buildClaudeOptions({ job: opts.validateJob({ ...job }), cwd: '/c', executable: '/c', coordinatorServer: server })
+  assert.deepEqual(plain.mcpServers, {})
+  // Bypass is still refused anywhere else in the options.
+  assert.throws(() => opts.assertNoBypass({ mcpServers: { monorail: { type: 'sdk', instance: {}, mode: 'bypassPermissions' } } }), /bypass/)
+  // The names match the tools the coordinator module serves.
+  const { CHAT_TOOL_SPECS } = require('./agent-chat-coordinator.cjs')
+  assert.deepEqual(opts.COORDINATOR_MCP_TOOLS, Object.keys(CHAT_TOOL_SPECS).map((n) => `mcp__monorail__${n}`))
+})
+
+test('a coordinator.md tools list without the chat tools is flagged', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'coord-tools-'))
+  const f = path.join(dir, 'coordinator.md')
+  fs.writeFileSync(f, '---\nname: coordinator\n---\nbody tools: x\n')
+  assert.equal(opts.coordinatorToolsNote(f), undefined)
+  fs.writeFileSync(f, '---\nname: coordinator\ntools: Agent, Workflow\n---\n')
+  assert.match(opts.coordinatorToolsNote(f), /cannot reach your chats/)
+  fs.writeFileSync(f, '---\nname: coordinator\ntools:\n  - Agent\n  - mcp__monorail__send_to_chat\n---\n')
+  assert.equal(opts.coordinatorToolsNote(f), undefined)
+  assert.equal(opts.coordinatorToolsNote(path.join(dir, 'missing.md')), undefined)
+})
+
+// ---------------------------------------------------------------------------
+// One turn per chat across processes
+
+const locks = require('./agent-chat-locks.cjs')
+
+test('a chat lock is exclusive, released once, and a dead holder is taken over', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locks-'))
+  const release = locks.acquire(dir, 'claude:s1')
+  assert.equal(locks.isLocked(dir, 'claude:s1'), true)
+  assert.throws(() => locks.acquire(dir, 'claude:s1'), (e) => e.code === 'CHAT_BUSY')
+  // Another chat is free.
+  locks.acquire(dir, 'claude:s2')()
+  release()
+  release()
+  assert.equal(locks.isLocked(dir, 'claude:s1'), false)
+  // A lock left by a process that is gone does not block.
+  fs.writeFileSync(locks._lockFile(dir, 'claude:s3'), JSON.stringify({ pid: 2 ** 22 + 12345, at: Date.now() }))
+  assert.equal(locks.isLocked(dir, 'claude:s3'), false)
+  locks.acquire(dir, 'claude:s3')()
+  // So does one older than a turn may run.
+  fs.writeFileSync(locks._lockFile(dir, 'claude:s4'), JSON.stringify({ pid: process.pid, at: Date.now() - locks.MAX_AGE_MS - 1 }))
+  locks.acquire(dir, 'claude:s4')()
+  // The file holds numbers only.
+  const r = locks.acquire(dir, 'claude:secret-session')
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(locks._lockFile(dir, 'claude:secret-session'), 'utf8'))).sort(), ['at', 'pid'])
+  r()
+})
+
+test('a turn holds the chat lock (and its new session id) until it ends', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locks-turn-'))
+  const lock = (key) => locks.acquire(dir, key)
+  // Another process already runs a turn in this chat.
+  const other = locks.acquire(dir, 'claude:held')
+  assert.throws(() => turns.startTurn({ chatKey: 'claude:held', lock, worker: { job }, meta: { sdk: 'claude' }, spawnWorker: fakeWorker('') }), /still running/)
+  other()
+
+  const script = `process.stdin.resume(); process.stdout.write(JSON.stringify({t:'init',sessionId:'locked-new'})+'\\n'); setTimeout(()=>{}, 60000)`
+  const { turnId } = turns.startTurn({ chatKey: 'new:locked', lock, worker: { job }, meta: { sdk: 'claude' }, spawnWorker: fakeWorker(script) })
+  await waitFor(() => turns.pollTurn(turnId).sessionId)
+  assert.equal(locks.isLocked(dir, 'new:locked'), true)
+  assert.equal(locks.isLocked(dir, 'claude:locked-new'), true)
+  turns.stopTurn(turnId)
+  assert.equal(locks.isLocked(dir, 'new:locked'), false)
+  assert.equal(locks.isLocked(dir, 'claude:locked-new'), false)
+})

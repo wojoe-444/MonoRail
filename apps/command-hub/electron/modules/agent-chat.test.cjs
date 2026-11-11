@@ -208,3 +208,62 @@ test('unread, archived and started-here flags live in a record file', () => {
   // Only flags and numbers are stored.
   assert.deepEqual(Object.keys(chatState.read(dir).chats[id]).sort(), ['archived', 'here', 'seen'])
 })
+
+// ---------------------------------------------------------------------------
+// Coordinator tools (agent-chat-coordinator.cjs)
+
+const coord = require('./agent-chat-coordinator.cjs')
+
+function coordinatorFixture() {
+  const home = fixture()
+  const dataDir = path.join(home, 'data')
+  const cdir = path.join(dataDir, 'coordinator')
+  fs.mkdirSync(cdir, { recursive: true })
+  const proj = path.join(home, '.claude', 'projects', '-coordinator')
+  fs.mkdirSync(proj, { recursive: true })
+  fs.writeFileSync(
+    path.join(proj, 'coord1.jsonl'),
+    jsonl([{ type: 'user', timestamp: '2026-01-04T10:00:00Z', cwd: cdir, message: { role: 'user', content: 'Plan the week' } }]),
+  )
+  return { home, dataDir, tools: coord.chatTools({ dataDir, home, env: {}, now: () => Date.parse('2026-02-01T00:00:00Z') }) }
+}
+
+test('coordinator tools list and read allowed chats, never coordinator chats', async () => {
+  const { tools } = coordinatorFixture()
+  const { chats, repos } = await tools.list_chats({})
+  assert.deepEqual(chats.map((c) => c.chatId).sort(), ['claude:abc', 'pi:p1'])
+  assert.deepEqual(repos.sort(), ['demo-app', 'notes'])
+  assert.deepEqual((await tools.list_chats({ repo: 'notes' })).chats.map((c) => c.chatId), ['pi:p1'])
+
+  const read = await tools.read_chat({ chatId: 'claude:abc', messages: 2 })
+  assert.equal(read.repo, 'demo-app')
+  assert.equal(read.messages.at(-1).text, 'Done.')
+  assert.ok(read.olderMessages > 0)
+  await assert.rejects(tools.read_chat({ chatId: 'claude:coord1' }), /Coordinator chats/)
+  await assert.rejects(tools.read_chat({ chatId: 'claude:nope' }), /No such chat/)
+})
+
+test('coordinator tools refuse coordinator chats, unknown repos and chats that look busy', async () => {
+  const { tools, dataDir, home } = coordinatorFixture()
+  await assert.rejects(tools.send_to_chat({ chatId: 'claude:coord1', message: 'hi' }), /coordinator chat/)
+  await assert.rejects(tools.send_to_chat({ chatId: 'claude:elsewhere', message: 'hi' }), /No such chat/)
+  await assert.rejects(tools.start_chat({ repo: 'not-allowed', message: 'hi' }), /not one of the allowed repos/)
+  // A chat whose log changed a moment ago may be open in a terminal.
+  const { sessions } = await chat.listSessions({ home, env: {}, dataDir })
+  const abc = sessions.find((s) => s.id === 'claude:abc')
+  const busy = coord.chatTools({ dataDir, home, env: {}, now: () => abc.updatedAt + 5000 })
+  await assert.rejects(busy.send_to_chat({ chatId: 'claude:abc', message: 'hi' }), /last minute/)
+  await assert.rejects(tools.wait_for_reply({ turnId: 'made-up' }), /Unknown turnId/)
+})
+
+test('a reply is the assistant text after the last tool result', () => {
+  assert.equal(
+    coord.replyText([
+      { t: 'assistant', blocks: [{ type: 'text', text: 'Looking.' }, { type: 'tool', name: 'Read' }] },
+      { t: 'tool_result', result: 'file' },
+      { t: 'assistant', blocks: [{ type: 'text', text: 'It is fine.' }] },
+      { t: 'assistant', blocks: [{ type: 'text', text: 'Anything else?' }] },
+    ]),
+    'It is fine.\n\nAnything else?',
+  )
+})

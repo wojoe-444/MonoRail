@@ -8,7 +8,7 @@ const path = require('node:path')
 
 const access = require('../mcp/access.cjs')
 const { describeExtensionTools } = require('../mcp/extensions.cjs')
-const { readTools, writeTools } = require('../mcp/tools.cjs')
+const { readTools, writeTools, coordinatorReadTools } = require('../mcp/tools.cjs')
 const { SERVER } = require('../mcp/launch.cjs')
 
 /**
@@ -74,7 +74,7 @@ module.exports = {
         dataDir: ctx.rootDir,
         snippets: snippets(launch),
         tools: [
-          ...[...readTools({ rootDir: ctx.rootDir }), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
+          ...[...readTools({ rootDir: ctx.rootDir }), ...coordinatorReadTools(), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
             name: t.name,
             title: t.title,
             description: t.description,

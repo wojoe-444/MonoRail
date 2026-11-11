@@ -35,6 +35,47 @@ function toBlocks(content, reasoning) {
   return blocks
 }
 
+/** JSON-ish property spec -> zod type. */
+function zodFor(z, spec) {
+  let t
+  if (spec.enum) t = z.enum(spec.enum)
+  else if (spec.type === 'integer') {
+    t = z.number().int()
+    if (spec.minimum !== undefined) t = t.min(spec.minimum)
+    if (spec.maximum !== undefined) t = t.max(spec.maximum)
+  } else if (spec.type === 'boolean') t = z.boolean()
+  else {
+    t = z.string().min(1)
+    if (spec.maxLength) t = t.max(spec.maxLength)
+  }
+  if (spec.description) t = t.describe(spec.description)
+  return t
+}
+
+/** The coordinator's in-process MCP server. Child turns it starts end with this worker. */
+async function chatToolsServer(dataDir) {
+  const { createSdkMcpServer, tool } = await import('@anthropic-ai/claude-agent-sdk')
+  const { z } = await import('zod')
+  const { chatTools, CHAT_TOOL_SPECS } = require('./agent-chat-coordinator.cjs')
+  const handlers = chatTools({ dataDir })
+  const tools = Object.entries(CHAT_TOOL_SPECS).map(([name, spec]) => {
+    const shape = {}
+    for (const [k, p] of Object.entries(spec.properties)) {
+      const t = zodFor(z, p)
+      shape[k] = spec.required?.includes(k) ? t : t.optional()
+    }
+    return tool(name, spec.description, shape, async (args) => {
+      try {
+        const value = await handlers[name](args)
+        return { content: [{ type: 'text', text: JSON.stringify(value, null, 1) }] }
+      } catch (e) {
+        return { content: [{ type: 'text', text: e instanceof Error ? e.message : String(e) }], isError: true }
+      }
+    })
+  })
+  return createSdkMcpServer({ name: 'monorail', version: '1.0.0', tools })
+}
+
 async function main() {
   const payload = await readStdin()
   const job = validateJob(payload.job)
@@ -60,7 +101,11 @@ async function main() {
     return { behavior: 'deny', message: DENY_MESSAGE }
   }
 
-  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool })
+  // The coordinator gets MonoRail's chat tools (agent-chat-coordinator.cjs):
+  // list, read, message and start the user's allowed chats.
+  const coordinatorServer = job.coordinator && payload.dataDir ? await chatToolsServer(payload.dataDir) : undefined
+
+  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer })
   options.stderr = () => {} // hook and debug output stays out of the page and the logs
 
   // Streaming input: the prompt goes to Claude Code over its stdin, never argv.
@@ -132,6 +177,13 @@ async function main() {
     }
   } finally {
     finish()
+    // Chats the coordinator messaged are children of this turn: stop any
+    // still running (on Windows taskkill runs async, so give it a moment).
+    const { runningTurns, stopAll } = require('./agent-chat-turns.cjs')
+    if (runningTurns().length) {
+      stopAll()
+      if (process.platform === 'win32') await new Promise((r) => setTimeout(r, 1500))
+    }
   }
 }
 

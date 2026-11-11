@@ -43,6 +43,9 @@ const ASK_TOOLS = ['Read', 'Grep', 'Glob']
 /** The coordinator chat may only delegate (to subagents) and run workflows. */
 const COORDINATOR_TOOLS = ['Agent', 'Workflow']
 
+/** MonoRail's chat tools on the coordinator's in-process MCP server "monorail" (agent-chat-coordinator.cjs). */
+const COORDINATOR_MCP_TOOLS = ['list_chats', 'read_chat', 'send_to_chat', 'start_chat', 'wait_for_reply'].map((n) => `mcp__monorail__${n}`)
+
 const DENY_MESSAGE = 'Nobody can approve tool use from the MonoRail Chat page, so this request was denied.'
 
 const PATH_KEYS = new Set(['cwd', 'pathToClaudeCodeExecutable', 'resume'])
@@ -63,6 +66,7 @@ function assertNoBypass(options) {
       if (/dangerously|bypass/i.test(k) && child !== undefined && child !== false && k !== 'disableBypassPermissionsMode') throw new Error(`Refusing to run: option ${k} is set.`)
       if (k === 'disableBypassPermissionsMode') continue // the setting that turns bypass off
       if (PATH_KEYS.has(k)) continue // a folder may be named anything
+      if (k === 'instance' && where.startsWith('options.mcpServers.')) continue // an in-process MCP server object
       walk(child, `${where}.${k}`)
     }
   }
@@ -94,7 +98,7 @@ function validateJob(job) {
  * SDK options for one turn. `job` is validated; `cwd` and `resume` were
  * resolved by the main process, never taken from the page.
  */
-function buildClaudeOptions({ job, cwd, resume, executable, canUseTool }) {
+function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer }) {
   const options = {
     cwd,
     pathToClaudeCodeExecutable: executable,
@@ -111,13 +115,14 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool }) {
   if (job.effort !== 'default') options.effort = job.effort
   if (job.reasoning) options.thinking = { type: 'adaptive', display: 'summarized' }
   if (job.coordinator) {
-    // Runs as the user's "coordinator" subagent. Tools: delegate and workflow
-    // only, no MCP servers, and nothing that needs approval.
+    // Runs as the user's "coordinator" subagent. Tools: delegate, workflow
+    // and MonoRail's own chat tools (agent-chat-coordinator.cjs), no other
+    // MCP servers, and nothing that needs approval.
     options.agent = 'coordinator'
     options.permissionMode = 'dontAsk'
     options.tools = COORDINATOR_TOOLS
-    options.allowedTools = COORDINATOR_TOOLS
-    options.mcpServers = {}
+    options.allowedTools = coordinatorServer ? [...COORDINATOR_TOOLS, ...COORDINATOR_MCP_TOOLS] : COORDINATOR_TOOLS
+    options.mcpServers = coordinatorServer ? { monorail: coordinatorServer } : {}
     options.strictMcpConfig = true
   } else if (job.mode === 'ask') {
     options.tools = ASK_TOOLS
@@ -301,16 +306,28 @@ function findCoordinator(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-/** The user's "coordinator" subagent definition (agents/coordinator.md in a Claude config folder), if any. */
-function findCoordinator(env = process.env, home = os.homedir()) {
-  const bases = env.CLAUDE_CONFIG_DIR
-    ? env.CLAUDE_CONFIG_DIR.split(',').map((s) => s.trim()).filter(Boolean)
-    : [path.join(home, '.claude'), path.join(home, '.config', 'claude')]
-  for (const b of bases) {
-    const f = path.join(b, 'agents', 'coordinator.md')
-    if (fs.existsSync(f)) return f
+/**
+ * A warning when the coordinator subagent's own `tools:` list would hide
+ * MonoRail's chat tools (Claude Code limits an agent to the tools its
+ * definition names). Undefined when it lists none, or lists them.
+ */
+function coordinatorToolsNote(file) {
+  let text
+  try {
+    text = fs.readFileSync(file, 'utf8')
+  } catch {
+    return undefined
   }
-  return undefined
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1]
+  if (!fm) return undefined
+  const lines = fm.split(/\r?\n/)
+  const i = lines.findIndex((l) => /^tools\s*:/.test(l))
+  if (i < 0) return undefined
+  // Inline ("tools: Agent, Workflow") or a YAML list on the following lines.
+  let value = lines[i].replace(/^tools\s*:/, '')
+  for (let j = i + 1; j < lines.length && /^\s+-/.test(lines[j]); j++) value += ` ${lines[j]}`
+  if (/mcp__monorail/.test(value)) return undefined
+  return 'Your coordinator.md has a tools list without MonoRail\'s chat tools, so it cannot reach your chats. Remove the tools line, or add mcp__monorail__list_chats, mcp__monorail__read_chat, mcp__monorail__send_to_chat, mcp__monorail__start_chat and mcp__monorail__wait_for_reply.'
 }
 
 // ---------------------------------------------------------------------------
@@ -342,4 +359,4 @@ function findClaudeExecutable(env = process.env, home = os.homedir()) {
   return undefined
 }
 
-module.exports = { COORDINATOR_TOOLS, findCoordinator, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, PI_PACKAGES, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
+module.exports = { COORDINATOR_TOOLS, COORDINATOR_MCP_TOOLS, findCoordinator, coordinatorToolsNote, CLAUDE_MODELS, PI_MODELS, SDKS, PI_READ_TOOLS, piTools, piThinkingLevel, piPathAllowed, findPiSdk, PI_PACKAGES, EFFORTS, MODES, ASK_TOOLS, DENY_MESSAGE, assertNoBypass, validateJob, buildClaudeOptions, findClaudeExecutable }
