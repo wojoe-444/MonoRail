@@ -6,7 +6,7 @@
   "description": "The starter extension: a page, a full-screen app and a small backend that keeps notes.",
   "publisher": "MonoRail",
   "repository": "wojoe-444/MonoRail",
-  "engines": { "monorail": "^1.0.0" },
+  "engines": { "monorail": "^1.1.0" },
   "icon": "icon.svg",
   "ui": "ui",
   "contributes": {

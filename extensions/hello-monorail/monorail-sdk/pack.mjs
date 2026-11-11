@@ -40,6 +40,19 @@ if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(manifest.id ?? '')) fail('id must be
 if (!/^\d+\.\d+\.\d+/.test(manifest.version ?? '')) fail('version must be semver, e.g. 1.0.0')
 if (!manifest.engines?.monorail) fail('engines.monorail is required, e.g. "^1.0.0"')
 
+// The SDK in monorail-sdk/ is the API version this extension was written
+// against; engines.monorail should allow it, or MonoRail may refuse to load it.
+try {
+  const sdk = /export const SDK_VERSION = '([^']+)'/.exec(fs.readFileSync(new URL('./client.js', import.meta.url), 'utf8'))?.[1]
+  const range = String(manifest.engines.monorail).replace(/^[\^~>=\s]+/, '')
+  const [sdkMajor, sdkMinor] = (sdk ?? '').split('.').map(Number)
+  const [major, minor = 0] = range.split('.').map(Number)
+  if (sdk && (major !== sdkMajor || minor > sdkMinor))
+    console.warn(`pack: engines.monorail is "${manifest.engines.monorail}" but monorail-sdk is ${sdk}. Use "^${sdk}" unless you mean it.`)
+} catch {
+  /* an old SDK copy without SDK_VERSION: nothing to compare */
+}
+
 const uiDir = manifest.ui ?? 'ui'
 const contributions = [...(manifest.contributes?.modules ?? []), ...(manifest.contributes?.apps ?? [])]
 for (const c of contributions) {

@@ -16,7 +16,7 @@ const repo = path.resolve(here, '../..')
 const check = process.argv.includes('--check')
 
 /** Files every extension carries in its monorail-sdk/ folder. */
-export const SDK_FILES = ['client.js', 'client.d.ts', 'backend.d.ts', 'theme.css', 'pack.mjs', 'README.md']
+export const SDK_FILES = ['client.js', 'client.d.ts', 'backend.d.ts', 'testing.mjs', 'testing.d.ts', 'theme.css', 'pack.mjs', 'README.md']
 
 export function buildTheme(indexCss) {
   const start = indexCss.indexOf('@custom-variant dark')
@@ -44,6 +44,21 @@ for (const f of SDK_FILES) {
   const content = f === 'theme.css' ? targets.get(path.join(here, 'theme.css')) : fs.readFileSync(path.join(here, f), 'utf8')
   targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk', f), content)
 }
+
+// One version number for the SDK: the extension API version MonoRail implements.
+const apiVersion = /const API_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(repo, 'apps/command-hub/electron/extensions/manifest.cjs'), 'utf8'))?.[1]
+if (!apiVersion) throw new Error('API_VERSION not found in manifest.cjs; update sync.mjs')
+const clientFile = path.join(here, 'client.js')
+targets.set(clientFile, fs.readFileSync(clientFile, 'utf8').replace(/export const SDK_VERSION = '[^']*'/, `export const SDK_VERSION = '${apiVersion}'`))
+targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk/client.js'), targets.get(clientFile))
+const pkgFile = path.join(here, 'package.json')
+const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
+pkg.version = apiVersion
+pkg.files = SDK_FILES
+targets.set(pkgFile, JSON.stringify(pkg, null, 2) + '\n')
+const readme = path.join(here, 'README.md')
+targets.set(readme, fs.readFileSync(readme, 'utf8').replace(/^# MonoRail extension SDK \(API [^)]*\)/m, `# MonoRail extension SDK (API ${apiVersion.split('.').slice(0, 2).join('.')})`))
+targets.set(path.join(repo, 'extensions/hello-monorail/monorail-sdk/README.md'), targets.get(readme))
 
 let stale = 0
 for (const [file, content] of targets) {

@@ -11,9 +11,26 @@
 // "dark" class on <html>) and, for pages shown inside the hub, reports the
 // page height so the hub sizes the frame to fit.
 //
+// Errors: a failed request rejects with a MonoRailError that has a `code`
+// (EXT_* from MonoRail, or the backend's own code from ctx.fail()), a
+// `message` and, if the backend sent them, JSON `details`.
+//
 // No dependencies, no build step needed. Bridge protocol version 1.
 
+/** The SDK version: the same as the extension API version it was written for. */
+export const SDK_VERSION = '1.1.0'
+
 const BRIDGE = 1
+
+/** Why a request failed: `code` is stable, `message` is for people. */
+export class MonoRailError extends Error {
+  constructor(code, message, details) {
+    super(message)
+    this.name = 'MonoRailError'
+    this.code = code
+    if (details !== undefined) this.details = details
+  }
+}
 const pending = new Map()
 const listeners = new Map()
 const themeListeners = new Set()
@@ -36,7 +53,7 @@ function applyTheme(theme) {
 }
 
 function request(op, fields) {
-  if (!inFrame) return Promise.reject(new Error('Not running inside MonoRail'))
+  if (!inFrame) return Promise.reject(new MonoRailError('EXT_NOT_IN_MONORAIL', 'Not running inside MonoRail'))
   const id = ++seq
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject })
@@ -64,7 +81,7 @@ if (inFrame) {
         if (!p) return
         pending.delete(msg.id)
         if (msg.ok) p.resolve(msg.value)
-        else p.reject(new Error(msg.error?.message ?? 'Request failed'))
+        else p.reject(new MonoRailError(msg.error?.code ?? 'EXT_HOST_ERROR', msg.error?.message ?? 'Request failed', msg.error?.details))
         break
       }
       case 'event':
@@ -90,15 +107,19 @@ export const monorail = {
 
   /** Resolves once the hub has introduced itself: { extension, contribution, theme, apiVersion }. */
   ready() {
-    return inFrame ? readyPromise : Promise.reject(new Error('Not running inside MonoRail'))
+    return inFrame ? readyPromise : Promise.reject(new MonoRailError('EXT_NOT_IN_MONORAIL', 'Not running inside MonoRail'))
   },
 
-  /** Call a method of this extension's backend. Rejects with the backend's error message. */
+  /** Call a method of this extension's backend. Rejects with a MonoRailError ({ code, message, details }). */
   invoke(method, args) {
     return request('invoke', { method, args })
   },
 
-  /** Listen for events the backend sends with ctx.emit(channel, payload). Returns an unsubscribe function. */
+  /**
+   * Listen for events the backend sends with ctx.emit(channel, payload).
+   * Events are not queued: only pages open at that moment get them. Subscribe
+   * first, then load the current state with invoke(). Returns an unsubscribe function.
+   */
   on(channel, cb) {
     let set = listeners.get(channel)
     if (!set) listeners.set(channel, (set = new Set()))

@@ -8,11 +8,13 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
-const { app, BrowserWindow, dialog, net, protocol, shell } = require('electron')
+const { app, BrowserWindow, dialog, net, protocol, safeStorage, shell } = require('electron')
 
 const { API_VERSION, resolveInside } = require('./manifest.cjs')
 const { BackendHost } = require('./host.cjs')
 const { ExtensionManager } = require('./manager.cjs')
+const { SecretStore, safeStorageCipher } = require('./secrets.cjs')
+const { toWire } = require('./errors.cjs')
 
 const SCHEME = 'monorail-ext'
 
@@ -205,6 +207,19 @@ const extensionsBackend = {
 
     // ---- called by the hub on behalf of an extension page (bridge) ----
 
+    /**
+     * Call an extension's backend for its page. Resolves to { ok, value } or
+     * { ok: false, error: { code, message, details? } }: Electron's IPC keeps
+     * only an error's message, and pages need the code and details too.
+     */
+    async call(_ctx, { id, method, args }) {
+      try {
+        return { ok: true, value: await manager.invoke(id, method, args) }
+      } catch (err) {
+        return { ok: false, error: toWire(err) }
+      }
+    },
+
     /** The extension asked for a folder: the user picks it, and the backend restarts with access. */
     async requestFolder(_ctx, { id, write }) {
       const rec = manager.active(id)
@@ -229,14 +244,19 @@ const extensionsBackend = {
 
 /** Call after app 'ready'. Returns the "extensions" backend for the module registry. */
 function setupExtensions() {
+  const userData = app.getPath('userData')
+  const secretStore = new SecretStore({ root: path.join(userData, 'extension-secrets'), cipher: safeStorageCipher(safeStorage) })
   const host = new BackendHost({
     apiVersion: API_VERSION,
     onEmit: (id, channel, payload) => broadcast('extension:event', { id, channel, payload }),
     onStatus: () => broadcast('extension:changed', {}),
+    onMigrated: (id, version) => manager.recordDataVersion(id, version),
+    secrets: (id) => secretStore.forExtension(id),
   })
   manager = new ExtensionManager({
-    userData: app.getPath('userData'),
+    userData,
     host,
+    secretStore,
     // Electron's net uses the system proxy settings, like the updater.
     fetchImpl: (url, init) => net.fetch(url, init),
     onChange: () => broadcast('extension:changed', {}),
