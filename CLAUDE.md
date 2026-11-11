@@ -164,6 +164,23 @@ request re-resolves them. Read limits: the list reads the 300 newest logs and
 keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
 page says when it was cut.
 
+**Sending** (Claude for now): each message runs one turn in a worker process
+(`agent-chat-worker.mjs`, run with MonoRail's own executable in
+`ELECTRON_RUN_AS_NODE` mode) that drives the Claude Agent SDK against the
+user's own installed `claude` executable (the SDK's bundled native binary is
+excluded from the installer). The job and prompt go to the worker on stdin,
+never argv; `agent-chat-turns.cjs` keeps one turn per chat, kills the whole
+process tree on Stop, times out after 30 minutes and logs metadata only
+(session id, SDK, model, mode, outcome). The page polls `pollTurn` for events.
+Options come from `agent-chat-options.cjs`: **Ask** (default) offers only
+Read/Grep/Glob with no MCP servers; **Agent** uses Claude Code's normal
+permission rules. Every approval prompt is denied and shown in the thread.
+`assertNoBypass()` refuses any options that would bypass permissions, and the
+settings overlay disables bypass mode; never weaken either. A continued chat
+runs only in its own folder, re-checked against the allowed folders. The
+running cost total per session is kept in `costs.json` in the module's data
+folder (numbers only) so a resumed turn's own cost can be worked out.
+
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning

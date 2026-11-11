@@ -14,7 +14,11 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo } = require('./agent-chat-folders.cjs')
+const crypto = require('node:crypto')
+
+const { allowedRepos, repoFor, setReposRoot, addRepo, removeRepo, real } = require('./agent-chat-folders.cjs')
+const options = require('./agent-chat-options.cjs')
+const turnsApi = require('./agent-chat-turns.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -464,9 +468,119 @@ async function getSession(id, opts = {}) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Live turns
+
+const COSTS_FILE = 'costs.json'
+
+/** Last known running cost per session (numbers only), so a resumed turn's own cost can be split out. */
+function readCosts(dataDir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dataDir, COSTS_FILE), 'utf8')) || {}
+  } catch {
+    return {}
+  }
+}
+
+function writeCosts(dataDir, costs) {
+  try {
+    fs.mkdirSync(dataDir, { recursive: true })
+    fs.writeFileSync(path.join(dataDir, COSTS_FILE), JSON.stringify(costs))
+  } catch {
+    // cost bookkeeping is best-effort
+  }
+}
+
+function sdkStatus() {
+  const exe = options.findClaudeExecutable()
+  return [
+    {
+      id: 'claude',
+      label: 'Claude',
+      ready: !!exe,
+      reason: exe ? undefined : 'Claude Code was not found on this machine. Install it so "claude" is on your PATH, sign in once in a terminal, then reopen this page.',
+    },
+    { id: 'pi', label: 'pi', ready: false, reason: 'Sending with pi is not available yet.' },
+  ]
+}
+
+async function getComposer(ctx) {
+  const folders = await allowedRepos(ctx.dataDir)
+  return {
+    sdks: sdkStatus(),
+    models: options.CLAUDE_MODELS,
+    efforts: options.EFFORTS,
+    repos: folders.repos.map((r) => ({ name: r.name, path: r.path })),
+  }
+}
+
+/**
+ * Start a turn. The folder is never taken from the page for a chat being
+ * continued: it comes from the session log and must still be in an allowed
+ * repo. A new chat names one of the allowed repos, which is checked again.
+ */
+async function startTurn(ctx, args = {}) {
+  const job = options.validateJob({ prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort })
+  const executable = options.findClaudeExecutable()
+  if (!executable) throw new Error(sdkStatus()[0].reason)
+  const folders = await allowedRepos(ctx.dataDir)
+
+  let cwd
+  let resume
+  let chatKey
+  if (typeof args.chatId === 'string') {
+    if (!known.has(args.chatId)) await listSessions({ dataDir: ctx.dataDir })
+    const entry = known.get(args.chatId)
+    if (!entry) throw new Error('Session not found')
+    if (entry.source !== 'claude') throw new Error('Continuing pi chats from this page is not available yet.')
+    const dir = entry.cwd ? await real(entry.cwd) : undefined
+    if (!dir || !(await repoFor(folders.repos, dir))) throw new Error('This chat\'s folder is not in an allowed repo any more.')
+    cwd = dir
+    resume = args.chatId.slice('claude:'.length)
+    chatKey = args.chatId
+  } else {
+    const wanted = typeof args.repo === 'string' ? await real(args.repo) : undefined
+    const repo = wanted && folders.repos.find((r) => r.path === wanted)
+    if (!repo) throw new Error('Pick one of your allowed repos for a new chat.')
+    cwd = repo.path
+    chatKey = `new:${crypto.randomUUID()}`
+  }
+
+  const previous = resume ? readCosts(ctx.dataDir)[resume] : undefined
+  return turnsApi.startTurn({
+    chatKey,
+    worker: { job, cwd, resume, executable },
+    meta: { sdk: 'claude', model: job.model, mode: job.mode, resume },
+    onFinish: (turn) => {
+      const r = turn.result
+      if (!r || typeof r.costUsd !== 'number' || !turn.sessionId) return []
+      const costs = readCosts(ctx.dataDir)
+      costs[turn.sessionId] = r.costUsd
+      writeCosts(ctx.dataDir, costs)
+      // Claude reports a resumed turn's cost as the session's running total.
+      if (!resume) return [{ t: 'cost', turnUsd: r.costUsd, sessionUsd: r.costUsd, exact: true }]
+      if (typeof previous === 'number' && r.costUsd >= previous) return [{ t: 'cost', turnUsd: r.costUsd - previous, sessionUsd: r.costUsd, exact: true }]
+      return [{ t: 'cost', turnUsd: undefined, sessionUsd: r.costUsd, exact: false }]
+    },
+  })
+}
+
 module.exports = {
   id: 'agent-chat',
+  start(ctx) {
+    turnsApi.setLogger((msg, fields) => ctx.log(msg, JSON.stringify(fields)))
+    try {
+      require('electron').app.on('will-quit', () => turnsApi.stopAll())
+    } catch {
+      // not running under Electron (tests)
+    }
+  },
   methods: {
+    getComposer: async (ctx) => getComposer(ctx),
+    startTurn: async (ctx, args) => startTurn(ctx, args),
+    pollTurn: async (_ctx, args) => turnsApi.pollTurn(args?.turnId, args?.after),
+    stopTurn: async (_ctx, args) => turnsApi.stopTurn(args?.turnId),
+    runningTurn: async (_ctx, args) => (typeof args?.chatId === 'string' ? (turnsApi.runningTurnFor(args.chatId) ?? null) : null),
     listSessions: async (ctx) => listSessions({ dataDir: ctx.dataDir }),
     getSession: async (ctx, args) => getSession(args?.id, { dataDir: ctx.dataDir }),
     getFolders: async (ctx) => {
@@ -490,7 +604,8 @@ module.exports = {
     },
   },
   // Exported for tests.
-  _internal: { listSessions, getSession, claudeTranscript, piTranscript, piBranch, claudeMeta, piMeta },
+  _format: { clip, oneLine, inputSummary, formatInput, contentText },
+  _internal: { startTurn, getComposer, listSessions, getSession, claudeTranscript, piTranscript, piBranch, claudeMeta, piMeta },
 }
 
 async function pickFolder(title) {
