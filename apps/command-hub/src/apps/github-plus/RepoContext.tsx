@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { FolderPreview, GitHubPlusSettings, InitOptions, LinkedRepo, RefInfo, RepoInfo } from './types'
 import { api, isNotARepoError } from './api'
+import { takeGitHubPlusHandoff } from './handoff'
 
 /** Thrown by open() when the folder is not a repo and GitHub+ is offering to make it one. */
 export class InitOfferedError extends Error {
@@ -108,11 +109,14 @@ export function RepoProvider({ children }: { children: ReactNode }) {
     let live = true
     api.getSettings().then((s) => live && setSettings(s), () => undefined)
     api.getLinked().then((l) => live && setLinked(l), () => undefined)
+    // Another app (Jira+) asked to open a repo: open that one instead of the last one.
+    const handoff = takeGitHubPlusHandoff()
     api.getRecents().then(
       async (list) => {
         if (!live) return
         setRecents(list)
-        if (list[0]) await openWith(list[0], false).catch(() => setError(null))
+        if (handoff) await openWith(handoff, false).catch(() => undefined)
+        else if (list[0]) await openWith(list[0], false).catch(() => setError(null))
         if (live) setRestoring(false)
       },
       () => live && setRestoring(false),

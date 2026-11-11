@@ -569,6 +569,24 @@ do not add push or sync to it. Jira+ started as the `jira` module, so if
 the backend keeps using the old folder in place. Tests live in
 `jira-plus.test.cjs`.
 
+**Task <-> repository links** (`repo-links.cjs`, `repo-links.json` in Jira+'s
+data folder): any Jira+ task (local or team Jira) can be linked to local git
+repos and to repos on github.com, many to many. A local repo is stored by the
+root git reports plus the `owner/name` of its github.com remote (checked with
+GitHub+'s `git.cjs` when linking); a GitHub-only repo by `owner/name`.
+GitHub+ matches a repo by folder or remote, so a link to the GitHub copy also
+shows on a local clone. Links are only ever in that file: never written to
+Jira, GitHub or a repo, and the file holds keys, folders and names only (team
+ticket text is fetched on demand). The issue dialog's **Repositories** card
+lists them (local opens in GitHub+ via `openInGitHubPlus`, in memory only;
+GitHub-only opens on github.com) and links from GitHub+'s recents, its linked
+repos, the "On GitHub" list (only once GitHub is set up) or any folder.
+GitHub+ reads them through Jira+'s exported `tasksForRepo` / `repoLinks`
+(`<userData>\apps\jira-plus`, legacy folder resolved): a **Tasks** tab per
+repo (link/unlink from that side too; tasks open in Jira+ via
+`openInJiraPlus`), task counts on Home, and the tasks of a GitHub-only repo
+in its "On GitHub" row. Deleting a local task drops its links.
+
 `email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
 `electron/apps/email/connectors/index.cjs` (config fields, `signIn`,

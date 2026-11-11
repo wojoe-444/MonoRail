@@ -2,6 +2,7 @@
 // backend. Nothing here is real: the site, people and tickets are made up.
 
 import type { JiraApi } from './api'
+import { sampleRepoLinks } from './sampleRepoLinks'
 import type { Comment, IssueDetail, Overview, Project, Source, StatusCategory } from './types'
 
 const LOCAL_STATUSES: { name: string; category: StatusCategory }[] = [
@@ -235,6 +236,25 @@ export function createSampleBackend(): JiraApi {
     },
     async forgetLegacyConnection() {
       return wait({ connected, scopeJql })
+    },
+    async getRepoLinks({ source, key }) {
+      return wait(sampleRepoLinks.forIssue({ source, key }))
+    },
+    async linkRepo({ source, key, path, github }) {
+      if (path) {
+        const name = path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? path
+        sampleRepoLinks.link({ source, key }, { kind: 'local', path, name, github: name === 'orbit-notes' ? 'sample-dev/orbit-notes' : null })
+      } else if (github) {
+        sampleRepoLinks.link({ source, key }, { kind: 'github', github, name: github })
+      } else throw new Error('Pick a repository to link.')
+      return wait(sampleRepoLinks.forIssue({ source, key }))
+    },
+    async unlinkRepo({ source, key, id }) {
+      sampleRepoLinks.unlink({ source, key }, id)
+      return wait(sampleRepoLinks.forIssue({ source, key }))
+    },
+    async pickRepoFolder() {
+      return wait('C:/Users/sample/Repos/trail-planner')
     },
   }
 }

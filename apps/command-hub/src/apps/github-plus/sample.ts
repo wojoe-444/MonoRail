@@ -1,6 +1,22 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
+import { jiraApi } from '../jira-plus/api'
+import { sampleRepoLinks } from '../jira-plus/sampleRepoLinks'
+import type { LinkedTask } from './types'
+
+/** Linked tasks from the shared sample links, with summaries from the Jira+ sample tickets. */
+async function sampleTasks(repo: { path?: string; github?: string | null }): Promise<LinkedTask[]> {
+  const all = await jiraApi().listIssues({ source: 'all' })
+  return sampleRepoLinks.forRepo(repo).map(({ issue, link }) => {
+    const i = all.find((x) => x.source === issue.source && x.key === issue.key)
+    const base = { linkId: link.id, source: issue.source, key: issue.key, linkedAt: link.linkedAt }
+    return i
+      ? { ...base, summary: i.summary, status: i.status, statusCategory: i.statusCategory, type: i.type, projectName: i.projectName, url: i.url }
+      : { ...base, error: 'This ticket no longer exists in Jira+.' }
+  })
+}
+const sampleGitHubOf = (repo: string) => (repo.endsWith('/orbit-notes') ? 'sample-dev/orbit-notes' : null)
 import type { GitHubRepo, BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
@@ -325,6 +341,18 @@ export const sampleApi: RepoApi = {
     throw new Error('Cloning needs the desktop app.')
   },
   openOnGitHub: () => wait(null),
+  linkedTasks: (repo) => sampleTasks({ path: repo, github: sampleGitHubOf(repo) }),
+  linkedTaskCount: async (repo) => wait(sampleRepoLinks.forRepo({ path: repo, github: sampleGitHubOf(repo) }).length),
+  linkedTasksOnGitHub: (fullName) => sampleTasks({ github: fullName }),
+  linkCounts: async () => wait(sampleRepoLinks.counts()),
+  async linkTask(repo, source, key) {
+    sampleRepoLinks.link({ source, key }, { kind: 'local', path: repo, name: repo.split('/').pop() ?? repo, github: sampleGitHubOf(repo) })
+    return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
+  },
+  async unlinkTask(repo, t) {
+    sampleRepoLinks.unlink({ source: t.source, key: t.key }, t.linkId)
+    return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
+  },
   removeRecent: () => wait([]),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {

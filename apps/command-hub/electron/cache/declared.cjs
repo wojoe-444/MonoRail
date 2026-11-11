@@ -119,7 +119,7 @@ const DATA_FILES = Object.freeze({
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
-  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/'],
+  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/', 'repo-links.json'],
 })
 
 /**
@@ -129,7 +129,7 @@ const DATA_FILES = Object.freeze({
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
   'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
-  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
+  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached. Links between tasks and repositories (repo-links.json) keep issue keys, repo folders and repo names only, never ticket text.',
 })
 
 const byId = new Map(CACHES.map((c) => [c.id, c]))
