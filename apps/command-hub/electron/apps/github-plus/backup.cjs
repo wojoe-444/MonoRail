@@ -21,6 +21,7 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 
 const git = require('./git.cjs')
+const { writeAtomic } = require('../../cache/files.cjs')
 
 const FILE = 'backups.json'
 const UNIT_MS = { hour: 3_600_000, day: 86_400_000, week: 604_800_000 }
@@ -43,12 +44,8 @@ function createBackupService(getDataDir, log = () => {}) {
     }
   }
 
-  async function writeAll(data) {
-    await fs.mkdir(getDataDir(), { recursive: true })
-    const tmp = file() + '.tmp'
-    await fs.writeFile(tmp, JSON.stringify(data, null, 2))
-    await fs.rename(tmp, file())
-  }
+  // writeAtomic retries the rename while Windows briefly holds the old file open.
+  const writeAll = (data) => writeAtomic(file(), JSON.stringify(data, null, 2))
 
   async function update(repo, fn) {
     const data = await readAll()

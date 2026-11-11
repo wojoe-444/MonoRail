@@ -4,6 +4,9 @@ An extension adds pages and full-screen apps to MonoRail without rebuilding
 MonoRail. You build and release it in your own repository, and users install it
 from **Settings > Extensions**.
 
+These pages are also built into MonoRail: **Help > Wiki** shows the version
+that matches the installed app, offline.
+
 ## Start here
 
 1. [Concepts](concepts.md): what an extension is made of, the words these docs
