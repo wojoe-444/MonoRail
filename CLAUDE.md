@@ -345,7 +345,15 @@ anthropic/claude-opus-5-5`): saving the connection (connector `afterSave`) or
 its "Apply scoped models" action writes them as `enabledModels` in pi's global
 `settings.json` (`PI_CODING_AGENT_DIR` or `~/.pi/agent`), as pi's own
 `/scoped-models` does, under pi's `settings.json.lock` and keeping every other
-key; the check flags when pi's list has drifted. Connectors may be **subconnectors**
+key; the check flags when pi's list has drifted. **openai** covers an OpenAI API key (OPENAI_API_KEY variable, pasted and
+encrypted, or a Credential Manager entry read each time) and the Codex CLI.
+Its check starts no program and makes no request: variables are checked for
+presence only, `codex` is found on PATH by file (version from its npm
+package.json), and Codex's `auth.json` (`CODEX_HOME` or `~/.codex`) yields only
+the login mode and ChatGPT plan claim; a keyring login is reported, not read.
+The one request, `GET /v1/models`, is the user's "Test API key" action (result
+kept in memory, keyed by a hash of the key). Connectors must not probe for
+accounts the user has not added. Connectors may be **subconnectors**
 (`parent: '<kind>'`), drawn inside the parent's card under "Add-ons". The
 first is **pi > Playwright browser** (`connectors/pi-playwright.cjs`): pi's
 `pi-playwright` skill package drives the user's own Chrome or Edge tabs via

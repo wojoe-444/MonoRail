@@ -46,6 +46,7 @@ const CONNECTORS = [
   require('./connectors/gcloud.cjs'),
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
+  require('./connectors/openai.cjs'),
   require('./connectors/pi.cjs'),
   require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
