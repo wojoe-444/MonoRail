@@ -198,9 +198,14 @@ test('the Claude account override is a saved setting and reaches the summary fil
   assert.equal(account.type, 'enterprise')
   assert.equal(account.source, 'override')
   assert.equal((await svc.list()).connections.find((c) => c.kind === 'claude').values.accountType, 'enterprise')
-  await new Promise((r) => setTimeout(r, 50))
+  // The summary is written in the background: wait for it (a fixed sleep raced on busy CI runners).
   const cacheLib = require('../cache/index.cjs')
-  const summary = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']
+  let summary
+  for (let i = 0; i < 100; i++) {
+    summary = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']
+    if (summary?.summary?.connections?.claude?.account?.source === 'override') break
+    await new Promise((r) => setTimeout(r, 20))
+  }
   assert.deepEqual(summary.summary.connections.claude.account, { type: 'enterprise', source: 'override', billedAtApiPrices: true })
 })
 
