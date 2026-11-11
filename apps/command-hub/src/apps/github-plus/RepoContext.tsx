@@ -1,6 +1,14 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { RefInfo, RepoInfo } from './types'
-import { api } from './api'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import type { FolderPreview, GitHubPlusSettings, InitOptions, RefInfo, RepoInfo } from './types'
+import { api, isNotARepoError } from './api'
+
+/** Thrown by open() when the folder is not a repo and GitHub+ is offering to make it one. */
+export class InitOfferedError extends Error {
+  constructor() {
+    super('Offered to make this folder a git repository')
+    this.name = 'InitOfferedError'
+  }
+}
 
 interface Ctx {
   repo: RepoInfo | null
@@ -10,7 +18,14 @@ interface Ctx {
   /** True while the last-opened repo is being restored on startup. */
   restoring: boolean
   forget(path: string): Promise<void>
+  /** Open a repo. A plain folder is made into a repo automatically (setting) or offered via `initOffer`. */
   open(dir: string): Promise<void>
+  /** Set when the user picked a plain folder: what "Make this a git repo" would snapshot. */
+  initOffer: FolderPreview | null
+  confirmInit(opts: InitOptions, alwaysAuto: boolean): Promise<void>
+  cancelInit(): void
+  settings: GitHubPlusSettings
+  saveSettings(s: GitHubPlusSettings): Promise<void>
   /** Shows the folder picker; resolves true when a repo was opened. */
   pick(): Promise<boolean>
   refresh(): Promise<void>
@@ -26,19 +41,54 @@ export function RepoProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [recents, setRecents] = useState<string[]>([])
   const [restoring, setRestoring] = useState(true)
+  const [initOffer, setInitOffer] = useState<FolderPreview | null>(null)
+  const [settings, setSettings] = useState<GitHubPlusSettings>({ autoInitFolders: false })
+  const settingsRef = useRef(settings)
+  useEffect(() => { settingsRef.current = settings }, [settings])
 
-  const open = useCallback(async (dir: string) => {
+  const show = useCallback(async (info: RepoInfo) => {
+    setRefs(await api.listRefs(info.path))
+    setRepo(info)
+    setError(null)
+    setInitOffer(null)
+    setRecents((r) => [info.path, ...r.filter((x) => x !== info.path)])
+  }, [])
+
+  const openWith = useCallback(async (dir: string, offerInit: boolean) => {
     try {
-      const info = await api.openRepo(dir)
-      setRefs(await api.listRefs(info.path))
-      setRepo(info)
-      setError(null)
-      setRecents((r) => [info.path, ...r.filter((x) => x !== info.path)])
+      let info: RepoInfo
+      try {
+        info = await api.openRepo(dir)
+      } catch (e) {
+        if (!offerInit || !isNotARepoError(e)) throw e
+        if (settingsRef.current.autoInitFolders) {
+          info = await api.initRepo(dir, { excludeLarge: true, excludeSensitive: true })
+        } else {
+          setInitOffer(await api.previewFolder(dir))
+          setError(null)
+          throw new InitOfferedError()
+        }
+      }
+      await show(info)
+    } catch (e) {
+      if (!(e instanceof InitOfferedError)) setError((e as Error).message)
+      throw e
+    }
+  }, [show])
+  const open = useCallback((dir: string) => openWith(dir, true), [openWith])
+
+  const confirmInit = useCallback(async (opts: InitOptions, alwaysAuto: boolean) => {
+    if (!initOffer) return
+    try {
+      if (alwaysAuto) setSettings(await api.saveSettings({ ...settingsRef.current, autoInitFolders: true }))
+      await show(await api.initRepo(initOffer.path, opts))
     } catch (e) {
       setError((e as Error).message)
       throw e
     }
-  }, [])
+  }, [initOffer, show])
+
+  const saveSettings = useCallback(async (s: GitHubPlusSettings) => setSettings(await api.saveSettings(s)), [])
 
   const forget = useCallback(async (path: string) => setRecents(await api.removeRecent(path)), [])
 
@@ -53,20 +103,26 @@ export function RepoProvider({ children }: { children: ReactNode }) {
   // Reopen the last repo, so coming back to GitHub+ lands where you left off.
   useEffect(() => {
     let live = true
+    api.getSettings().then((s) => live && setSettings(s), () => undefined)
     api.getRecents().then(
       async (list) => {
         if (!live) return
         setRecents(list)
-        if (list[0]) await open(list[0]).catch(() => setError(null))
+        if (list[0]) await openWith(list[0], false).catch(() => setError(null))
         if (live) setRestoring(false)
       },
       () => live && setRestoring(false),
     )
     return () => { live = false }
-  }, [open])
+  }, [openWith])
 
   return (
-    <RepoCtx.Provider value={{ repo, refs, recents, restoring, forget, open, pick, refresh, close: () => setRepo(null), error }}>
+    <RepoCtx.Provider
+      value={{
+        repo, refs, recents, restoring, forget, open, pick, refresh, close: () => setRepo(null), error,
+        initOffer, confirmInit, cancelInit: () => setInitOffer(null), settings, saveSettings,
+      }}
+    >
       {children}
     </RepoCtx.Provider>
   )

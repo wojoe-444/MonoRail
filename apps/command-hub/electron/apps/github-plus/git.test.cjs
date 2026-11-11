@@ -179,3 +179,45 @@ describe('backups', () => {
     assert.equal(Date.parse(state.nextDueAt) - Date.parse(state.lastResult.at), 15 * 60_000)
   })
 })
+
+describe('making a plain folder a repo', () => {
+  const init = require('./init.cjs')
+  const { readFileSync, truncateSync } = require('node:fs')
+
+  it('previews, then inits with a .gitignore and a first commit, leaving files in place', async () => {
+    const plain = mkdtempSync(join(tmpdir(), 'ghp-plain-'))
+    writeFileSync(join(plain, 'notes.md'), '# Notes\n')
+    mkdirSync(join(plain, 'docs'))
+    writeFileSync(join(plain, 'docs', 'cv [final].txt'), 'hello\n')
+    writeFileSync(join(plain, '.env'), 'TOKEN=abc\n')
+    writeFileSync(join(plain, 'big.bin'), '')
+    truncateSync(join(plain, 'big.bin'), init.LARGE_BYTES + 1)
+    mkdirSync(join(plain, 'node_modules'))
+    writeFileSync(join(plain, 'node_modules', 'x.js'), '')
+
+    await assert.rejects(git.openRepo(plain), /not inside a git repository/)
+    const p = await init.previewFolder(plain)
+    assert.equal(p.fileCount, 4)
+    assert.deepEqual(p.large.map((f) => f.path), ['big.bin'])
+    assert.deepEqual(p.sensitive, ['.env'])
+    assert.deepEqual(p.skippedDirs, ['node_modules'])
+
+    const r = await init.initRepo(plain)
+    assert.deepEqual(r.excluded.sort(), ['.env', 'big.bin'])
+    const info = await git.openRepo(plain)
+    assert.equal(info.defaultRef, 'main')
+    const tree = await git.listTree(info.path, 'main', '', false)
+    assert.deepEqual(tree.map((e) => e.name).sort(), ['.gitignore', 'docs', 'notes.md'])
+    assert.equal(readFileSync(join(plain, '.env'), 'utf8'), 'TOKEN=abc\n', 'files are untouched')
+    await assert.rejects(init.initRepo(plain), /already inside/)
+  })
+
+  it('refuses drive roots and the home folder', async () => {
+    await assert.rejects(init.previewFolder(require('node:path').parse(tmpdir()).root), /whole drive/)
+    await assert.rejects(init.previewFolder(require('node:os').homedir()), /user folder/)
+  })
+
+  it('escapes paths written to .gitignore', () => {
+    assert.equal(init.ignoreLine('a/#b [1]*.txt'), '/a/\\#b \\[1\\]\\*.txt')
+  })
+})

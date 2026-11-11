@@ -11,8 +11,11 @@ const { BrowserWindow, dialog } = require('electron')
 
 const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
+const folderInit = require('./init.cjs')
 
 const RECENTS_FILE = 'recents.json'
+const SETTINGS_FILE = 'settings.json'
+const DEFAULT_SETTINGS = { autoInitFolders: false }
 const MAX_RECENTS = 12
 
 let dataDir
@@ -42,6 +45,14 @@ async function writeRecents(ctx, list) {
   await fs.writeFile(path.join(ctx.dataDir, RECENTS_FILE), JSON.stringify(list.slice(0, MAX_RECENTS), null, 2))
 }
 
+async function readSettings(ctx) {
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(await fs.readFile(path.join(ctx.dataDir, SETTINGS_FILE), 'utf8')) }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
 module.exports = {
   id: 'github-plus',
   /** Called once at startup: runs the backup scheduler inside Command Hub. */
@@ -68,6 +79,19 @@ module.exports = {
       const recents = await readRecents(ctx)
       await writeRecents(ctx, [info.path, ...recents.filter((p) => p !== info.path)])
       return info
+    },
+    /** What making a plain folder into a repo would snapshot (nothing is written). */
+    previewFolder: (_ctx, { dir } = {}) => folderInit.previewFolder(dir),
+    /** git init + .gitignore + first commit, then open it like any repo. */
+    async initRepo(ctx, { dir, excludeLarge, excludeSensitive } = {}) {
+      const { path: root } = await folderInit.initRepo(dir, { excludeLarge, excludeSensitive })
+      return module.exports.methods.openRepo(ctx, { dir: root })
+    },
+    getSettings: (ctx) => readSettings(ctx),
+    async saveSettings(ctx, { settings } = {}) {
+      const next = { ...(await readSettings(ctx)), autoInitFolders: !!settings?.autoInitFolders }
+      await fs.writeFile(path.join(ctx.dataDir, SETTINGS_FILE), JSON.stringify(next, null, 2))
+      return next
     },
     async getRecents(ctx) {
       return readRecents(ctx)

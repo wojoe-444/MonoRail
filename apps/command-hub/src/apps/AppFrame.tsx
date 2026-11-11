@@ -1,7 +1,8 @@
 import { Component, Suspense, type ReactNode } from 'react'
-import { ArrowLeft, TrainFront } from 'lucide-react'
+import { ArrowLeft, Moon, Sun, TrainFront } from 'lucide-react'
 
 import { currentPath, navigate } from '@/lib/router'
+import { useTheme } from '@/lib/theme'
 
 import { hubReturnPath, rememberAppPath } from './session'
 import type { AppDefinition } from './types'
@@ -15,6 +16,7 @@ import type { AppDefinition } from './types'
 export function AppFrame({ app }: { app: AppDefinition }) {
   const AppRoot = app.component
   const Icon = app.icon
+  const [theme, toggleTheme] = useTheme()
 
   const exit = () => {
     rememberAppPath(app, currentPath())
@@ -42,6 +44,15 @@ export function AppFrame({ app }: { app: AppDefinition }) {
           <span className="rounded-full bg-sidebar-primary/20 px-2 py-0.5 text-[11px] font-semibold text-sidebar-primary">App</span>
         </div>
         <span className="ml-auto hidden min-w-0 truncate text-xs text-sidebar-muted-foreground lg:block">{app.description}</span>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-muted-foreground transition-colors outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring lg:ml-0"
+        >
+          {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
         <AppErrorBoundary title={app.title}>
