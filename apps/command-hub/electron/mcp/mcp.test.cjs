@@ -2,7 +2,7 @@
 // Builds a fictional MonoRail data folder in the OS temp folder (needs `git`
 // on PATH), then talks to the server in process and over real stdio.
 
-const { describe, it, before } = require('node:test')
+const { describe, it, before, after } = require('node:test')
 const assert = require('node:assert/strict')
 const { execFileSync, spawn } = require('node:child_process')
 const fs = require('node:fs')
@@ -155,7 +155,7 @@ describe('MCP protocol', () => {
 describe('MonoRail read tools', () => {
   let server
   before(() => {
-    server = createServer({ rootDir: root })
+    server = createServer({ rootDir: root, extensions: false })
   })
 
   it('marks every read tool read-only', async () => {
@@ -311,6 +311,78 @@ describe('write tools and consent', () => {
     assert.equal(access.cleanName(''), 'unknown agent')
     assert.equal(access.cleanName('a\u0000b'), 'ab')
     assert.equal(access.cleanName('x'.repeat(500)).length, 100)
+  })
+})
+
+describe('extension tools', () => {
+  const access = require('./access.cjs')
+  const { validateManifest, permissionsKey } = require('../extensions/manifest.cjs')
+  const sample = path.resolve(__dirname, '../../../../extensions/hello-monorail')
+  let extRoot
+  let server
+
+  const install = (dataVersion) => {
+    const m = validateManifest(JSON.parse(fs.readFileSync(path.join(sample, 'monorail.json'), 'utf8')))
+    fs.mkdirSync(path.join(extRoot, 'extensions'), { recursive: true })
+    fs.writeFileSync(
+      path.join(extRoot, 'extensions', 'state.json'),
+      JSON.stringify({
+        version: 1,
+        extensions: { 'hello-monorail': { enabled: true, source: { type: 'dev', path: sample }, granted: JSON.parse(permissionsKey(m.permissions)), folders: [] } },
+        dataVersions: dataVersion ? { 'hello-monorail': dataVersion } : {},
+      }),
+    )
+    return m
+  }
+
+  before(async () => {
+    extRoot = tmp('monorail-mcp-ext-')
+    const m = install('1.1.0')
+    assert.equal(m.contributes.mcpTools.length, 2)
+    server = createServer({ rootDir: extRoot })
+    await server.handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'ext-agent' } } })
+  })
+
+  after(async () => {
+    await server?.stop()
+  })
+
+  it('lists an active extension\'s tools under its own prefix', async () => {
+    const r = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
+    const list = r.result.tools.find((t) => t.name === 'hello_monorail__list_notes')
+    const add = r.result.tools.find((t) => t.name === 'hello_monorail__add_note')
+    assert.ok(list && add)
+    assert.equal(list.annotations.readOnlyHint, true)
+    assert.equal(add.annotations.readOnlyHint, false)
+    assert.match(list.description, /From the Hello MonoRail extension/)
+    assert.deepEqual(add.inputSchema.required, ['text'])
+  })
+
+  it('needs consent for every extension tool, read or write', async () => {
+    assert.match((await call(server, 'hello_monorail__list_notes', {})).text, /has not allowed "ext-agent"/)
+    await access.setAllowed(extRoot, 'ext-agent', 'hello_monorail__list_notes', true)
+    await access.setAllowed(extRoot, 'ext-agent', 'hello_monorail__add_note', true)
+    assert.deepEqual((await call(server, 'hello_monorail__list_notes', {})).value, [])
+  })
+
+  it('runs the backend sandboxed in its own data folder, and logs writes', async () => {
+    const added = await call(server, 'hello_monorail__add_note', { text: 'from an agent' })
+    assert.equal(added.isError, false, added.text)
+    assert.equal(added.value[0].text, 'from an agent')
+    // The data lands in the extension's own data folder, shared with the app.
+    assert.ok(fs.existsSync(path.join(extRoot, 'extension-data', 'hello-monorail')))
+    const log = await access.readAudit(extRoot)
+    assert.ok(log.some((e) => e.tool === 'hello_monorail__add_note' && e.write && e.did === 'Hello MonoRail: Add a note'))
+    assert.match((await call(server, 'hello_monorail__add_note', {})).text, /Missing argument "text"/)
+  })
+
+  it('refuses an extension the app has not set up after an update, or turned off', async () => {
+    install('1.0.0')
+    assert.match((await call(server, 'hello_monorail__list_notes', {})).text, /not finished setting up/)
+    const state = JSON.parse(fs.readFileSync(path.join(extRoot, 'extensions', 'state.json'), 'utf8'))
+    state.extensions['hello-monorail'].enabled = false
+    fs.writeFileSync(path.join(extRoot, 'extensions', 'state.json'), JSON.stringify(state))
+    assert.match((await call(server, 'hello_monorail__list_notes', {})).text, /turned off/)
   })
 })
 

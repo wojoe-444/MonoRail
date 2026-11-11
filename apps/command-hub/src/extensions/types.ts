@@ -56,7 +56,7 @@ export interface ExtensionSummary {
   newPermissions: PermissionLine[]
   canPickFolders: boolean
   folders: { path: string; write: boolean }[]
-  contributes: { modules: ModuleContribution[]; apps: AppContribution[] }
+  contributes: { modules: ModuleContribution[]; apps: AppContribution[]; mcpTools?: McpToolContribution[] }
   backend?: { activation: 'onDemand' | 'startup'; state: 'running' | 'starting' | 'stopped' | 'crashed'; error?: string }
   update?: { version: string; notes?: string; publishedAt?: string }
   /** Fields declared under "settings" in monorail.json. */
@@ -89,7 +89,7 @@ export interface InstallPreview {
   downgrade: boolean
   permissions: PermissionLine[]
   newPermissions: PermissionLine[]
-  contributes: { modules: ModuleContribution[]; apps: AppContribution[] }
+  contributes: { modules: ModuleContribution[]; apps: AppContribution[]; mcpTools?: McpToolContribution[] }
   hasBackend: boolean
 }
 
@@ -120,4 +120,13 @@ export interface SettingsSnapshot {
   values: Record<string, string | number | boolean | null>
   /** Per secret field: whether one is saved. */
   secrets: Record<string, boolean>
+}
+
+/** A tool the extension offers to agents through MonoRail's MCP server (API 1.2). */
+export interface McpToolContribution {
+  name: string
+  title: string
+  description: string
+  method: string
+  write: boolean
 }

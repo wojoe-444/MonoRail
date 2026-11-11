@@ -4,6 +4,10 @@ export interface McpTool {
   title: string
   description: string
   readOnly: boolean
+  /** Off for each agent until the user allows it (built-in writes, every extension tool). */
+  needsConsent?: boolean
+  /** The extension that offers it, if any. */
+  extension?: string
 }
 
 /** What electron/modules/mcp.cjs getSetup returns. */
@@ -28,7 +32,8 @@ export interface McpAgent {
 }
 
 export interface McpAccess {
-  writeTools: { name: string; title: string }[]
+  /** Tools that need the user's OK: built-in writes and extension tools. */
+  writeTools: { name: string; title: string; extension?: string }[]
   agents: McpAgent[]
 }
 

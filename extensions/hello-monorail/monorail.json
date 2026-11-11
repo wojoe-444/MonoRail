@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "id": "hello-monorail",
   "name": "Hello MonoRail",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The starter extension: a page, a full-screen app and a small backend that keeps notes.",
   "publisher": "MonoRail",
   "repository": "wojoe-444/MonoRail",
   "engines": {
-    "monorail": "^1.1.0"
+    "monorail": "^1.2.0"
   },
   "icon": "icon.svg",
   "ui": "ui",
@@ -30,6 +30,34 @@
         "title": "Notes Board",
         "description": "The same notes, as a full-screen app.",
         "entry": "index.html#board"
+      }
+    ],
+    "mcpTools": [
+      {
+        "name": "list_notes",
+        "title": "List notes",
+        "description": "The notes kept by Hello MonoRail, newest first: id, text and when each was written.",
+        "method": "listNotes"
+      },
+      {
+        "name": "add_note",
+        "title": "Add a note",
+        "description": "Add a note to Hello MonoRail.",
+        "method": "addNote",
+        "write": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 500,
+              "description": "The note, up to 500 characters."
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
       }
     ]
   },

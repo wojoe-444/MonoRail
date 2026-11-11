@@ -16,6 +16,8 @@ export interface TestOptions {
   secretsAvailable?: boolean
   /** Settings values "the user entered"; defaults come from manifest.settings. */
   settings?: Record<string, unknown>
+  /** ctx.runningIn; 'mcp' to test a call from an agent (pair with secretsAvailable: false). */
+  runningIn?: 'app' | 'mcp'
 }
 
 export interface LoadOptions extends TestOptions {

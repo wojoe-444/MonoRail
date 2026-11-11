@@ -137,6 +137,7 @@ export function createTestContext(opts = {}) {
   const log = (level) => (...a) => record.logs.push({ level, line: util.format(...a) })
   const ctx = Object.freeze({
     apiVersion: SDK_VERSION,
+    runningIn: opts.runningIn === 'mcp' ? 'mcp' : 'app',
     extension: Object.freeze({ id: m.id ?? 'test-extension', name: m.name ?? 'Test extension', version: m.version ?? '0.0.0' }),
     dataDir,
     extensionDir: opts.extensionDir ?? process.cwd(),

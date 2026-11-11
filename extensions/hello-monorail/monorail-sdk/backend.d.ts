@@ -44,8 +44,16 @@ export interface Secrets {
 }
 
 export interface BackendContext {
-  /** Extension API version of the host, e.g. "1.1.0". */
+  /** Extension API version of the host, e.g. "1.2.0". */
   readonly apiVersion: string
+  /**
+   * Where this backend process runs (API 1.2): 'app' inside MonoRail, or
+   * 'mcp' when an agent called one of the extension's MCP tools
+   * (contributes.mcpTools). Under 'mcp', ctx.secrets rejects with
+   * EXT_SECRETS_UNAVAILABLE, secret settings read as null and ctx.emit
+   * reaches no page. Both can run at the same time, so write files atomically.
+   */
+  readonly runningIn: 'app' | 'mcp'
   readonly extension: { readonly id: string; readonly name: string; readonly version: string }
   /** Private, writable folder for settings, caches and state. Kept across updates and reloads. */
   readonly dataDir: string

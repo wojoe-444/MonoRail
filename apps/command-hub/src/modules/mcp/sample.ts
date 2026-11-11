@@ -25,17 +25,18 @@ export const sampleSetup: McpSetup = {
     { name: 'list_jira_plus_issues', title: 'Jira+ local issues', description: 'Issues of one local Jira+ project.', readOnly: true },
     { name: 'get_jira_plus_issue', title: 'Jira+ local issue', description: 'One local Jira+ issue with comments and history.', readOnly: true },
     { name: 'connection_status', title: 'Account connections', description: 'Whether each connection still works. No credentials.', readOnly: true },
-    { name: 'create_github_plus_issue', title: 'Raise a GitHub+ local issue', description: 'Create a local issue in a GitHub+ repo.', readOnly: false },
-    { name: 'comment_github_plus_issue', title: 'Comment on a GitHub+ local issue', description: 'Add a comment to a local issue.', readOnly: false },
-    { name: 'create_jira_plus_issue', title: 'Raise a Jira+ local issue', description: 'Create an issue in a private local Jira+ project.', readOnly: false },
-    { name: 'comment_jira_plus_issue', title: 'Comment on a Jira+ local issue', description: 'Add a comment to a local Jira+ issue.', readOnly: false },
+    { name: 'create_github_plus_issue', title: 'Raise a GitHub+ local issue', description: 'Create a local issue in a GitHub+ repo.', readOnly: false, needsConsent: true },
+    { name: 'comment_github_plus_issue', title: 'Comment on a GitHub+ local issue', description: 'Add a comment to a local issue.', readOnly: false, needsConsent: true },
+    { name: 'create_jira_plus_issue', title: 'Raise a Jira+ local issue', description: 'Create an issue in a private local Jira+ project.', readOnly: false, needsConsent: true },
+    { name: 'comment_jira_plus_issue', title: 'Comment on a Jira+ local issue', description: 'Add a comment to a local Jira+ issue.', readOnly: false, needsConsent: true },
+    { name: 'hello_monorail__list_notes', title: 'Hello MonoRail: List notes', description: 'The notes kept by the Hello MonoRail extension.', readOnly: true, needsConsent: true, extension: 'Hello MonoRail' },
   ],
 }
 
 /** An ISO time `min` minutes ago, so sample times read naturally. */
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 
-const writeTools = sampleSetup.tools.filter((t) => !t.readOnly).map(({ name, title }) => ({ name, title }))
+const writeTools = sampleSetup.tools.filter((t) => t.needsConsent).map(({ name, title, extension }) => ({ name, title, extension }))
 
 export const sampleAccess: McpAccess = {
   writeTools,

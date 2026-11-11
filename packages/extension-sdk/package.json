@@ -1,6 +1,6 @@
 {
   "name": "@monorail/extension-sdk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Build MonoRail extensions: page client, backend types, design tokens and a packager",
   "type": "module",

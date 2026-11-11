@@ -14,7 +14,7 @@
 const path = require('node:path')
 
 /** The extension API this build of MonoRail implements. */
-const API_VERSION = '1.1.0'
+const API_VERSION = '1.2.0'
 const MANIFEST_FILE = 'monorail.json'
 const MANIFEST_VERSION = 1
 
@@ -124,6 +124,59 @@ function contribution(c, i, kind) {
     }
   }
   return out
+}
+
+// -------------------------------------------------------------- MCP tools --
+
+const MAX_MCP_TOOLS = 20
+const MAX_TOOL_PROPS = 20
+const MCP_TOOL_NAME_RE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/
+const METHOD_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+const PROP_TYPES = ['string', 'integer', 'number', 'boolean']
+
+/**
+ * One tool the extension offers to agents through MonoRail's MCP server
+ * (API 1.2). Calling it calls `method` on the backend with the arguments.
+ * The input schema is the subset of JSON Schema MonoRail checks itself:
+ * flat, typed properties with enum, minimum, maximum and maxLength.
+ */
+function mcpTool(t, i) {
+  const where = `contributes.mcpTools[${i}]`
+  if (!t || typeof t !== 'object') throw new ManifestError(`${where} must be an object`)
+  const name = str(t, 'name', where, { max: 20 })
+  if (!MCP_TOOL_NAME_RE.test(name)) throw new ManifestError(`${where}.name must be snake_case (a-z, 0-9, single underscores), at most 20 characters`)
+  const method = str(t, 'method', where, { max: 100 })
+  if (!METHOD_RE.test(method)) throw new ManifestError(`${where}.method must be the name of a backend method`)
+  const schema = t.inputSchema ?? { type: 'object', properties: {} }
+  if (!schema || typeof schema !== 'object' || schema.type !== 'object') throw new ManifestError(`${where}.inputSchema must be { "type": "object", ... }`)
+  const props = schema.properties ?? {}
+  if (typeof props !== 'object' || Array.isArray(props)) throw new ManifestError(`${where}.inputSchema.properties must be an object`)
+  const keys = Object.keys(props)
+  if (keys.length > MAX_TOOL_PROPS) throw new ManifestError(`${where}.inputSchema can have at most ${MAX_TOOL_PROPS} properties`)
+  const properties = {}
+  for (const k of keys) {
+    const p = props[k]
+    const at = `${where}.inputSchema.properties.${k}`
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(k)) throw new ManifestError(`${at}: property names are letters, digits and _`)
+    if (!p || typeof p !== 'object' || !PROP_TYPES.includes(p.type)) throw new ManifestError(`${at}.type must be one of ${PROP_TYPES.join(', ')}`)
+    const out = { type: p.type }
+    if (typeof p.description === 'string') out.description = p.description.slice(0, 300)
+    if (p.enum !== undefined) {
+      if (!Array.isArray(p.enum) || !p.enum.length || p.enum.length > 50) throw new ManifestError(`${at}.enum must be a list of 1 to 50 values`)
+      out.enum = p.enum
+    }
+    for (const n of ['minimum', 'maximum', 'maxLength']) if (Number.isFinite(p[n])) out[n] = p[n]
+    properties[k] = out
+  }
+  const required = Array.isArray(schema.required) ? schema.required.filter((k) => Object.hasOwn(properties, k)) : []
+  return {
+    name,
+    title: str(t, 'title', where, { max: 60 }),
+    description: str(t, 'description', where, { max: 500 }),
+    method,
+    write: t.write === true,
+    inputSchema: { type: 'object', properties, ...(required.length ? { required } : {}), additionalProperties: false },
+  }
 }
 
 function stringList(value, where, re, label) {
@@ -334,6 +387,16 @@ function validateManifest(raw) {
     backend = { main: relPath(raw.backend.main, 'backend.main'), activation }
   }
 
+  if (contributes.mcpTools !== undefined && !Array.isArray(contributes.mcpTools)) throw new ManifestError('contributes.mcpTools must be a list')
+  const mcpTools = (contributes.mcpTools ?? []).map(mcpTool)
+  if (mcpTools.length > MAX_MCP_TOOLS) throw new ManifestError(`contributes.mcpTools can have at most ${MAX_MCP_TOOLS} tools`)
+  if (mcpTools.length && !backend) throw new ManifestError('contributes.mcpTools needs a backend: each tool calls a backend method')
+  const toolNames = new Set()
+  for (const t of mcpTools) {
+    if (toolNames.has(t.name)) throw new ManifestError(`Two MCP tools are called "${t.name}"`)
+    toolNames.add(t.name)
+  }
+
   if (modules.length + apps.length === 0 && !backend)
     throw new ManifestError('The extension contributes nothing: add contributes.modules, contributes.apps or a backend')
 
@@ -348,7 +411,7 @@ function validateManifest(raw) {
     apiRange,
     icon: raw.icon === undefined ? undefined : relPath(raw.icon, 'icon'),
     ui: raw.ui === undefined ? (modules.length + apps.length ? 'ui' : undefined) : relPath(raw.ui, 'ui'),
-    contributes: { modules, apps },
+    contributes: { modules, apps, mcpTools },
     backend,
     permissions: normalizePermissions(raw.permissions),
     settings: normalizeSettings(raw.settings),

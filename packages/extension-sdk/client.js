@@ -21,7 +21,7 @@
 // No dependencies, no build step needed. Bridge protocol version 1.
 
 /** The SDK version: the same as the extension API version it was written for. */
-export const SDK_VERSION = '1.1.0'
+export const SDK_VERSION = '1.2.0'
 
 const BRIDGE = 1
 

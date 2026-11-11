@@ -66,7 +66,16 @@ Results that come from a cache say when they were built. A repo is named by its 
 | `create_jira_plus_issue` | Raises an issue in a local Jira+ project (summary, description, type, priority) |
 | `comment_jira_plus_issue` | Comments on a local Jira+ issue |
 
-They change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo. Starting chats and extension tools are planned.
+They change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo. Starting chats is planned.
+
+### Extension tools
+
+Installed extensions can offer their own tools ([`contributes.mcpTools`](extensions/manifest.md#mcp-tools)). They appear as `<extension>__<tool>`, for example `hello_monorail__list_notes`, and are listed on the Agent access page with the extension's name. Only active extensions take part (turned on, compatible, permissions approved).
+
+- **Every extension tool needs your OK**, per agent, even one the extension marks read-only: MonoRail cannot check that claim.
+- **Same sandbox.** The MCP server runs the extension's backend itself, with the permissions you approved and the folders you granted, and its own data folder. Secrets stay in the app: an extension cannot read its stored secrets when called by an agent.
+- **After an install or update,** open the extension in MonoRail once before agents can use its tools, so its data is set up by the app.
+- The server reads the installed extensions when the agent starts it; restart the agent's MonoRail server to pick up a new extension.
 
 ## Write tools and consent
 
@@ -82,7 +91,7 @@ Every tool call, read or write, is logged on the Agent access page under **Activ
 ## Privacy and safety
 
 - **stdio only.** The agent starts the server as its own subprocess and talks to it over stdin and stdout. No network port is opened, so no other program, website or machine can reach it.
-- **Writes need your OK.** Read tools change nothing. Write tools only change local issues, and only for an agent you turned them on for. Every call is logged.
+- **Writes need your OK.** MonoRail's read tools change nothing. Its write tools only change local issues, and only for an agent you turned them on for. Extension tools need your OK too. Every call is logged.
 - **No secrets.** Tokens, API keys and passwords are never returned. Connection status carries the state and summary only, never check details or credentials.
 - **Your folders only.** Chats come only from repos you allowed on the Chat page; issues only from repos you opened in GitHub+. An agent cannot pass any other path.
 - **Little is stored.** The server reads MonoRail's data folder (the same one the app picks; it never moves one). It keeps only `access.json` (agents and their switches) and `audit.jsonl` (the activity log) in `modules\mcp`. Its stderr lines hold only the tool name, outcome and time.

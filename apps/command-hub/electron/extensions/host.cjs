@@ -69,8 +69,10 @@ class BackendHost {
    * @param {(id: string, version: string) => void} [opts.onMigrated] the backend's data folder is now at this version
    * @param {(id: string) => import('./secrets.cjs').ExtensionSecrets} [opts.secrets] secret storage for one extension
    * @param {(id: string) => Promise<object>} [opts.settings] an extension's settings values, for ctx.settings.get()
+   * @param {'app'|'mcp'} [opts.runningIn] ctx.runningIn: 'mcp' in the MCP server's process (electron/mcp)
    */
-  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, onMigrated = () => {}, secrets, settings, apiVersion } = {}) {
+  constructor({ execPath = process.execPath, onEmit = () => {}, onStatus = () => {}, onMigrated = () => {}, secrets, settings, apiVersion, runningIn = 'app' } = {}) {
+    this.runningIn = runningIn
     this.settings = settings
     this.execPath = execPath
     this.onEmit = onEmit
@@ -170,6 +172,7 @@ class BackendHost {
     child.send({
       type: 'init',
       apiVersion: this.apiVersion,
+      runningIn: this.runningIn,
       extension: { id, name: manifest.name, version: manifest.version },
       main: path.join(extensionDir, manifest.backend.main),
       extensionDir,
@@ -235,7 +238,10 @@ class BackendHost {
       const args = msg.args ?? {}
       const store = this.secrets?.(id)
       if (typeof msg.op === 'string' && msg.op.startsWith('secrets.') && !store)
-        throw new ExtensionCallError('EXT_SECRETS_UNAVAILABLE', 'Secret storage is not available in this MonoRail')
+        throw new ExtensionCallError(
+          'EXT_SECRETS_UNAVAILABLE',
+          this.runningIn === 'mcp' ? 'Secrets are only available inside MonoRail, not when an agent calls a tool (ctx.runningIn is "mcp")' : 'Secret storage is not available in this MonoRail',
+        )
       let value
       switch (msg.op) {
         case 'secrets.get':
