@@ -101,7 +101,13 @@ export default function AgentChatPage() {
   const composerInfo = desktop ? composerQuery.data : sampleComposer
   const prefs = useComposerPrefs(composerInfo)
   /** A new chat being composed: its key and the project it will run in. */
-  const [draft, setDraft] = useState<{ key: string; repo?: string; coordinator?: boolean }>()
+  const [draft, setDraft] = useState<{ key: string; repo?: string; coordinator?: boolean } | undefined>(() =>
+    handoff && 'newChat' in handoff ? { key: `draft:${crypto.randomUUID()}`, repo: handoff.newChat.repo } : undefined,
+  )
+  useEffect(() => {
+    if (handoff && 'newChat' in handoff && handoff.newChat.sdk) prefs.setNewSdk(handoff.newChat.sdk)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [turns, setTurns] = useState<LiveTurn[]>([])
   const turnsRef = useRef(turns)
   useLayoutEffect(() => {

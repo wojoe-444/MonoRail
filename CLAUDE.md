@@ -193,8 +193,9 @@ folder (numbers only) so a resumed turn's own cost can be worked out.
 **pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
 agent SDK, found behind the `pi` command (`findPiSdk`: PATH plus the usual
 npm/pnpm/bun/Volta/scoop folders, reading the command's shim to find the
-package; `@earendil-works/pi-coding-agent`, or `@mariozechner/...` for pi 0.x).
-MonoRail does not bundle it; the worker handles pi 1.x (`ModelRuntime`) and 0.x. pi has no approval prompts, so its limits are the tool list and a
+package; `@earendil-works/pi-coding-agent`, or `@mariozechner/...` for pi
+0.x). MonoRail does not bundle it; the worker handles pi 1.x (`ModelRuntime`)
+and 0.x. pi has no approval prompts, so its limits are the tool list and a
 path guard: Ask gets read/grep/find/ls, Agent adds edit/write, every tool path
 must resolve (real path) inside the chat's repo, the user's pi extensions are
 not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
@@ -239,6 +240,18 @@ with tools limited to `Agent` and `Workflow`, `dontAsk` and no MCP servers.
 Claude only: pi has no subagents, so a coordinator job on pi is refused. Its
 chats are listed apart, first. Without the subagent the entry is greyed out
 with the reason.
+
+The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
+Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
+files: it reuses Agent Chat's session list, composer info and running turns
+in process, reads the Claude Stats summary (never builds a report), and lists
+agent definitions (`agents-definitions.cjs`: Claude Code subagents in
+`.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
+`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+repo; frontmatter only, bodies on demand by id, never a path). Archived chats
+are left out. Quick launch and "Open" hand over to Chat with
+`openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
+handed-over prompt is prefilled in the composer, never sent by itself.
 
 `connections` (**Connections**, under Configure) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
