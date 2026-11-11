@@ -4,7 +4,7 @@ Guidance for Claude (and anyone else) working in this repository.
 
 ## What this project is
 
-**Command Hub** is a desktop app for managing agents. The agent definitions
+**MonoHub** is a desktop app for managing agents. The agent definitions
 it manages are stored in this repository (`wojoe-444/MonoRail`) under
 `agents/`. The app itself lives in `apps/command-hub/`: React 19 + Vite +
 TypeScript + Tailwind CSS v4 + shadcn/ui, wrapped in Electron so it ships as a
@@ -14,6 +14,26 @@ The owner reviews changes by running the `.exe` locally, so keep
 `npm run dist:win` working and treat "it builds and opens as an .exe" as part
 of done.
 
+### Formerly "Command Hub": names that must not change
+
+The app was renamed from Command Hub to MonoHub. Installed copies update
+themselves in place, so a few internal names keep the old spelling on
+purpose. Changing any of them breaks updates or strands the user's data:
+
+- `appId` `dev.monorail.commandhub` (electron-builder.json): the installer's
+  identity. A new appId installs a second app instead of upgrading.
+- `"name": "command-hub"` (package.json): sets the install folder
+  (`%LOCALAPPDATA%\Programs\command-hub`) and the updater cache folder.
+- The `publish` block (GitHub releases of `wojoe-444/MonoRail`) and the
+  `latest.yml` asset name. Installer asset names may change, because the
+  updater finds the installer through `latest.yml`.
+- `window.commandHub`, `CommandHubBridge` and the `commandHub.*`
+  localStorage keys are internal and were left as they are.
+
+`electron/userData.cjs` runs before the app is ready and moves an old
+`%APPDATA%\Command Hub` (or dev-run `command-hub`) folder to
+`%APPDATA%\MonoHub` once; if the move fails it keeps using the old folder.
+
 ## The one hard rule: private data stays in AppData
 
 **This repository is public.** Never commit private or user-specific data:
@@ -21,7 +41,7 @@ API keys, tokens, passwords, emails, personal settings, run history, logs, or
 anything copied from the user's machine.
 
 - At runtime that data lives in local AppData. In Electron, use
-  `app.getPath('userData')` (on Windows `%APPDATA%\Command Hub`). Do not
+  `app.getPath('userData')` (on Windows `%APPDATA%\MonoHub`). Do not
   invent other locations, and never write it inside the repo folder.
 - Sample or demo data in the repo must be fictional (see
   `apps/command-hub/src/data/sample.ts`).
@@ -41,7 +61,7 @@ Run from `apps/command-hub/`:
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |
 | `npm test` | Node tests for backends (`electron/**/*.test.cjs`) |
-| `npm run dist:win` | Build the installer `release/CommandHub-Setup-<version>.exe` |
+| `npm run dist:win` | Build the installer `release/MonoHub-Setup-<version>.exe` |
 | `npm run dist:win:portable` | Build a portable `.exe` (cannot self-update) |
 
 CI (`.github/workflows/ci.yml`) builds and lints on every PR and produces the
@@ -83,7 +103,7 @@ To add a module:
 3. If it needs local data, write `electron/modules/<id>.cjs` exporting
    `{ id, methods: { name: async (ctx, args) => result } }` and add it to
    `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
-   (`%APPDATA%\Command Hub\modules\<id>`); keep caches and settings there.
+   (`%APPDATA%\MonoHub\modules\<id>`); keep caches and settings there.
 4. In the page, call it with `useModuleQuery(id, method)` or
    `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
    browser dev server there is no backend (`isDesktop()` is false), so ship
@@ -127,7 +147,7 @@ under Home. The contract is `AppDefinition` in `src/apps/types.ts`.
 
 The one thing an app never owns is the **hub bar**: `src/apps/AppFrame.tsx`
 renders a 48px bar above every app, in the hub's dark drawer color, with a
-"Back to Command Hub" button, the app's icon and name, and an "App" chip.
+"Back to MonoHub" button, the app's icon and name, and an "App" chip.
 That is how users leave any app; do not hide, restyle or duplicate it inside
 an app. Leaving returns to the hub page the user came from, and reopening an
 app from the nav resumes where it was left (`src/apps/session.ts`). An error
@@ -150,7 +170,7 @@ To add an app:
    `{ id, methods }` (same shape as a module backend) and add it to
    `electron/apps/index.cjs`. Call it with `invokeApp(id, method, args)` from
    `src/apps/client.ts`. `ctx.dataDir` is
-   `%APPDATA%\Command Hub\apps\<id>`. As with modules, ship fictional
+   `%APPDATA%\MonoHub\apps\<id>`. As with modules, ship fictional
    sample data for the browser dev server. A module or app backend may also
    export `start(ctx)`, called once at startup, for work that runs without
    its page open (GitHub+ uses it for its backup scheduler).
@@ -169,7 +189,7 @@ GitHub+ also has **scheduled backups** (Backups tab, `backup.cjs`): per repo,
 "X times per hour/day/week" into a folder the user picks (e.g. one OneDrive
 already syncs). Each backup is a verified `git bundle --all` file, written as
 `.partial` and renamed when complete, with the newest N kept. The scheduler
-runs inside Command Hub (checks every minute and at startup, so a backup
+runs inside MonoHub (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
 

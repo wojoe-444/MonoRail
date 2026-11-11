@@ -8,7 +8,7 @@
 // Both return the same issue shape, so the page treats them alike.
 //
 // Private data rule: the Jira site, email and API token are saved in
-// %APPDATA%\Command Hub\modules\jira\connection.json, with the token encrypted
+// %APPDATA%\MonoHub\modules\jira\connection.json, with the token encrypted
 // by Electron safeStorage. The local repo is %APPDATA%\...\jira\local-repo.
 
 const fs = require('node:fs/promises')

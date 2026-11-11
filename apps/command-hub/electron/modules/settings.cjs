@@ -14,7 +14,7 @@ const { app } = require('electron')
 function updateSupport() {
   if (!app.isPackaged) return { supported: false, reason: 'Updates work in the installed app, not in development.' }
   if (process.env.PORTABLE_EXECUTABLE_DIR)
-    return { supported: false, reason: 'This is the portable .exe, which cannot update itself. Install Command Hub with the setup .exe to get updates.' }
+    return { supported: false, reason: 'This is the portable .exe, which cannot update itself. Install MonoHub with the setup .exe to get updates.' }
   if (process.platform !== 'win32') return { supported: false, reason: 'Updates are only set up for Windows.' }
   return { supported: true }
 }

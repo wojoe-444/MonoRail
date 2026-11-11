@@ -29,7 +29,7 @@ const SENSITIVE = [
   /password/i,
 ]
 
-const DEFAULT_GITIGNORE = `# Created by GitHub+ in Command Hub. Edit freely.
+const DEFAULT_GITIGNORE = `# Created by GitHub+ in MonoHub. Edit freely.
 # OS and editor clutter
 Thumbs.db
 desktop.ini

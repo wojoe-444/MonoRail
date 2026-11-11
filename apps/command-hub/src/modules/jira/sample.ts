@@ -138,7 +138,7 @@ export function createSampleBackend(): JiraApi {
           ? { connected: true, siteUrl: SITE, email: 'casey@example.com', displayName: 'Casey Morgan', scopeJql: 'assignee = currentUser()', encrypted: true }
           : { connected: false, scopeJql: 'assignee = currentUser()' },
         projects,
-        local: { statuses: LOCAL_STATUSES, types: TYPES, priorities: PRIORITIES, repoDir: '%APPDATA%\\Command Hub\\modules\\jira\\local-repo' },
+        local: { statuses: LOCAL_STATUSES, types: TYPES, priorities: PRIORITIES, repoDir: '%APPDATA%\\MonoHub\\modules\\jira\\local-repo' },
       }
       return wait(overview)
     },

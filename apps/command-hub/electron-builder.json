@@ -1,6 +1,6 @@
 {
   "appId": "dev.monorail.commandhub",
-  "productName": "Command Hub",
+  "productName": "MonoHub",
   "directories": {
     "output": "release"
   },
@@ -24,10 +24,10 @@
     "oneClick": true,
     "perMachine": false,
     "deleteAppDataOnUninstall": false,
-    "artifactName": "CommandHub-Setup-${version}.exe"
+    "artifactName": "MonoHub-Setup-${version}.exe"
   },
   "portable": {
-    "artifactName": "CommandHub-${version}-portable.exe"
+    "artifactName": "MonoHub-${version}-portable.exe"
   },
   "publish": [
     {

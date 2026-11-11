@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Command Hub color system
+ * MonoHub color system
  * ------------------------
  * Neutrals are a cool slate, the brand is a deep indigo, and a teal accent
  * carries secondary emphasis. Semantic colors (success / warning / info /

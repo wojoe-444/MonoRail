@@ -16,7 +16,7 @@ import './styles.css'
 /**
  * GitHub+: a GitHub-style browser for local git repositories (ported from
  * wojoe-444/Local-Repo-UI). It keeps its own GitHub-dark look, scoped under
- * `.ghp` so none of it leaks into the rest of Command Hub.
+ * `.ghp` so none of it leaks into the rest of MonoHub.
  *
  * Routes live under the app's hash path, e.g. #/apps/github-plus/repo/tree.
  */

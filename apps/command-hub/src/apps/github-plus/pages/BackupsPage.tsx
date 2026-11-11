@@ -115,7 +115,7 @@ export default function BackupsPage() {
 
           <div className="form-actions">
             <button className="btn primary" disabled={!dirty || !form.destination || !!busy}
-              onClick={() => act('save', () => api.saveBackup(rp, form), form.enabled ? 'Saved. Backups will run in Command Hub while it is open, and catch up when it next opens.' : 'Saved. Automatic backups are off.')}>
+              onClick={() => act('save', () => api.saveBackup(rp, form), form.enabled ? 'Saved. Backups will run in MonoHub while it is open, and catch up when it next opens.' : 'Saved. Automatic backups are off.')}>
               {busy === 'save' ? 'Saving…' : 'Save'}
             </button>
             <button className="btn" disabled={!saved || dirty || !!busy || state?.running}
