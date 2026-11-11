@@ -180,3 +180,31 @@ test('a Claude total is complete only while nothing ran after its record', () =>
   assert.equal(chat.chatTotal({ source: 'claude', sessionId: 'nope' }, costs).reason, 'no-record')
   assert.equal(chat.chatTotal({ source: 'pi' }, costs).reason, 'too-big')
 })
+
+// ---------------------------------------------------------------------------
+// List flags (unread, archived, scheduled)
+
+const chatState = require('./agent-chat-state.cjs')
+
+test('unread, archived and started-here flags live in a record file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-state-'))
+  const s0 = chatState.read(dir)
+  const id = 'claude:abc-1'
+  // Changed before the record file existed: not unread. Changed after: unread.
+  assert.equal(chatState.flags(s0, id, s0.since - 5000).unread, false)
+  assert.equal(chatState.flags(s0, id, s0.since + 5000).unread, true)
+  chatState.markSeen(dir, id)
+  const seen = chatState.read(dir).chats[id].seen
+  assert.equal(chatState.flags(chatState.read(dir), id, seen - 10).unread, false)
+  chatState.setUnread(dir, id, true)
+  assert.equal(chatState.flags(chatState.read(dir), id, 0).unread, true)
+  chatState.setUnread(dir, id, false)
+  assert.equal(chatState.flags(chatState.read(dir), id, 0).unread, false)
+  chatState.setArchived(dir, id, true)
+  assert.equal(chatState.flags(chatState.read(dir), id, 0).archived, true)
+  chatState.markStartedHere(dir, id)
+  assert.equal(chatState.flags(chatState.read(dir), id, 0).startedHere, true)
+  assert.throws(() => chatState.setArchived(dir, '../../etc', true), /Unknown chat/)
+  // Only flags and numbers are stored.
+  assert.deepEqual(Object.keys(chatState.read(dir).chats[id]).sort(), ['archived', 'here', 'seen'])
+})

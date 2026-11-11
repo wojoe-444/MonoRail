@@ -26,7 +26,7 @@ say so. Sources that are deliberately not cached are in `NOT_CACHED`:
 | Source | Policy |
 | --- | --- |
 | Email | Mail is fetched on demand and never written to disk, by design. |
-| Chat | Logs are read in place and never copied or cached to disk. Nothing from a transcript (titles and previews included) is persisted; only running cost numbers per session (costs.json). |
+| Chat | Logs are read in place and never copied or cached to disk. Nothing from a transcript (titles and previews included) is persisted; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived, started here). |
 | Jira Cloud | Tickets are fetched on demand and not cached. |
 | Claude Stats | Derived only: token counts, costs, models, projects and session ids. Never prompt or reply text. |
 

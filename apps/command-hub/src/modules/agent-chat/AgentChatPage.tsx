@@ -1,13 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   Brain,
+  CalendarClock,
   Check,
   ChevronRight,
   FlaskConical,
   FolderGit2,
   GitBranch,
   Loader2,
+  Mail,
+  MailOpen,
   MessagesSquare,
   Plus,
   RefreshCw,
@@ -21,6 +26,7 @@ import {
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
@@ -97,8 +103,15 @@ export default function AgentChatPage() {
   const [pendingSessions, setPendingSessions] = useState<Record<string, SessionSummary>>({})
   const [sendError, setSendError] = useState<{ key: string; message: string }>()
 
-  const sessions = useMemo(() => data?.sessions ?? [], [data])
-  const visible = useMemo(() => {
+  /** Flag changes made here, shown at once until the list is read again. */
+  const [localFlags, setLocalFlags] = useState<Record<string, { unread?: boolean; archived?: boolean }>>({})
+  const [showScheduled, setShowScheduled] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const sessions = useMemo(
+    () => (data?.sessions ?? []).map((s) => (localFlags[s.id] ? { ...s, ...localFlags[s.id] } : s)),
+    [data, localFlags],
+  )
+  const matching = useMemo(() => {
     const q = query.trim().toLowerCase()
     return sessions.filter(
       (s) =>
@@ -106,11 +119,49 @@ export default function AgentChatPage() {
         (!q || `${s.title} ${s.preview} ${s.project} ${s.repo.name} ${s.model ?? ''} ${s.branch ?? ''}`.toLowerCase().includes(q)),
     )
   }, [sessions, filter, query])
+  const hiddenCounts = {
+    scheduled: matching.filter((s) => s.scheduled && !s.archived).length,
+    archived: matching.filter((s) => s.archived).length,
+  }
+  // Scheduled and archived chats are hidden until asked for; the open chat always stays listed.
+  const visible = matching.filter((s) => s.id === selectedId || (s.archived ? showArchived : showScheduled || !s.scheduled))
+
+  async function setFlag(id: string, flag: 'unread' | 'archived', value: boolean) {
+    setLocalFlags((f) => ({ ...f, [id]: { ...f[id], [flag]: value } }))
+    if (flag === 'unread' && !value) stickyUnread.current.delete(id)
+    if (!desktop) return
+    await invokeModule('agent-chat', flag === 'unread' ? 'setUnread' : 'setArchived', { id, [flag]: value })
+    await list.refresh()
+    setLocalFlags((f) => {
+      const { [id]: _drop, ...rest } = f
+      return rest
+    })
+  }
 
   const selected = draft
     ? undefined
     : (sessions.find((s) => s.id === selectedId) ?? (selectedId ? pendingSessions[selectedId] : undefined) ?? visible[0])
   const chatKey = draft?.key ?? selected?.id
+
+  // Unread (F3): a chat that was unread when opened stays unread while it is
+  // viewed, and is marked read on leaving it.
+  const stickyUnread = useRef(new Set<string>())
+  const openId = useRef<string | undefined>(undefined)
+  const openedId = selected?.id
+  const openedUnread = !!selected?.unread
+  useEffect(() => {
+    openId.current = openedId
+    if (!openedId) return
+    const sticky = stickyUnread.current
+    if (openedUnread) sticky.add(openedId)
+    return () => {
+      sticky.delete(openedId)
+      if (openId.current === openedId) openId.current = undefined
+      setLocalFlags((f) => ({ ...f, [openedId]: { ...f[openedId], unread: false } }))
+      if (desktop) void invokeModule('agent-chat', 'markSeen', { id: openedId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openedId, desktop])
   const chatSdk = draft ? prefs.newSdk : (selected?.source ?? 'claude')
   const chatTurns = turns.filter((t) => t.chatKey === chatKey || (t.sessionId && `${t.sdk}:${t.sessionId}` === chatKey))
   const runningTurn = chatTurns.find((t) => t.status === 'running')
@@ -171,7 +222,13 @@ export default function AgentChatPage() {
             return d
           })
         }
-        if (p.status !== 'running') void list.refresh()
+        if (p.status !== 'running') {
+          // A reply that finishes while its chat is open counts as seen.
+          const doneId = p.sessionId ? `${t.sdk}:${p.sessionId}` : t.chatKey
+          const watching = openId.current === doneId || openId.current === t.chatKey || t.chatKey.startsWith('draft:')
+          if (watching && p.sessionId) await invokeModule('agent-chat', 'markSeen', { id: doneId }).catch(() => undefined)
+          void list.refresh()
+        }
       }
       if (!stopped) timer = setTimeout(tick, 300)
     }
@@ -317,6 +374,30 @@ export default function AgentChatPage() {
                 { value: 'pi', label: `pi ${counts.pi}` },
               ]}
             />
+            {(hiddenCounts.scheduled > 0 || hiddenCounts.archived > 0 || showScheduled || showArchived) && (
+              <div className="flex gap-2">
+                <Button
+                  variant={showScheduled ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 flex-1 text-xs"
+                  aria-pressed={showScheduled}
+                  onClick={() => setShowScheduled((v) => !v)}
+                  title={`${showScheduled ? 'Hide' : 'Show'} chats run by a script, a scheduled task or another app`}
+                >
+                  <CalendarClock /> Scheduled ({hiddenCounts.scheduled})
+                </Button>
+                <Button
+                  variant={showArchived ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 flex-1 text-xs"
+                  aria-pressed={showArchived}
+                  title={`${showArchived ? 'Hide' : 'Show'} archived chats`}
+                  onClick={() => setShowArchived((v) => !v)}
+                >
+                  <Archive /> Archived ({hiddenCounts.archived})
+                </Button>
+              </div>
+            )}
           </div>
           <SessionListView
             sessions={visible}
@@ -332,6 +413,8 @@ export default function AgentChatPage() {
             limits={data?.limits}
             folders={data?.folders}
             onOpenFolders={() => setFoldersOpen(true)}
+            isUnread={(c) => !!c.unread || (c.id === selected?.id && stickyUnread.current.has(c.id))}
+            onFlag={(id, flag, value) => void setFlag(id, flag, value)}
           />
         </aside>
 
@@ -383,7 +466,11 @@ function SessionListView({
   limits,
   folders,
   onOpenFolders,
+  isUnread,
+  onFlag,
 }: {
+  isUnread: (s: SessionSummary) => boolean
+  onFlag: (id: string, flag: 'unread' | 'archived', value: boolean) => void
   limits?: SessionList['limits']
   folders?: SessionList['folders']
   onOpenFolders: () => void
@@ -461,39 +548,63 @@ function SessionListView({
           <ul className="flex flex-col gap-0.5">
             {g.items.map((s) => {
               const active = s.id === selectedId
+              const unread = isUnread(s)
               return (
                 <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(s.id)}
-                    aria-current={active ? 'true' : undefined}
-                    className={cn(
-                      'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      active ? 'bg-primary-soft text-primary-soft-foreground' : 'hover:bg-muted',
-                    )}
-                  >
-                    <SourceAvatar source={s.source} className="mt-0.5 size-7" />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline gap-2">
-                        <span className="flex-1 truncate text-sm font-medium">{s.title}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{relative(s.updatedAt)}</span>
-                      </span>
-                      <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
-                        {s.total?.usd !== undefined && (
-                          <span className="shrink-0 font-mono tabular-nums" title={s.total.complete ? 'Total cost' : 'At least this much'}>
-                            {s.total.complete ? '' : '≥'}
-                            {formatUsd(s.total.usd)}
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onSelect(s.id)}
+                        aria-current={active ? 'true' : undefined}
+                        className={cn(
+                          'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                          active ? 'bg-primary-soft text-primary-soft-foreground' : 'hover:bg-muted',
+                        )}
+                      >
+                        <SourceAvatar source={s.source} className="mt-0.5 size-7" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline gap-2">
+                            {unread && <span className="size-2 shrink-0 self-center rounded-full bg-primary" aria-label="Unread" />}
+                            <span className={cn('flex-1 truncate text-sm', unread ? 'font-semibold' : 'font-medium')}>{s.title}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{relative(s.updatedAt)}</span>
                           </span>
-                        )}
-                        {s.source !== 'claude' && (
-                          <Badge variant="info" className="px-1.5 py-0 text-[10px]">
-                            {SOURCE_LABEL[s.source]}
-                          </Badge>
-                        )}
-                      </span>
-                    </span>
-                  </button>
+                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
+                            {s.total?.usd !== undefined && (
+                              <span className="shrink-0 font-mono tabular-nums" title={s.total.complete ? 'Total cost' : 'At least this much'}>
+                                {s.total.complete ? '' : '≥'}
+                                {formatUsd(s.total.usd)}
+                              </span>
+                            )}
+                            {s.scheduled && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                                Scheduled
+                              </Badge>
+                            )}
+                            {s.archived && (
+                              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                                Archived
+                              </Badge>
+                            )}
+                            {s.source !== 'claude' && (
+                              <Badge variant="info" className="px-1.5 py-0 text-[10px]">
+                                {SOURCE_LABEL[s.source]}
+                              </Badge>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={() => onFlag(s.id, 'unread', !unread)}>
+                        {unread ? <MailOpen /> : <Mail />} Mark as {unread ? 'read' : 'unread'}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => onFlag(s.id, 'archived', !s.archived)}>
+                        {s.archived ? <ArchiveRestore /> : <Archive />} {s.archived ? 'Unarchive' : 'Archive'}
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 </li>
               )
             })}

@@ -20,6 +20,11 @@ export interface SessionSummary {
   repo: { name: string; path: string }
   /** What the chat has cost so far, when it can be read. */
   total?: ChatTotal
+  /** Changed since it was last seen here, or marked unread. */
+  unread?: boolean
+  archived?: boolean
+  /** Run by a script, a scheduled task or another app, not started from this page. */
+  scheduled?: boolean
 }
 
 /**
