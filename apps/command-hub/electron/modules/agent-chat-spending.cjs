@@ -134,7 +134,14 @@ function withLock(dataDir, fn) {
       fd = fs.openSync(lockFile, 'wx')
       break
     } catch (e) {
-      if (e.code !== 'EEXIST') throw e
+      // Windows: a lock file being deleted can't be opened yet (EPERM/EACCES): busy.
+      const busy = process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES')
+      if (e.code !== 'EEXIST' && !busy) throw e
+      if (busy) {
+        if (Date.now() > deadline) throw new Error('The spending limit file is busy. Try again in a moment.')
+        sleepSync(20)
+        continue
+      }
       try {
         if (Date.now() - fs.statSync(lockFile).mtimeMs > LOCK_STALE_MS) {
           fs.rmSync(lockFile, { force: true })
