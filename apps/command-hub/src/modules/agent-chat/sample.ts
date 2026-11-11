@@ -1,5 +1,5 @@
 // Fictional sessions for the browser dev server, where there is no backend.
-import type { AllowedFolders, SessionList, SessionTranscript } from './types'
+import type { AllowedFolders, ComposerInfo, SessionList, SessionTranscript } from './types'
 
 const now = Date.now()
 const min = 60_000
@@ -135,4 +135,19 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
       },
     ],
   },
+}
+
+/** The browser preview cannot run agents. */
+export const sampleComposer: ComposerInfo = {
+  sdks: [
+    { id: 'claude', label: 'Claude', ready: false, reason: 'Sending works in the desktop app.' },
+    { id: 'pi', label: 'pi', ready: false, reason: 'Sending works in the desktop app.' },
+  ],
+  models: [
+    { id: 'default', label: 'Default' },
+    { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+    { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+  ],
+  efforts: ['default', 'low', 'medium', 'high', 'xhigh', 'max'],
+  repos: sampleFolders.repos.map((r) => ({ name: r.name, path: r.path })),
 }
