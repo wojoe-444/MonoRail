@@ -47,4 +47,10 @@ function contextStep(promptTokens) {
   return promptTokens > 0 ? Math.floor((promptTokens - 1) / STEP) : 0
 }
 
-module.exports = { table, STEP, normalizeModelId, findPrice, contextStep }
+/** List-price cost (USD) of a scan row's tokens in its context step. */
+function rowCost(row, r) {
+  const p = row.tier && (r.step + 1) * STEP > row.tier.above ? row.tier : row
+  return (r.input * p.input + r.output * p.output + r.cw5m * p.cacheWrite5m + r.cw1h * p.cacheWrite1h + r.cacheRead * p.cacheRead) / 1e6
+}
+
+module.exports = { table, STEP, normalizeModelId, findPrice, contextStep, rowCost }

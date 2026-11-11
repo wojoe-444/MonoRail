@@ -18,10 +18,13 @@ import { BreakdownTable } from './components/BreakdownTable'
 import { CostPerMChart } from './components/CostPerMChart'
 import { CompactionsCard } from './components/CompactionsCard'
 import { FamilyShareCard } from './components/FamilyShareCard'
+import { ForecastCard } from './components/ForecastCard'
+import { SubagentCard } from './components/SubagentCard'
 import { StepCostCard } from './components/StepCostCard'
 import { TurnsCard } from './components/TurnsCard'
 import { TokenTypeCard } from './components/TokenTypeCard'
 import { buildFacts, modelSeriesKey, SOURCE_LABELS } from './facts'
+import { forecastSpend } from './forecast'
 import { StackedTimeChart } from './components/StackedTimeChart'
 import { sampleReport } from './sample'
 import {
@@ -90,6 +93,7 @@ export default function ClaudeStatsPage() {
       series: timeSeries(current, w, order, seriesKey, metric, bucket),
       current,
       modelOrder,
+      forecast: forecastSpend(facts, w.end, RANGES.find((r) => r.key === range)?.days ?? 30),
       turns: inWindow(report.scan?.turns ?? [], w).filter((t) => sourceOk(t.source)),
       compactions: inWindow(report.scan?.compactions ?? [], w).filter((c) => sourceOk(c.source)),
       hasScan: !!report.scan,
@@ -334,6 +338,15 @@ export default function ClaudeStatsPage() {
                 />
               </CardContent>
             </Card>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+            <div className="xl:col-span-2">
+              <ForecastCard forecast={model.forecast} />
+            </div>
+            <div className="xl:col-span-3">
+              <SubagentCard facts={model.current} />
+            </div>
           </div>
 
           <TokenTypeCard facts={model.current} window={model.window} bucket={model.bucket} />
