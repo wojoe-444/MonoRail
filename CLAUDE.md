@@ -339,11 +339,30 @@ files: it reuses Agent Chat's session list, composer info and running turns
 in process, reads the Claude Stats summary (never builds a report), and lists
 agent definitions (`agents-definitions.cjs`: Claude Code subagents in
 `.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
-`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+`~/.pi/agent/skills` / `.pi/skills`, pi subagents in `~/.pi/agent/agents` /
+`.pi/agents`, from the home folder and each allowed
 repo; frontmatter only, bodies on demand by id, never a path). Archived chats
 are left out. Quick launch and "Open" hand over to Chat with
 `openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
 handed-over prompt is prefilled in the composer, never sent by itself.
+
+**Agent Catalog** (`agent-catalog`, Agents > Catalog, docs:
+`docs/agent-catalog.md`): Claude Code subagents (`~/.claude/agents`,
+`<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
+`<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
+folder and Chat's allowed repos, plus the built-in coordinator (read-only,
+"Make my own copy"), and built-ins from `agent-catalog-builtins.cjs` (Storage
+Detective: look-only tools plus the MCP `storage_scan` read tool, a prompt that
+never deletes or moves; "Add to Claude Code" copies it to `~/.claude/agents`;
+the browser sample must carry the same text, a test checks). A plain-language explainer per subagent
+(`src/modules/agent-catalog/explain.ts`: tools in words, strength, "It
+cannot") and create / edit / duplicate / delete
+(`electron/modules/agent-catalog.cjs`). The page names subagents by id and a
+save place as `user` or an allowed repo's name, never a path; the agents
+folder must resolve inside its base; edits refuse a file changed on disk since
+it was opened and never touch a linked file; unknown header fields are kept.
+Every edit or delete first copies the file to `backups/` in the module's data
+folder (newest 200). Nothing is cached.
 
 **Mochi crew** (`src/components/mochi/`, docs: `docs/mochi-crew.md`): agent
 characters in the K1 Mochi app-icon family (dough body, dot eyes, never a
@@ -446,7 +465,8 @@ messages only (logs go to stderr, metadata only). The protocol layer
 (`protocol.cjs`, no SDK dependency) and tools (`tools.cjs`) run outside
 Electron, so tools read MonoRail's data folder from disk and never `require`
 Electron: summary files (`claude-stats.summary`, `connections.summary`, the
-latter written after every connection check), Chat's `listSessions` (allowed
+latter written after every connection check), Storage's saved scans
+(`storage_scan`), Chat's `listSessions` (allowed
 folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
 repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
 legacy folder). No tool returns secrets or tokens. **Write tools** (`write:

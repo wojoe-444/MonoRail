@@ -10,6 +10,8 @@ folders. It is there for the day the system drive runs out.
 
 New to MonoRail? [Private data stays local](guide/private-data.md) explains what it keeps and why it never touches your folders on its own.
 
+For a cleanup plan, add **Storage Detective** from the [Agent Catalog](agent-catalog.md): it reads the last scan (MCP tool `storage_scan`) and suggests what to clear and how, but never deletes or moves anything itself.
+
 ## It only looks
 
 The page never deletes, moves, renames or copies anything it measures. The only

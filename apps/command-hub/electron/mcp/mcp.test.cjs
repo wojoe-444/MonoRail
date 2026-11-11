@@ -176,6 +176,35 @@ describe('MonoRail read tools', () => {
     assert.equal(value.topModels30Days[0].model, 'claude-example')
   })
 
+  it('storage_scan returns the last saved scan, largest folders first, with the change since the scan before', async () => {
+    const dir = path.join(root, 'modules', 'storage')
+    fs.mkdirSync(dir, { recursive: true })
+    const h = cache.history({ dataDir: dir, log: () => {} }, 'storage.history')
+    const GB = 1024 ** 3
+    const drives = [{ id: 'C:', total: 500 * GB, free: 50 * GB }]
+    await h.add({ kind: 'scan', tookMs: 1, drives, locations: [{ id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', bytes: 2 * GB }] })
+    await h.add({
+      kind: 'scan',
+      tookMs: 1,
+      drives,
+      locations: [
+        { id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', tip: 'npm cache clean --force', bytes: 3 * GB, children: [{ name: '_cacache', kind: 'dir', bytes: 3 * GB }] },
+        { id: 'downloads', label: 'Downloads', group: 'user', path: '/x/dl', advice: 'review', bytes: 9 * GB },
+      ],
+    })
+    let { value } = await call(server, 'storage_scan', {})
+    assert.equal(value.available, true)
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90 }])
+    fs.writeFileSync(path.join(dir, 'goals.json'), JSON.stringify({ version: 1, goals: { 'C:': { freeBytes: 80 * GB, setAt: '2026-11-11T00:00:00Z' } } }))
+    ;({ value } = await call(server, 'storage_scan', {}))
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90, freeGoalGB: 80, stillToFreeGB: 30 }])
+    assert.deepEqual(value.locations.map((l) => l.id), ['downloads', 'npm'])
+    assert.equal(value.locations[1].changeSincePreviousScanGB, 1)
+    assert.equal(value.locations[1].largestChildren[0].name, '_cacache')
+    const empty = createServer({ rootDir: tmp('monorail-mcp-empty-') })
+    assert.equal((await call(empty, 'storage_scan', {})).value.available, false)
+  })
+
   it('usage_summary says when there is no report', async () => {
     const empty = createServer({ rootDir: tmp('monorail-mcp-empty-') })
     const { value } = await call(empty, 'usage_summary', {})

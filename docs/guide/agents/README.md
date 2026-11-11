@@ -16,7 +16,8 @@ pages follow the life of working with one:
 2. **Give it helpers.** [Create an agent](create-an-agent.md): a
    [subagent](../glossary.md#subagent) or [skill](../glossary.md#skill) is a
    few lines of plain text. Each one gets a character from the
-   [mochi crew](../../mochi-crew.md).
+   [mochi crew](../../mochi-crew.md), and the
+   [Agent Catalog](../../agent-catalog.md) explains and edits them.
 3. **Let it run the others.** [The Coordinator](coordinator.md) is a chat that
    talks to your other chats for you.
 4. **Watch the cost.** [Keep an eye on spending](spend.md): where the money

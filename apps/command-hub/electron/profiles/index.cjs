@@ -55,6 +55,7 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/
  */
 const SCOPES = Object.freeze({
   // Module backends (electron/modules)
+  'modules/agent-catalog': 'machine', // backup copies of subagent files, which live machine-wide in ~/.claude and ~/.pi
   'modules/agent-chat': 'profile', // allowed folders, chat flags, prompts, costs
   'modules/agents': 'profile', // keeps no files
   'modules/backups': 'profile', // global backup folder and schedule

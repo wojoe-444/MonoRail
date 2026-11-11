@@ -39,7 +39,7 @@ Every folder MonoRail keeps belongs to one of two scopes.
 | Scope | Belongs to | Examples |
 | --- | --- | --- |
 | **profile** | the person | Appearance and nav layout, Connections and their secrets, Settings > Backups, Flashcards, Notes, Jira+ (projects, repo links, filter), GitHub+ (recents, backup schedules), Email accounts, Chat (allowed folders, flags, prompts, composer choices), Agent access consent and activity |
-| **machine** | this copy of MonoRail on this computer | Updates and the app version, installed extensions, the Claude Stats report (built from this computer's agent logs), Storage measurements, Chromium's own files and the encryption key, `profiles.json` |
+| **machine** | this copy of MonoRail on this computer | Updates and the app version, installed extensions, the Claude Stats report (built from this computer's agent logs), Storage measurements, Agent Catalog's backups of subagent files, Chromium's own files and the encryption key, `profiles.json` |
 
 The machine scope holds what is the same whoever sits at the computer. Claude
 Stats is machine-wide because it reads the agent logs of the computer's user
