@@ -8,7 +8,7 @@ MonoRail includes a Model Context Protocol (MCP) server, so Claude Code and othe
 
 The plain-language version is [let agents use MonoRail](guide/agents/agent-access.md).
 
-Open **Configure > Agent access** in MonoRail for a ready-to-copy command with the right path for your machine.
+Open **Settings > Agent access** in MonoRail for a ready-to-copy command with the right path for your machine.
 
 ## Connect an agent
 

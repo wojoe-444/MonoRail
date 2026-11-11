@@ -22,7 +22,7 @@ const access = require('./access.cjs')
 const { extensionTools } = require('./extensions.cjs')
 const { readTools, writeTools, coordinatorReadTools } = require('./tools.cjs')
 
-const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. ask_coordinator sends a message to the user's coordinator agent (which can in turn message the user's other agent chats) and returns its reply. Write tools (raising or commenting on local issues, asking the coordinator) and tools from installed extensions (named <extension>__<tool>) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
+const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. ask_coordinator sends a message to the user's coordinator agent (which can in turn message the user's other agent chats) and returns its reply. Write tools (raising or commenting on local issues, asking the coordinator) and tools from installed extensions (named <extension>__<tool>) are off until the user allows them for this agent in MonoRail under Settings > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
 
 function defaultAppData(env = process.env, platform = process.platform, home = os.homedir()) {
   if (platform === 'win32') return env.APPDATA || path.join(home, 'AppData', 'Roaming')
@@ -68,7 +68,7 @@ function createServer({ rootDir: machineDir, log = () => {}, extensions = true }
     },
     authorize: async ({ tool, agent }) => {
       if (!(await access.isAllowed(rootDir, agent, tool))) {
-        throw new Error(`MonoRail has not allowed "${agent}" to use ${tool}. The user can turn it on in MonoRail under Configure > Agent access.`)
+        throw new Error(`MonoRail has not allowed "${agent}" to use ${tool}. The user can turn it on in MonoRail under Settings > Agent access.`)
       }
     },
     onCall: (info) => {

@@ -27,7 +27,7 @@ rest, including the difference between **Ask** and **Agent** mode.
 
 ## 3. Connect the accounts you use
 
-**Configure > Connections** is where MonoRail signs in to things: your Claude
+**Settings > Connections** is where MonoRail signs in to things: your Claude
 login, GitHub, Jira, Google Cloud, pi and more. Add only the ones you use;
 [connect your accounts](setup/connections.md) explains each one, and
 [private data stays local](private-data.md#passwords-and-tokens-are-encrypted)

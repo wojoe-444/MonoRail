@@ -12,6 +12,8 @@ import { formatBytes, formatIn, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
+import { refreshSettingsAlerts } from './alerts'
+
 import type { BackupPageStatus, BackupStatus, BackupUnit, GlobalBackupSettings, GlobalItem } from './types'
 
 const MODULE_ID = 'backups'
@@ -101,6 +103,7 @@ export function BackupsCard({ className }: { className?: string }) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
+      void refreshSettingsAlerts()
     }
   }
 

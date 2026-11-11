@@ -27,5 +27,24 @@ Two pages are worth knowing before you change anything:
 - [Storage](../../storage.md): how much space MonoRail, your agents and their
   caches take up, under **Utilities > Storage**.
 
-The **Settings** page itself (bottom of **Configure**) also shows the
-version you are running and lets you check for updates.
+## Finding your way around Settings
+
+Everything on these pages lives behind the **Settings** button at the bottom
+of the left-hand menu. Settings has its own menu beside the page:
+
+- **Home** opens first. It lists only what needs you right now, such as a
+  [connection](connections.md) whose sign-in expired, a
+  [backup](backups-and-updates.md) that failed, an
+  [update](backups-and-updates.md#updates) that is ready, or an
+  [extension](extensions.md) waiting for your approval. Most of the time it
+  says "Nothing needs you". When something does, the Settings button shows
+  how many.
+- **App**: **General** (version, updates, your profile and
+  [Developer Mode](developer-mode.md)), **Appearance** and **Backups**.
+- **Accounts & access**: **Connections**, [Agent access](../agents/agent-access.md)
+  and **Extensions**.
+
+The search box above that menu finds any page or option by name, for example
+"token", "dark mode" or "backup folder". Press **Ctrl+K** to jump to it, use
+the arrow keys and Enter to open a result, and MonoRail scrolls to the part of
+the page you picked.

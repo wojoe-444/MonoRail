@@ -12,7 +12,7 @@ way for agents to use outside tools.
 
 ## Connect an agent
 
-Open **Configure > Agent access**. It shows a ready-to-copy command for
+Open **Settings > Agent access**. It shows a ready-to-copy command for
 Claude Code, and a snippet for agents that use a settings file (Claude
 Desktop, Cursor and most others), with the right path for your computer. Run
 or paste it once; the agent starts MonoRail's server by itself when it needs

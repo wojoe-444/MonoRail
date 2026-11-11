@@ -245,3 +245,12 @@ html:is([data-texture="leaf"], [data-texture="leaf-ink"]) [data-slot="sidebar"] 
   background-position: right -64px bottom -48px;
   background-size: 300px auto;
 }
+
+/* Settings search: the card a result points at flashes once when it is scrolled to. */
+@keyframes settings-flash {
+  0%, 60% { box-shadow: 0 0 0 3px var(--color-ring); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+.settings-flash {
+  animation: settings-flash 1.6s ease-out;
+}

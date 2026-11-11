@@ -4,7 +4,7 @@ import { AppBody, AppFrame } from '@/apps/AppFrame'
 import { findAppByPath, isWorkspaceApp } from '@/apps/registry'
 import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 
-import { findNavItem, flattenNav, useNavSections, type NavItem } from '@/components/layout/nav'
+import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { Inspector } from '@/components/dev/Inspector'
@@ -14,6 +14,7 @@ import { isDesktop } from '@/modules/client'
 import { currentPath, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { findModuleByPath } from '@/modules/registry'
+import { SettingsLayout } from '@/modules/settings/SettingsLayout'
 import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { AppsPage } from '@/pages/AppsPage'
@@ -108,7 +109,13 @@ export default function App() {
           ) : (
             // Content container: max 1536px with 24/32px gutters
             <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
-              <RouteView path={path} navItems={navItems} onOpen={openPath} />
+              {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
+                <SettingsLayout path={path}>
+                  <RouteView path={path} navItems={navItems} onOpen={openPath} />
+                </SettingsLayout>
+              ) : (
+                <RouteView path={path} navItems={navItems} onOpen={openPath} />
+              )}
             </main>
           )}
         </div>

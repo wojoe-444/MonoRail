@@ -6,7 +6,7 @@ summary: Turn on Developer Mode to name any part of the screen in feedback, open
 # Developer Mode
 
 Developer Mode adds tools for testing MonoRail and giving feedback on it. It
-is off until you turn it on in **Settings > Developer mode**, and turning it
+is off until you turn it on in **Settings > General > Developer Mode**, and turning it
 off hides the tools again. Nothing else in MonoRail changes.
 
 ## Name what you see: the element inspector

@@ -69,5 +69,5 @@ refuses to change it, so a backup copy of it can be put back.
 
 Agents connected to [MonoRail's MCP server](mcp.md) can read your decks
 (`list_flashcard_decks`, `list_flashcards`) and, once you allow it for that
-agent on **Configure > Agent access**, add cards with `add_flashcards`, for
+agent on **Settings > Agent access**, add cards with `add_flashcards`, for
 example "make flashcards from this chapter". Every call is in the Activity log.

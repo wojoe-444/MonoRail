@@ -27,7 +27,7 @@ profile layer follows that rule:
   `electron/userData.cjs`). Every existing file is read in place.
 - Every existing preference in the window's local storage keeps its key.
 - Reading profiles never writes anything. `profiles.json` is written only when
-  you change a profile (today: its name on **Settings > Profile**), and a
+  you change a profile (today: its name on **Settings > General > Profile**), and a
   damaged file is never overwritten.
 - Copying data into another profile, when that exists, will be something you
   start yourself, item by item, never automatic.
@@ -146,7 +146,7 @@ with its own design.
 
 1. **Foundation (done).** One default profile over the existing data, the scope
    table, the profile layout in every backend and in the MCP server, `prefs`
-   for page preferences, and **Settings > Profile** to name it.
+   for page preferences, and **Settings > General > Profile** to name it.
 2. **More profiles.** Create, rename, switch (restarting the window is fine)
    and remove a profile. Background work (backup schedules, Claude Stats
    refresh) runs for the active profile. Extension data, settings and secrets
