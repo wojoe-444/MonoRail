@@ -88,7 +88,11 @@ The renderer stays sandboxed: `electron/preload.cjs` exposes only
 `claude-stats` is the reference module: its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
 `asarUnpack`), caches the JSON report in its data folder, and the page
-normalizes it into day x project x model facts in `transform.ts`.
+normalizes it into day x project x model facts in `transform.ts`. Session
+partners come from `electron/modules/claude-stats-phases.cjs`, which reads
+the raw Claude Code logs and splits each session into phases (driver model +
+subagent models; new phase on driver change or a 2-hour idle gap). Phase
+cost is priced from ccusage's per-session, per-model cost per output token.
 
 ### Charts
 
