@@ -303,7 +303,16 @@ the CLI login and Application Default Credentials; sign-in runs
 generic credential in Windows Credential Manager via PowerShell CredRead,
 never copied; Jira+ uses it) and `claude` (Claude Code / Agent SDK
 login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
-opens a terminal running `claude auth login`). Command-line tools only get
+opens a terminal running `claude auth login`). The Claude connector also sorts
+the login into an **account type** (Subscription, API, Enterprise, Unknown)
+from `claude auth status --json` (falling back to the credentials file and
+which auth environment variables are set, never their values), shown as a
+badge; its one setting, `accountType`, overrides the detection. Signing in
+through claude.ai does not mean a subscription: Enterprise logins bill at API
+prices. Anything that shows Claude costs uses it (`claudeAccount()` in
+`electron/connections/index.cjs`, `useClaudeAccount()` and
+`ClaudeAccountBadge` in `src/modules/connections`; Claude Stats shows it, Home
+reads it from `connections.summary`). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
 `mcp` (**Agent access**, under Configure) shows how to connect agents to

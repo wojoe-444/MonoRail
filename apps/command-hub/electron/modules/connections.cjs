@@ -29,5 +29,6 @@ module.exports = {
     getJob: (_ctx, args) => connections().getJob(args),
     cancelJob: (_ctx, args) => connections().cancelJob(args),
     listWindowsCredentials: () => connections().listWindowsCredentials(),
+    claudeAccount: () => connections().claudeAccount(),
   },
 }

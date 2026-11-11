@@ -13,12 +13,21 @@ import { buildFacts } from './facts'
 import { sampleReport } from './sample'
 import { addDays, isoDate, sourceModelLabel } from './transform'
 import type { UsageSummary } from './types'
+import type { ClaudeAccountType } from '@/modules/connections/account'
 
 interface SummaryEntry {
   builtAt: string
   stale: boolean
   summary: UsageSummary
 }
+
+/** The part of Connections' summary file this widget reads (no names or emails in it). */
+type ConnectionsSummaries = Record<
+  string,
+  { summary?: { connections?: Record<string, { account?: { type: ClaudeAccountType; billedAtApiPrices: boolean } }> } } | undefined
+>
+
+const ACCOUNT_LABEL: Record<ClaudeAccountType, string> = { subscription: 'Subscription', api: 'API', enterprise: 'Enterprise', unknown: 'Unknown' }
 
 /** Fictional digest for the browser dev server, from the sample report. */
 function sampleSummary(): SummaryEntry {
@@ -52,6 +61,8 @@ function sampleSummary(): SummaryEntry {
 export function ClaudeStatsHomeWidget() {
   const desktop = isDesktop()
   const query = useModuleQuery<Record<string, SummaryEntry>>('home', 'getSummaries')
+  // Home reads summary files only, so the account type comes from Connections' summary.
+  const claudeAccount = desktop ? (query.data as ConnectionsSummaries | undefined)?.['connections.summary']?.summary?.connections?.claude?.account : undefined
   const sample = useMemo(() => (desktop ? undefined : sampleSummary()), [desktop])
   const entry = desktop ? query.data?.['claude-stats.summary'] : sample
   const s = entry?.summary
@@ -64,6 +75,7 @@ export function ClaudeStatsHomeWidget() {
         <CardTitle>Claude Stats</CardTitle>
         <CardDescription>
           API-equivalent cost, last 30 days
+          {claudeAccount && claudeAccount.type !== 'unknown' && ` · Claude: ${ACCOUNT_LABEL[claudeAccount.type]}${claudeAccount.billedAtApiPrices ? ', billed at API prices' : ''}`}
           {entry && ` · built ${formatRelative(entry.builtAt)}`}
         </CardDescription>
         <CardAction>

@@ -1,3 +1,4 @@
+import { sampleClaudeAccount } from './account'
 import type { ConnectionsList, ConnectionStatus } from './types'
 
 /** Browser dev server only (no backend). Every account here is fictional. */
@@ -29,11 +30,16 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     checkedAt: at,
   },
   claude: {
-    state: 'needs-setup',
-    summary: 'Not signed in to Claude yet.',
-    hint: 'Sign in opens a terminal running claude auth login.',
-    details: [{ label: 'Claude Code CLI', value: '2.0.0 (Claude Code)' }],
-    added: false,
+    state: 'ok',
+    summary: 'Signed in as sam.demo@example.com.',
+    details: [
+      { label: 'Account type', value: 'Subscription' },
+      { label: 'Account', value: 'sam.demo@example.com' },
+      { label: 'Plan', value: 'Claude Max' },
+      { label: 'Claude Code CLI', value: '2.0.0 (Claude Code)' },
+    ],
+    account: sampleClaudeAccount,
+    added: true,
     checkedAt: at,
   },
 }
@@ -86,7 +92,21 @@ export const sampleList: ConnectionsList = {
       title: 'Claude',
       description: 'The Claude account that Claude Code and the Claude Agent SDK use.',
       icon: 'sparkles',
-      fields: [],
+      fields: [
+        {
+          key: 'accountType',
+          label: 'Account type',
+          type: 'select',
+          defaultValue: 'auto',
+          options: [
+            { value: 'auto', label: 'Detect automatically' },
+            { value: 'subscription', label: 'Subscription (Pro, Max, Team): flat fee' },
+            { value: 'api', label: 'API (Console, API key, cloud provider): billed per token' },
+            { value: 'enterprise', label: 'Enterprise: billed per token at API prices' },
+          ],
+          help: 'Decides how MonoRail treats Claude costs. Choose one only if the detected type is wrong.',
+        },
+      ],
       actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running claude auth login.', showWhen: ['expired', 'needs-setup', 'ok', 'error'] }],
     },
   ],
@@ -106,6 +126,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.atlassian,
+    },
+    {
+      kind: 'claude',
+      values: { accountType: 'auto' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.claude,
     },
   ],
 }
