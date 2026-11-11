@@ -13,7 +13,11 @@
 // (src/modules/settings/UpdateToast.tsx) reads getStatus and offers the
 // update; its "Ignore for six hours" snooze is kept in the renderer.
 
-const { app } = require('electron')
+const { app, net } = require('electron')
+const { changesSince } = require('../release-notes.cjs')
+
+// The repo of the "publish" block in electron-builder.json.
+const RELEASES_API = 'https://api.github.com/repos/wojoe-444/MonoRail/releases'
 
 /** Updates need the installed (NSIS) build: dev runs and the portable .exe can't self-update. */
 function updateSupport() {
@@ -29,6 +33,9 @@ const status = {
   latestVersion: undefined,
   releaseDate: undefined,
   releaseNotes: undefined,
+  // What changed between the installed and the latest version, newest first:
+  // [{ version, date, items: [{ title, text, pr }] }] (see release-notes.cjs).
+  changes: undefined,
   progress: undefined, // { percent, transferred, total, bytesPerSecond }
   error: undefined,
   lastChecked: undefined,
@@ -43,7 +50,10 @@ function getUpdater() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.on('checking-for-update', () => set({ state: 'checking', error: undefined }))
-  autoUpdater.on('update-available', (info) => set({ state: 'available', ...fromInfo(info) }))
+  autoUpdater.on('update-available', (info) => {
+    set({ state: 'available', ...fromInfo(info), ...(info?.version !== changesFor ? { changes: undefined } : {}) })
+    loadChanges(info?.version).catch(() => {})
+  })
   autoUpdater.on('update-not-available', (info) => set({ state: 'not-available', ...fromInfo(info) }))
   autoUpdater.on('download-progress', (p) =>
     set({
@@ -71,6 +81,30 @@ function fromInfo(info) {
     ? info.releaseNotes.map((n) => n.note).filter(Boolean).join('\n\n')
     : info.releaseNotes
   return { latestVersion: info.version, releaseDate: info.releaseDate, releaseNotes: notes || undefined }
+}
+
+// The release list is public; one request per new version found, kept in memory.
+let changesFor
+async function loadChanges(latest) {
+  if (!latest || changesFor === latest) return
+  changesFor = latest
+  const current = app.getVersion()
+  const releases = []
+  for (let page = 1; page <= 3; page++) {
+    const res = await net.fetch(`${RELEASES_API}?per_page=100&page=${page}`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'MonoRail-updater' },
+    })
+    if (!res.ok) {
+      changesFor = undefined
+      return
+    }
+    const batch = await res.json()
+    if (!Array.isArray(batch)) break
+    releases.push(...batch)
+    const reachedCurrent = changesSince(batch, '0', current).length > 0
+    if (batch.length < 100 || reachedCurrent) break
+  }
+  if (status.latestVersion === latest) set({ changes: changesSince(releases, current, latest) })
 }
 
 function message(err) {

@@ -73,6 +73,7 @@ jobs:
     # Pushes to main publish a GitHub release that the in-app updater reads.
     permissions:
       contents: write
+      pull-requests: read
     # Rapid merges publish one release at a time, in order.
     concurrency:
       group: windows-${{ github.ref }}
@@ -110,8 +111,13 @@ jobs:
           for f in release/MonoRail-Setup-"$version".exe release/latest.yml; do
             [ -f "$f" ] || { echo "missing $f"; exit 1; }
           done
+          # "What's new" from the PRs merged since the previous release
+          # (scripts/release-notes.cjs); the app shows it before updating.
+          # A failure here never holds back the release.
+          node scripts/release-notes.cjs --to "$GITHUB_SHA" --out release/notes.md \
+            || echo "Built from $GITHUB_SHA." > release/notes.md
           gh release create "v$version" "${files[@]}" --title "$version" --latest \
-            --target "$GITHUB_SHA" --notes "Built from $GITHUB_SHA." --repo "$GITHUB_REPOSITORY"
+            --target "$GITHUB_SHA" --notes-file release/notes.md --repo "$GITHUB_REPOSITORY"
           gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -qx latest.yml
       - uses: actions/upload-artifact@v4
         with:

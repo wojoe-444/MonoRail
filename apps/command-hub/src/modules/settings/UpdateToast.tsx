@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { invokeModule, isDesktop } from '@/modules/client'
 
 import type { AppStatus } from './types'
+import { WhatsNewBrief } from './WhatsNew'
 
 // Update pop-up in the lower right. The settings backend checks for updates at
 // startup and every few hours (start() in electron/modules/settings.cjs); this
@@ -123,6 +124,7 @@ export function UpdateToast() {
             <>
               <div className="text-sm font-medium">MonoRail {status.latestVersion} is available</div>
               <div className="mt-1 text-sm text-muted-foreground">You have {status.currentVersion}.</div>
+              <WhatsNewBrief status={status} />
             </>
           )}
         </div>
