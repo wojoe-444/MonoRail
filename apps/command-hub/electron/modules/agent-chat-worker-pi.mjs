@@ -6,7 +6,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
-const { piTools, piThinkingLevel, piPathAllowed } = require('./agent-chat-options.cjs')
+const { piTools, piThinkingLevel, piPathAllowed, piPromptOptions } = require('./agent-chat-options.cjs')
 const { _format: fmt } = require('./agent-chat.cjs')
 
 function toBlocks(message, reasoning) {
@@ -57,8 +57,23 @@ export async function runPi({ job, cwd, root, sessionFile, sdkEntry }, emit) {
 
   const agentDir = pi.getAgentDir()
   // The user's own extensions are not loaded: they could add tools (a shell).
-  const resourceLoader = new pi.DefaultResourceLoader({ cwd, agentDir, noExtensions: true, disabledBuiltinExtensions: ['mcp'], extensionFactories: [guard] })
+  const resourceLoader = new pi.DefaultResourceLoader({
+    cwd,
+    agentDir,
+    noExtensions: true,
+    disabledBuiltinExtensions: ['mcp'],
+    extensionFactories: [guard],
+    ...piPromptOptions(job.systemPrompt),
+  })
   await resourceLoader.reload()
+  // An older pi ignores the prompt overrides: say so rather than run without it.
+  if (job.systemPrompt) {
+    const applied =
+      job.systemPrompt.mode === 'replace'
+        ? resourceLoader.getSystemPrompt?.() === job.systemPrompt.text
+        : (resourceLoader.getAppendSystemPrompt?.() ?? []).includes(job.systemPrompt.text)
+    if (!applied) throw new Error('This version of pi cannot take a custom system prompt. Update pi, or clear the pi prompt under System prompts.')
+  }
 
   // Models and sign-in: pi 1.x has one ModelRuntime; 0.x had AuthStorage + ModelRegistry.
   let models

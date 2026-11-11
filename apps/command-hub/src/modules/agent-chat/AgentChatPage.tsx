@@ -22,6 +22,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ScrollText,
   Settings2,
   Sparkles,
   User,
@@ -47,6 +48,7 @@ import { SidePanel, type PanelKind } from './Panels'
 import { ReplyDetails, TotalChip } from './ReplyDetails'
 import { contextUse, formatUsd, turnToMessages } from './live'
 import { FoldersDialog } from './FoldersDialog'
+import { SystemPromptsDialog } from './SystemPromptsDialog'
 import { sampleComposer, sampleSessions, sampleTranscripts } from './sample'
 import {
   SOURCE_LABEL,
@@ -98,6 +100,7 @@ export default function AgentChatPage() {
   const [handoff] = useState(takeChatHandoff)
   const [selectedId, setSelectedId] = useState<string | undefined>(() => (handoff && 'open' in handoff ? handoff.open : undefined))
   const [foldersOpen, setFoldersOpen] = useState(false)
+  const [promptsOpen, setPromptsOpen] = useState(false)
   const [panel, setPanel] = useState<PanelKind>()
   const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
   const composerInfo = desktop ? composerQuery.data : sampleComposer
@@ -341,6 +344,9 @@ export default function AgentChatPage() {
             <Button variant="outline" size="sm" onClick={() => setFoldersOpen(true)}>
               <Settings2 /> Folders
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setPromptsOpen(true)}>
+              <ScrollText /> Prompts
+            </Button>
             <Button
               variant={panel === 'changes' ? 'secondary' : 'outline'}
               size="sm"
@@ -375,6 +381,8 @@ export default function AgentChatPage() {
           </>
         }
       />
+
+      <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 
       <FoldersDialog
         open={foldersOpen}

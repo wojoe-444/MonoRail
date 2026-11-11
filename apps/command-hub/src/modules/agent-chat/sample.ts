@@ -1,5 +1,5 @@
 // Fictional sessions for the browser dev server, where there is no backend.
-import type { AllowedFolders, ComposerInfo, SessionList, SessionTranscript } from './types'
+import type { AllowedFolders, ComposerInfo, SessionList, SessionTranscript, SystemPrompts } from './types'
 
 const now = Date.now()
 const min = 60_000
@@ -194,4 +194,11 @@ export const sampleChanges = {
   ].join('\n'),
   diffCut: false,
   noHead: false,
+}
+
+/** Fictional system prompts for the browser dev server. */
+export const sampleSystemPrompts: SystemPrompts = {
+  claude: { mode: 'append', text: 'Keep replies short. Run the tests before you say a change is done.' },
+  pi: { mode: 'append', text: '' },
+  coordinator: { mode: 'append', text: '' },
 }

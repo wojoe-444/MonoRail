@@ -154,3 +154,11 @@ export interface LiveTurn {
   /** For a new chat: the project it runs in. */
   repo?: { name: string; path: string }
 }
+
+/** Agents that can have their own system prompt. */
+export type PromptAgent = 'claude' | 'pi' | 'coordinator'
+
+/** append: after the built-in prompt; replace: instead of it (never for the coordinator). */
+export type PromptMode = 'append' | 'replace'
+
+export type SystemPrompts = Record<PromptAgent, { mode: PromptMode; text: string }>
