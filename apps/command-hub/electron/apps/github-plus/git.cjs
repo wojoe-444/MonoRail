@@ -265,7 +265,7 @@ async function compareRefs(repo, base, head) {
 async function recentActivity(repo, { commits = 10, branches = 6 } = {}) {
   const info = await openRepo(repo)
   if (info.isEmpty) return { ...info, commits: [], branches: [] }
-  const log = parseLog(await text(info.path, ['log', '--all', '--date-order', `--format=${LOG_FMT}`, '-n', String(commits), '--']))
+  const log = parseLog(await text(info.path, ['log', '--exclude=refs/local-issues', '--all', '--date-order', `--format=${LOG_FMT}`, '-n', String(commits), '--']))
   const SEP = '\x1f'
   const out = await text(info.path, [
     'for-each-ref',

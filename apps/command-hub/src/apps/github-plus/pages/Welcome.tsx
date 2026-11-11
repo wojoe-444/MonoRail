@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { BackupIcon, BranchIcon, CommitIcon, RepoIcon } from '../components/Icons'
+import { BackupIcon, BranchIcon, CommitIcon, IssueOpenIcon, RepoIcon } from '../components/Icons'
 import { Avatar } from '../components/CommitList'
-import { commitLink, compareLink, treeLink } from '../links'
+import { commitLink, compareLink, issueLink, issuesLink, treeLink } from '../links'
 import type { ActiveBranch, CommitSummary, RepoActivity } from '../types'
 import { fullDate, timeAgo } from '../util'
 
@@ -53,6 +53,15 @@ export default function Welcome() {
     [repos],
   )
   const backedUp = repos.filter((r) => r.backup)
+  const openIssues = useMemo(
+    () =>
+      repos
+        .flatMap((r) => (r.issues ?? []).map((i) => ({ repo: r, i })))
+        .sort((a, b) => Date.parse(b.i.updatedAt) - Date.parse(a.i.updatedAt))
+        .slice(0, 6),
+    [repos],
+  )
+  const issueTotal = repos.reduce((n, r) => n + (r.openIssues ?? 0), 0)
 
   return (
     <div className="home">
@@ -130,6 +139,29 @@ export default function Welcome() {
         </main>
 
         <aside className="home-right">
+          <div className="box card">
+            <div className="card-title"><IssueOpenIcon /> Open issues{issueTotal > 0 && <span className="counter">{issueTotal}</span>}</div>
+            {openIssues.length === 0 ? (
+              <p className="muted small">No open issues. Open a repository and use its <strong>Issues</strong> tab to note a bug, an idea or a to-do.</p>
+            ) : (
+              <ul className="timeline">
+                {openIssues.map(({ repo, i }) => (
+                  <li key={repo.path + i.number}>
+                    <button className="link-btn" onClick={() => openAt(repo.path, () => issueLink(i.number))}>{i.title}</button>
+                    <div className="muted small">{repo.name} #{i.number} · <span title={fullDate(i.updatedAt)}>updated {timeAgo(i.updatedAt)}</span></div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {issueTotal > openIssues.length && (
+              <div className="small muted issue-repos">
+                {repos.filter((r) => r.openIssues).map((r, k) => (
+                  <span key={r.path}>{k > 0 && ' · '}<button className="link-btn" onClick={() => openAt(r.path, () => issuesLink())}>{r.name} ({r.openIssues})</button></span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="box card">
             <div className="card-title"><BackupIcon /> Backups</div>
             {backedUp.length === 0 ? (

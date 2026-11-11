@@ -1,7 +1,7 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, RepoActivity, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupState, CommitDetail, Issue, IssueSummary, RepoActivity, CommitSummary, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -196,6 +196,38 @@ const OTHER_REPOS: RepoActivity[] = [
   },
 ]
 
+// Fictional local issues for orbit-notes.
+let issues: Issue[] = [
+  {
+    number: 3, title: 'Search ignores accents (café vs cafe)', state: 'open', author: 'Avery Lin', createdAt: day(1.5), updatedAt: day(0.4), closedAt: null,
+    body: 'Searching for `cafe` should also find notes titled **Café plans**.\n\nProbably normalize with `String.prototype.normalize("NFD")` in `src/search.ts`.',
+    timeline: [{ kind: 'comment', author: 'Sam Ortega', at: day(0.4), body: 'Agreed. Tags too, while we are at it.' }],
+  },
+  {
+    number: 2, title: 'Add an export to Markdown command', state: 'open', author: 'Sam Ortega', createdAt: day(5), updatedAt: day(5), closedAt: null,
+    body: 'One `.md` file per note, front matter for tags.', timeline: [],
+  },
+  {
+    number: 1, title: 'Guide mentions a command that does not exist', state: 'closed', author: 'Avery Lin', createdAt: day(12), updatedAt: day(9), closedAt: day(9),
+    body: '`orbit sync` is described in docs/guide.md but was never built.',
+    timeline: [
+      { kind: 'comment', author: 'Sam Ortega', at: day(9.1), body: 'Removed it from the guide in the user guide commit.' },
+      { kind: 'closed', author: 'Sam Ortega', at: day(9) },
+    ],
+  },
+]
+const issueSummary = ({ body: _b, timeline, ...i }: Issue): IssueSummary => ({ ...i, comments: timeline.filter((t) => t.kind === 'comment').length })
+const findIssue = (n: number): Issue => {
+  const i = issues.find((x) => x.number === n)
+  if (!i) throw new Error(`Issue #${n} was not found`)
+  return i
+}
+const saveIssue = (i: Issue): Promise<Issue> => {
+  issues = [i, ...issues.filter((x) => x.number !== i.number)].sort((a, b) => b.number - a.number)
+  return wait(i)
+}
+const SAMPLE_USER = 'Avery Lin'
+
 // A plain (non-git) folder, so the browser preview can show "Make this a git repo".
 const PLAIN = 'C:/Users/sample/Documents/Job search'
 let plainIsRepo = false
@@ -239,6 +271,8 @@ export const sampleApi: RepoApi = {
         { name: 'main', sha: C2.sha, date: C2.date, author: C2.authorName, subject: C2.subject, isDefault: true },
       ],
       backup: backup.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null,
+      openIssues: issues.filter((i) => i.state === 'open').length,
+      issues: issues.filter((i) => i.state === 'open').slice(0, 5).map(issueSummary),
     }
     const plain: RepoActivity = plainIsRepo
       ? { ...orbit, path: PLAIN, name: 'Job search', backup: null }
@@ -279,6 +313,36 @@ export const sampleApi: RepoApi = {
     const c = COMMITS.find((x) => x.sha.startsWith(sha))
     if (!c) throw new Error(`Commit not found: ${sha}`)
     return wait<CommitDetail>({ ...c, truncated: false })
+  },
+  listIssues: (_repo, state) => wait(issues.filter((i) => state === 'all' || i.state === state).map(issueSummary)),
+  issueCounts: () => wait({ open: issues.filter((i) => i.state === 'open').length, closed: issues.filter((i) => i.state === 'closed').length }),
+  getIssue: async (_repo, n) => wait(findIssue(n)),
+  async createIssue(_repo, title, body) {
+    if (!title.trim()) throw new Error('An issue needs a title')
+    const now = new Date().toISOString()
+    const number = Math.max(0, ...issues.map((i) => i.number)) + 1
+    return saveIssue({ number, title: title.trim(), body, state: 'open', author: SAMPLE_USER, createdAt: now, updatedAt: now, closedAt: null, timeline: [] })
+  },
+  async updateIssue(_repo, n, edit) {
+    const i = structuredClone(findIssue(n))
+    const now = new Date().toISOString()
+    if (edit.title !== undefined) i.title = edit.title.trim()
+    if (edit.body !== undefined) i.body = edit.body
+    if (edit.state && edit.state !== i.state) {
+      i.state = edit.state
+      i.closedAt = edit.state === 'closed' ? now : null
+      i.timeline.push({ kind: edit.state === 'closed' ? 'closed' : 'reopened', author: SAMPLE_USER, at: now })
+    }
+    i.updatedAt = now
+    return saveIssue(i)
+  },
+  async addIssueComment(_repo, n, body) {
+    if (!body.trim()) throw new Error('A comment needs some text')
+    const i = structuredClone(findIssue(n))
+    const now = new Date().toISOString()
+    i.timeline.push({ kind: 'comment', author: SAMPLE_USER, at: now, body })
+    i.updatedAt = now
+    return saveIssue(i)
   },
   pickBackupFolder: () => wait('C:/Users/sample/OneDrive/Backups'),
   getBackup: () => wait(backup),

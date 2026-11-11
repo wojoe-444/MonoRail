@@ -1,5 +1,8 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 
+import IssuePage from './pages/IssuePage'
+import IssuesPage from './pages/IssuesPage'
+import NewIssuePage from './pages/NewIssuePage'
 import InitOffer from './components/InitOffer'
 import { RepoProvider } from './RepoContext'
 import BackupsPage from './pages/BackupsPage'
@@ -36,6 +39,9 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
               <Route path="branches" element={<BranchesPage />} />
               <Route path="compare" element={<ComparePage />} />
               <Route path="backups" element={<BackupsPage />} />
+              <Route path="issues" element={<IssuesPage />} />
+              <Route path="issues/new" element={<NewIssuePage />} />
+              <Route path="issues/:number" element={<IssuePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -172,4 +172,27 @@ export interface RepoActivity {
   /** Most recently updated branches. */
   branches: ActiveBranch[]
   backup: Pick<BackupState, 'schedule' | 'lastResult' | 'nextDueAt'> | null
+  /** Open local issues: the count and the newest few. */
+  openIssues?: number
+  issues?: IssueSummary[]
 }
+
+/** Local issues, stored in the repo under refs/local-issues (one JSON file per issue). */
+export type IssueState = 'open' | 'closed'
+export type IssueEvent =
+  | { kind: 'comment'; author: string; at: string; body: string }
+  | { kind: 'closed' | 'reopened'; author: string; at: string }
+export interface Issue {
+  number: number
+  title: string
+  body: string
+  state: IssueState
+  author: string
+  createdAt: string
+  updatedAt: string
+  closedAt: string | null
+  timeline: IssueEvent[]
+}
+export type IssueSummary = Omit<Issue, 'body' | 'timeline'> & { comments: number }
+export interface IssueCounts { open: number; closed: number }
+export interface IssueEdit { title?: string; body?: string; state?: IssueState }

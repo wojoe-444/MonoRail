@@ -208,6 +208,15 @@ runs inside MonoRail (checks every minute and at startup, so a backup
 missed while the app was closed runs once when it opens; failures retry after
 15 minutes). Schedules live in the app's data folder (`backups.json`).
 
+GitHub+ also has **local issues** (Issues tab, `issues.cjs`): create, edit,
+comment, close and reopen, with Markdown. They are stored inside each repo,
+never in AppData: one JSON file per issue in the tree of a commit that
+`refs/local-issues` points at, written with git plumbing (`hash-object`,
+`mktree`, `commit-tree`, `update-ref` with the old value as a guard), so the
+working tree and index are never touched, every change is a commit, backups
+carry them and a normal push does not. Keep that ref out of commit feeds
+(`--exclude=refs/local-issues --all`).
+
 `email` (**Email**) is the second app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
 `electron/apps/email/connectors/index.cjs` (config fields, `signIn`,

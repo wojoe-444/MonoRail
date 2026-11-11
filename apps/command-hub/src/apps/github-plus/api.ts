@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, InitOptions, RepoActivity, CommitDetail, CommitSummary, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
 
 /** Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call stays on this machine. */
 export interface RepoApi {
@@ -25,6 +25,13 @@ export interface RepoApi {
   countCommits(repo: string, ref: string): Promise<number>
   getCommit(repo: string, sha: string): Promise<CommitDetail>
   compareRefs(repo: string, base: string, head: string): Promise<CompareResult>
+  /** Local issues, kept inside the repo (refs/local-issues). */
+  listIssues(repo: string, state: IssueState | 'all'): Promise<IssueSummary[]>
+  issueCounts(repo: string): Promise<IssueCounts>
+  getIssue(repo: string, number: number): Promise<Issue>
+  createIssue(repo: string, title: string, body: string): Promise<Issue>
+  updateIssue(repo: string, number: number, edit: IssueEdit): Promise<Issue>
+  addIssueComment(repo: string, number: number, body: string): Promise<Issue>
   /** Scheduled backups (git bundles into a folder on this machine). */
   pickBackupFolder(): Promise<string | null>
   getBackup(repo: string): Promise<BackupState>
@@ -65,6 +72,12 @@ const desktopApi: RepoApi = {
   countCommits: (repo, ref) => call('countCommits', { repo, ref }),
   getCommit: (repo, sha) => call('getCommit', { repo, sha }),
   compareRefs: (repo, base, head) => call('compareRefs', { repo, base, head }),
+  listIssues: (repo, state) => call('listIssues', { repo, state }),
+  issueCounts: (repo) => call('issueCounts', { repo }),
+  getIssue: (repo, number) => call('getIssue', { repo, number }),
+  createIssue: (repo, title, body) => call('createIssue', { repo, title, body }),
+  updateIssue: (repo, number, edit) => call('updateIssue', { repo, number, ...edit }),
+  addIssueComment: (repo, number, body) => call('addIssueComment', { repo, number, body }),
   pickBackupFolder: () => call('pickBackupFolder'),
   getBackup: (repo) => call('getBackup', { repo }),
   saveBackup: (repo, schedule) => call('saveBackup', { repo, schedule }),
