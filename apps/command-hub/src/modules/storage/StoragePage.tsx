@@ -10,8 +10,9 @@ import { formatBytes, formatCount, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
-import { sampleDrives, sampleScan } from './sample'
-import type { Advice, Drive, DrivesResult, LocationGroup, ScanState, StorageLocation } from './types'
+import { HistoryCard } from './HistoryCard'
+import { sampleDrives, sampleHistory, sampleScan } from './sample'
+import type { Advice, Drive, DrivesResult, LocationGroup, ScanState, StorageHistory, StorageLocation } from './types'
 
 const GROUPS: { id: LocationGroup; title: string }[] = [
   { id: 'monorail', title: 'MonoRail' },
@@ -40,6 +41,9 @@ export default function StoragePage() {
   const scanQuery = useModuleQuery<ScanState>('storage', 'getScan')
   const drives = drivesQuery.data ?? (desktop ? undefined : sampleDrives)
   const scan = scanQuery.data ?? (desktop ? undefined : sampleScan)
+  const historyQuery = useModuleQuery<StorageHistory>('storage', 'getHistory')
+  const history = historyQuery.data ?? (desktop ? undefined : sampleHistory)
+  const { reload: reloadHistory } = historyQuery
   const running = scan?.state === 'running'
   const { reload: reloadScan } = scanQuery
   const { reload: reloadDrives } = drivesQuery
@@ -52,8 +56,9 @@ export default function StoragePage() {
     return () => {
       clearInterval(t)
       void reloadDrives()
+      void reloadHistory()
     }
-  }, [running, reloadScan, reloadDrives])
+  }, [running, reloadScan, reloadDrives, reloadHistory])
 
   async function act(fn: () => Promise<unknown>) {
     setActionError(undefined)
@@ -123,6 +128,8 @@ export default function StoragePage() {
           </div>
         )}
       </section>
+
+      <HistoryCard history={history} error={historyQuery.error} />
 
       <FoldersCard scan={scan} error={scanQuery.error} desktop={desktop} onScan={startScan} onOpen={(id) => act(() => invokeModule('storage', 'openLocation', { id }))} />
     </div>
@@ -222,7 +229,7 @@ function FoldersCard({
               </span>
             ) : (
               <>
-                <span>Folders are measured when you ask, since walking large folders takes a while. Nothing is saved to disk.</span>
+                <span>Folders are measured when you ask, since walking large folders takes a while. Each scan is saved in MonoRail's data folder so you can see what changed.</span>
                 <Button disabled={!desktop} onClick={onScan}>
                   <RefreshCw /> Scan folders
                 </Button>
@@ -242,7 +249,7 @@ function FoldersCard({
                 </div>
                 <div className="divide-y rounded-lg ring-1 ring-foreground/10">
                   {rows.map((l) => (
-                    <LocationRow key={l.id} loc={l} max={max} desktop={desktop} onOpen={onOpen} />
+                    <LocationRow key={l.id} loc={l} max={max} desktop={desktop} onOpen={onOpen} before={scan.previous?.sizes[l.id]} beforeAt={scan.previous?.takenAt} />
                   ))}
                 </div>
               </section>
@@ -267,15 +274,32 @@ function ScanStatus({ scan }: { scan?: ScanState }) {
   if (scan.state === 'done' && scan.finishedAt) {
     return (
       <span className="text-xs text-muted-foreground">
-        Scanned {formatRelative(scan.finishedAt)}
+        {scan.saved ? 'Last scan ' : 'Scanned '}
+        {formatRelative(scan.finishedAt)}
         {scan.tookMs !== undefined && ` in ${Math.max(1, Math.round(scan.tookMs / 1000))} s`}
+        {scan.notSaved && ' · not saved to history'}
       </span>
     )
   }
   return null
 }
 
-function LocationRow({ loc, max, desktop, onOpen }: { loc: StorageLocation; max: number; desktop: boolean; onOpen: (id: string) => void }) {
+function LocationRow({
+  loc,
+  max,
+  desktop,
+  onOpen,
+  before,
+  beforeAt,
+}: {
+  loc: StorageLocation
+  max: number
+  desktop: boolean
+  onOpen: (id: string) => void
+  /** Size in the scan before this one. */
+  before?: number
+  beforeAt?: string
+}) {
   const [open, setOpen] = useState(false)
   const advice = ADVICE[loc.advice]
   const size = loc.bytes === undefined ? 'Unknown' : `${loc.truncated ? '≥ ' : ''}${formatBytes(loc.bytes)}`
@@ -306,7 +330,10 @@ function LocationRow({ loc, max, desktop, onOpen }: { loc: StorageLocation; max:
               <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(share > 0 ? 1 : 0, share * 100)}%` }} />
             </div>
           </div>
-          <span className="w-24 shrink-0 text-right font-mono text-sm tabular-nums">{size}</span>
+          <span className="flex w-28 shrink-0 flex-col items-end">
+            <span className="font-mono text-sm tabular-nums">{size}</span>
+            <Change bytes={loc.bytes} before={before} beforeAt={beforeAt} />
+          </span>
         </button>
         <Button variant="ghost" size="icon" disabled={!desktop} onClick={() => onOpen(loc.id)} title={loc.kind === 'file' ? 'Show in Explorer' : 'Open in Explorer'} aria-label={`Open ${loc.label}`}>
           <FolderOpen />
@@ -365,5 +392,19 @@ function LocationDetails({ loc }: { loc: StorageLocation }) {
         </table>
       )}
     </div>
+  )
+}
+
+/** Growth since the previous scan: amber when a folder grew by 1 MB or more, green when it shrank. */
+function Change({ bytes, before, beforeAt }: { bytes?: number; before?: number; beforeAt?: string }) {
+  if (bytes === undefined || before === undefined) return null
+  const diff = bytes - before
+  const since = beforeAt ? `since ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(beforeAt))}` : 'since the last scan'
+  if (Math.abs(diff) < 1024 ** 2) return <span className="text-xs text-muted-foreground" title={since}>no change</span>
+  return (
+    <span className={cn('font-mono text-xs tabular-nums', diff > 0 ? 'text-warning-soft-foreground' : 'text-success')} title={since}>
+      {diff > 0 ? '+' : '−'}
+      {formatBytes(Math.abs(diff))}
+    </span>
   )
 }

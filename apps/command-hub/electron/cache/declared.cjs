@@ -100,6 +100,19 @@ const CACHES = Object.freeze([
       'The last check result per added connection (state, one-line summary, hint, time), for Home and the MCP server. Never stores secrets, tokens or check details.',
   },
   {
+    id: 'storage.history',
+    folder: 'modules/storage',
+    tier: 'history',
+    storage: 'disk',
+    file: 'history.json',
+    version: 1,
+    ttlMs: 6 * HOUR,
+    keep: 500,
+    content: 'derived',
+    policy:
+      'Storage Manager snapshots for the over-time view: free space per drive (sampled every 6 hours while the app runs) and, after each scan the user starts, the size, file count, local path and largest children of each known folder. Never reads or stores file contents.',
+  },
+  {
     id: 'connections.sign-in',
     folder: 'modules/connections',
     tier: 'check',
