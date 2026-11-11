@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { BrandMark } from '@/components/layout/BrandMark'
+import { BrandTile } from '@/components/layout/BrandMark'
 import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
@@ -35,9 +35,7 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
           collapsed && 'justify-center px-0',
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/30">
-          <BrandMark className="size-[18px]" />
-        </div>
+        <BrandTile className="size-8" markClassName="size-[18px]" />
         {!collapsed && (
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">MonoRail</span>
