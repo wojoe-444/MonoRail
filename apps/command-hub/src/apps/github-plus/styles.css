@@ -2,14 +2,14 @@
  * GitHub+ styles, ported from wojoe-444/Local-Repo-UI (GitHub-dark look).
  *
  * Apps may look like their own thing, so this deliberately does not use the
- * Command Hub tokens. Everything is nested under .ghp (the app root) so none
+ * MonoHub tokens. Everything is nested under .ghp (the app root) so none
  * of it leaks into the hub, and the highlight.js theme is inlined here for the
  * same reason. The "Restore browser defaults" block puts back what Tailwind's
  * preflight resets (heading sizes, list bullets, paragraph spacing), which
  * the original relied on.
  */
 .ghp {
-  /* Light by default (GitHub light); dark under .dark, which Command Hub's theme toggle sets. */
+  /* Light by default (GitHub light); dark under .dark, which MonoHub's theme toggle sets. */
   --bg: #ffffff; --bg2: #f6f8fa; --bg3: #eff2f5; --border: #d1d9e0; --fg: #1f2328; --muted: #59636e;
   --link: #0969da; --green: #1a7f37; --red: #d1242f; --yellow: #9a6700; --folder: #54aeff;
   --addbg: #dafbe1; --delbg: #ffebe9; --addln: #aceebb; --delln: #ffcecb; --hunkbg: #ddf4ff;

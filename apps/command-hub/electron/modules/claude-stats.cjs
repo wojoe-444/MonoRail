@@ -2,7 +2,7 @@
 // (~/.claude/projects and ~/.config/claude) and returns its JSON reports.
 //
 // Private data rule: the logs and the cached report never leave this machine.
-// The cache lives in %APPDATA%\Command Hub\modules\claude-stats\usage.json.
+// The cache lives in %APPDATA%\MonoHub\modules\claude-stats\usage.json.
 
 const { execFile } = require('node:child_process')
 const fs = require('node:fs/promises')

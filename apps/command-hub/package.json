@@ -49,7 +49,7 @@
     "vite": "^8.3.6",
     "wait-on": "^9.5.1"
   },
-  "description": "Command Hub: a desktop app for managing MonoRail agents",
+  "description": "MonoHub: a desktop app for managing MonoRail agents",
   "main": "electron/main.cjs",
   "author": "MonoRail"
 }

@@ -3,8 +3,8 @@
 // A backend is { id, methods: { [name]: async (ctx, args) => result } }.
 // Module backends live in electron/modules, app backends in electron/apps.
 // ctx gives each one its own private data folder under AppData:
-//   ctx.dataDir  -> %APPDATA%\Command Hub\modules\<id>   (modules)
-//                   %APPDATA%\Command Hub\apps\<id>      (apps)
+//   ctx.dataDir  -> %APPDATA%\MonoHub\modules\<id>   (modules)
+//                   %APPDATA%\MonoHub\apps\<id>      (apps)
 //                   created on demand
 //   ctx.log(...) -> console logging prefixed with the backend id
 // The renderer addresses a module as "<id>" and an app as "app:<id>".

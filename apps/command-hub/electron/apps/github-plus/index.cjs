@@ -2,7 +2,7 @@
 // Ported from wojoe-444/Local-Repo-UI (src/main/index.ts).
 //
 // Private data rule: the list of recently opened repo paths is kept in
-// %APPDATA%\Command Hub\apps\github-plus\recents.json (ctx.dataDir). Nothing
+// %APPDATA%\MonoHub\apps\github-plus\recents.json (ctx.dataDir). Nothing
 // is sent anywhere; the only process this runs is the local `git` CLI.
 
 const fs = require('node:fs/promises')
@@ -55,7 +55,7 @@ async function readSettings(ctx) {
 
 module.exports = {
   id: 'github-plus',
-  /** Called once at startup: runs the backup scheduler inside Command Hub. */
+  /** Called once at startup: runs the backup scheduler inside MonoHub. */
   start(ctx) {
     dataDir = ctx.dataDir
     backups.start()

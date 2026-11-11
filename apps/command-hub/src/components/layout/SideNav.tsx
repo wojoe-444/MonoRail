@@ -1,7 +1,8 @@
-import { PanelLeftClose, PanelLeftOpen, TrainFront, User } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, User } from 'lucide-react'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { BrandMark } from '@/components/layout/BrandMark'
 import { cn } from '@/lib/utils'
 
 import { navSections } from './nav'
@@ -30,12 +31,12 @@ export function SideNav({ current, onNavigate, collapsed, onToggleCollapsed }: S
       {/* Brand header: height matches the 64px top bar */}
       <div className={cn('flex h-16 items-center gap-3 px-4', collapsed && 'justify-center px-0')}>
         <div className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-primary to-highlight text-sidebar-primary-foreground shadow-elevation-2">
-          <TrainFront className="size-5" />
+          <BrandMark className="size-5" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
             <div className="text-sm font-semibold tracking-tight text-sidebar-accent-foreground">
-              Command Hub
+              MonoHub
             </div>
             <div className="text-xs text-sidebar-muted-foreground">MonoRail agents</div>
           </div>
