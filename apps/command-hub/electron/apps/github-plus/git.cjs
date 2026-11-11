@@ -121,6 +121,16 @@ async function openRepo(dir) {
   return { path: root, name: basename(root), currentBranch, headSha, isEmpty: !headSha && branches.length === 0, defaultRef }
 }
 
+/** The repo's remotes: [{ name, url }], from its config (one process, no network). */
+async function remotes(repo) {
+  const out = await text(repo, ['config', '--get-regexp', '^remote\\..*\\.url$']).catch(() => '')
+  return out
+    .split('\n')
+    .map((line) => /^remote\.(.+)\.url (.+)$/.exec(line.trim()))
+    .filter(Boolean)
+    .map((m) => ({ name: m[1], url: m[2] }))
+}
+
 /** Branches and tags, newest first. Ahead/behind is a separate call (branchDivergence), so opening a repo stays one process. */
 async function listRefs(repo) {
   const SEP = '\x1f'
@@ -480,6 +490,7 @@ module.exports = {
   assertRef,
   assertPath,
   openRepo,
+  remotes,
   listRefs,
   listTree,
   treeLastCommits,

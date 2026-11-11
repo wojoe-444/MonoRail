@@ -5,18 +5,33 @@
 // %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Repos other
 // MonoRail apps created (Jira+'s private projects) are listed next to them
 // without being stored there (linked.cjs). Local issues are
-// stored inside each repo under refs/local-issues (issues.cjs). Nothing
-// is sent anywhere; the only process this runs is the local `git` CLI.
+// stored inside each repo under refs/local-issues (issues.cjs).
+//
+// github.com (github.cjs) is reached only once the user has set up the
+// GitHub connection on the Connections page: then the home page lists their
+// repositories on GitHub (in memory only), a repo can be cloned into a
+// folder they pick, and a new issue can also be created on GitHub when they
+// turn that on for that issue (off by default, so issues stay local).
+// Otherwise the only process this runs is the local `git` CLI.
 
 const fs = require('node:fs/promises')
 const path = require('node:path')
-const { BrowserWindow, dialog } = require('electron')
+const { spawn } = require('node:child_process')
+const { BrowserWindow, dialog, shell } = require('electron')
 
 const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
 const folderInit = require('./init.cjs')
 const issues = require('./issues.cjs')
 const { linkedRepos, mergeRecents } = require('./linked.cjs')
+const { createGitHubService, pickGitHubRemote, htmlUrl, cloneUrl, NAME_RE } = require('./github.cjs')
+
+const connectionsLib = () => require('../../connections/index.cjs')
+const gh = createGitHubService({
+  hasConnection: () => connectionsLib().hasConnection('github'),
+  getCredentials: () => connectionsLib().getCredentials('github'),
+})
+const CLONE_TIMEOUT_MS = 15 * 60_000
 
 const RECENTS_FILE = 'recents.json'
 const SETTINGS_FILE = 'settings.json'
@@ -66,14 +81,42 @@ async function repoActivity(p) {
   const fp = await git.refsFingerprint(p).catch(() => null)
   const hit = activityCache.get(p)
   if (fp !== null && hit?.fp === fp) return hit.value
-  const [activity, open] = await Promise.all([
+  const [activity, open, remotes] = await Promise.all([
     git.recentActivity(p).catch((e) => ({ path: p, name: path.basename(p), error: e.message, commits: [], branches: [] })),
     issues.listIssues(p, 'open').catch(() => []),
+    git.remotes(p).catch(() => []),
   ])
-  const value = { ...activity, path: p, openIssues: open.length, issues: open.slice(0, 5) }
+  const value = { ...activity, path: p, openIssues: open.length, issues: open.slice(0, 5), github: pickGitHubRemote(remotes) }
   if (fp !== null && !activity.error) activityCache.set(p, { fp, value })
   else activityCache.delete(p)
   return value
+}
+
+function focused() {
+  return BrowserWindow.getFocusedWindow() ?? undefined
+}
+
+/** git clone <https url> <target>, no prompts in a terminal, killed after CLONE_TIMEOUT_MS. */
+function gitClone(url, target) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-c', 'core.fsmonitor=false', 'clone', '--', url, target], {
+      windowsHide: true,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    let err = ''
+    child.stderr.on('data', (d) => (err = (err + d).slice(-4000)))
+    const timer = setTimeout(() => child.kill(), CLONE_TIMEOUT_MS)
+    child.on('error', (e) => {
+      clearTimeout(timer)
+      reject(e.code === 'ENOENT' ? new Error('git was not found. Install Git for Windows and make sure it is on PATH.') : e)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve()
+      else reject(new Error(err.trim().split(/\r?\n/).filter((l) => !/^Cloning into/.test(l)).pop() || `git clone exited with ${code}`))
+    })
+  })
 }
 
 async function readSettings(ctx) {
@@ -168,7 +211,53 @@ module.exports = {
     listIssues: (_ctx, { repo, state } = {}) => issues.listIssues(guard(repo), state),
     issueCounts: (_ctx, { repo } = {}) => issues.issueCounts(guard(repo)),
     getIssue: (_ctx, { repo, number } = {}) => issues.getIssue(guard(repo), number),
-    createIssue: (_ctx, { repo, title, body } = {}) => issues.createIssue(guard(repo), { title, body }),
+    /**
+     * A new local issue. With onGitHub it is first created on GitHub (the
+     * repo's own github.com remote, never a repo named by the page), then
+     * recorded locally with a link to it.
+     */
+    async createIssue(_ctx, { repo, title, body, onGitHub } = {}) {
+      guard(repo)
+      if (onGitHub !== true) return issues.createIssue(repo, { title, body })
+      const t = issues.cleanTitle(title)
+      const b = issues.cleanBody(body)
+      const target = pickGitHubRemote(await git.remotes(repo))
+      if (!target) throw new Error('This repository has no github.com remote, so the issue can only be created locally.')
+      const link = await gh.createIssue(target, { title: t, body: b })
+      try {
+        return await issues.createIssue(repo, { title: t, body: b, github: link })
+      } catch (e) {
+        throw new Error(`The issue was created on GitHub (${link.url}), but saving the local copy failed: ${e.message}`)
+      }
+    },
+    /** Where a new issue could also go on GitHub. Reads the repo's remotes; contacts nobody. */
+    async githubTarget(_ctx, { repo } = {}) {
+      const target = pickGitHubRemote(await git.remotes(guard(repo)))
+      return { repo: target, connected: await connectionsLib().hasConnection('github') }
+    },
+    /** The user's repositories on github.com: { connected: false } until GitHub is set up on Connections. */
+    githubRepos: (_ctx, { force } = {}) => gh.repos({ force: force === true }),
+    /** Clone a repo from the GitHub list into a folder the user picks, then open it. */
+    async cloneGitHubRepo(ctx, { fullName } = {}) {
+      const r = gh.known(fullName)
+      if (!r) throw new Error('That repository is not in your GitHub list. Refresh the list and try again.')
+      const opts = { title: `Choose where to clone ${r.fullName}`, buttonLabel: 'Clone here', properties: ['openDirectory', 'createDirectory'] }
+      const win = focused()
+      const res = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+      if (res.canceled || !res.filePaths[0]) return null
+      const target = path.join(res.filePaths[0], r.name)
+      if (await fs.stat(target).then(() => true, () => false)) throw new Error(`${target} already exists. Open it with "Open repository", or pick another folder.`)
+      await gitClone(cloneUrl(r.fullName), target)
+      return module.exports.methods.openRepo(ctx, { dir: target })
+    },
+    /** Open a repo or issue page on github.com in the system browser. Only github.com links. */
+    async openOnGitHub(_ctx, { fullName, issue } = {}) {
+      if (typeof fullName !== 'string' || !NAME_RE.test(fullName)) throw new Error('Invalid repository')
+      const n = issue === undefined ? undefined : Number(issue)
+      if (n !== undefined && (!Number.isInteger(n) || n < 1)) throw new Error('Invalid issue number')
+      await shell.openExternal(n ? `${htmlUrl(fullName)}/issues/${n}` : htmlUrl(fullName))
+      return null
+    },
     updateIssue: (_ctx, { repo, number, title, body, state } = {}) => issues.updateIssue(guard(repo), number, { title, body, state }),
     addIssueComment: (_ctx, { repo, number, body } = {}) => issues.addComment(guard(repo), number, { body }),
     getBackup: (_ctx, { repo } = {}) => backups.get(guard(repo)),

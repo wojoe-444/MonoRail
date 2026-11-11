@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useRepo } from '../RepoContext'
 import { api } from '../api'
 import { Avatar } from '../components/CommitList'
-import { IssueClosedIcon, IssueOpenIcon } from '../components/Icons'
+import { ExternalIcon, IssueClosedIcon, IssueOpenIcon } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import MarkdownEditor from '../components/MarkdownEditor'
 import { issuesLink, newIssueLink } from '../links'
@@ -84,6 +84,13 @@ export default function IssuePage() {
             <strong className="fg">{issue.author}</strong> opened this issue <span title={fullDate(issue.createdAt)}>{timeAgo(issue.createdAt)}</span>
             {' · '}{commentCount} {commentCount === 1 ? 'comment' : 'comments'}
           </span>
+          {issue.github ? (
+            <button className="link-btn gh-link small" title="Also created on GitHub. Edits and comments here stay local." onClick={() => void api.openOnGitHub(issue.github!.repo, issue.github!.number).catch((e: Error) => setError(e.message))}>
+              On GitHub: {issue.github.repo}#{issue.github.number} <ExternalIcon />
+            </button>
+          ) : (
+            <span className="badge" title="Kept in this repository only (refs/local-issues). Nobody else sees it.">Local only</span>
+          )}
         </div>
       </div>
       {error && <div className="flash error">{error}</div>}

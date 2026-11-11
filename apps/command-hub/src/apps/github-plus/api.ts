@@ -2,9 +2,13 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { GitHubRepos, GitHubTarget, BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
 
-/** Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call stays on this machine. */
+/**
+ * Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call
+ * stays on this machine except the GitHub ones, which run only once the user has
+ * set up GitHub on the Connections page.
+ */
 export interface RepoApi {
   pickRepoFolder(): Promise<string | null>
   openRepo(dir: string): Promise<RepoInfo>
@@ -36,7 +40,16 @@ export interface RepoApi {
   listIssues(repo: string, state: IssueState | 'all'): Promise<IssueSummary[]>
   issueCounts(repo: string): Promise<IssueCounts>
   getIssue(repo: string, number: number): Promise<Issue>
-  createIssue(repo: string, title: string, body: string): Promise<Issue>
+  /** onGitHub: also create it on the repo's github.com remote (off unless the user turns it on). */
+  createIssue(repo: string, title: string, body: string, onGitHub?: boolean): Promise<Issue>
+  /** The repo's github.com remote and whether GitHub is set up. Contacts nobody. */
+  githubTarget(repo: string): Promise<GitHubTarget>
+  /** The user's repositories on github.com (owned, shared, organizations'). In memory, 10 minutes. */
+  githubRepos(force?: boolean): Promise<GitHubRepos>
+  /** Clone a repo from that list into a folder the user picks, then open it. Null when cancelled. */
+  cloneGitHubRepo(fullName: string): Promise<RepoInfo | null>
+  /** Open a repo (or one of its issues) on github.com in the system browser. */
+  openOnGitHub(fullName: string, issue?: number): Promise<null>
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<Issue>
   addIssueComment(repo: string, number: number, body: string): Promise<Issue>
   /** Scheduled backups (git bundles into a folder on this machine). */
@@ -85,7 +98,11 @@ const desktopApi: RepoApi = {
   listIssues: (repo, state) => call('listIssues', { repo, state }),
   issueCounts: (repo) => call('issueCounts', { repo }),
   getIssue: (repo, number) => call('getIssue', { repo, number }),
-  createIssue: (repo, title, body) => call('createIssue', { repo, title, body }),
+  createIssue: (repo, title, body, onGitHub) => call('createIssue', { repo, title, body, onGitHub: onGitHub === true }),
+  githubTarget: (repo) => call('githubTarget', { repo }),
+  githubRepos: (force) => call('githubRepos', { force: force === true }),
+  cloneGitHubRepo: (fullName) => call('cloneGitHubRepo', { fullName }),
+  openOnGitHub: (fullName, issue) => call('openOnGitHub', { fullName, issue }),
   updateIssue: (repo, number, edit) => call('updateIssue', { repo, number, ...edit }),
   addIssueComment: (repo, number, body) => call('addIssueComment', { repo, number, body }),
   pickBackupFolder: () => call('pickBackupFolder'),

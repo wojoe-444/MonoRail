@@ -268,6 +268,29 @@ export const sampleList: ConnectionsList = {
       fields: [],
       actions: [],
     },
+    {
+      kind: 'github',
+      title: 'GitHub',
+      description: 'Your github.com account. GitHub+ lists your repositories (owned, shared with you, and your organizations\u2019) and can create an issue on GitHub when you ask it to.',
+      icon: 'git',
+      fields: [
+        {
+          key: 'source',
+          label: 'How to sign in',
+          type: 'select',
+          options: [
+            { value: 'gh', label: 'GitHub CLI (gh) login' },
+            { value: 'direct', label: 'Paste a token into MonoRail' },
+            { value: 'wincred', label: 'Windows Credential Manager entry' },
+          ],
+          defaultValue: 'gh',
+          help: 'With the GitHub CLI, gh keeps the login and MonoRail never sees a token.',
+        },
+        { key: 'token', label: 'Token', type: 'secret', showIf: { source: 'direct' }, help: 'Stored encrypted on this PC.' },
+        { key: 'credentialTarget', label: 'Credential Manager entry', type: 'text', showIf: { source: 'wincred' }, placeholder: 'e.g. github-token', credentialPicker: true },
+      ],
+      actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running gh auth login. Finish there, then check again.', showWhen: ['expired', 'needs-setup', 'error'] }],
+    },
   ],
   connections: [
     {

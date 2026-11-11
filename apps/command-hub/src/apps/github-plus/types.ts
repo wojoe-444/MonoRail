@@ -194,7 +194,46 @@ export interface RepoActivity {
   /** Open local issues: the count and the newest few. */
   openIssues?: number
   issues?: IssueSummary[]
+  /** "owner/name" of the repo's github.com remote (origin first), if it has one. */
+  github?: string | null
 }
+
+/** One of the user's repositories on github.com (GitHub connection on Connections). */
+export interface GitHubRepo {
+  fullName: string
+  owner: string
+  name: string
+  description: string
+  private: boolean
+  fork: boolean
+  archived: boolean
+  hasIssues: boolean
+  canPush: boolean
+  /** owner: yours; organization: an organization you belong to; collaborator: shared with you. */
+  relation: 'owner' | 'organization' | 'collaborator'
+  pushedAt: string | null
+  defaultBranch: string | null
+}
+export interface GitHubRepos {
+  /** False until the user sets up GitHub on the Connections page; nothing is fetched before that. */
+  connected: boolean
+  login?: string | null
+  repos: GitHubRepo[]
+  /** More than 1,000 repositories: only the most recently pushed are listed. */
+  truncated?: boolean
+  fetchedAt?: string | null
+  /** The last fetch failed (repos are then the last good list, if any). */
+  error?: string
+}
+/** Where a new issue could also be created on GitHub. */
+export interface GitHubTarget {
+  /** "owner/name" of the repo's github.com remote, or null. */
+  repo: string | null
+  /** True once GitHub is set up on the Connections page. */
+  connected: boolean
+}
+/** Set on a local issue that was also created on GitHub. */
+export interface GitHubIssueLink { repo: string; number: number; url: string }
 
 /** Local issues, stored in the repo under refs/local-issues (one JSON file per issue). */
 export type IssueState = 'open' | 'closed'
@@ -211,6 +250,8 @@ export interface Issue {
   updatedAt: string
   closedAt: string | null
   timeline: IssueEvent[]
+  /** Set when the issue was also created on GitHub. Later edits and comments stay local. */
+  github?: GitHubIssueLink | null
 }
 export type IssueSummary = Omit<Issue, 'body' | 'timeline'> & { comments: number }
 export interface IssueCounts { open: number; closed: number }
