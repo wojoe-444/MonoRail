@@ -8,7 +8,7 @@ const path = require('node:path')
 const { app, BrowserWindow, shell } = require('electron')
 
 const { setupUserData } = require('./userData.cjs')
-// Before anything touches userData: moves %APPDATA%\Command Hub to MonoHub once.
+// Before anything touches userData: moves %APPDATA%\command-hub to MonoHub once.
 setupUserData(app)
 
 const { registerModuleBackends } = require('./modules/index.cjs')

@@ -29,10 +29,23 @@ describe('resolveUserDataDir', () => {
     assert.ok(existsSync(join(r.dir, 'modules', 'jira', 'local-repo')))
   })
 
-  it('also picks up the dev-run folder name', () => {
+  it('moves the command-hub folder that installed copies actually used', () => {
+    const root = fresh()
+    const old = join(root, 'command-hub')
+    mkdirSync(join(old, 'apps', 'github-plus'), { recursive: true })
+    writeFileSync(join(old, 'Local State'), '{"os_crypt":{}}')
+    writeFileSync(join(old, 'apps', 'github-plus', 'backups.json'), '[]')
+    const r = resolveUserDataDir(root)
+    assert.equal(r.migratedFrom, old)
+    assert.equal(readFileSync(join(r.dir, 'Local State'), 'utf8'), '{"os_crypt":{}}')
+    assert.ok(existsSync(join(r.dir, 'apps', 'github-plus', 'backups.json')))
+  })
+
+  it('prefers the folder that holds data when both old names exist', () => {
     const root = fresh()
     mkdirSync(join(root, 'command-hub'))
-    assert.equal(resolveUserDataDir(root).migratedFrom, join(root, 'command-hub'))
+    mkdirSync(join(root, 'Command Hub', 'modules'), { recursive: true })
+    assert.equal(resolveUserDataDir(root).migratedFrom, join(root, 'Command Hub'))
   })
 
   it('leaves the old folder alone once MonoHub exists', () => {
