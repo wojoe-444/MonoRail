@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bot, BookOpen, History, House, LayoutGrid, Settings } from 'lucide-react'
+import { Bot, History, House, LayoutGrid, Settings } from 'lucide-react'
 
 import { apps, fullscreenApps, isWorkspaceApp } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
@@ -56,7 +56,6 @@ function coreSections(list: ExtensionList): NavSection[] {
           // Agent Chat (a module) joins these through nav.parent.
           children: [
             { path: '/agents/runs', label: 'Runs', icon: History },
-            { path: '/agents/library', label: 'Library', icon: BookOpen },
           ],
         },
         ...workspaceApps,

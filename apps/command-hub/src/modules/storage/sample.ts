@@ -10,6 +10,7 @@ export const sampleDrives: DrivesResult = {
     { id: 'C:', path: 'C:\\', total: 476 * GB, free: 6.2 * GB, used: 469.8 * GB, system: true, holdsData: true },
     { id: 'D:', path: 'D:\\', total: 931 * GB, free: 512 * GB, used: 419 * GB, system: false, holdsData: false },
   ],
+  goals: { 'C:': { freeBytes: 50 * GB, setAt: new Date(Date.now() - 3 * 86_400_000).toISOString() } },
 }
 
 const home = 'C:\\Users\\you'

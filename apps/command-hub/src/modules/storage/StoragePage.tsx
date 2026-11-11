@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ChevronRight, File, Folder, FolderOpen, HardDrive, Loader2, RefreshCw, Settings2 } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, File, Folder, FolderOpen, HardDrive, Loader2, RefreshCw, Settings2, Target } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -10,9 +10,10 @@ import { formatBytes, formatCount, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
+import { GoalDialog } from './GoalDialog'
 import { HistoryCard } from './HistoryCard'
 import { sampleDrives, sampleHistory, sampleScan } from './sample'
-import type { Advice, Drive, DrivesResult, LocationGroup, ScanState, StorageHistory, StorageLocation } from './types'
+import type { Advice, Drive, DriveGoal, DrivesResult, LocationGroup, ScanState, StorageHistory, StorageLocation } from './types'
 
 const GROUPS: { id: LocationGroup; title: string }[] = [
   { id: 'monorail', title: 'MonoRail' },
@@ -48,6 +49,8 @@ export default function StoragePage() {
   const { reload: reloadScan } = scanQuery
   const { reload: reloadDrives } = drivesQuery
   const [actionError, setActionError] = useState<string>()
+  const [goalFor, setGoalFor] = useState<Drive>()
+  const goals = drives?.goals ?? {}
 
   // Follow a running scan; read the drives again when it ends.
   useEffect(() => {
@@ -116,6 +119,7 @@ export default function StoragePage() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-semibold">Drives</h2>
+        {drives?.goalsError && <p className="text-sm text-destructive">{drives.goalsError}</p>}
         {!drives ? (
           <Status error={drivesQuery.error} />
         ) : (
@@ -123,13 +127,15 @@ export default function StoragePage() {
             {[...drives.drives]
               .sort((a, b) => Number(b.system) - Number(a.system) || a.id.localeCompare(b.id))
               .map((d) => (
-                <DriveCard key={d.id} drive={d} />
+                <DriveCard key={d.id} drive={d} goal={goals[d.id]} canSetGoal={desktop && !drives.goalsError} onSetGoal={() => setGoalFor(d)} />
               ))}
           </div>
         )}
       </section>
 
-      <HistoryCard history={history} error={historyQuery.error} />
+      <HistoryCard history={history} error={historyQuery.error} goals={goals} />
+
+      {goalFor && <GoalDialog drive={goalFor} goal={goals[goalFor.id]} onClose={() => setGoalFor(undefined)} onSaved={() => void reloadDrives()} />}
 
       <FoldersCard scan={scan} error={scanQuery.error} desktop={desktop} onScan={startScan} onOpen={(id) => act(() => invokeModule('storage', 'openLocation', { id }))} />
     </div>
@@ -144,7 +150,7 @@ function Status({ error }: { error?: Error }) {
   )
 }
 
-function DriveCard({ drive: d }: { drive: Drive }) {
+function DriveCard({ drive: d, goal, canSetGoal, onSetGoal }: { drive: Drive; goal?: DriveGoal; canSetGoal: boolean; onSetGoal: () => void }) {
   const usedShare = d.total ? d.used / d.total : 0
   const tone = usedShare >= 0.95 || isLow(d) ? 'bg-destructive' : usedShare >= 0.85 ? 'bg-warning' : 'bg-primary'
   return (
@@ -176,7 +182,49 @@ function DriveCard({ drive: d }: { drive: Drive }) {
       <span className="text-xs text-muted-foreground tabular-nums">
         {formatBytes(d.used)} used of {formatBytes(d.total)} ({Math.round(usedShare * 100)}%)
       </span>
+      <Separator />
+      {goal ? <GoalProgress drive={d} goal={goal} canEdit={canSetGoal} onEdit={onSetGoal} /> : (
+        <Button variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground" disabled={!canSetGoal} onClick={onSetGoal}>
+          <Target /> Set a free-space goal
+        </Button>
+      )}
     </Card>
+  )
+}
+
+/** Progress toward a drive's free-space goal: free / goal, met at 100%. */
+function GoalProgress({ drive: d, goal, canEdit, onEdit }: { drive: Drive; goal: DriveGoal; canEdit: boolean; onEdit: () => void }) {
+  const share = Math.min(1, d.free / goal.freeBytes)
+  const met = d.free >= goal.freeBytes
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Goal</span>
+        <span className="font-mono text-xs tabular-nums">{formatBytes(goal.freeBytes)} free</span>
+        <Button variant="ghost" size="sm" className="-mr-2 ml-auto h-6 px-2 text-xs text-muted-foreground" disabled={!canEdit} onClick={onEdit}>
+          Change
+        </Button>
+      </div>
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-label={`${d.id} progress toward the free-space goal`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(share * 100)}
+      >
+        <div className={cn('h-full rounded-full', met ? 'bg-success' : 'bg-warning')} style={{ width: `${share * 100}%` }} />
+      </div>
+      {met ? (
+        <span className="flex items-center gap-1 text-xs text-success-soft-foreground">
+          <Check className="size-3.5" /> Goal met, {formatBytes(d.free - goal.freeBytes)} to spare
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          Free {formatBytes(goal.freeBytes - d.free)} more to reach it ({Math.round(share * 100)}% there)
+        </span>
+      )}
+    </div>
   )
 }
 
