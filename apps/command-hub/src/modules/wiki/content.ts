@@ -30,7 +30,7 @@ export interface WikiGroup {
 
 /** Reading order within a group; files not listed follow, by title. */
 const ORDER: Record<string, string[]> = {
-  extensions: ['README', 'concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
+  extensions: ['README', 'concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'non-node-runtimes', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
 }
 
 const GROUP_TITLES: Record<string, string> = { '': 'MonoRail', extensions: 'Extensions' }
