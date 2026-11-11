@@ -88,6 +88,18 @@ const CACHES = Object.freeze([
     policy: 'Result of a connector check (state and summary, no secrets), keyed by a hash of the connector definition.',
   },
   {
+    id: 'connections.summary',
+    folder: 'modules/connections',
+    tier: 'summary',
+    storage: 'disk',
+    file: 'summary.json',
+    version: 1,
+    ttlMs: 1 * HOUR,
+    content: 'derived',
+    policy:
+      'The last check result per added connection (state, one-line summary, hint, time), for Home and the MCP server. Never stores secrets, tokens or check details.',
+  },
+  {
     id: 'connections.sign-in',
     folder: 'modules/connections',
     tier: 'check',

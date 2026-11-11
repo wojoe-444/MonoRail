@@ -15,28 +15,21 @@
 // holds data and the new one doesn't, keep using the old one in place. It is
 // never moved or copied (see "names that must not change" in CLAUDE.md).
 
-const fsSync = require('node:fs')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { safeStorage } = require('electron')
 
 const { createJiraClient } = require('./cloud.cjs')
 const { createLocalStore } = require('./local.cjs')
+const { resolveJiraDataDir, CONNECTION_FILE } = require('./data-dir.cjs')
 
-const CONNECTION_FILE = 'connection.json'
 const DEFAULT_SCOPE = 'assignee = currentUser()'
 const RECENT_DONE = 'statusCategory != Done OR updated >= -14d'
-
-const LEGACY_DIR = ['..', '..', 'modules', 'jira']
 
 // Keyed by ctx.dataDir: one entry in the app, one per temp folder in tests.
 const resolvedDirs = new Map()
 function dataDir(ctx) {
-  if (!resolvedDirs.has(ctx.dataDir)) {
-    const holdsData = (dir) => ['local-repo', CONNECTION_FILE].some((f) => fsSync.existsSync(path.join(dir, f)))
-    const legacy = path.resolve(ctx.dataDir, ...LEGACY_DIR)
-    resolvedDirs.set(ctx.dataDir, !holdsData(ctx.dataDir) && holdsData(legacy) ? legacy : ctx.dataDir)
-  }
+  if (!resolvedDirs.has(ctx.dataDir)) resolvedDirs.set(ctx.dataDir, resolveJiraDataDir(ctx.dataDir))
   return resolvedDirs.get(ctx.dataDir)
 }
 
