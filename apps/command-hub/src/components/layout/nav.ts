@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Bot, BookOpen, History, House, LayoutGrid } from 'lucide-react'
 
+import { apps, fullscreenApps, isWorkspaceApp } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
 import type { ExtensionList } from '@/extensions/types'
 import { allModules } from '@/modules/registry'
@@ -14,6 +15,8 @@ export interface NavItem {
   badge?: string
   /** Subpages, drawn as a collapsible tree under this item. One level deep. */
   children?: NavItem[]
+  /** Also the current item for any path under it (a workspace app's own routes). */
+  matchPrefix?: boolean
 }
 
 export interface NavSection {
@@ -26,14 +29,19 @@ export interface NavSection {
  * theirs from `src/modules/registry.ts`, and installed extensions add theirs
  * through the same registries (src/extensions).
  */
-function coreSections(): NavSection[] {
+function coreSections(list: ExtensionList): NavSection[] {
+  // Workspace apps (GitHub+, Jira+, Email) are pages under the drawer; their
+  // own routes all belong to their one nav item.
+  const workspaceApps: NavItem[] = apps
+    .filter(isWorkspaceApp)
+    .map((a) => ({ path: a.path, label: a.title, icon: a.icon, matchPrefix: true }))
   return [
     {
-      // Apps is one destination: the Apps page shows every app (built in and
-      // from extensions) as a card, and each app opens full screen.
+      // Apps is one destination: the Apps page shows every full-screen app
+      // (from extensions) as a card. Hidden while there are none.
       items: [
         { path: '/', label: 'Home', icon: House },
-        { path: '/apps', label: 'Apps', icon: LayoutGrid },
+        ...(fullscreenApps(list).length > 0 ? [{ path: '/apps', label: 'Apps', icon: LayoutGrid }] : []),
       ],
     },
     {
@@ -49,6 +57,7 @@ function coreSections(): NavSection[] {
             { path: '/agents/library', label: 'Library', icon: BookOpen },
           ],
         },
+        ...workspaceApps,
       ],
     },
     {
@@ -67,7 +76,7 @@ function coreSections(): NavSection[] {
 
 /** Merge module nav entries into sections. New module sections go before "Configure". */
 export function buildNavSections(list: ExtensionList): NavSection[] {
-  const sections = coreSections().filter((s) => s.items.length > 0 || s.heading === 'Configure' || s.heading === 'Help')
+  const sections = coreSections(list).filter((s) => s.items.length > 0 || s.heading === 'Configure' || s.heading === 'Help')
   const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
   for (const m of sorted) {
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
@@ -102,6 +111,12 @@ export function findNavItem(
       if (item.path === path) return { item, section }
       const child = item.children?.find((c) => c.path === path)
       if (child) return { item: child, section, parent: item }
+    }
+  }
+  // A workspace app's own routes ("/apps/github-plus/..." or "...?q").
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.matchPrefix && (path.startsWith(`${item.path}/`) || path.startsWith(`${item.path}?`))) return { item, section }
     }
   }
   return undefined

@@ -9,14 +9,13 @@ import { hubReturnPath, rememberAppPath } from './session'
 import type { AppDefinition } from './types'
 
 /**
- * Full-screen host for an app. The app gets the whole window below one
+ * Full-screen host for an app (`placement: 'fullscreen'`, every extension app). The app gets the whole window below one
  * 48px hub bar, which is the same in every app: the drawer's colors from the
  * current color scheme, the MonoRail mark, and a "Back to MonoRail" button
  * filled like the active nav item. Apps style everything below it however
  * they like, but never the bar.
  */
 export function AppFrame({ app }: { app: AppDefinition }) {
-  const AppRoot = app.component
   const Icon = app.icon
   const [theme, toggleTheme] = useTheme()
 
@@ -55,18 +54,30 @@ export function AppFrame({ app }: { app: AppDefinition }) {
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
-        <AppErrorBoundary title={app.title}>
-          <Suspense fallback={null}>
-            <AppRoot basePath={app.path} />
-          </Suspense>
-        </AppErrorBoundary>
+        <AppBody app={app} />
       </div>
     </div>
   )
 }
 
-/** If an app crashes, keep the hub bar so the way back still works. */
-class AppErrorBoundary extends Component<{ title: string; children: ReactNode }, { error?: Error }> {
+/**
+ * An app's root inside its error boundary. Full-screen apps render it under
+ * the hub bar; workspace apps render it as the page body under the drawer
+ * and top bar (App.tsx).
+ */
+export function AppBody({ app }: { app: AppDefinition }) {
+  const AppRoot = app.component
+  return (
+    <AppErrorBoundary title={app.title} hint={app.placement === 'workspace' ? 'Open it again from the menu on the left.' : 'Use “Back to MonoRail” above, then open the app again.'}>
+      <Suspense fallback={null}>
+        <AppRoot basePath={app.path} />
+      </Suspense>
+    </AppErrorBoundary>
+  )
+}
+
+/** If an app crashes, keep the hub bar (or drawer) so the way back still works. */
+class AppErrorBoundary extends Component<{ title: string; hint: string; children: ReactNode }, { error?: Error }> {
   state: { error?: Error } = {}
 
   static getDerivedStateFromError(error: Error) {
@@ -79,7 +90,7 @@ class AppErrorBoundary extends Component<{ title: string; children: ReactNode },
       <div className="mx-auto max-w-xl px-6 py-16 text-center">
         <h2 className="text-lg font-semibold">{this.props.title} stopped working</h2>
         <p className="mt-2 text-sm text-muted-foreground">{this.state.error.message}</p>
-        <p className="mt-4 text-sm text-muted-foreground">Use “Back to MonoRail” above, then open the app again.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{this.props.hint}</p>
       </div>
     )
   }

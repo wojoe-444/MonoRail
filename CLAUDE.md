@@ -88,7 +88,7 @@ major/minor in `package.json` by hand; never publish from a local machine.
   `nav.ts` (the single list of navigation items).
 - `pages/` built-in pages (Home and placeholders).
 - `modules/` feature modules (see below). `modules/registry.ts` lists them.
-- `apps/` full-screen apps (see below). `apps/registry.ts` lists them.
+- `apps/` apps with their own look: Workspace pages or full screen (see below). `apps/registry.ts` lists them.
 - `extensions/` the renderer half of installed extensions (store, frame host, contributions).
 - `components/charts/` data-viz primitives: series palette, `StatTile`,
   `Legend`, `ChartTooltipContent`. Charts use Recharts.
@@ -321,29 +321,38 @@ repaint them, one y-axis per chart, a legend for 2+ series, a table view
 beside every chart, thin marks (bars <= 24px, 2px lines), and one hero
 figure per page.
 
-## Apps: full-screen experiences inside the hub
+## Apps: experiences with their own look inside the hub
 
 An **app** is the second building block, next to modules. Where a module is
-one page inside the hub's drawer and top bar, an app takes over the whole
-window and may look and feel like its own product: its own colors, fonts,
-layout and in-app routing. **Apps** is a single nav item right under Home; it
-opens the Apps page (`src/pages/AppsPage.tsx`), which shows every app, built
-in or from an extension, as a card. The contract is `AppDefinition` in `src/apps/types.ts`.
+one page in the hub's own style, an app may look and feel like its own
+product: its own colors, fonts, layout and in-app routing. The contract is
+`AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
-The one thing an app never owns is the **hub bar**: `src/apps/AppFrame.tsx`
-renders a 48px bar above every app, in the drawer colors of the current
-color scheme, with a "Back to MonoRail" button (filled like the active nav
-item), the app's icon and name, and an "App" chip.
-That is how users leave any app; do not hide, restyle or duplicate it inside
-an app. Leaving returns to the hub page the user came from, and reopening an
-app from the Apps page resumes where it was left (`src/apps/session.ts`). An error
-boundary keeps the bar on screen if an app crashes.
+**Workspace apps** (`placement: 'workspace'`: GitHub+, Jira+, Email) are
+Workspace pages. The hub's drawer and top bar stay on screen (breadcrumb
+`Workspace > <app>`) and the app fills the page body below them, scrolling on
+its own (`AppBody` in `App.tsx`). Each gets a nav item under Workspace that
+stays current on all of the app's routes (`matchPrefix`). Going back to one
+from the nav resumes where it was left; clicking its item while in it goes to
+its start page (`src/apps/session.ts`).
+
+**Full-screen apps** (the default, and always for extension apps) take over
+the whole window. **Apps** is a single nav item right under Home, shown only
+while there is one; it opens the Apps page (`src/pages/AppsPage.tsx`) with a
+card per full-screen app. The one thing such an app never owns is the **hub
+bar**: `src/apps/AppFrame.tsx` renders a 48px bar above it, in the drawer
+colors of the current color scheme, with a "Back to MonoRail" button (filled
+like the active nav item), the app's icon and name, and an "App" chip. That is
+how users leave the app; do not hide, restyle or duplicate it inside an app.
+Leaving returns to the hub page the user came from, and reopening it resumes
+where it was left. An error boundary keeps the bar (or the drawer) on screen
+if an app crashes.
 
 To add an app:
 
 1. `src/apps/<id>/index.ts` exports an `AppDefinition` (id, title,
-   description, icon, `path: '/apps/<id>'`, lazy `component`).
-2. Add it to `src/apps/registry.ts`. The Apps page and router pick it up.
+   description, icon, `path: '/apps/<id>'`, `placement`, lazy `component`).
+2. Add it to `src/apps/registry.ts`. The nav (or Apps page) and router pick it up.
 3. The root component receives `basePath` (`/apps/<id>`). Everything under
    that hash path belongs to the app, so it can run its own router, e.g.
    react-router's `<HashRouter basename={basePath}>`.
