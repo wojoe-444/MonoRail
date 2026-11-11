@@ -1,26 +1,35 @@
+import { contextStep } from './pricing'
 import { addDays, isoDate } from './transform'
-import type { CcusageDailyRow, CcusageModelBreakdown, CcusageSessionRow, RawPhase, UsageReport } from './types'
+import type { RawPhase, ScanCompaction, ScanRequestRow, ScanSession, ScanTurnRow, SourceId, UsageReport } from './types'
 
 /**
  * Fictional usage for the browser dev server and the "show sample data"
- * fallback. Deterministic (seeded) so screenshots are stable. Not real data.
+ * fallback, shaped like the backend's log scan. Deterministic (seeded) so
+ * screenshots are stable. Not real data.
  */
 
-const MODELS = [
-  { name: 'claude-opus-4-6', weight: 0.42, price: [5, 25, 6.25, 0.5] },
-  { name: 'claude-sonnet-4-5-20250929', weight: 0.33, price: [3, 15, 3.75, 0.3] },
-  { name: 'claude-haiku-4-5-20251001', weight: 0.12, price: [1, 5, 1.25, 0.1] },
-  { name: 'claude-opus-4-1-20250805', weight: 0.08, price: [15, 75, 18.75, 1.5] },
-  { name: 'claude-sonnet-4-20250514', weight: 0.05, price: [3, 15, 3.75, 0.3] },
-] as const
+interface Driver {
+  source: SourceId
+  model: string
+  weight: number
+  /** Days ago the model appears / disappears. */
+  from: number
+  to: number
+  subagent?: string
+}
 
-const PROJECTS = [
-  { name: 'C--Users-demo-Repos-atlas-api', weight: 0.34 },
-  { name: 'C--Users-demo-Repos-garden-planner', weight: 0.24 },
-  { name: 'C--Users-demo-Repos-MonoRail', weight: 0.2 },
-  { name: 'C--Users-demo-Notes', weight: 0.12 },
-  { name: 'C--Users-demo-Repos-pixel-forge', weight: 0.1 },
+const DRIVERS: Driver[] = [
+  { source: 'claude-code', model: 'claude-opus-4-6', weight: 0.34, from: 120, to: 0, subagent: 'claude-haiku-4-5-20251001' },
+  { source: 'claude-code', model: 'claude-sonnet-4-5-20250929', weight: 0.26, from: 120, to: 0, subagent: 'claude-haiku-4-5-20251001' },
+  { source: 'claude-code', model: 'claude-opus-4-1-20250805', weight: 0.08, from: 120, to: 70 },
+  { source: 'claude-code', model: 'claude-haiku-5-5', weight: 0.1, from: 45, to: 0 },
+  { source: 'gemini-cli', model: 'gemini-2.5-pro', weight: 0.12, from: 100, to: 0 },
+  { source: 'pi', model: 'claude-sonnet-4-5', weight: 0.1, from: 80, to: 0 },
 ]
+
+const PROJECTS = ['C--Users-demo-Repos-atlas-api', 'C--Users-demo-Repos-garden-planner', 'C--Users-demo-Repos-MonoRail', 'C--Users-demo-Notes']
+
+const PI_PRICE = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 }
 
 function rng(seed: number) {
   return () => {
@@ -31,98 +40,117 @@ function rng(seed: number) {
 
 export function sampleReport(today = isoDate(new Date()), days = 120): UsageReport {
   const rand = rng(42)
-  const projects: Record<string, CcusageDailyRow[]> = {}
-  const sessions: CcusageSessionRow[] = []
+  const reqRows = new Map<string, ScanRequestRow>()
+  const turnRows = new Map<string, ScanTurnRow>()
+  const compactions: ScanCompaction[] = []
+  const sessions: ScanSession[] = []
+  const phases: RawPhase[] = []
+  let sid = 0
 
   for (let i = days - 1; i >= 0; i--) {
     const date = addDays(today, -i)
-    const dow = new Date(`${date}T12:00:00`).getDay()
-    const weekend = dow === 0 || dow === 6
-    const ramp = 0.5 + (1 - i / days) // usage grows over time
-    for (const p of PROJECTS) {
-      if (rand() > (weekend ? 0.3 : 0.8)) continue
-      const breakdowns: CcusageModelBreakdown[] = []
-      for (const m of MODELS) {
-        // Older models fade out, newer ones fade in.
-        const era = m.name.includes('4-1') || m.name.includes('sonnet-4-2') ? i / days : 1
-        if (rand() > m.weight * 2.2 * era) continue
-        const output = Math.round(40_000 * ramp * p.weight * (0.4 + rand() * 1.6) * 6)
-        const input = Math.round(output * 0.05)
-        const cacheCreate = Math.round(output * (2 + rand() * 4))
-        const cacheRead = Math.round(output * (30 + rand() * 40))
-        const [pi, po, pw, pr] = m.price
-        const cost = (input * pi + output * po + cacheCreate * pw + cacheRead * pr) / 1_000_000
-        breakdowns.push({
-          modelName: m.name,
-          inputTokens: input,
-          outputTokens: output,
-          cacheCreationTokens: cacheCreate,
-          cacheReadTokens: cacheRead,
-          cost,
+    const weekend = [0, 6].includes(new Date(`${date}T12:00:00`).getDay())
+    const ramp = 0.6 + (1 - i / days)
+    for (const d of DRIVERS) {
+      if (i > d.from || i < d.to) continue
+      const sessionsToday = Math.round(d.weight * 8 * ramp * (weekend ? 0.3 : 1) * (0.5 + rand()))
+      for (let k = 0; k < sessionsToday; k++) {
+        const sessionId = `sample-${++sid}`
+        const project = d.source === 'gemini-cli' ? 'gemini:3f9a2c1b7d4e' : PROJECTS[Math.floor(rand() * PROJECTS.length)]
+        const turns = 8 + Math.floor(rand() * 60)
+        let prompt = 18_000 + rand() * 12_000
+        let kind: 'start' | 'compaction' = 'start'
+        let turn = 0
+        const start = Date.parse(`${date}T09:00:00`) + Math.floor(rand() * 8) * 3_600_000
+        const phaseFacts = new Map<string, RawPhase['facts'][number]>()
+        const add = (model: string, role: 'driver' | 'subagent', p: number, output: number, ts: number) => {
+          const step = contextStep(p)
+          const cacheRead = Math.round(p * 0.9)
+          const cw = Math.round(p * 0.06)
+          const input = Math.max(Math.round(p - cacheRead - cw), 0)
+          const key = `${date}|${sessionId}|${model}|${role}|${step}`
+          let row = reqRows.get(key)
+          if (!row) {
+            row = { date, source: d.source, project, sessionId, model, role, step, n: 0, input: 0, output: 0, cw5m: 0, cw1h: 0, cacheRead: 0, logged: null }
+            reqRows.set(key, row)
+          }
+          row.n++
+          row.input += input
+          row.output += output
+          row.cw5m += cw
+          row.cacheRead += cacheRead
+          if (d.source === 'pi') {
+            const m = 1 / 1_000_000
+            row.logged ??= { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, n: 0 }
+            row.logged.input += input * PI_PRICE.input * m
+            row.logged.output += output * PI_PRICE.output * m
+            row.logged.cacheWrite += cw * PI_PRICE.cacheWrite * m
+            row.logged.cacheRead += cacheRead * PI_PRICE.cacheRead * m
+            row.logged.n++
+          }
+          const pk = `${model}|${role}`
+          const pf = phaseFacts.get(pk) ?? { date, model, role, input: 0, output: 0, cacheCreate: 0, cacheRead: 0 }
+          pf.input += input
+          pf.output += output
+          pf.cacheCreate += cw
+          pf.cacheRead += cacheRead
+          phaseFacts.set(pk, pf)
+          void ts
+        }
+        for (let t = 0; t < turns; t++) {
+          const ts = start + t * 90_000
+          turn++
+          const tk = `${date}|${d.model}|${kind}|${turn}`
+          const tr = turnRows.get(tk) ?? { date, source: d.source, model: d.model, kind, turn, n: 0, promptSum: 0 }
+          tr.n++
+          tr.promptSum += prompt
+          turnRows.set(tk, tr)
+          add(d.model, 'driver', prompt, Math.round(400 + rand() * 2600), ts)
+          if (d.subagent && rand() < 0.15) add(d.subagent, 'subagent', 25_000 + rand() * 30_000, Math.round(800 + rand() * 2000), ts)
+          prompt += 2_500 + rand() * 6_000
+          const limit = d.model.includes('haiku-5') ? 140_000 : 165_000
+          if (prompt > limit) {
+            if (d.source === 'claude-code') {
+              compactions.push({ date, source: d.source, model: d.model, trigger: rand() < 0.2 ? 'manual' : 'auto', preTokens: Math.round(prompt) })
+            }
+            prompt = 28_000 + rand() * 10_000
+            kind = 'compaction'
+            turn = 0
+          }
+        }
+        const end = start + turns * 90_000
+        sessions.push({ source: d.source, sessionId, project, first: new Date(start).toISOString(), last: new Date(end).toISOString() })
+        phases.push({
+          source: d.source,
+          sessionId,
+          project,
+          driver: d.model,
+          effort: 'high',
+          start: new Date(start).toISOString(),
+          end: new Date(end).toISOString(),
+          facts: [...phaseFacts.values()],
         })
       }
-      if (!breakdowns.length) continue
-      const sum = (k: keyof CcusageModelBreakdown) => breakdowns.reduce((a, b) => a + (b[k] as number), 0)
-      const row: CcusageDailyRow = {
-        date,
-        project: p.name,
-        inputTokens: sum('inputTokens'),
-        outputTokens: sum('outputTokens'),
-        cacheCreationTokens: sum('cacheCreationTokens'),
-        cacheReadTokens: sum('cacheReadTokens'),
-        totalTokens: sum('inputTokens') + sum('outputTokens') + sum('cacheCreationTokens') + sum('cacheReadTokens'),
-        totalCost: sum('cost'),
-        modelsUsed: breakdowns.map((b) => b.modelName),
-        modelBreakdowns: breakdowns,
-      }
-      ;(projects[p.name] ??= []).push(row)
-      sessions.push({
-        ...row,
-        sessionId: `sample-${date}-${p.name.split('-').pop()}`,
-        projectPath: p.name,
-        firstActivity: `${date}T09:${String(Math.floor(rand() * 60)).padStart(2, '0')}:00.000Z`,
-        lastActivity: `${date}T17:${String(Math.floor(rand() * 60)).padStart(2, '0')}:00.000Z`,
-      })
     }
   }
 
   return {
-    version: 1,
+    version: 3,
     generatedAt: new Date().toISOString(),
     source: 'sample',
-    daily: { projects },
-    sessions: { sessions },
-    partners: { idleGapMinutes: 120, phases: sessions.flatMap(samplePhases) },
+    daily: { projects: {} },
+    sessions: { sessions: [] },
+    partners: { idleGapMinutes: 120, phases },
+    scan: {
+      sources: [
+        { id: 'claude-code', label: 'Claude Code', found: true },
+        { id: 'gemini-cli', label: 'Gemini CLI', found: true },
+        { id: 'pi', label: 'pi', found: true },
+      ],
+      requests: [...reqRows.values()],
+      turns: [...turnRows.values()],
+      compactions,
+      sessions,
+    },
   }
-}
-
-/**
- * Fictional phases for a sample session: the biggest non-Haiku model drives
- * with Haiku subagents; any other model gets its own later solo phase.
- */
-function samplePhases(s: CcusageSessionRow): RawPhase[] {
-  const date = s.lastActivity.slice(0, 10)
-  const fact = (b: CcusageModelBreakdown, role: 'driver' | 'subagent') => ({
-    date,
-    model: b.modelName,
-    role,
-    input: b.inputTokens,
-    output: b.outputTokens,
-    cacheCreate: b.cacheCreationTokens,
-    cacheRead: b.cacheReadTokens,
-  })
-  const sorted = [...s.modelBreakdowns].sort((a, b) => b.outputTokens - a.outputTokens)
-  const haiku = sorted.filter((b) => b.modelName.includes('haiku'))
-  const drivers = sorted.filter((b) => !b.modelName.includes('haiku'))
-  const base = { sessionId: s.sessionId, project: s.projectPath, effort: 'high' }
-  if (!drivers.length) {
-    return [{ ...base, driver: haiku[0].modelName, start: `${date}T09:00:00Z`, end: `${date}T12:00:00Z`, facts: haiku.map((b) => fact(b, 'driver')) }]
-  }
-  return drivers.map((d, i) => ({
-    ...base,
-    driver: d.modelName,
-    start: `${date}T${String(9 + i * 4).padStart(2, '0')}:00:00Z`,
-    end: `${date}T${String(12 + i * 4).padStart(2, '0')}:00:00Z`,
-    facts: [fact(d, 'driver'), ...(i === 0 ? haiku.map((b) => fact(b, 'subagent')) : [])],
-  }))
 }

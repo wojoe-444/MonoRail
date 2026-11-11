@@ -1,5 +1,6 @@
-// Claude Stats backend: runs ccusage against the local Claude Code logs
-// (~/.claude/projects and ~/.config/claude) and returns its JSON reports.
+// Claude Stats backend: runs ccusage against the local Claude Code logs (the
+// cost authority for Claude Code) and scans the session logs of every supported
+// agent CLI (claude-stats-scan.cjs). Returns both in one cached report.
 //
 // Private data rule: the logs and the cached report never leave this machine.
 // The cache lives in %APPDATA%\MonoRail\modules\claude-stats\usage.json.
@@ -8,11 +9,12 @@ const { execFile } = require('node:child_process')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
-const { collectPhases } = require('./claude-stats-phases.cjs')
+const { IDLE_GAP_MS } = require('./claude-stats-phases.cjs')
+const { scanAll } = require('./claude-stats-scan.cjs')
 
 const CACHE_FILE = 'usage.json'
 const CACHE_MAX_AGE_MS = 10 * 60 * 1000
-const REPORT_VERSION = 2
+const REPORT_VERSION = 3
 
 /** Path to the native ccusage binary installed with the app, if present. */
 function bundledBinary() {
@@ -77,21 +79,26 @@ async function readCache(file) {
 }
 
 async function collect(ctx) {
-  const [byProjectDay, bySession, partners] = await Promise.all([
-    ccusage(['daily', '--instances'], ctx.log),
-    ccusage(['session'], ctx.log),
-    collectPhases().catch((e) => {
-      ctx.log('session partner parsing failed:', e.message)
-      return { error: e.message, phases: [] }
+  const [daily, scan] = await Promise.all([
+    ccusage(['daily', '--instances'], ctx.log).catch((e) => ({ error: e.message })),
+    scanAll().catch((e) => {
+      ctx.log('log scan failed:', e.message)
+      return { error: e.message }
     }),
   ])
+  // ccusage prices Claude Code; the scanner reads every source. One of them is enough.
+  if (daily.error && scan.error) throw new Error(daily.error)
+  const { phases = [], ...rest } = scan.error ? {} : scan
   return {
     version: REPORT_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'ccusage',
-    daily: byProjectDay,
-    sessions: bySession,
-    partners,
+    daily: daily.error ? { projects: {} } : daily,
+    ccusageError: daily.error,
+    sessions: { sessions: [] },
+    partners: { idleGapMinutes: IDLE_GAP_MS / 60000, error: scan.error, phases },
+    scan: scan.error ? undefined : rest,
+    scanError: scan.error,
   }
 }
 

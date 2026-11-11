@@ -127,12 +127,20 @@ the two extension push channels.
 
 `claude-stats` is the reference module: its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
-`asarUnpack`), caches the JSON report in its data folder, and the page
-normalizes it into day x project x model facts in `transform.ts`. Session
-partners come from `electron/modules/claude-stats-phases.cjs`, which reads
-the raw Claude Code logs and splits each session into phases (driver model +
-subagent models; new phase on driver change or a 2-hour idle gap). Phase
-cost is priced from ccusage's per-session, per-model cost per output token.
+`asarUnpack`) for Claude Code's daily API-equivalent cost, and
+`electron/modules/claude-stats-scan.cjs` reads the raw logs of every source
+it knows (Claude Code, Gemini CLI, pi; one reader each, a missing source is
+reported as not found) into day x session x model x role x 50K context-step
+rows, plus per-turn prompt sizes, compactions and session phases (driver
+model + subagent models; new phase on driver change or a 2-hour idle gap).
+Both go into one cached JSON report in its data folder. List prices, with
+prompt-size tiers, live in one table, `claude-stats-prices.json`, shared by
+the backend and the page (`src/modules/claude-stats/pricing.ts`); a test
+fails if a model in the local logs has no row. The page turns the report into
+priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
+day and model, pi's logged per-token-type cost is used as logged, anything
+else is priced from the table, and any split that is not logged is labelled
+an estimate.
 
 `jira` is the second worked example: one tracker over two sources. Team
 tickets go through the Jira Cloud REST API (`electron/modules/jira-cloud.cjs`,

@@ -11,6 +11,8 @@ interface Props {
   series: string[]
   metric: Metric
   bucket: Bucket
+  /** Color per series; defaults to the fixed series palette in `series` order. */
+  colorOf?: (series: string) => string
 }
 
 interface BarShapeProps {
@@ -26,7 +28,7 @@ interface BarShapeProps {
  * Stacked columns by series. Only the top visible segment of each column gets
  * the 4px rounded data-end; segments are separated by a 2px surface gap.
  */
-export function StackedTimeChart({ points, series, metric, bucket }: Props) {
+export function StackedTimeChart({ points, series, metric, bucket, colorOf = (s) => colorForSeries(series, s) }: Props) {
   const fmt = metric === 'cost' ? (v: number) => formatUSD(v, { compact: true }) : formatCount
   const data = points.map((p) => ({ ...p, ...Object.fromEntries(series.map((s) => [`v:${s}`, p.values[s] ?? 0])) }))
 
@@ -55,7 +57,7 @@ export function StackedTimeChart({ points, series, metric, bucket }: Props) {
             const rows = [...series]
               .reverse()
               .filter((s) => (p.values[s] ?? 0) > 0)
-              .map((s) => ({ key: s, label: s, value: fmt(p.values[s]), color: colorForSeries(series, s) }))
+              .map((s) => ({ key: s, label: s, value: fmt(p.values[s]), color: colorOf(s) }))
             return (
               <ChartTooltipContent
                 title={bucket === 'week' ? `Week of ${formatShortDate(p.date)}` : formatShortDate(p.date)}
@@ -76,7 +78,7 @@ export function StackedTimeChart({ points, series, metric, bucket }: Props) {
             dataKey={`v:${s}`}
             name={s}
             stackId="a"
-            fill={colorForSeries(series, s)}
+            fill={colorOf(s)}
             maxBarSize={24}
             isAnimationActive={false}
             shape={(props: BarShapeProps) => {
