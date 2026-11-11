@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 interface SegmentedProps<T extends string> {
   value: T
   onChange: (value: T) => void
-  options: { value: T; label: string }[]
+  options: { value: T; label: string; disabled?: boolean; title?: string }[]
   'aria-label': string
   className?: string
 }
@@ -24,9 +24,11 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
             type="button"
             role="radio"
             aria-checked={active}
+            disabled={o.disabled}
+            title={o.title}
             onClick={() => onChange(o.value)}
             className={cn(
-              'h-7 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'h-7 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
               active ? 'bg-card text-foreground shadow-elevation-1' : 'text-muted-foreground hover:text-foreground',
             )}
           >

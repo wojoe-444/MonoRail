@@ -1,7 +1,12 @@
-import type { SessionFact, UsageFact, UsageReport } from './types'
+import type { SessionFact, SourceId, UsageFact, UsageReport } from './types'
 
 /** "claude-opus-4-1-20250805" -> "Opus 4.1", "claude-3-5-sonnet-20241022" -> "Sonnet 3.5". */
 export function modelLabel(raw: string): string {
+  const gem = /^(?:.*\/)?gemini-([\d.]+)-([a-z]+(?:-[a-z]+)?)/i.exec(raw)
+  if (gem) {
+    const kind = gem[2].split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
+    return `Gemini ${gem[1]} ${kind.replace(/ Preview$/, '')}`
+  }
   const name = raw.replace(/^anthropic[./]/, '').replace(/^claude-/, '').replace(/-\d{8}$/, '').replace(/\[.*\]$/, '')
   const parts = name.split('-')
   const family = parts.find((p) => /^(opus|sonnet|haiku|fable|instant)$/i.test(p))
@@ -9,6 +14,18 @@ export function modelLabel(raw: string): string {
   const version = parts.filter((p) => /^\d+(\.\d+)?$/.test(p)).join('.')
   const fam = family[0].toUpperCase() + family.slice(1).toLowerCase()
   return version ? `${fam} ${version}` : fam
+}
+
+export const SOURCE_LABELS: Record<SourceId, string> = {
+  'claude-code': 'Claude Code',
+  'gemini-cli': 'Gemini CLI',
+  pi: 'pi',
+}
+
+/** Model label, marked with its source unless it ran in Claude Code: "Sonnet 4.5 · pi". */
+export function sourceModelLabel(raw: string, source: SourceId = 'claude-code'): string {
+  const label = modelLabel(raw)
+  return source === 'claude-code' ? label : `${label} · ${SOURCE_LABELS[source]}`
 }
 
 /**
@@ -39,6 +56,8 @@ export function normalize(report: UsageReport): { facts: UsageFact[]; sessions: 
           cacheCreationTokens: b.cacheCreationTokens,
           cacheReadTokens: b.cacheReadTokens,
           cost: b.cost,
+          source: 'claude-code',
+          rawModel: b.modelName,
         })
       }
     }
@@ -153,8 +172,8 @@ export const OTHER = 'Other'
  * the rest fold into "Other". Computed on the full dataset so filtering the
  * date range never repaints a model.
  */
-export function seriesOrder(facts: UsageFact[], max = 5): string[] {
-  const ranked = groupBy(facts, (f) => f.model).map((g) => g.key)
+export function seriesOrder(facts: UsageFact[], max = 5, key: (f: UsageFact) => string = (f) => f.model): string[] {
+  const ranked = groupBy(facts, key).map((g) => g.key)
   return ranked.length <= max ? ranked : [...ranked.slice(0, max), OTHER]
 }
 
@@ -265,57 +284,44 @@ export function comboLabel(driver: string | undefined, subagents: string[]): str
 }
 
 /**
- * Price phase tokens with ccusage's own numbers. Each model's API-equivalent
- * cost per output token is taken from the same session (most precise), else
- * the same day, else the model's overall average, then applied to the phase's
- * output for that model.
+ * Price phase tokens from the priced facts: each model's API-equivalent cost
+ * per output token in the same session, else the same day, else the model's
+ * overall average, applied to the phase's output for that model.
  */
-function rateTables(report: UsageReport) {
-  const session = new Map<string, number>()
-  const daily = new Map<string, number>()
-  const overall = new Map<string, { cost: number; output: number }>()
-  const add = (m: Map<string, number>, k: string, cost: number, output: number) => {
-    if (output > 0) m.set(k, cost / output)
+function rateTables(facts: UsageFact[]) {
+  const agg = new Map<string, { cost: number; output: number }>()
+  const add = (k: string, f: UsageFact) => {
+    const a = agg.get(k) ?? { cost: 0, output: 0 }
+    a.cost += f.cost
+    a.output += f.outputTokens
+    agg.set(k, a)
   }
-  for (const s of report.sessions.sessions ?? []) {
-    for (const b of s.modelBreakdowns ?? []) add(session, `${s.sessionId}|${b.modelName}`, b.cost, b.outputTokens)
+  for (const f of facts) {
+    const m = f.rawModel ?? f.model
+    if (f.sessionId) add(`s|${f.sessionId}|${m}`, f)
+    add(`d|${f.date}|${m}`, f)
+    add(`o|${m}`, f)
   }
-  const dayAgg = new Map<string, { cost: number; output: number }>()
-  const groups = report.daily.projects ?? { all: report.daily.daily ?? [] }
-  for (const rows of Object.values(groups)) {
-    for (const r of rows) {
-      for (const b of r.modelBreakdowns ?? []) {
-        for (const [map, key] of [
-          [dayAgg, `${r.date}|${b.modelName}`],
-          [overall, b.modelName],
-        ] as const) {
-          const a = map.get(key) ?? { cost: 0, output: 0 }
-          a.cost += b.cost
-          a.output += b.outputTokens
-          map.set(key, a)
-        }
-      }
-    }
+  const rate = (k: string) => {
+    const a = agg.get(k)
+    return a && a.output > 0 ? a.cost / a.output : undefined
   }
-  for (const [k, a] of dayAgg) add(daily, k, a.cost, a.output)
-  return (sessionId: string, date: string, model: string) => {
-    const o = overall.get(model)
-    return (
-      session.get(`${sessionId}|${model}`) ??
-      daily.get(`${date}|${model}`) ??
-      (o && o.output > 0 ? o.cost / o.output : 0)
-    )
-  }
+  return (sessionId: string, date: string, model: string) =>
+    rate(`s|${sessionId}|${model}`) ?? rate(`d|${date}|${model}`) ?? rate(`o|${model}`) ?? 0
 }
 
-export function normalizePartners(report: UsageReport): { facts: PartnerFact[]; phases: PhaseSummary[] } {
-  const raw = report.partners?.phases ?? []
-  const rate = rateTables(report)
+export function normalizePartners(
+  report: UsageReport,
+  priced: UsageFact[],
+  source?: SourceId,
+): { facts: PartnerFact[]; phases: PhaseSummary[] } {
+  const raw = (report.partners?.phases ?? []).filter((p) => !source || (p.source ?? 'claude-code') === source)
+  const rate = rateTables(priced)
   const facts: PartnerFact[] = []
   const phases: PhaseSummary[] = []
   raw.forEach((p, i) => {
-    const driver = p.driver ? modelLabel(p.driver) : undefined
-    const subagents = [...new Set(p.facts.filter((f) => f.role === 'subagent').map((f) => modelLabel(f.model)))].sort()
+    const driver = p.driver ? sourceModelLabel(p.driver, p.source) : undefined
+    const subagents = [...new Set(p.facts.filter((f) => f.role === 'subagent').map((f) => sourceModelLabel(f.model, p.source)))].sort()
     const combo = comboLabel(driver, subagents)
     const key = `${p.sessionId}#${i}`
     let outputTokens = 0
@@ -329,7 +335,7 @@ export function normalizePartners(report: UsageReport): { facts: PartnerFact[]; 
         phaseKey: key,
         sessionId: p.sessionId,
         combo,
-        model: modelLabel(f.model),
+        model: sourceModelLabel(f.model, p.source),
         role: f.role,
         outputTokens: f.output,
         cost: c,
