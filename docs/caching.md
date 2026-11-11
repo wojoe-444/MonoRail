@@ -1,9 +1,15 @@
+---
+audience: ai
+---
+
 # Caching in MonoRail
 
 Every cache in MonoRail goes through one shared primitive in
 `apps/command-hub/electron/cache/`, and every cache is declared in one place:
 `electron/cache/declared.cjs`. This page lists the rules and how to use the
 primitive. The rules are numbered so code and tests can point at them.
+
+For what this means for your data, read [private data stays local](guide/private-data.md).
 
 ## Rules for caches
 

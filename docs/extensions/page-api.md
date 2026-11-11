@@ -1,3 +1,7 @@
+---
+audience: ai
+---
+
 # Page API (`monorail-sdk/client.js`)
 
 Your pages are static files served from the extension's `ui` folder into a
