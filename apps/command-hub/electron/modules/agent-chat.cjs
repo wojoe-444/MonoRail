@@ -23,6 +23,7 @@ const chatState = require('./agent-chat-state.cjs')
 const changesApi = require('./agent-chat-changes.cjs')
 const locks = require('./agent-chat-locks.cjs')
 const prompts = require('./agent-chat-prompts.cjs')
+const spending = require('./agent-chat-spending.cjs')
 
 const HEAD_BYTES = 256 * 1024
 const MAX_TEXT = 20_000
@@ -729,6 +730,8 @@ async function startTurn(ctx, args = {}) {
   const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator, systemPrompt })
   const status = sdkStatus().find((s) => s.id === sdk)
   if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
+  // The spending limit (off by default) may pause new turns; a running turn is never cut off.
+  spending.checkBeforeTurn(ctx.dataDir)
 
   // One turn per chat across the app, coordinator workers and the MCP server.
   const lock = ctx.dataDir ? (key) => locks.acquire(ctx.dataDir, key) : undefined
@@ -743,6 +746,9 @@ async function startTurn(ctx, args = {}) {
       // pi logs a cost on every model call, so a turn's cost is exact.
       onFinish: (turn) => {
         if (turn.sessionId && !sessionFile) chatState.markStartedHere(ctx.dataDir, `pi:${turn.sessionId}`)
+        // A stopped turn has no result, but each model call it made logged its cost.
+        const logged = turn.events.reduce((n, e) => n + (e.t === 'usage' && typeof e.costUsd === 'number' ? e.costUsd : 0), 0)
+        spending.record(ctx.dataDir, typeof turn.result?.costUsd === 'number' ? turn.result.costUsd : logged)
         return typeof turn.result?.costUsd === 'number' ? [{ t: 'cost', turnUsd: turn.result.costUsd, exact: true }] : []
       },
     })
@@ -765,8 +771,16 @@ async function startTurn(ctx, args = {}) {
       costs[turn.sessionId] = { usd: r.costUsd, at: Date.now() }
       writeCosts(ctx.dataDir, costs)
       // Claude reports a resumed turn's cost as the session's running total.
-      if (!resume) return [{ t: 'cost', turnUsd: r.costUsd, sessionUsd: r.costUsd, exact: true }]
-      if (typeof previous === 'number' && r.costUsd >= previous) return [{ t: 'cost', turnUsd: r.costUsd - previous, sessionUsd: r.costUsd, exact: true }]
+      if (!resume) {
+        spending.record(ctx.dataDir, r.costUsd)
+        return [{ t: 'cost', turnUsd: r.costUsd, sessionUsd: r.costUsd, exact: true }]
+      }
+      if (typeof previous === 'number' && r.costUsd >= previous) {
+        spending.record(ctx.dataDir, r.costUsd - previous)
+        return [{ t: 'cost', turnUsd: r.costUsd - previous, sessionUsd: r.costUsd, exact: true }]
+      }
+      // This turn's own share is unknown (the chat's earlier spend happened
+      // outside MonoRail), so the spending limit does not count it.
       return [{ t: 'cost', turnUsd: undefined, sessionUsd: r.costUsd, exact: false }]
     },
   })
@@ -828,6 +842,11 @@ module.exports = {
     getSystemPrompts: async (ctx) => prompts.readPrompts(ctx.dataDir),
     setSystemPrompts: async (ctx, args) => prompts.writePrompts(ctx.dataDir, args?.prompts),
     getChanges: async (ctx, args) => getChanges(ctx, args),
+    /** Spending limit (Settings card and Chat's meter); spending.json in the data folder. */
+    getSpending: async (ctx) => spending.getStatus(ctx.dataDir),
+    setSpending: async (ctx, args) => spending.saveSettings(ctx.dataDir, args?.settings),
+    allowOneMoreTurn: async (ctx) => spending.allowOneMore(ctx.dataDir),
+    resetSpending: async (ctx) => spending.reset(ctx.dataDir),
     startTurn: async (ctx, args) => startTurn(ctx, args),
     pollTurn: async (_ctx, args) => turnsApi.pollTurn(args?.turnId, args?.after),
     stopTurn: async (_ctx, args) => turnsApi.stopTurn(args?.turnId),

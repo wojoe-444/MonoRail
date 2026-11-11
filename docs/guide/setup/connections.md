@@ -24,7 +24,8 @@ rule.
   runs with. MonoRail also works out whether it is a subscription, an API key
   or an enterprise login, because that changes what your usage costs in
   [Claude Stats](../agents/spend.md#subscription-or-api). You can correct it
-  if it guesses wrong.
+  if it guesses wrong. With API prices, a
+  [spending limit](spending-limit.md) can cap what MonoRail spends.
 - **GitHub**: your github.com account, used by
   [GitHub+](../workspace/browse-repos.md#your-github-repositories) to list
   your repositories and, if you ask, publish

@@ -52,6 +52,12 @@ logins are billed at API prices even though you sign in through claude.ai.
 For a single conversation, switch [Chat](chat.md#plain-or-detailed) to
 **Detailed**: each reply then shows what every model call cost.
 
+## Set a limit
+
+To cap what agents started from MonoRail can spend each day or month, turn
+on the [spending limit](../setup/spending-limit.md) in Settings. It is off
+by default, and most useful when your login is billed at API prices.
+
 ## Elsewhere
 
 Home shows a small summary of the same report. Agents can read it too,

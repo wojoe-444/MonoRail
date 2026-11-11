@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { formatDuration, formatTokens, formatUsd, turnCost } from './live'
 import type { ChatBlock, ChatMode, ChatView, ComposerInfo, LiveTurn, SessionSource } from './types'
 import { prefs } from '@/lib/prefs'
+import { SpendingBanner, SpendingChip } from '@/components/spending/SpendingNotice'
+import { useSpending } from '@/components/spending/spending'
 
 const EFFORT_LABEL: Record<string, string> = {
   default: 'Default effort',
@@ -118,7 +120,10 @@ export function Composer({
   const area = useRef<HTMLTextAreaElement>(null)
   const sdk = info?.sdks.find((s) => s.id === source)
   const ready = !!sdk?.ready
-  const canSend = ready && !sending && text.trim().length > 0 && (!isNew || !!repo)
+  // The spending limit (off by default); refetched when a turn starts or ends.
+  const { status: spending } = useSpending(`${running?.turnId ?? ''}|${lastTurn?.turnId ?? ''}|${lastTurn?.status ?? ''}`)
+  const paused = spending?.state === 'damaged' || (spending?.state === 'reached' && spending.blocked)
+  const canSend = ready && !paused && !sending && text.trim().length > 0 && (!isNew || !!repo)
 
   async function send() {
     if (!text.trim() || sending) return
@@ -154,6 +159,7 @@ export function Composer({
   return (
     <div className="shrink-0 border-t px-4 pt-3 pb-3">
       <div className="mx-auto flex max-w-3xl flex-col gap-2">
+        <SpendingBanner status={spending} />
         {error && (
           <div className="flex items-center gap-2 rounded-lg bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">
             <AlertTriangle className="size-4 shrink-0" /> {error}
@@ -271,6 +277,7 @@ export function Composer({
           ) : (
             lastTurn && <LastTurnCost turn={lastTurn} />
           )}
+          <SpendingChip status={spending} />
           {context && <ContextRing used={context.used} window={context.window} />}
         </div>
       </div>
