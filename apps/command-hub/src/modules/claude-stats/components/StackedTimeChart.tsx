@@ -13,6 +13,10 @@ interface Props {
   bucket: Bucket
   /** Color per series; defaults to the fixed series palette in `series` order. */
   colorOf?: (series: string) => string
+  /** Value formatter; defaults to dollars for cost and counts otherwise. */
+  format?: (v: number) => string
+  /** Fixed top of the y-axis, e.g. 1 for shares. */
+  yMax?: number
 }
 
 interface BarShapeProps {
@@ -28,8 +32,8 @@ interface BarShapeProps {
  * Stacked columns by series. Only the top visible segment of each column gets
  * the 4px rounded data-end; segments are separated by a 2px surface gap.
  */
-export function StackedTimeChart({ points, series, metric, bucket, colorOf = (s) => colorForSeries(series, s) }: Props) {
-  const fmt = metric === 'cost' ? (v: number) => formatUSD(v, { compact: true }) : formatCount
+export function StackedTimeChart({ points, series, metric, bucket, colorOf = (s) => colorForSeries(series, s), format, yMax }: Props) {
+  const fmt = format ?? (metric === 'cost' ? (v: number) => formatUSD(v, { compact: true }) : formatCount)
   const data = points.map((p) => ({ ...p, ...Object.fromEntries(series.map((s) => [`v:${s}`, p.values[s] ?? 0])) }))
 
   const topSeries = (p: TimePoint) => {
@@ -48,7 +52,7 @@ export function StackedTimeChart({ points, series, metric, bucket, colorOf = (s)
           minTickGap={24}
           axisLine={{ stroke: 'var(--chart-axis)' }}
         />
-        <YAxis {...axisProps} axisLine={false} width={56} tickFormatter={fmt} />
+        <YAxis {...axisProps} axisLine={false} width={56} tickFormatter={fmt} domain={[0, yMax ?? 'auto']} />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.6 }}
           content={({ active, payload }) => {

@@ -65,7 +65,10 @@ export function sampleReport(today = isoDate(new Date()), days = 120): UsageRepo
         const phaseFacts = new Map<string, RawPhase['facts'][number]>()
         // Claude Code logs an effort level, pi a thinking level; Gemini CLI neither.
         const effort = d.source === 'gemini-cli' ? undefined : (['medium', 'high', 'high', 'xhigh'] as const)[Math.floor(rand() * 4)]
-        const add = (model: string, role: 'driver' | 'subagent', p: number, output: number, ts: number) => {
+        // More effort, longer replies.
+        const scale = effort === 'xhigh' ? 1.6 : effort === 'medium' ? 0.7 : 1
+        const add = (model: string, role: 'driver' | 'subagent', p: number, rawOutput: number, ts: number) => {
+          const output = Math.round(rawOutput * scale)
           const step = contextStep(p)
           const cacheRead = Math.round(p * 0.9)
           const cw = Math.round(p * 0.06)
