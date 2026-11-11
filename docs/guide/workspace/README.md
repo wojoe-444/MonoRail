@@ -22,6 +22,9 @@ it helps.
 - **Mail.** [Email](email.md) reads Gmail or the classic Outlook on your PC.
 - **Learning.** [Flashcards](../../flashcards.md) keeps spaced repetition
   decks; agents can add cards if you [let them](../agents/agent-access.md).
+- **Info dump.** [Notes](../../notes.md), under Home, takes anything you want
+  to jot down; every note is a file in a git repository on your computer that
+  GitHub+ shows too.
 
 Most of these can be [backed up](../setup/backups-and-updates.md) to a folder
 of your choice on a schedule, and agents can read them through

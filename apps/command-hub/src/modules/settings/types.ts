@@ -27,6 +27,9 @@ export interface ReleaseChanges {
 
 export type BackupUnit = 'hour' | 'day' | 'week'
 
+/** Pages the global schedule backs up itself (GLOBAL_ITEMS in electron/backups/global.cjs). */
+export type GlobalItem = 'jira-plus' | 'flashcards' | 'notes'
+
 /** The global backup folder (electron/backups/global.cjs). */
 export interface GlobalBackupSettings {
   enabled: boolean
@@ -35,7 +38,7 @@ export interface GlobalBackupSettings {
   unit: BackupUnit
   keep: number
   /** Pages the global schedule backs up itself. */
-  items: { 'jira-plus': boolean; flashcards: boolean }
+  items: Record<GlobalItem, boolean>
 }
 
 export type BackupResult =
@@ -43,7 +46,7 @@ export type BackupResult =
   | { ok: false; at: string; error: string }
 
 export interface BackupPageStatus {
-  id: 'github-plus' | 'jira-plus' | 'flashcards'
+  id: 'github-plus' | GlobalItem
   title: string
   what: string
   /** <folder>/<id> while the global folder is on, else null. */
