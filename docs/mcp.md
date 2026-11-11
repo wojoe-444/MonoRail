@@ -54,6 +54,7 @@ Every tool returns JSON text. Read tools are always available; write tools need 
 | `list_jira_plus_issues` | Issues of one local project, optionally by status category | Jira+'s local repo |
 | `get_jira_plus_issue` | One local issue with comments and history | Jira+'s local repo |
 | `connection_status` | State and one-line summary of each connection, and when it was checked | Connections' last check, saved after every check and once at startup |
+| `check_coordinator_reply` | The coordinator's reply to an `ask_coordinator` call that was still running | Only turns this same connection started |
 
 Results that come from a cache say when they were built. A repo is named by its folder name or by the full path `list_github_plus_repos` returns. Team Jira Cloud issues are not available through the server.
 
@@ -65,8 +66,35 @@ Results that come from a cache say when they were built. A repo is named by its 
 | `comment_github_plus_issue` | Comments on a local issue in a GitHub+ repo |
 | `create_jira_plus_issue` | Raises an issue in a local Jira+ project (summary, description, type, priority) |
 | `comment_jira_plus_issue` | Comments on a local Jira+ issue |
+| `ask_coordinator` | Sends a message to your [coordinator](#the-coordinator) and waits for its reply |
 
-They change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo. Starting chats is planned.
+The issue tools change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo.
+
+### The coordinator
+
+The coordinator is the pinned entry on the Chat page: your own `coordinator` subagent (`~/.claude/agents/coordinator.md`), run by MonoRail in its own folder. It is a coordinator of coordinators, reachable in both directions.
+
+**It can reach your chats.** Besides delegating to subagents and running workflows, it gets five MonoRail tools:
+
+| Tool | What it does |
+| --- | --- |
+| `list_chats` | Your Claude Code and pi chats in allowed repos, and the allowed repo names |
+| `read_chat` | The latest messages of one chat |
+| `send_to_chat` | Runs one turn in a chat, in its own repo, and waits for the reply |
+| `start_chat` | Starts a new Claude or pi chat in an allowed repo and waits for the reply |
+| `wait_for_reply` | Keeps waiting for a reply that was still running |
+
+- Only chats in the repos you allowed on the Chat page, and never another coordinator chat.
+- A chat runs in **Ask** mode (read-only) unless the coordinator asks for **Agent**, which uses that repo's normal Claude Code permission rules. Anything that would need your approval is denied, and nothing ever bypasses permissions.
+- A chat whose log changed in the last minute is left alone: it may be open in a terminal.
+- A reply still running when the coordinator's own turn ends, or when you press Stop, is stopped with it.
+- If your `coordinator.md` has a `tools:` line, it must list these tools (as `mcp__monorail__list_chats` and so on), or drop the line. The Chat page warns when it doesn't.
+
+**Other agents can reach it.** With `ask_coordinator` turned on for an agent, that agent can send the coordinator a message and get its reply. It continues the coordinator's latest chat (or starts one with `newChat`), and the message tells the coordinator which agent sent it. The call waits up to `waitSeconds` (default 300); a longer reply comes back through `check_coordinator_reply`. Turning `ask_coordinator` on lets that agent use everything the coordinator can do, including messaging your chats, so only turn it on for agents you run yourself.
+
+**One turn per chat.** The app, the coordinator and the MCP server share a lock per chat (`turn-locks` in Chat's data folder: a process id and a start time, nothing else). A busy chat refuses a second message, which also stops loops: a chat cannot ask the coordinator while the coordinator waits on it.
+
+All of this runs your own installed Claude Code, signed in as you are in your terminal. MonoRail never sees or stores your Claude sign-in.
 
 ### Extension tools
 
@@ -91,7 +119,7 @@ Every tool call, read or write, is logged on the Agent access page under **Activ
 ## Privacy and safety
 
 - **stdio only.** The agent starts the server as its own subprocess and talks to it over stdin and stdout. No network port is opened, so no other program, website or machine can reach it.
-- **Writes need your OK.** MonoRail's read tools change nothing. Its write tools only change local issues, and only for an agent you turned them on for. Extension tools need your OK too. Every call is logged.
+- **Writes need your OK.** MonoRail's read tools change nothing. Its write tools only change local issues or ask your coordinator, and only for an agent you turned them on for. Extension tools need your OK too. Every call is logged.
 - **No secrets.** Tokens, API keys and passwords are never returned. Connection status carries the state and summary only, never check details or credentials.
 - **Your folders only.** Chats come only from repos you allowed on the Chat page; issues only from repos you opened in GitHub+. An agent cannot pass any other path.
 - **Little is stored.** The server reads MonoRail's data folder (the same one the app picks; it never moves one). It keeps only `access.json` (agents and their switches) and `audit.jsonl` (the activity log) in `modules\mcp`. Its stderr lines hold only the tool name, outcome and time.

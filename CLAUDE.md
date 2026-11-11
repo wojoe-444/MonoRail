@@ -240,10 +240,24 @@ at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
 chat or starts one. It runs the user's `coordinator` subagent
 (`~/.claude/agents/coordinator.md`, found by `findCoordinator`) with the
 `agent` option, in the module's own `coordinator` folder in its data folder,
-with tools limited to `Agent` and `Workflow`, `dontAsk` and no MCP servers.
-Claude only: pi has no subagents, so a coordinator job on pi is refused. Its
-chats are listed apart, first. Without the subagent the entry is greyed out
-with the reason.
+with `dontAsk`, built-in tools limited to `Agent` and `Workflow`, and one
+MCP server: MonoRail's in-process chat tools (`agent-chat-coordinator.cjs`,
+served by the worker as `mcp__monorail__*`: list_chats, read_chat,
+send_to_chat, start_chat, wait_for_reply). Those run child turns through
+Chat's own `startTurn`, so the allowed folders, Ask/Agent and
+`assertNoBypass` all apply; coordinator chats are never targets, a chat whose
+log changed in the last minute is refused, and child turns stop when the
+coordinator's turn ends. Other agents reach it through the MCP server's
+`ask_coordinator` write tool (consent per agent, logged). A lock file per
+chat (`agent-chat-locks.cjs`, `turn-locks/` in the data folder, pid and time
+only) keeps one turn per chat across the app, coordinator workers and the
+MCP server, which also breaks loops. `coordinatorToolsNote` warns when the
+subagent's own `tools:` line would hide the chat tools. Claude only: pi has
+no subagents, so a coordinator job on pi is refused. Its chats are listed
+apart, first. Without the subagent the entry is greyed out with the reason.
+Subscription logins are fine here: MonoRail drives the user's own unmodified
+`claude` executable, signed in through Anthropic's own flow, and never
+handles the token.
 
 The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
 Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
@@ -295,7 +309,9 @@ the server checks `access.json` on every call (`access.cjs`; the agent is the
 self-reported `clientInfo.name`, recorded on first connect with nothing
 allowed; only the page grants). Every call goes to `audit.jsonl` (agent, tool,
 outcome, ms, a one-line `did` for writes; never arguments or results),
-shown under Activity. Both files are in `modules/mcp`. A new write tool must
+shown under Activity. Both files are in `modules/mcp`. `ask_coordinator` (write)
+runs a coordinator turn from the server process and `check_coordinator_reply`
+reads back only turns that connection started. A new write tool must
 set `write: true` and call `ctx.did()`. **Extension tools** (manifest
 `contributes.mcpTools`, API 1.2; `electron/mcp/extensions.cjs`) are named
 `<id with _>__<name>`, always need consent (`consent: true`, whatever

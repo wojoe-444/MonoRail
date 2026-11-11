@@ -108,7 +108,7 @@ export interface ComposerInfo {
   models: { id: string; label: string }[]
   piModels: { id: string; label: string }[]
   /** The coordinator entry: greyed out with the reason when it cannot run. */
-  coordinator?: { ready: boolean; reason?: string }
+  coordinator?: { ready: boolean; reason?: string; note?: string }
   efforts: string[]
   repos: { name: string; path: string }[]
 }

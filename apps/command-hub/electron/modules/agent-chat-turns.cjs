@@ -55,11 +55,14 @@ function prune() {
  * key for a new chat). `worker` is the job for the worker; its folder was
  * resolved and checked by the caller.
  */
-function startTurn({ chatKey, worker, meta, onFinish, spawnWorker = defaultSpawn, timeoutMs = TURN_TIMEOUT_MS }) {
+function startTurn({ chatKey, worker, meta, onFinish, lock, spawnWorker = defaultSpawn, timeoutMs = TURN_TIMEOUT_MS }) {
   prune()
   if (running.has(chatKey)) throw new Error('A reply is still running in this chat. Wait for it to finish, or press Stop.')
+  // `lock(key)` takes the cross-process lock (agent-chat-locks.cjs) and
+  // returns its release; it throws while another process runs a turn here.
+  const releases = lock ? [lock(chatKey)] : []
   const id = crypto.randomUUID()
-  const turn = { id, chatKey, keys: [chatKey], status: 'running', events: [], startedAt: Date.now(), endedAt: undefined, child: undefined, meta }
+  const turn = { id, chatKey, keys: [chatKey], status: 'running', events: [], startedAt: Date.now(), endedAt: undefined, child: undefined, meta, releases }
   turns.set(id, turn)
   running.set(chatKey, id)
 
@@ -77,6 +80,7 @@ function startTurn({ chatKey, worker, meta, onFinish, spawnWorker = defaultSpawn
     turn.endedAt = Date.now()
     clearTimeout(turn.timer)
     for (const k of turn.keys) if (running.get(k) === id) running.delete(k)
+    releaseAll(turn)
     log('turn ended', { session: turn.sessionId ?? null, sdk: meta.sdk, model: meta.model, mode: meta.mode, end: status })
   }
 
@@ -104,6 +108,14 @@ function startTurn({ chatKey, worker, meta, onFinish, spawnWorker = defaultSpawn
         if (!turn.keys.includes(key)) {
           turn.keys.push(key)
           if (!turn.endedAt) running.set(key, id)
+          // A new chat's id is known only now; nobody else can hold it yet.
+          if (lock && !turn.endedAt) {
+            try {
+              turn.releases.push(lock(key))
+            } catch {
+              // held elsewhere already: the turn runs on, as it would have anyway
+            }
+          }
         }
       }
       if (event.t === 'result') turn.result = event
@@ -127,6 +139,16 @@ function startTurn({ chatKey, worker, meta, onFinish, spawnWorker = defaultSpawn
   }, timeoutMs)
   turn.timer.unref?.()
   return { turnId: id }
+}
+
+function releaseAll(turn) {
+  for (const release of turn.releases?.splice(0) ?? []) {
+    try {
+      release()
+    } catch {
+      // best effort; a stale lock is taken over later
+    }
+  }
 }
 
 function push(turn, event) {
@@ -157,6 +179,7 @@ function stopTurn(turnId) {
   clearTimeout(turn.timer)
   push(turn, { t: 'stopped' })
   for (const k of turn.keys) if (running.get(k) === turn.id) running.delete(k)
+  releaseAll(turn)
   log('turn ended', { session: turn.sessionId ?? null, sdk: turn.meta.sdk, model: turn.meta.model, mode: turn.meta.mode, end: 'stopped' })
 }
 
@@ -172,16 +195,20 @@ function runningTurns() {
     .map((t) => ({ turnId: t.id, chatKey: t.chatKey, sdk: t.meta?.sdk, sessionId: t.sessionId, startedAt: t.startedAt }))
 }
 
+/** Stop every running turn (the app quitting, a coordinator turn ending). */
 function stopAll() {
-  for (const t of turns.values()) if (!t.endedAt) killTree(t.child)
+  for (const t of turns.values()) if (!t.endedAt) stopTurn(t.id)
 }
 
 function defaultSpawn() {
+  // A turn started by another turn (the coordinator messaging a chat) stays
+  // in its parent's process group, so stopping the parent stops it too.
+  const nested = process.env.MONORAIL_TURN_WORKER === '1'
   return spawn(process.execPath, [WORKER], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', MONORAIL_TURN_WORKER: '1' },
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
-    detached: process.platform !== 'win32', // own process group, so Stop can end the whole tree
+    detached: process.platform !== 'win32' && !nested, // own process group, so Stop can end the whole tree
   })
 }
 

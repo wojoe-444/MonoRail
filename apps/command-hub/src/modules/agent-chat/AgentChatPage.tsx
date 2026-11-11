@@ -527,7 +527,7 @@ function CoordinatorEntry({
   onOpen,
   onNew,
 }: {
-  status?: { ready: boolean; reason?: string }
+  status?: { ready: boolean; reason?: string; note?: string }
   latest?: SessionSummary
   active: boolean
   onOpen: () => void
@@ -547,8 +547,8 @@ function CoordinatorEntry({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Coordinator</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {latest ? `Last used ${relative(latest.updatedAt)}` : ready ? 'Start a coordinator chat' : 'Not available'}
+          <span className={cn('block truncate text-xs text-muted-foreground', ready && status?.note && 'text-warning')}>
+            {ready && status?.note ? 'Cannot reach your chats' : latest ? `Last used ${relative(latest.updatedAt)}` : ready ? 'Start a coordinator chat' : 'Not available'}
           </span>
         </span>
       </button>
@@ -559,11 +559,12 @@ function CoordinatorEntry({
       )}
     </div>
   )
-  if (ready || !status?.reason) return entry
+  const tip = ready ? status?.note : status?.reason
+  if (!tip) return entry
   return (
     <Tooltip>
       <TooltipTrigger asChild>{entry}</TooltipTrigger>
-      <TooltipContent className="max-w-xs">{status.reason}</TooltipContent>
+      <TooltipContent className="max-w-xs">{tip}</TooltipContent>
     </Tooltip>
   )
 }

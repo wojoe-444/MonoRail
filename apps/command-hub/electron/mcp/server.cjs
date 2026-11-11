@@ -19,9 +19,9 @@ const { createMcpServer } = require('./protocol.cjs')
 const { serveStdio } = require('./stdio.cjs')
 const access = require('./access.cjs')
 const { extensionTools } = require('./extensions.cjs')
-const { readTools, writeTools } = require('./tools.cjs')
+const { readTools, writeTools, coordinatorReadTools } = require('./tools.cjs')
 
-const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. Write tools (raising or commenting on local issues) and tools from installed extensions (named <extension>__<tool>) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
+const INSTRUCTIONS = `MonoRail is the user's desktop hub for their coding agents. These tools read what MonoRail keeps on this machine: agent usage and cost (Claude Stats), recent agent chats, local issues of git repos opened in GitHub+, private local Jira+ projects, and whether the user's account connections work. Read tools return no secrets. ask_coordinator sends a message to the user's coordinator agent (which can in turn message the user's other agent chats) and returns its reply. Write tools (raising or commenting on local issues, asking the coordinator) and tools from installed extensions (named <extension>__<tool>) are off until the user allows them for this agent in MonoRail under Configure > Agent access; if one is refused, tell the user where to turn it on rather than retrying. Every call is logged there. Data comes from MonoRail's caches, so it can be a few minutes old; results say when it was built.`
 
 function defaultAppData(env = process.env, platform = process.platform, home = os.homedir()) {
   if (platform === 'win32') return env.APPDATA || path.join(home, 'AppData', 'Roaming')
@@ -49,7 +49,7 @@ function createServer({ rootDir, log = () => {}, extensions = true }) {
     name: 'monorail',
     version: version(),
     instructions: INSTRUCTIONS,
-    tools: [...readTools({ rootDir }), ...writeTools({ rootDir }), ...ext.tools],
+    tools: [...readTools({ rootDir }), ...coordinatorReadTools(), ...writeTools({ rootDir }), ...ext.tools],
     // The agent shows up on the Agent access page with nothing allowed.
     onInitialize: async (clientInfo) => {
       try {
@@ -87,6 +87,12 @@ async function main() {
   const server = createServer({ rootDir, log })
   await serveStdio(server)
   await server.stop().catch(() => {})
+  // Coordinator turns this server started end with it.
+  const turns = require('../modules/agent-chat-turns.cjs')
+  if (turns.runningTurns().length) {
+    turns.stopAll()
+    if (process.platform === 'win32') await new Promise((r) => setTimeout(r, 1500))
+  }
   process.exit(0)
 }
 

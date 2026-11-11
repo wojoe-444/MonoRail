@@ -97,7 +97,7 @@ export function Composer({
   /** The chat's SDK; a chat that has started keeps it. */
   source: SessionSource
   isNew: boolean
-  /** A coordinator chat: delegate and workflow only, on Claude. */
+  /** A coordinator chat: delegate, workflow and MonoRail's chat tools, on Claude. */
   coordinator?: boolean
   repo?: string
   onRepo?: (path: string) => void
@@ -143,7 +143,7 @@ export function Composer({
       : isNew && !repo
         ? 'Pick a project for this chat first.'
         : coordinator
-          ? 'Tell the coordinator what you need. It can only delegate to subagents and run workflows.'
+          ? 'Tell the coordinator what you need. It can delegate to subagents, run workflows, and read and message your chats.'
           : prefs.mode === 'ask'
           ? 'Ask about this repo. Ask mode only reads files.'
           : source === 'pi'
@@ -214,7 +214,7 @@ export function Composer({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
           {coordinator ? (
             <span className="inline-flex items-center gap-1 rounded-md bg-primary-soft px-2 py-0.5 text-primary-soft-foreground">
-              Coordinator: delegate and workflow only
+              Coordinator: delegates, runs workflows and messages your chats
             </span>
           ) : isNew ? (
             <NativeSelect
@@ -431,7 +431,9 @@ export function NewChatEmpty({ repoName, sdk, coordinator }: { repoName?: string
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <div className="font-medium">New coordinator chat</div>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Runs your coordinator subagent in MonoRail&apos;s own folder. It can only delegate to subagents and run workflows, with no MCP servers.
+          Runs your coordinator subagent in MonoRail&apos;s own folder. It can delegate to subagents, run workflows, and list, read and message your
+          chats in allowed repos (read-only unless it asks for Agent mode; nothing that needs approval). Other agents can reach it through
+          MonoRail&apos;s MCP server once you allow them under Agent access.
         </p>
       </div>
     )
