@@ -63,6 +63,15 @@ export interface UsageReport {
   scanError?: string
 }
 
+/** The digest summarize() in the backend builds for the Home widget. */
+export interface UsageSummary {
+  version: number
+  generatedAt: string
+  days: { date: string; cost: number }[]
+  total: number
+  topModels: { source: SourceId; model: string; cost: number }[]
+}
+
 export type SourceId = 'claude-code' | 'gemini-cli' | 'pi'
 
 export interface ScanSource {

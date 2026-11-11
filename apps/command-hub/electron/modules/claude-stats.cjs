@@ -7,15 +7,18 @@
 // run by the shared cache primitive (electron/cache, declared as
 // 'claude-stats.usage'): opening the page only reads it; a build runs from the
 // Refresh button or the background schedule, one at a time.
+// summarize() turns a report into the small digest the Home widget shows.
 
 const { execFile } = require('node:child_process')
 const path = require('node:path')
 
 const cache = require('../cache/index.cjs')
 const { IDLE_GAP_MS } = require('./claude-stats-phases.cjs')
+const { findPrice, normalizeModelId, rowCost } = require('./claude-stats-prices.cjs')
 const { scanAll } = require('./claude-stats-scan.cjs')
 
 const REPORT_VERSION = cache.declared.declaration('claude-stats.usage').version
+const SUMMARY_DAYS = 30
 
 /** Path to the native ccusage binary installed with the app, if present. */
 function bundledBinary() {
@@ -95,6 +98,57 @@ async function collect(ctx) {
   }
 }
 
+function localDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Small digest of a report for the Home widget: API-equivalent cost per day
+ * for the last 30 days and the top models by cost over those days. Claude Code
+ * cost comes from ccusage (list prices from the logs if ccusage failed); pi's
+ * logged cost is used where every request has one; the rest is list-priced.
+ */
+function summarize(report, now = new Date()) {
+  const days = []
+  for (let i = SUMMARY_DAYS - 1; i >= 0; i--) days.push(localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)))
+  const first = days[0]
+  const byDay = new Map(days.map((d) => [d, 0]))
+  const byModel = new Map()
+  const add = (date, source, model, cost) => {
+    if (!byDay.has(date) || !(cost > 0)) return
+    byDay.set(date, byDay.get(date) + cost)
+    const k = `${source}|${normalizeModelId(model)}`
+    const m = byModel.get(k) ?? { source, model: normalizeModelId(model), cost: 0 }
+    m.cost += cost
+    byModel.set(k, m)
+  }
+  const haveCcusage = !report.ccusageError && Object.keys(report.daily?.projects ?? {}).length > 0
+  if (haveCcusage) {
+    for (const rows of Object.values(report.daily.projects)) {
+      for (const r of rows) for (const b of r.modelBreakdowns ?? []) add(r.date, 'claude-code', b.modelName, b.cost)
+    }
+  }
+  for (const r of report.scan?.requests ?? []) {
+    if (r.date < first) continue
+    if (r.source === 'claude-code' && haveCcusage) continue
+    let cost
+    if (r.logged && r.logged.n === r.n) cost = r.logged.input + r.logged.output + r.logged.cacheWrite + r.logged.cacheRead
+    else {
+      const price = findPrice(r.model)
+      cost = price ? rowCost(price, r) : 0
+    }
+    add(r.date, r.source, r.model, cost)
+  }
+  const total = [...byDay.values()].reduce((a, b) => a + b, 0)
+  return {
+    version: 1,
+    generatedAt: report.generatedAt,
+    days: days.map((date) => ({ date, cost: byDay.get(date) })),
+    total,
+    topModels: [...byModel.values()].sort((a, b) => b.cost - a.cost).slice(0, 5),
+  }
+}
+
 /** One report cache per data folder (the dev bridge and the app use different ones). */
 const reports = new Map()
 function usageCache(ctx) {
@@ -131,6 +185,7 @@ function view({ value, status }) {
 
 module.exports = {
   id: 'claude-stats',
+  summarize,
   /** Background rebuilds while the app runs (C4). */
   start(ctx) {
     cache.schedule(usageCache(ctx))

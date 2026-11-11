@@ -78,7 +78,7 @@ const CACHES = Object.freeze([
   },
   {
     id: 'connections.connector-check',
-    folder: 'connections',
+    folder: 'modules/connections',
     tier: 'check',
     storage: 'memory',
     version: 1,
@@ -89,7 +89,7 @@ const CACHES = Object.freeze([
   },
   {
     id: 'connections.sign-in',
-    folder: 'connections',
+    folder: 'modules/connections',
     tier: 'check',
     storage: 'memory',
     version: 1,
@@ -103,6 +103,7 @@ const CACHES = Object.freeze([
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
   'modules/agent-chat': ['folders.json'],
+  'modules/connections': ['connections.json'],
   'modules/jira': ['connection.json', 'local-repo/'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],

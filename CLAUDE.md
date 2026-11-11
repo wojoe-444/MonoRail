@@ -177,6 +177,24 @@ request re-resolves them. Read limits: the list reads the 300 newest logs and
 keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
 page says when it was cut.
 
+`connections` (**Connections**, under Configure) is the one place for the
+accounts MonoRail signs in with. Connectors live in `electron/connections/`
+(contract at the top of `index.cjs`): fields, a `status()` returning
+`ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
+again" that run as polled jobs, and an optional `credentials()`. Other
+backends get credentials with `require('../connections/index.cjs').getCredentials(kind)`
+in the main process; the page never receives secrets. Secret fields are
+encrypted with safeStorage in `%APPDATA%\MonoRail\modules\connections`
+(saving refuses without encryption). Connectors so far: `gcloud` (detects
+the CLI login and Application Default Credentials; sign-in runs
+`gcloud auth login` then `gcloud auth application-default login`),
+`atlassian` (site + email + API token, pasted or read each time from a named
+generic credential in Windows Credential Manager via PowerShell CredRead,
+never copied; Jira+ should use it) and `claude` (Claude Code / Agent SDK
+login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
+opens a terminal running `claude auth login`). Command-line tools only get
+fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
+
 Nav items may have one level of indented subpages (`NavItem.children` in
 `nav.ts`); a module nests under an item with `nav.parent: '<path>'`.
 

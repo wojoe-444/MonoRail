@@ -61,7 +61,7 @@ test('A1: every declared cache is complete and in one place', () => {
   assert.equal(new Set(files).size, files.length)
 })
 
-test('A1: every *_FILE constant in a backend is declared for some data folder', () => {
+test('A1: every FILE constant in a backend is declared for some data folder', () => {
   const root = path.join(__dirname, '..')
   const allNames = new Set(declared.declaredFolders().flatMap((f) => [...declared.declaredFiles(f)]))
   const missing = []
@@ -70,7 +70,7 @@ test('A1: every *_FILE constant in a backend is declared for some data folder', 
       const p = path.join(dir, e.name)
       if (e.isDirectory()) walk(p)
       else if (e.name.endsWith('.cjs') && !e.name.endsWith('.test.cjs')) {
-        for (const m of fs.readFileSync(p, 'utf8').matchAll(/const (\w+_FILE) = '([^']+)'/g)) {
+        for (const m of fs.readFileSync(p, 'utf8').matchAll(/const (\w*FILE) = '([^']+)'/g)) {
           if (!allNames.has(m[2])) missing.push(`${path.relative(root, p)}: ${m[1]} = '${m[2]}'`)
         }
       }
@@ -78,6 +78,7 @@ test('A1: every *_FILE constant in a backend is declared for some data folder', 
   }
   walk(path.join(root, 'modules'))
   walk(path.join(root, 'apps'))
+  walk(path.join(root, 'connections'))
   assert.deepEqual(missing, [], 'declare these in electron/cache/declared.cjs')
 })
 
