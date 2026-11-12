@@ -13,7 +13,7 @@ const bridgePort = process.env.MONORAIL_BRIDGE_PORT || '5198'
 
 // Defines window.commandHub in the page the way the Electron preload does, but
 // over HTTP to /__bridge (proxied to the bridge). Never overrides a real
-// preload, so `npm run desktop` is unaffected. Mirrors electron/dev-bridge-codec.cjs.
+// preload, so `npm run desktop` is unaffected. Mirrors electron/bridge/codec.cjs.
 const bridgeClient = `
 (() => {
   if (window.commandHub) return

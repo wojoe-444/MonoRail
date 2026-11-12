@@ -135,6 +135,9 @@ async function readSettings(ctx) {
 
 module.exports = {
   id: 'github-plus',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['pickRepoFolder', 'pickBackupFolder', 'cloneGitHubRepo', 'openOnGitHub'],
   /** Called once at startup: runs the backup scheduler inside MonoRail. */
   start(ctx) {
     dataDir = ctx.dataDir

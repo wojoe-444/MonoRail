@@ -61,6 +61,14 @@ export interface CommandHubBridge {
   isFullScreen?(): Promise<boolean>
   /** Push channels from the main process: 'extension:event', 'extension:changed' and 'window:fullscreen' (boolean). Returns an unsubscribe. */
   on?(channel: 'extension:event' | 'extension:changed' | 'window:fullscreen', cb: (payload: unknown) => void): () => void
+  /** Set by the browser dev bridge (`npm run dev:browser`): HTTP to backends on this same PC. */
+  devBridge?: boolean
+  /**
+   * Set when the page runs on another device (the optional Remote access mode,
+   * e.g. a phone): backends are real, but this PC's screen is not in front of
+   * the user, so dialogs, Explorer and terminals are not offered.
+   */
+  remote?: boolean
 }
 
 declare global {

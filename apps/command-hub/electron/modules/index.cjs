@@ -46,11 +46,14 @@ const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 const { auditAll } = require('../cache/index.cjs')
 const { profiles } = require('../profiles/index.cjs')
+const { desktopOnlyIndex } = require('../bridge/desktop-only.cjs')
 
 /**
  * Start every backend and return invoke(moduleId, method, args), the router the
  * IPC handler below uses. The browser dev bridge (electron/dev-bridge.cjs)
  * calls it over HTTP instead. Call once, after app 'ready'.
+ * invoke.isDesktopOnly(moduleId, method) says whether a method needs this PC's
+ * screen (a backend's `desktopOnly` list, electron/bridge/desktop-only.cjs).
  */
 function startModuleBackends() {
   const extensionsBackend = setupExtensions()
@@ -74,7 +77,9 @@ function startModuleBackends() {
   // A1: report files nobody declared (a warning, never a delete).
   void auditAll(profiles().layout()).catch(() => {})
 
-  return async function invoke(moduleId, method, args) {
+  const desktopOnly = desktopOnlyIndex([...byId].map(([key, entry]) => [key, entry.backend]))
+
+  async function invoke(moduleId, method, args) {
     if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
     const entry = byId.get(moduleId)
     if (!entry) throw new Error(`Unknown module: ${moduleId}`)
@@ -83,6 +88,8 @@ function startModuleBackends() {
 
     return fn(makeCtx(moduleId, entry), args)
   }
+  invoke.isDesktopOnly = desktopOnly.isDesktopOnly
+  return invoke
 }
 
 function registerModuleBackends() {

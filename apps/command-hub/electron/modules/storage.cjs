@@ -409,6 +409,9 @@ function scannedLocation(id) {
 
 module.exports = {
   id: 'storage',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['openLocation', 'openStorageSettings'],
   /** Drive samples while the app runs (cheap: one statfs per drive). Folder scans only run when asked. */
   start(ctx) {
     const tick = () => void sampleDrives(ctx).catch((e) => ctx.log('drive sample failed:', e && e.message))

@@ -394,6 +394,9 @@ function opts(ctx) {
 
 module.exports = {
   id: 'agent-catalog',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['openBackups'],
   methods: {
     list: async (ctx) => listSubagents(opts(ctx)),
     get: async (_ctx, args) => getSubagent(args?.id),

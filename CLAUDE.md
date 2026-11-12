@@ -94,7 +94,7 @@ Run from `apps/command-hub/`:
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server in the browser |
-| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. Extension UIs (`monorail-ext://`) don't load in the browser. |
+| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. The HTTP server and codec are shared in `electron/bridge/` (`server.cjs`: token check, origin check, JSON only, server-sent events). Extension UIs (`monorail-ext://`) don't load in the browser. |
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |
@@ -168,7 +168,13 @@ To add a module:
    `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
    (`%APPDATA%\MonoRail\modules\<id>` for the default profile); keep caches
    and settings there. Give the folder a scope in `SCOPES`
-   (`electron/profiles/index.cjs`).
+   (`electron/profiles/index.cjs`). A method that needs this PC's screen (a
+   system dialog, Explorer, a terminal, DevTools, a restart, a link opened in
+   the PC's browser) goes in the backend's `desktopOnly: ['method']` list
+   (`electron/bridge/desktop-only.cjs`; a test fails when a method calls
+   `dialog`/`shell`/`BrowserWindow`/`autoUpdater` without it). The optional
+   Remote access mode (phone, planned, off by default) never runs those; in
+   the page, `hasLocalScreen()` says whether to offer them.
 4. In the page, call it with `useModuleQuery(id, method)` or
    `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
    browser dev server there is no backend (`isDesktop()` is false), so ship
