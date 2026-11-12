@@ -51,6 +51,7 @@ const CONNECTORS = [
   require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
   require('./connectors/github.cjs'),
+  require('./connectors/docker.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 

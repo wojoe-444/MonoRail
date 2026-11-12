@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   Cloud,
+  Container,
   ExternalLink,
   GitBranch,
   Globe,
@@ -44,7 +45,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe } as const
+const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe, container: Container } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },
@@ -401,10 +402,11 @@ const USED_BY: Record<string, string> = {
   'pi-playwright': 'pi',
   git: 'GitHub+, Chat',
   github: 'GitHub+',
+  docker: 'Docker page',
 }
 
 /** The detail that says which account a connection uses, for the Account column. */
-const ACCOUNT_DETAIL = /^(account|email|site|signed in to|user\.email|codex sign-in|api key)$/i
+const ACCOUNT_DETAIL = /^(account|email|site|signed in to|user\.email|codex sign-in|api key|context)$/i
 
 /**
  * The table's columns. They drop out as the table gets narrow (container

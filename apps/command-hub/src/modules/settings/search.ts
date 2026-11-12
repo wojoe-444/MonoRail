@@ -41,6 +41,7 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'pi', detail: 'Connections: pi coding agent and scoped models', path: '/connections', anchor: 'connection-pi', keywords: 'pi scoped models' },
   { label: 'Playwright browser', detail: 'Connections: pi drives your own Chrome or Edge tabs', path: '/connections', anchor: 'connection-pi-playwright', keywords: 'chrome edge browser extension playwright' },
   { label: 'Git', detail: 'Connections: version, commit identity, credential helper', path: '/connections', anchor: 'connection-git', keywords: 'git user.name user.email' },
+  { label: 'Docker', detail: 'Connections: your own Docker and lazydocker (optional)', path: '/connections', anchor: 'connection-docker', keywords: 'docker lazydocker containers compose' },
   { label: 'GitHub', detail: 'Connections: your github.com account for GitHub+', path: '/connections', anchor: 'connection-github', keywords: 'github gh token cli' },
   // Agent access
   { label: 'Connect an agent', detail: 'Agent access: add MonoRail to Claude Code and others', path: '/mcp', keywords: 'mcp server claude code setup' },

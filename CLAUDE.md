@@ -466,7 +466,8 @@ returns `{ via: 'gh' }` or `{ via: 'token', token }`; only api.github.com is
 called. `hasConnection(kind)` in `index.cjs` says whether a connection is
 added without running anything. `git` stores nothing and
 reports the version, global `user.name` / `user.email` and the credential
-helper's name; it never runs `git credential`. Command-line tools only get
+helper's name; it never runs `git credential`. `docker` (optional) checks
+the user's own Docker and lazydocker for the Docker page (see below). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
 `mcp` (**Agent access**, a Settings page) shows how to connect agents to
@@ -524,6 +525,21 @@ backend for write calls; history goes through the cache primitive, goals live
 in their own file); actions only open a folder in Explorer by location id or the Windows
 storage settings. Any future cleanup must be explicit, confirmed per item, and
 limited to caches marked safe.
+
+`docker` (**Docker**, under **Utilities**; docs: `docs/docker.md`, guide
+`docs/guide/setup/docker.md`) is a lazydocker-style, read-only look at the
+user's own Docker: engine strip, KPI tiles, containers grouped by compose
+project with Logs (last 500, Follow re-reads every 3 s), Stats (one
+`docker stats --no-stream` every 5 s while open, in memory only) and Info
+(env variable names only, values dropped in the backend), plus Images,
+Volumes and Networks. Docker is **optional**: every method checks
+`hasConnection('docker')` first and runs nothing until the user adds the
+**Docker** connector (`connectors/docker.cjs`: docker CLI and engine version,
+lazydocker on PATH, actions Start Docker Desktop and Open lazydocker in a
+terminal). MonoRail never downloads or installs Docker or lazydocker. All
+docker calls go through `electron/modules/docker-cli.cjs` (no shell, fixed
+read-only arguments, container ids checked as hex; a test fails on write
+verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
 
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
