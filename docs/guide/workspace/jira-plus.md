@@ -47,6 +47,23 @@ way: `2h 30m`, `45m`, or `1d` for a day of 8 hours. In private projects the
 log is saved with the ticket, so its [history](#private-projects) records it;
 on team tickets it becomes a real Jira worklog your team can see.
 
+## Comments
+
+The **Comments** tab under an issue's Activity is where you write notes and
+replies. Who reads them depends on the project, and the box says so before
+you send:
+
+- On a [private](#private-projects) ticket a comment is saved with the
+  ticket on your computer and never sent anywhere. Each comment, edit or
+  delete is a commit, so the ticket's history keeps every version.
+- On a [team](#your-teams-jira) ticket, **Post to Jira** adds a real Jira
+  comment under your Atlassian name. Everyone who can see the ticket can read
+  it, and Jira may email the people watching it.
+
+**Edit** and **Delete** appear under your own comments. On team tickets Jira
+decides who may change a comment, and an edit or delete changes it for the
+whole team. Board cards show how many comments a ticket has.
+
 ## Tasks and repositories
 
 Any task, private or team, can be linked to local repositories and to

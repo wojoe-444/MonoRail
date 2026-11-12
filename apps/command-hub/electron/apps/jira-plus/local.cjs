@@ -254,7 +254,7 @@ function createLocalStore(repoDir) {
       ...summarize(raw),
       ...(parent ? { parent } : {}),
       projectName: await projectNameOf(raw.projectKey),
-      comments: raw.comments ?? [],
+      comments: (raw.comments ?? []).map((c) => ({ ...c, mine: true })),
       worklogs: [...(raw.worklogs ?? [])].sort((a, b) => b.started.localeCompare(a.started)),
       children,
       timeTracking: {
@@ -401,6 +401,36 @@ function createLocalStore(repoDir) {
         issue.updated = comment.created
         await writeAndCommit([[issueRel(key), issue]], `${key}: Commented`)
         return comment
+      }),
+
+    /** updateComment({ key, id, body }): local comments are all yours, so any may be edited. */
+    updateComment: ({ key, id, body }) =>
+      serial(async () => {
+        await ensureRepo()
+        body = String(body ?? '').trim()
+        if (!body) throw new Error('Write something first.')
+        const issue = await readIssue(key)
+        const comment = (issue.comments ?? []).find((c) => c.id === id)
+        if (!comment) throw new Error('That comment is gone.')
+        if (comment.body === body) return comment
+        comment.body = body
+        comment.updated = new Date().toISOString()
+        issue.updated = comment.updated
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Edited a comment`)
+        return comment
+      }),
+
+    /** deleteComment({ key, id }): the comment stays in the repo's git history. */
+    deleteComment: ({ key, id }) =>
+      serial(async () => {
+        await ensureRepo()
+        const issue = await readIssue(key)
+        const comments = issue.comments ?? []
+        if (!comments.some((c) => c.id === id)) throw new Error('That comment is gone.')
+        issue.comments = comments.filter((c) => c.id !== id)
+        issue.updated = new Date().toISOString()
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Deleted a comment`)
+        return { ok: true }
       }),
 
     /** setParent({ key, parent }): parent is an issue key in the same project, or null to remove it. */

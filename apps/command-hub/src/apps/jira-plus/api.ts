@@ -33,6 +33,8 @@ export interface JiraApi {
   updateIssue(args: { source: Source; key: string; fields: IssueFields }): Promise<Issue>
   transitionIssue(args: { source: Source; key: string; transitionId: string }): Promise<Issue>
   addComment(args: { source: Source; key: string; body: string }): Promise<Comment>
+  updateComment(args: { source: Source; key: string; id: string; body: string }): Promise<Comment>
+  deleteComment(args: { source: Source; key: string; id: string }): Promise<{ ok: true }>
   deleteIssue(args: { source: Source; key: string }): Promise<{ ok: true }>
   /** Put an issue under another one in the same project, or take it out (parent: null). */
   setParent(args: { source: Source; key: string; parent: string | null }): Promise<Issue>
@@ -69,6 +71,8 @@ function desktopApi(): JiraApi {
     updateIssue: call('updateIssue'),
     transitionIssue: call('transitionIssue'),
     addComment: call('addComment'),
+    updateComment: call('updateComment'),
+    deleteComment: call('deleteComment'),
     deleteIssue: call('deleteIssue'),
     setParent: call('setParent'),
     parentOptions: call('parentOptions'),
