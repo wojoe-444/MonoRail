@@ -139,6 +139,29 @@ describe('finding Docker installed after MonoRail started (Windows)', () => {
     assert.equal(found, want)
   })
 
+  test('finds Docker Desktop installed on another drive through its uninstall entry', async () => {
+    const want = 'D:\\Apps\\Docker\\resources\\bin\\docker.exe'
+    const run = async (_file, args) =>
+      args[3] === 'InstallLocation' && args[1].startsWith('HKLM')
+        ? { code: 0, stdout: '\r\nHKEY_LOCAL_MACHINE\\...\\Docker Desktop\r\n    InstallLocation    REG_SZ    D:\\Apps\\Docker\\\r\n', stderr: '' }
+        : { code: 1, stdout: '', stderr: '' }
+    const trace = {}
+    const found = await cli.findDocker({ platform: win, env, runFile: run, trace, findOnPath: async () => undefined, stat: async (f) => (f === want ? { isFile: () => true } : Promise.reject(new Error('none'))) })
+    assert.equal(found, want)
+    assert.equal(trace.desktopDir, 'D:\\Apps\\Docker')
+    assert.equal(trace.registryPath, false)
+  })
+
+  test('a "not found" says where it looked', async () => {
+    const trace = {}
+    await cli.findDocker({ platform: win, env, runFile, trace, findOnPath: async () => undefined, stat: async () => { throw new Error('none') } })
+    const s = connector._internal.summarize({ trace })
+    const text = JSON.stringify(s.details)
+    assert.match(text, /Read from Windows settings/)
+    assert.match(text, /No install recorded/)
+    assert.match(text, /Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker\.exe/)
+  })
+
   test('known lazydocker folders include winget and scoop', () => {
     const list = cli.knownLocations('lazydocker', env)
     assert.ok(list.some((f) => f.includes('WinGet')))

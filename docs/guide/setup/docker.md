@@ -30,7 +30,10 @@ rule.
 
 MonoRail finds Docker even if you installed it while MonoRail was already
 open: it reads the current PATH from Windows and looks in Docker Desktop's
-usual folder, so you do not need to restart.
+install folder (also on another drive), so you do not need to restart.
+If it still says Docker was not found, open the Docker row on Connections:
+it lists every place it looked. The alert in Settings only changes after the
+next check, so press **Check** after updating MonoRail.
 
 The check shows your Docker version, whether its engine is running and
 whether lazydocker was found. If the engine is not running, the connection
