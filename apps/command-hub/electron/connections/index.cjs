@@ -8,7 +8,8 @@
 //                 defaultValue?, placeholder?, help?, showIf? }]
 //              what the user fills in. 'secret' fields are encrypted with
 //              safeStorage and never sent back to the page.
-//   validate?  ({ values, secretsSet }) => void, throws a readable message
+//   validate?  ({ values, secretsSet, secrets }) => void, throws a readable
+//              message. secrets holds only what was typed in this save.
 //   status     (conn, deps) => { state, summary, hint?, details[] }
 //              state: ok | expired | needs-setup | error | unavailable.
 //              conn is undefined until the connection is added.
@@ -20,7 +21,8 @@
 //   afterRemove? (deps) => runs after the connection is removed (undo what
 //              afterSave wrote that only makes sense while it is set up).
 //   parent?    kind of another connector: this one is a subconnector, shown
-//              nested inside the parent's card (pi > Playwright browser).
+//              nested inside the parent's card (pi > Playwright browser,
+//              Claude > Playwright browser).
 //
 // A status may also carry actions: [ids], the actions that fit right now;
 // the page shows only those (on top of showWhen). A running job may set
@@ -46,6 +48,7 @@ const CONNECTORS = [
   require('./connectors/gcloud.cjs'),
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
+  require('./connectors/claude-playwright.cjs'),
   require('./connectors/openai.cjs'),
   require('./connectors/pi.cjs'),
   require('./connectors/pi-playwright.cjs'),
@@ -182,7 +185,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       }
       const clean = {}
       for (const f of c.fields) if (f.type !== 'secret') clean[f.key] = typeof values[f.key] === 'string' ? values[f.key].trim() : (f.defaultValue ?? '')
-      c.validate?.({ values: clean, secretsSet })
+      c.validate?.({ values: clean, secretsSet, secrets })
       // Secrets of a field that is hidden by the current choice are dropped.
       const hidden = c.fields.filter((f) => f.type === 'secret' && f.showIf && Object.entries(f.showIf).some(([k, v]) => clean[k] !== v)).map((f) => f.key)
       await store.save(kind, c.fields, { values: clean, secrets, clearSecrets: [...clearSecrets, ...hidden] })
