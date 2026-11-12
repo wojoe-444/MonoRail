@@ -62,3 +62,6 @@ by default, and most useful when your login is billed at API prices.
 
 Home shows a small summary of the same report. Agents can read it too,
 through [agent access](agent-access.md).
+
+The other page under Insights is [Semantic](../setup/semantic.md): your dbt
+project's business metrics, charted with MetricFlow.

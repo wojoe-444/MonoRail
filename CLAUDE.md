@@ -573,6 +573,24 @@ docker calls go through `electron/modules/docker-cli.cjs` (no shell, fixed
 read-only arguments, container ids checked as hex; a test fails on write
 verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
 
+`semantic` (**Semantic**, under **Insights**; docs: `docs/semantic.md`, guide
+`docs/guide/setup/semantic.md`) is a dbt project's semantic layer, powered by
+the user's own MetricFlow (`mf`): Query (metrics x time grain x group-bys,
+filters, dates, sort, limit; chart plus table, SQL via `--explain`, copyable
+`mf query` command), Metrics (definition, lineage, dimensions), Semantic models
+and Saved queries. **Opt-in twice:** nothing runs until the user adds the
+**MetricFlow** connector (`connectors/metricflow.cjs`: project folder, and
+"Run queries with MetricFlow", off by default); browsing reads only
+`dbt_project.yml` and `target/semantic_manifest.json`, and `query`/`explain`
+refuse unless running is on. All of it is in `electron/modules/semantic-mf.cjs`
+(no Electron; the MCP server's `list_semantic_metrics` and consent-gated
+`query_semantic_metrics` use it): mf is found by file (project `.venv` first,
+PATH; only `mf.exe` on Windows), started without a shell with arguments checked
+against the manifest, versions come from dist-info folder names, and
+`profiles.yml` is never opened. Results come back through a CSV in a temp
+folder deleted at once; nothing is cached or kept, and the page never gets the
+project's full path. MonoRail never installs Python, dbt or MetricFlow.
+
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
 `ChatMarkdown`) and per-day study counts (90 days) live in one file,

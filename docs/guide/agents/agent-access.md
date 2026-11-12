@@ -23,13 +23,13 @@ it, even when the MonoRail window is closed.
 Every connected agent can **read**: [spending](spend.md) summaries, your
 [chat list](chat.md) (allowed folders only),
 [local issues](../workspace/local-issues.md) and [Jira+](../workspace/jira-plus.md)
-tasks, and whether your [connections](../setup/connections.md) work. Nothing
+tasks, the metrics of your [dbt project](../setup/semantic.md), and whether your [connections](../setup/connections.md) work. Nothing
 it reads includes passwords or tokens.
 
 **Writing** is off for every agent until you turn it on. On the Agent access
 page each agent gets its own switches, one per write tool, such as "create a
 local issue", "add [flashcards](../../flashcards.md)" or "ask the
-[Coordinator](coordinator.md)". An agent you have never seen before is listed
+[Coordinator](coordinator.md)". Running a [metrics query](../setup/semantic.md#let-agents-use-it) works the same way: it changes nothing, but it reaches your warehouse, so it needs your OK too. An agent you have never seen before is listed
 the first time it connects, with nothing allowed. That is the same
 [nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)
 rule as everywhere else.

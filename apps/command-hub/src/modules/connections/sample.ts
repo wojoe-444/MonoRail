@@ -110,6 +110,20 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  metricflow: {
+    state: 'ok',
+    summary: 'dbt project lantern_coffee with 10 metrics. MetricFlow 0.208.1 found; queries are on.',
+    details: [
+      { label: 'dbt project', value: 'lantern_coffee (lantern-analytics)', ok: true },
+      { label: 'Semantic manifest', value: 'Parsed 42 minutes ago: 10 metrics, 5 semantic models', ok: true },
+      { label: 'mf', value: '0.208.1, in the project\u2019s .venv', ok: true },
+      { label: 'dbt', value: 'dbt-core 1.10.4, dbt-duckdb 1.10.0' },
+      { label: 'profiles.yml', value: 'Found (not read)' },
+      { label: 'Run queries', value: 'On' },
+    ],
+    added: true,
+    checkedAt: at,
+  },
 }
 
 const PI_DEFAULT_MODELS = 'anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5'
@@ -307,6 +321,29 @@ export const sampleList: ConnectionsList = {
       ],
     },
     {
+      kind: 'metricflow',
+      title: 'MetricFlow',
+      description: 'Your dbt project\u2019s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
+      icon: 'database',
+      fields: [
+        { key: 'project', label: 'dbt project folder', type: 'text', placeholder: 'C:\\Users\\you\\Repos\\analytics', help: 'The folder with dbt_project.yml. MonoRail reads target/semantic_manifest.json from it.' },
+        {
+          key: 'run',
+          label: 'Run queries with MetricFlow',
+          type: 'select',
+          options: [
+            { value: 'off', label: 'Off: only browse the project' },
+            { value: 'on', label: 'On: run my mf command for queries' },
+          ],
+          defaultValue: 'off',
+          help: 'When on, the Semantic page runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
+        },
+      ],
+      actions: [
+        { id: 'validate', label: 'Validate project', description: 'Runs mf validate-configs in the project folder (only when queries are on).', showWhen: ['ok', 'error'] },
+      ],
+    },
+    {
       kind: 'github',
       title: 'GitHub',
       description: 'Your github.com account. GitHub+ lists your repositories (owned, shared with you, and your organizations\u2019) and can create an issue on GitHub when you ask it to.',
@@ -394,6 +431,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.docker,
+    },
+    {
+      kind: 'metricflow',
+      values: { project: 'C:\\Users\\sam\\Repos\\lantern-analytics', run: 'on' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.metricflow,
     },
   ],
 }
