@@ -84,12 +84,20 @@ function createRemoteStore(dir) {
     await writeAtomic(file(DEVICES_FILE), `${JSON.stringify(devices, null, 2)}\n`)
   }
 
-  async function mutateDevices(fn) {
-    const r = await readDevicesRaw()
-    if (r.damaged) throw new Error('The paired devices file is damaged. Delete it to start over.')
-    const next = fn(r.devices)
-    await writeDevices(next)
-    return next
+  // One change at a time: each read-modify-write waits for the one before, so a
+  // background "last seen" touch can never write back a device that was just
+  // revoked (a lost update that would sign the device in again).
+  let devicesQueue = Promise.resolve()
+  function mutateDevices(fn) {
+    const run = devicesQueue.then(async () => {
+      const r = await readDevicesRaw()
+      if (r.damaged) throw new Error('The paired devices file is damaged. Delete it to start over.')
+      const next = fn(r.devices)
+      await writeDevices(next)
+      return next
+    })
+    devicesQueue = run.catch(() => {})
+    return run
   }
 
   /** Devices without their key hashes (what the page sees). */

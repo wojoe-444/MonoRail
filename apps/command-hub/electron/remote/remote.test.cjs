@@ -349,3 +349,11 @@ test('every REMOTE_DENY entry names a real backend method', () => {
   }
   assert.deepEqual(missing, [])
 })
+
+test('a "last seen" touch racing a revoke never brings the device back', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-race-'))
+  const store = createRemoteStore(dir)
+  const { device } = await store.addDevice({ name: 'Phone' })
+  await Promise.all([store.touchDevice(device.id), store.revokeDevice(device.id)])
+  assert.equal((await store.listDevices()).devices.length, 0)
+})
