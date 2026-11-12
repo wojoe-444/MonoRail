@@ -10,6 +10,8 @@ export interface DockerEngine {
   /** "Docker Desktop 4.37.1" when the engine says so. */
   platform?: string
   context?: string
+  /** The WSL distro Docker runs in, when there is no Windows docker.exe. */
+  wsl?: string
   os?: string
   cpus?: number
   memory?: number

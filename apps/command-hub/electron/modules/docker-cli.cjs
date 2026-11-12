@@ -115,7 +115,9 @@ function knownLocations(name, env = process.env) {
           env.ChocolateyInstall ? path.win32.join(env.ChocolateyInstall, 'bin') : env.ProgramData && path.win32.join(env.ProgramData, 'chocolatey', 'bin'),
           home && path.win32.join(home, 'go', 'bin'),
         ].filter(Boolean)
-  return dirs.map((d) => path.win32.join(d, `${name}.exe`))
+  // ProgramFiles and ProgramW6432 are the same folder on 64-bit Windows.
+  const seen = new Set()
+  return dirs.map((d) => path.win32.join(d, `${name}.exe`)).filter((f) => !seen.has(f.toLowerCase()) && seen.add(f.toLowerCase()))
 }
 
 // Docker Desktop can be installed on another drive. Its installer records the
@@ -172,6 +174,59 @@ function findDocker(deps = {}) {
 
 function findLazydocker(deps = {}) {
   return findProgram('lazydocker', undefined, deps)
+}
+
+// Docker Engine installed inside a WSL distro (no Windows docker.exe at all).
+// Found only when no Windows docker.exe is: wsl.exe (System32) runs the
+// distro's own `docker` with fixed arguments, `-e` so no shell is involved.
+// This starts WSL if it is not running, which is why it only happens from the
+// Docker connection's check and the Docker page, both opt-in.
+const WSL_DISTRO = /^[\w.-]{1,64}$/
+
+async function wslExe(deps = {}) {
+  if ((deps.platform ?? process.platform) !== 'win32') return undefined
+  const env = deps.env ?? process.env
+  const file = path.win32.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'wsl.exe')
+  try {
+    return (await (deps.stat ?? fs.stat)(file)).isFile() ? file : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** { wsl, distro } when the default WSL distro has a working `docker`, else undefined. */
+async function findDockerInWsl(deps = {}) {
+  const trace = deps.trace
+  const wsl = await wslExe(deps)
+  if (!wsl) {
+    if (trace && (deps.platform ?? process.platform) === 'win32') trace.wsl = 'WSL is not installed'
+    return undefined
+  }
+  const run = deps.runFile ?? runFile
+  const name = await run(wsl, ['-e', 'printenv', 'WSL_DISTRO_NAME'], { timeoutMs: 30_000 })
+  const distro = name.code === 0 ? String(name.stdout).trim() : ''
+  if (!WSL_DISTRO.test(distro)) {
+    if (trace) trace.wsl = 'No WSL distro answered'
+    return undefined
+  }
+  const has = await run(wsl, ['-d', distro, '-e', 'docker', '--version'], { timeoutMs: 30_000 })
+  if (has.code !== 0) {
+    if (trace) trace.wsl = `No docker in ${distro}`
+    return undefined
+  }
+  if (trace) trace.wsl = `Found in ${distro}`
+  return { wsl, distro }
+}
+
+/** Where docker runs: a Windows docker.exe path, or { wsl, distro } for Docker inside WSL. */
+async function findDockerTarget(deps = {}) {
+  return (await findDocker(deps)) ?? (await findDockerInWsl(deps))
+}
+
+/** lazydocker inside the WSL distro (a login shell, so ~/.local/bin and the like count). Fixed command. */
+async function wslLazydockerVersion(target, deps = {}) {
+  const res = await (deps.runFile ?? runFile)(target.wsl, ['-d', target.distro, '-e', 'bash', '-lc', 'lazydocker --version'], { timeoutMs: 30_000 })
+  return res.code === 0 ? { found: true, version: parseLazydockerVersion(res.stdout) } : { found: false }
 }
 
 /** The environment for docker and lazydocker: the fresh PATH, with docker's own folder first (its credential helpers live there). */
@@ -435,13 +490,19 @@ function assertId(id) {
 // ---------------------------------------------------------------- reads
 
 /** A docker client bound to one docker program. deps.runFile is for tests. */
-function createDocker(file, deps = {}) {
+function createDocker(target, deps = {}) {
   let envP
+  const inWsl = typeof target === 'object' && target !== null
+  if (inWsl && !WSL_DISTRO.test(target.distro)) throw new Error('Bad WSL distro name.')
   const run = async (args, opts) => {
-    envP ??= programEnv(file, deps)
-    return (deps.runFile ?? runFile)(file, args, { ...opts, env: await envP })
+    if (inWsl) return (deps.runFile ?? runFile)(target.wsl, ['-d', target.distro, '-e', 'docker', ...args], opts)
+    envP ??= programEnv(target, deps)
+    return (deps.runFile ?? runFile)(target, args, { ...opts, env: await envP })
   }
   return {
+    /** The WSL distro Docker runs in, or undefined for a Windows docker.exe. */
+    wsl: inWsl ? target.distro : undefined,
+    target,
     version: async () => parseVersion(await run(['version', '--format', '{{json .}}'], { timeoutMs: 15_000 })),
     info: async () => parseJson((await run(['info', '--format', '{{json .}}'], { timeoutMs: 20_000 })).stdout),
     containers: async () => parseContainers((await run(['ps', '--all', '--no-trunc', '--format', '{{json .}}'])).stdout),
@@ -475,6 +536,9 @@ module.exports = {
   LOG_TAIL,
   findOnPath,
   findDocker,
+  findDockerInWsl,
+  findDockerTarget,
+  wslLazydockerVersion,
   findLazydocker,
   freshPath,
   programEnv,
