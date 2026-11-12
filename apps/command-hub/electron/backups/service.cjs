@@ -8,13 +8,29 @@
 // own backup files are kept and older ones deleted. Nothing else in the folder
 // is ever touched. Run state lives in modules/backups/state.json.
 //
+// Before an update installs, runBeforeUpdate() backs up every item (whatever
+// its own switch says) into <global folder>/before-update/, keeping the newest
+// few of each. It only runs when the global folder and "Back up before
+// updating" are both on; otherwise it reports why it skipped and the update
+// goes ahead.
+//
 // No Electron here (tests run it under Node).
 
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
 const { writeAtomic } = require('../cache/files.cjs')
-const { GLOBAL_ITEMS, PAGES, STATE_FILE, globalDir, readGlobal, writeGlobal, pageRoot } = require('./global.cjs')
+const {
+  GLOBAL_ITEMS,
+  PAGES,
+  STATE_FILE,
+  BEFORE_UPDATE_KEEP,
+  globalDir,
+  readGlobal,
+  writeGlobal,
+  pageRoot,
+  beforeUpdateRoot,
+} = require('./global.cjs')
 const { nextDue, stamp, listBackups, prune, errorLine } = require('./schedule.cjs')
 
 const CHECK_EVERY_MS = 60_000
@@ -105,6 +121,28 @@ function createGlobalBackups(userData, log = () => {}) {
   /** The frequency to schedule `id` on, or null when it is off. */
   const frequencyFor = (g, id) => (g.enabled && g.items[id] ? g : null)
 
+  /**
+   * Write one backup of `item` into `root`: <prefix><stamp><tag><suffix>, as a
+   * .partial renamed when complete, then keep the newest `keep`. Returns null
+   * when there is nothing to back up yet.
+   */
+  async function writeOne(item, root, keep, tag = '') {
+    const src = await item.source(userData)
+    if (!src) return null
+    await fs.mkdir(root, { recursive: true })
+    const target = path.join(root, `${item.prefix}${stamp(new Date())}${tag}${item.suffix}`)
+    const partial = target + '.partial'
+    try {
+      await item.write(src, partial)
+      await fs.rename(partial, target)
+    } finally {
+      await fs.rm(partial, { force: true })
+    }
+    const st = await fs.stat(target)
+    await prune(root, item.prefix, item.suffix, keep)
+    return { file: target, size: st.size }
+  }
+
   /** Back up one page now into <folder>/<id>/. */
   async function run(id) {
     const item = ITEMS[id]
@@ -114,26 +152,15 @@ function createGlobalBackups(userData, log = () => {}) {
     const root = pageRoot(g, id)
     if (!root) throw new Error('Turn on the global backup folder first')
     running.add(id)
-    const at = new Date()
     try {
-      const src = await item.source(userData)
-      if (!src) {
+      const written = await writeOne(item, root, g.keep)
+      if (!written) {
         const result = { ok: true, skipped: true, at: new Date().toISOString() }
         await record(id, { lastAttemptAt: result.at, lastSuccessAt: result.at, lastResult: result })
         return result
       }
-      await fs.mkdir(root, { recursive: true })
-      const target = path.join(root, `${item.prefix}${stamp(at)}${item.suffix}`)
-      const partial = target + '.partial'
-      try {
-        await item.write(src, partial)
-        await fs.rename(partial, target)
-      } finally {
-        await fs.rm(partial, { force: true })
-      }
-      const st = await fs.stat(target)
-      await prune(root, item.prefix, item.suffix, g.keep)
-      const result = { ok: true, at: new Date().toISOString(), file: target, size: st.size }
+      const target = written.file
+      const result = { ok: true, at: new Date().toISOString(), file: target, size: written.size }
       await record(id, { lastAttemptAt: result.at, lastSuccessAt: result.at, lastResult: result })
       log('backup ok', id, target)
       return result
@@ -168,9 +195,45 @@ function createGlobalBackups(userData, log = () => {}) {
     }
   }
 
+  /**
+   * Back up every item into <folder>/before-update/ before an update installs.
+   * `version` is the version about to be installed (only used in file names).
+   * Resolves { ok, skipped?, at, folder?, items: [{ id, title, ok, file?, size?, skipped?, error? }] }:
+   * skipped 'no-folder' / 'off' means nothing ran and the update may go ahead.
+   * Never throws for a failed item; ok is false when any item failed.
+   */
+  async function runBeforeUpdate(version) {
+    const g = await readGlobal(userData)
+    const at = new Date().toISOString()
+    if (!g.enabled || !g.folder) return { ok: true, skipped: 'no-folder', at, items: [] }
+    const root = beforeUpdateRoot(g)
+    if (!root) return { ok: true, skipped: 'off', at, items: [] }
+    const tag = typeof version === 'string' && /^[0-9A-Za-z.-]{1,40}$/.test(version) ? `-before-${version}` : ''
+    const items = []
+    for (const id of GLOBAL_ITEMS) {
+      const title = PAGES.find((p) => p.id === id)?.title ?? id
+      try {
+        const written = await writeOne(ITEMS[id], root, BEFORE_UPDATE_KEEP, tag)
+        items.push(written ? { id, title, ok: true, ...written } : { id, title, ok: true, skipped: true })
+      } catch (err) {
+        items.push({ id, title, ok: false, error: errorLine(err) })
+      }
+    }
+    const result = { ok: items.every((i) => i.ok), at, folder: root, items }
+    try {
+      const s = await readState()
+      s.beforeUpdate = result
+      await writeAtomic(stateFile(), JSON.stringify(s, null, 2))
+    } catch {
+      /* the result is still returned */
+    }
+    log(result.ok ? 'before-update backup ok' : 'before-update backup failed', root)
+    return result
+  }
+
   async function status() {
     const g = await readGlobal(userData)
-    const { items } = await readState()
+    const { items, beforeUpdate } = await readState()
     const pages = []
     for (const p of PAGES) {
       const root = pageRoot(g, p.id)
@@ -188,7 +251,7 @@ function createGlobalBackups(userData, log = () => {}) {
       }
       pages.push(entry)
     }
-    return { settings: g, pages }
+    return { settings: g, pages, lastBeforeUpdate: beforeUpdate ?? null }
   }
 
   return {
@@ -207,6 +270,7 @@ function createGlobalBackups(userData, log = () => {}) {
       return status()
     },
     run,
+    runBeforeUpdate,
     tick,
     start() {
       if (timer) return

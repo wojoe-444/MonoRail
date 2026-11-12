@@ -114,3 +114,84 @@ describe('global backup schedule', () => {
     for (const p of st.pages.filter((x) => x.id !== 'github-plus')) assert.equal(p.nextDueAt, null)
   })
 })
+
+describe('back up before updating', () => {
+  function seed(userData) {
+    const decks = join(userData, 'modules', 'flashcards')
+    mkdirSync(decks, { recursive: true })
+    writeFileSync(join(decks, 'decks.json'), JSON.stringify({ format: 1, decks: [{ id: 'd1', name: 'Sample deck' }], cards: [], days: {} }))
+    const repo = join(userData, 'apps', 'jira-plus', 'local-repo')
+    mkdirSync(repo, { recursive: true })
+    const g = ['-c', 'user.name=Sample', '-c', 'user.email=sample@example.invalid', '-c', 'commit.gpgsign=false']
+    execFileSync('git', ['init', '-q'], { cwd: repo })
+    writeFileSync(join(repo, 'ISSUE-1.json'), '{"title":"Sample task"}')
+    execFileSync('git', [...g, 'add', '.'], { cwd: repo })
+    execFileSync('git', [...g, 'commit', '-qm', 'first'], { cwd: repo })
+    return { decks, repo }
+  }
+
+  it('is on by default and stays saved when turned off', async () => {
+    const userData = tmp('bk-user-')
+    assert.equal((await globalLib.readGlobal(userData)).beforeUpdate, true)
+    const root = tmp('bk-root-')
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2 })
+    assert.equal((await globalLib.readGlobal(userData)).beforeUpdate, true)
+    assert.equal(globalLib.beforeUpdateRoot(await globalLib.readGlobal(userData)), join(root, 'before-update'))
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, beforeUpdate: false })
+    const g = await globalLib.readGlobal(userData)
+    assert.equal(g.beforeUpdate, false)
+    assert.equal(globalLib.beforeUpdateRoot(g), null)
+  })
+
+  it('skips without a folder (never blocks the update) and when turned off', async () => {
+    const userData = tmp('bk-user-')
+    seed(userData)
+    const svc = createGlobalBackups(userData)
+    const r = await svc.runBeforeUpdate('9.9.9')
+    assert.equal(r.ok, true)
+    assert.equal(r.skipped, 'no-folder')
+    const root = tmp('bk-root-')
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, beforeUpdate: false })
+    assert.equal((await svc.runBeforeUpdate('9.9.9')).skipped, 'off')
+    assert.deepEqual(readdirSync(root), [])
+  })
+
+  it('backs up every item into before-update, even ones switched off, and keeps the newest few', async () => {
+    const userData = tmp('bk-user-')
+    const { decks } = seed(userData)
+    const root = tmp('bk-root-')
+    const svc = createGlobalBackups(userData)
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false } })
+    const r = await svc.runBeforeUpdate('1.4.120')
+    assert.equal(r.ok, true)
+    assert.equal(r.folder, join(root, 'before-update'))
+    assert.deepEqual(readdirSync(root), ['before-update'])
+    const files = readdirSync(join(root, 'before-update')).sort()
+    assert.equal(files.length, 2)
+    assert.match(files[0], /^flashcards-\d{4}-\d\d-\d\d_\d{6}-before-1\.4\.120\.json$/)
+    assert.match(files[1], /^jira-plus-projects-.*-before-1\.4\.120\.bundle$/)
+    assert.equal(r.items.find((i) => i.id === 'notes').skipped, true)
+    const restored = join(tmp('bk-restore-'), 'r')
+    execFileSync('git', ['clone', '-q', join(root, 'before-update', files[1]), restored])
+    assert.ok(readFileSync(join(restored, 'ISSUE-1.json'), 'utf8').includes('Sample task'))
+    // A version that is not a plain version string is left out of the name.
+    assert.ok((await svc.runBeforeUpdate('../evil')).items.every((i) => !i.file || !i.file.includes('evil')))
+
+    // Keeps the newest BEFORE_UPDATE_KEEP of each item.
+    for (let i = 0; i < globalLib.BEFORE_UPDATE_KEEP + 1; i++) {
+      await new Promise((res) => setTimeout(res, 1100))
+      await svc.runBeforeUpdate('1.4.121')
+    }
+    const after = readdirSync(join(root, 'before-update'))
+    assert.equal(after.filter((n) => n.startsWith('flashcards-')).length, globalLib.BEFORE_UPDATE_KEEP)
+    assert.equal(after.filter((n) => n.startsWith('jira-plus-projects-')).length, globalLib.BEFORE_UPDATE_KEEP)
+
+    // A failure is reported per item and makes the whole result not ok.
+    writeFileSync(join(decks, 'decks.json'), '{broken')
+    const bad = await svc.runBeforeUpdate('1.4.122')
+    assert.equal(bad.ok, false)
+    assert.match(bad.items.find((i) => i.id === 'flashcards').error, /damaged/)
+    assert.equal(bad.items.find((i) => i.id === 'jira-plus').ok, true)
+    assert.equal((await svc.status()).lastBeforeUpdate.ok, false)
+  })
+})

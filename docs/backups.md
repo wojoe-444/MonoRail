@@ -57,6 +57,31 @@ pruned ("keep the newest N") only in the folder MonoRail is writing to, and
 only its own files there (matched by name); anything else in the folder is
 left alone.
 
+## Back up before updating
+
+On by default (Settings > Backups, "Back up before updating"; `beforeUpdate` in
+`settings.json`). While the global folder is on, an update backs up first:
+after the download and before the installer runs, the settings backend
+(`electron/modules/settings.cjs`, state `backing-up`) calls
+`runBeforeUpdate(version)` in `electron/backups/service.cjs`. It backs up
+**every** global item (Jira+ private projects, Notes, Flashcards), whatever
+their own switches say, into `<folder>\before-update\` as
+`<prefix><stamp>-before-<version><suffix>`, and keeps the newest 5 of each
+(`BEFORE_UPDATE_KEEP`). GitHub+ repositories are not included: an update never
+touches them, and [their local issues](guide/workspace/local-issues.md)
+live inside each repository.
+
+- **No folder set**: nothing is backed up and the update is never held up; the
+  update pop-up and Settings > General show a one-line hint with a link to
+  Settings > Backups.
+- **Turned off**: the update installs straight away.
+- **A backup fails**: nothing is installed (state `backup-failed`). The pop-up
+  and Settings > General list what failed and offer **Try again**
+  (`installAndRestart`) or **Update without a backup** (`installWithoutBackup`).
+
+The last result is kept in `state.json` (`beforeUpdate`) and shown as a badge
+on the row.
+
 ## How it runs
 
 Backups run inside MonoRail: it checks once a minute and once at startup, so a

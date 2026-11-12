@@ -49,6 +49,16 @@ version you have. **Settings > General** shows the whole list, every change in e
 update you skipped, grouped by version. The notes come from the changes that
 went into each update, written for people using the app.
 
+**Your data is backed up first.** When you have a backup folder set (see
+[Backups](#backups) above), MonoRail backs up your Jira+ private projects,
+Notes and Flashcards into a `before-update` subfolder right before an update
+installs, and keeps the last five of each. This is on by default; you can turn
+it off with **Back up before updating** in **Settings > Backups**. If that
+backup fails, nothing is installed: the pop-up says what went wrong and lets
+you **Try again** or **Update without a backup**. Without a backup folder the
+update simply goes ahead, and the pop-up suggests setting one up. Details:
+[Back up before updating](../../backups.md#back-up-before-updating).
+
 You can also check at any time with **Settings > General > Check for updates**. Your
 data and settings stay as they are across updates, in the same [data
 folder](../private-data.md#where-your-data-lives). If the installer

@@ -10,6 +10,12 @@
 // moves, copies or deletes backups already made in an earlier folder (it only
 // prunes old backups of its own in the folder it is writing to).
 //
+// "Back up before updating" (`beforeUpdate`, on by default): when the global
+// folder is on, the settings backend backs up every item into
+// <folder>/before-update/ before an update installs (service.cjs
+// runBeforeUpdate). With no folder set it does nothing and never blocks the
+// update.
+//
 // Stored in %APPDATA%\MonoRail\modules\backups\settings.json (the user's own
 // paths stay in AppData, never in the repo). No Electron here: GitHub+'s
 // scheduler and tests read it straight from disk.
@@ -41,7 +47,13 @@ const DEFAULTS = Object.freeze({
   unit: 'day',
   keep: 14,
   items: Object.freeze({ 'jira-plus': true, flashcards: true, notes: true }),
+  beforeUpdate: true,
 })
+
+/** Subfolder of the global folder for the backups made just before an update. */
+const BEFORE_UPDATE_DIR = 'before-update'
+/** How many before-update backups of each item are kept. */
+const BEFORE_UPDATE_KEEP = 5
 
 const globalDir = (userData) => path.join(userData, ...FOLDER)
 
@@ -63,7 +75,8 @@ async function readGlobal(userData) {
   const folder = typeof raw.folder === 'string' && path.isAbsolute(raw.folder) ? raw.folder : ''
   const items = { ...DEFAULTS.items }
   for (const id of GLOBAL_ITEMS) if (typeof raw.items?.[id] === 'boolean') items[id] = raw.items[id]
-  return { enabled: !!raw.enabled && !!folder, folder, ...freq, items }
+  const beforeUpdate = typeof raw.beforeUpdate === 'boolean' ? raw.beforeUpdate : DEFAULTS.beforeUpdate
+  return { enabled: !!raw.enabled && !!folder, folder, ...freq, items, beforeUpdate }
 }
 
 /** Validate and save the global settings. Returns what was saved. */
@@ -78,7 +91,8 @@ async function writeGlobal(userData, input) {
   if (input.enabled && !folder) throw new Error('Pick a backup folder first')
   const items = {}
   for (const id of GLOBAL_ITEMS) items[id] = input.items?.[id] === undefined ? DEFAULTS.items[id] : !!input.items[id]
-  const saved = { enabled: !!input.enabled, folder, ...freq, items }
+  const beforeUpdate = input.beforeUpdate === undefined ? DEFAULTS.beforeUpdate : !!input.beforeUpdate
+  const saved = { enabled: !!input.enabled, folder, ...freq, items, beforeUpdate }
   await writeAtomic(path.join(globalDir(userData), SETTINGS_FILE), JSON.stringify(saved, null, 2))
   return saved
 }
@@ -89,7 +103,12 @@ function pageRoot(global, pageId) {
   return global?.enabled && global.folder ? path.join(global.folder, pageId) : null
 }
 
+/** <folder>/before-update when the global folder is on and backing up before updates is too, else null. */
+function beforeUpdateRoot(global) {
+  return global?.enabled && global.folder && global.beforeUpdate ? path.join(global.folder, BEFORE_UPDATE_DIR) : null
+}
+
 /** The short summary pages show next to "Use the global backup folder". */
 const summary = (g) => ({ enabled: g.enabled, folder: g.folder, times: g.times, unit: g.unit, keep: g.keep })
 
-module.exports = { PAGES, GLOBAL_ITEMS, DEFAULTS, SETTINGS_FILE, STATE_FILE, globalDir, readGlobal, writeGlobal, pageRoot, summary }
+module.exports = { PAGES, GLOBAL_ITEMS, DEFAULTS, BEFORE_UPDATE_DIR, BEFORE_UPDATE_KEEP, beforeUpdateRoot, SETTINGS_FILE, STATE_FILE, globalDir, readGlobal, writeGlobal, pageRoot, summary }
