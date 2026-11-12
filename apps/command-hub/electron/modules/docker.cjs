@@ -24,9 +24,9 @@ async function setUp() {
 /** The docker client, or why the page cannot show Docker. */
 async function dockerOrBlock(deps = {}) {
   if (!(await (deps.hasConnection ?? setUp)())) return { block: 'not-set-up' }
-  const file = await cli.findDocker(deps)
-  if (!file) return { block: 'not-installed' }
-  return { docker: cli.createDocker(file, deps) }
+  const target = await cli.findDockerTarget(deps)
+  if (!target) return { block: 'not-installed' }
+  return { docker: cli.createDocker(target, deps) }
 }
 
 async function requireDocker(deps) {
@@ -51,14 +51,18 @@ async function getOverview(deps = {}) {
   const { docker, block } = await dockerOrBlock(deps)
   if (block) return { ...empty, block }
   const version = await docker.version()
-  if (!version.running) return { ...empty, block: 'not-running', blockDetail: version.error, engine: { client: version.client } }
+  if (!version.running) return { ...empty, block: 'not-running', blockDetail: version.error, engine: { client: version.client, wsl: docker.wsl } }
 
   const [info, containers, verbose, disk, lazyBin] = await Promise.all([
     docker.info().catch(() => undefined),
     docker.containers(),
     docker.diskVerbose().catch(() => ({ images: [], volumes: [] })),
     docker.disk().catch(() => undefined),
-    (async () => ((await lazydockerWanted(deps)) ? cli.findLazydocker(deps) : undefined))(),
+    (async () => {
+      if (!(await lazydockerWanted(deps))) return undefined
+      if (docker.wsl) return (await cli.wslLazydockerVersion(docker.target, deps)).found || undefined
+      return cli.findLazydocker(deps)
+    })(),
   ])
   const networks = await docker.networks(containers).catch(() => [])
   return {
@@ -67,6 +71,7 @@ async function getOverview(deps = {}) {
       server: version.server,
       platform: version.platform,
       context: version.context,
+      wsl: docker.wsl,
       os: info?.OperatingSystem,
       cpus: Number(info?.NCPU) || undefined,
       memory: Number(info?.MemTotal) || undefined,

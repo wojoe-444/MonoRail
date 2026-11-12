@@ -178,6 +178,7 @@ function EngineStrip({ overview }: { overview: DockerOverview }) {
   const e = overview.engine
   const parts = [
     e?.platform,
+    e?.wsl && `in WSL (${e.wsl})`,
     e?.server && `Engine ${e.server}`,
     e?.context && `context ${e.context}`,
     e?.cpus && `${e.cpus} CPUs`,

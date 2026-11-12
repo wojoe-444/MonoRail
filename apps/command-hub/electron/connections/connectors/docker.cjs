@@ -43,8 +43,9 @@ async function dockerDesktopExe(deps = {}) {
   return undefined
 }
 
-async function lazydockerFacts(deps) {
+async function lazydockerFacts(deps, target) {
   const bin = await cli.findLazydocker(deps)
+  if (!bin && target && typeof target === 'object') return { ...(await cli.wslLazydockerVersion(target, deps)), wsl: target.distro }
   if (!bin) return { found: false }
   // A shim (.cmd/.ps1) cannot run without a shell; it is still found.
   if (!/\.(exe)$/i.test(bin) && process.platform === 'win32') return { found: true }
@@ -55,6 +56,7 @@ async function lazydockerFacts(deps) {
 /** Where the check looked, so a "not found" can be acted on. */
 function searchDetails(trace = {}) {
   const details = [{ label: 'docker', value: 'Not found on PATH' }]
+  if (trace.wsl) details.push({ label: 'WSL', value: trace.wsl })
   if (trace.registryPath !== undefined) details.push({ label: 'Windows PATH', value: trace.registryPath ? 'Read from Windows settings, no docker there' : 'Could not be read' })
   details.push({ label: 'Docker Desktop', value: trace.desktopDir ? `Installed in ${trace.desktopDir}, but docker.exe is missing there` : 'No install recorded by Windows' })
   for (const file of trace.looked ?? []) details.push({ label: 'Looked for', value: file })
@@ -62,9 +64,9 @@ function searchDetails(trace = {}) {
 }
 
 /** Fold the checks into one status. Exported for tests. */
-function summarize({ docker, version, containers, lazydocker, desktopInstalled, trace }) {
+function summarize({ docker, version, containers, lazydocker, desktopInstalled, trace, wsl }) {
   const lazyDetail = lazydocker
-    ? { label: 'lazydocker', value: lazydocker.found ? lazydocker.version ?? 'Found' : 'Not found on PATH (optional)', ok: lazydocker.found || undefined }
+    ? { label: 'lazydocker', value: lazydocker.found ? `${lazydocker.version ?? 'Found'}${lazydocker.wsl ? ` (in ${lazydocker.wsl})` : ''}` : 'Not found on PATH (optional)', ok: lazydocker.found || undefined }
     : { label: 'lazydocker', value: 'Not looked for (turned off)' }
   if (!docker) {
     return {
@@ -75,6 +77,7 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled, 
     }
   }
   const details = [{ label: 'docker CLI', value: version.client ?? 'Did not answer' }]
+  if (wsl) details.push({ label: 'Runs in', value: `WSL (${wsl})` })
   if (!version.running) {
     details.push({ label: 'Engine', value: 'Not running', ok: false })
     if (version.error) details.push({ label: 'Error', value: version.error })
@@ -82,7 +85,11 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled, 
     return {
       state: 'error',
       summary: 'Docker is installed, but its engine is not running.',
-      hint: desktopInstalled ? 'Start Docker Desktop, wait until it says "Engine running", then check again.' : 'Start the Docker engine, then check again.',
+      hint: wsl
+        ? `Start Docker inside ${wsl} (for example: sudo service docker start), then check again.`
+        : desktopInstalled
+          ? 'Start Docker Desktop, wait until it says "Engine running", then check again.'
+          : 'Start the Docker engine, then check again.',
       details,
       actions: desktopInstalled ? ['start-desktop'] : [],
     }
@@ -98,7 +105,7 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled, 
   const lazy = lazydocker?.found ? ` lazydocker ${lazydocker.version ?? ''} found.`.replace('  ', ' ') : ''
   return {
     state: 'ok',
-    summary: `${version.platform ?? 'Docker'} is running (Engine ${version.server}).${lazy}`,
+    summary: `${version.platform ?? 'Docker'} is running${wsl ? ` in WSL (${wsl})` : ''} (Engine ${version.server}).${lazy}`,
     details,
     actions: lazydocker?.found ? ['open-lazydocker'] : [],
   }
@@ -106,14 +113,14 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled, 
 
 async function status(conn, deps = {}) {
   const trace = {}
-  const docker = await cli.findDocker({ ...deps, trace })
-  const lazydocker = wantsLazydocker(conn) ? await lazydockerFacts(deps) : undefined
+  const docker = await cli.findDockerTarget({ ...deps, trace })
+  const lazydocker = wantsLazydocker(conn) ? await lazydockerFacts(deps, docker) : undefined
   if (!docker) return summarize({ lazydocker, trace })
   const d = cli.createDocker(docker, deps)
   const version = await d.version()
   const containers = version.running ? await d.containers() : undefined
-  const desktopInstalled = !version.running && !!(await (deps.dockerDesktopExe ?? dockerDesktopExe)(deps))
-  return summarize({ docker, version, containers, lazydocker, desktopInstalled })
+  const desktopInstalled = !d.wsl && !version.running && !!(await (deps.dockerDesktopExe ?? dockerDesktopExe)(deps))
+  return summarize({ docker, version, containers, lazydocker, desktopInstalled, wsl: d.wsl })
 }
 
 async function startDesktop(_conn, job, deps = {}) {
@@ -129,6 +136,14 @@ async function startDesktop(_conn, job, deps = {}) {
 async function openLazydocker(conn, deps = {}) {
   if (!wantsLazydocker(conn)) throw new Error('Looking for lazydocker is turned off for the Docker connection.')
   const bin = await cli.findLazydocker(deps)
+  if (!bin) {
+    // Docker inside WSL: run the distro's own lazydocker there (login shell, fixed command).
+    const target = await cli.findDockerInWsl(deps)
+    if (target && (await cli.wslLazydockerVersion(target, deps)).found) {
+      ;(deps.openTerminal ?? openTerminal)('lazydocker', 'wsl', ['-d', target.distro, '-e', 'bash', '-lc', 'lazydocker'])
+      return
+    }
+  }
   if (!bin) throw new Error(`lazydocker was not found on PATH. It is optional; see ${LAZYDOCKER_URL} if you want it.`)
   // The terminal gets the current PATH plus lazydocker's own folder (found in
   // an install folder that is not on PATH) and docker's, so both start there.

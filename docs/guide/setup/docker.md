@@ -31,6 +31,9 @@ rule.
 MonoRail finds Docker even if you installed it while MonoRail was already
 open: it reads the current PATH from Windows and looks in Docker Desktop's
 install folder (also on another drive), so you do not need to restart.
+Docker Engine installed inside WSL (for example in Ubuntu, with no Docker
+Desktop) works too: MonoRail runs it through WSL and shows "in WSL" with the
+distro's name. Checking may start WSL if it was not running.
 If it still says Docker was not found, open the Docker row on Connections:
 it lists every place it looked. The alert in Settings only changes after the
 next check, so press **Check** after updating MonoRail.

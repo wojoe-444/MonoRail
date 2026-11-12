@@ -162,6 +162,42 @@ describe('finding Docker installed after MonoRail started (Windows)', () => {
     assert.match(text, /Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker\.exe/)
   })
 
+  test('ProgramFiles and ProgramW6432 are listed once', () => {
+    const list = cli.knownLocations('docker', { ...env, ProgramW6432: 'C:\\Program Files' })
+    assert.equal(list.filter((f) => f.startsWith('C:\\Program Files\\')).length, 1)
+  })
+
+  test('Docker Engine inside WSL: found, run through wsl.exe with fixed arguments', async () => {
+    const wsl = 'C:\\Windows\\System32\\wsl.exe'
+    const calls = []
+    const run = async (file, args) => {
+      calls.push([file, ...args])
+      if (file !== wsl) return { code: 1, stdout: '', stderr: '' }
+      if (args.join(' ') === '-e printenv WSL_DISTRO_NAME') return { code: 0, stdout: 'Ubuntu-24.04\n', stderr: '' }
+      if (args.includes('--version')) return { code: 0, stdout: 'Docker version 29.9.3', stderr: '' }
+      return { code: 0, stdout: JSON.stringify({ Client: { Version: '29.9.3' }, Server: { Version: '29.9.3', Platform: { Name: 'Docker Engine - Community' } } }), stderr: '' }
+    }
+    const trace = {}
+    const deps = { platform: win, env, runFile: run, trace, findOnPath: async () => undefined, stat: async (f) => (f === wsl ? { isFile: () => true } : Promise.reject(new Error('none'))) }
+    const target = await cli.findDockerTarget(deps)
+    assert.deepEqual(target, { wsl, distro: 'Ubuntu-24.04' })
+    assert.equal(trace.wsl, 'Found in Ubuntu-24.04')
+    const d = cli.createDocker(target, deps)
+    assert.equal(d.wsl, 'Ubuntu-24.04')
+    const v = await d.version()
+    assert.equal(v.running, true)
+    assert.deepEqual(calls.at(-1), [wsl, '-d', 'Ubuntu-24.04', '-e', 'docker', 'version', '--format', '{{json .}}'])
+    assert.throws(() => cli.createDocker({ wsl, distro: 'x; rm' }, deps))
+  })
+
+  test('the connector says Docker runs in WSL', () => {
+    const s = connector._internal.summarize({ docker: {}, wsl: 'Ubuntu-24.04', version: { client: '29.9.3', server: '29.9.3', platform: 'Docker Engine - Community', running: true } })
+    assert.match(s.summary, /in WSL \(Ubuntu-24\.04\)/)
+    const down = connector._internal.summarize({ docker: {}, wsl: 'Ubuntu-24.04', version: { client: '29.9.3', running: false } })
+    assert.match(down.hint, /inside Ubuntu-24\.04/)
+    assert.deepEqual(down.actions, [])
+  })
+
   test('known lazydocker folders include winget and scoop', () => {
     const list = cli.knownLocations('lazydocker', env)
     assert.ok(list.some((f) => f.includes('WinGet')))
