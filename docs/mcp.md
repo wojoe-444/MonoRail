@@ -63,6 +63,7 @@ Every tool returns JSON text. Read tools are always available; write tools need 
 | `storage_scan` | Free space per drive and the size of known folders, largest first, with their largest subfolders, the change since the previous scan and advice (safe, review, keep) | Storage's last saved scan (`storage.history`); nothing is measured by the tool |
 | `list_flashcard_decks` | Your Flashcards decks: name, card count, what is due today, reviews done today | Flashcards' `decks.json` in the data folder |
 | `list_flashcards` | Cards of one deck (front, back, state, next due), optionally searched | Flashcards' `decks.json` |
+| `list_semantic_metrics` | Metrics, group-by dimensions and saved queries of your dbt project, and whether queries may run | The project's `target/semantic_manifest.json`, through the [MetricFlow connection](semantic.md); nothing runs |
 | `check_coordinator_reply` | The coordinator's reply to an `ask_coordinator` call that was still running | Only turns this same connection started |
 
 Results that come from a cache say when they were built. A repo is named by its folder name or by the full path `list_github_plus_repos` returns. Team Jira Cloud issues are not available through the server.
@@ -76,6 +77,7 @@ Results that come from a cache say when they were built. A repo is named by its 
 | `create_jira_plus_issue` | Raises an issue in a local Jira+ project (summary, description, type, priority) |
 | `comment_jira_plus_issue` | Comments on a local Jira+ issue |
 | `add_flashcards` | Adds up to 200 cards to a Flashcards deck, creating the deck if asked |
+| `query_semantic_metrics` | Runs a metrics query (or, with `explain`, returns its SQL) with your own MetricFlow. Changes nothing, but needs consent like a write tool, and the connection's "Run queries with MetricFlow" on. See [Semantic](semantic.md) |
 | `ask_coordinator` | Sends a message to your [coordinator](#the-coordinator) and waits for its reply |
 
 The issue tools change only local issues: GitHub+ issues are commits on `refs/local-issues` in the repo (never pushed), Jira+ issues are commits in its private local repo.

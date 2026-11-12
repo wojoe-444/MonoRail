@@ -46,6 +46,9 @@ rule.
   [commits](../glossary.md#commit) will carry the name you expect.
 - **Docker**: optional. Your own Docker and, if you have it, lazydocker, for
   the [Docker](docker.md) page. MonoRail never installs either.
+- **MetricFlow**: optional. Your dbt project folder, for the
+  [Semantic](semantic.md) page. Running queries is a second switch, off by
+  default. MonoRail never installs Python, dbt or MetricFlow.
 
 ## Where secrets go
 

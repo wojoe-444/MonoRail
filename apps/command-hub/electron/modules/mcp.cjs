@@ -79,7 +79,7 @@ module.exports = {
             title: t.title,
             description: t.description,
             readOnly: !!t.annotations?.readOnlyHint,
-            needsConsent: !!t.write,
+            needsConsent: !!(t.consent ?? t.write),
           })),
           ...extensionToolsSafe(ctx).map((e) => ({ name: e.name, title: e.title, description: e.tool.description, readOnly: !e.tool.write, needsConsent: true, extension: e.rec.manifest.name })),
         ],

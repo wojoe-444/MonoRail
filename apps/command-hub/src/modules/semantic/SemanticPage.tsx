@@ -19,7 +19,7 @@ import type { MetricType, SemanticBlock, SemanticMetric, SemanticModel, Semantic
 
 type Tab = 'query' | 'metrics' | 'models' | 'saved'
 
-export const TYPE_TONE: Record<MetricType, 'default' | 'secondary' | 'info' | 'success' | 'warning'> = {
+const TYPE_TONE: Record<MetricType, 'default' | 'secondary' | 'info' | 'success' | 'warning'> = {
   simple: 'secondary',
   ratio: 'info',
   cumulative: 'success',

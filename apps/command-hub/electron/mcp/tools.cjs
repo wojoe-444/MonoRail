@@ -14,6 +14,7 @@
 //   connection_status        Connections' last check per account (no secrets)
 //   list_flashcard_decks     Flashcards' decks with what is due (decks.json)
 //   list_flashcards          cards of one deck, optionally searched
+//   list_semantic_metrics    the dbt project's metrics and dimensions (Semantic page; files only)
 //
 // Write tools (writeTools below) are off for every agent until the user turns
 // them on per agent on the Agent access page (access.cjs), and every call is
@@ -23,6 +24,8 @@
 //   create_jira_plus_issue, comment_jira_plus_issue
 //   add_flashcards    adds cards to a Flashcards deck (creates the deck if asked)
 //   ask_coordinator   runs a turn of the user's Chat coordinator and returns its reply
+//   query_semantic_metrics  runs the user's own MetricFlow (mf) for a metrics query
+//                     (also needs "Run queries with MetricFlow" on in the connection)
 //
 // check_coordinator_reply only reads a turn this same connection started.
 //
@@ -57,7 +60,30 @@ function folders(rootDir) {
     jiraPlus: resolveJiraDataDir(folderOf(rootDir, 'apps/jira-plus')),
     flashcards: folderOf(rootDir, 'modules/flashcards'),
     storage: folderOf(rootDir, 'modules/storage'),
+    connections: folderOf(rootDir, 'modules/connections'),
   }
+}
+
+// ---------- Semantic (MetricFlow) ----------
+
+/** The MetricFlow connection's two plain settings, read from Connections' file (no secrets there). */
+async function metricflowSettings(connectionsDir) {
+  const data = await readJson(path.join(connectionsDir, 'connections.json')).catch(() => undefined)
+  const values = data?.connections?.metricflow?.values
+  if (!values) return undefined
+  return { project: typeof values.project === 'string' ? values.project.trim() : undefined, run: values.run === 'on' ? 'on' : 'off' }
+}
+
+const SEMANTIC_NOT_SET_UP = 'MetricFlow is not set up. Ask the user to add the MetricFlow connection on the Connections page in MonoRail.'
+
+async function semanticProject(connectionsDir) {
+  const settings = await metricflowSettings(connectionsDir)
+  if (!settings) throw new Error(SEMANTIC_NOT_SET_UP)
+  const mfLib = require('../modules/semantic-mf.cjs')
+  const loaded = await mfLib.loadProject(settings)
+  if (loaded.block === 'no-project') throw new Error('The dbt project folder in the MetricFlow connection was not found.')
+  if (loaded.block) throw new Error('The dbt project has no readable semantic manifest (target/semantic_manifest.json). Ask the user to run dbt parse.')
+  return { settings, loaded, mfLib }
 }
 
 // ---------- Storage ----------
@@ -463,6 +489,31 @@ function readTools({ rootDir }) {
         }
       },
     },
+    {
+      name: 'list_semantic_metrics',
+      title: 'Semantic layer metrics',
+      description:
+        "The metrics, group-by dimensions and saved queries of the user's dbt project, from its MetricFlow semantic manifest (the Semantic page in MonoRail). Read from files only; nothing runs. Each metric lists the dimensions it can be grouped by (entity__dimension names; time dimensions take a grain suffix such as metric_time__month). canRunQueries says whether query_semantic_metrics may run.",
+      inputSchema: {
+        type: 'object',
+        properties: { search: { type: 'string', maxLength: 100, description: 'Only metrics whose name, label or description contains this.' } },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ search }) {
+        const { loaded } = await semanticProject(dir.connections)
+        const q = typeof search === 'string' ? search.trim().toLowerCase() : ''
+        const metrics = loaded.metrics.filter((m) => !q || [m.name, m.label, m.description].some((t) => t?.toLowerCase().includes(q)))
+        return {
+          project: loaded.project?.name,
+          parsedAt: loaded.project?.manifestAt,
+          canRunQueries: loaded.metricflow.canRun && loaded.metricflow.found,
+          metrics: metrics.slice(0, 300).map((m) => ({ name: m.name, label: m.label, description: clip(m.description, 1000), type: m.type, definition: m.definition, filter: m.filter, dimensions: m.dimensions })),
+          dimensions: loaded.dimensions.map((d) => ({ name: d.name, type: d.type, grain: d.grain, description: clip(d.description, 500) })),
+          savedQueries: loaded.savedQueries,
+        }
+      },
+    },
   ]
 }
 
@@ -614,6 +665,45 @@ function writeTools({ rootDir }) {
           return { deck: d.name, deckId: d.id, added: added.length, createdDeck: created }
         })
         ctx.did(`Added ${r.added} ${r.added === 1 ? 'card' : 'cards'} to "${r.deck}"${r.createdDeck ? ' (new deck)' : ''}`)
+        return r
+      },
+    },
+    {
+      name: 'query_semantic_metrics',
+      title: 'Query semantic layer metrics',
+      description:
+        "Run a metrics query with the user's own MetricFlow (mf) against their warehouse, through their dbt project (the Semantic page in MonoRail). Call list_semantic_metrics first for names. groupBy takes dimension names, with a grain for time (metric_time__week); where takes MetricFlow filters such as {{ Dimension('customer__region') }} = 'North'. Returns at most `limit` rows (default 200). Also needs \"Run queries with MetricFlow\" on in the user's MetricFlow connection. Set explain to get the SQL without running it." +
+        NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          metrics: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', maxLength: 200 } },
+          groupBy: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 200 } },
+          where: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 2000 } },
+          start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'First day of metric_time, e.g. 2026-01-01.' },
+          end: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+          orderBy: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 200 }, description: 'Chosen metrics or group-bys; a leading - sorts descending.' },
+          limit: { type: 'integer', minimum: 1, maximum: 2000 },
+          explain: { type: 'boolean', description: 'Return the SQL MetricFlow would run instead of running it.' },
+        },
+        required: ['metrics'],
+        additionalProperties: false,
+      },
+      // Changes nothing, but runs a program and reads the user's warehouse, so it needs consent like a write.
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      consent: true,
+      async handler({ metrics, groupBy = [], where = [], start, end, orderBy = [], limit = 200, explain = false }, ctx) {
+        const { settings, loaded, mfLib } = await semanticProject(dir.connections)
+        if (settings.run !== 'on') throw new Error('Running MetricFlow is off. The user can turn on "Run queries with MetricFlow" in the MetricFlow connection in MonoRail.')
+        const req = { metrics, groupBy, where, start, end, orderBy, limit: Math.min(limit, 2000) }
+        const args = { projectDir: loaded._internal.project.dir, mf: loaded._internal.mf, manifest: loaded, req }
+        if (explain) {
+          const r = await mfLib.explainQuery(args)
+          ctx.did(`Asked MetricFlow for the SQL of ${metrics.join(', ')}`)
+          return r
+        }
+        const r = await mfLib.runQuery(args)
+        ctx.did(`Queried ${metrics.join(', ')}${groupBy.length ? ` by ${groupBy.join(', ')}` : ''} (${r.rows.length} rows)`)
         return r
       },
     },

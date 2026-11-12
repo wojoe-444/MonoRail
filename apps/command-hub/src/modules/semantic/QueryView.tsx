@@ -28,6 +28,12 @@ type Grain = TimeGrain | 'none'
 const OPS: FilterOp[] = ['=', '!=', 'in', '>', '>=', '<', '<=']
 const MAX_SERIES = 5
 
+/** The sample's two headline metrics, or the project's first metric. */
+function defaultMetrics(project: SemanticProject): string[] {
+  const sample = ['revenue', 'orders'].filter((m) => project.metrics.some((x) => x.name === m))
+  return sample.length ? sample : project.metrics.slice(0, 1).map((m) => m.name)
+}
+
 function splitDraft(d?: QueryDraft): { grain: Grain; dims: string[] } {
   const t = d?.groupBy.find((g) => g.startsWith('metric_time'))
   const grain = (t?.split('__')[1] as TimeGrain | undefined) ?? (t ? 'day' : d ? 'none' : 'week')
@@ -37,7 +43,7 @@ function splitDraft(d?: QueryDraft): { grain: Grain; dims: string[] } {
 export function QueryView({ project, initial }: { project: SemanticProject; initial?: QueryDraft }) {
   const desktop = isDesktop()
   const start = splitDraft(initial)
-  const [metrics, setMetrics] = useState<string[]>(initial?.metrics ?? ['revenue', 'orders'].filter((m) => project.metrics.some((x) => x.name === m)))
+  const [metrics, setMetrics] = useState<string[]>(() => initial?.metrics ?? defaultMetrics(project))
   const [grain, setGrain] = useState<Grain>(start.grain)
   const [dims, setDims] = useState<string[]>(initial ? start.dims : ['order__channel'].filter((d) => project.dimensions.some((x) => x.name === d)))
   const [filters, setFilters] = useState<FilterRow[]>([])

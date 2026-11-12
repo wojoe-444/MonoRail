@@ -73,6 +73,7 @@ const SCOPES = Object.freeze({
   'modules/settings': 'machine', // app version and updates; keeps no files
   'modules/storage': 'machine', // drive and folder sizes of this computer
   'modules/docker': 'machine', // this computer's Docker; keeps no files
+  'modules/semantic': 'profile', // dbt project and MetricFlow (settings in Connections); keeps no files
   'modules/remote': 'machine', // Remote access: this PC's server, paired devices, activity
   // App backends (electron/apps)
   'apps/email': 'profile', // accounts and encrypted tokens
