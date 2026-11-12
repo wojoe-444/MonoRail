@@ -36,9 +36,10 @@ const PAGES = Object.freeze([
   { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.' },
   { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.' },
   { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.' },
+  { id: 'flows', title: 'Flows', what: 'All flows with their versions (the local git repo), as one .bundle file.' },
 ])
 /** Pages the global schedule backs up itself (GitHub+ runs its own per-repo schedules). */
-const GLOBAL_ITEMS = Object.freeze(['jira-plus', 'flashcards', 'notes'])
+const GLOBAL_ITEMS = Object.freeze(['jira-plus', 'flashcards', 'notes', 'flows'])
 
 const DEFAULTS = Object.freeze({
   enabled: false,
@@ -46,7 +47,7 @@ const DEFAULTS = Object.freeze({
   times: 1,
   unit: 'day',
   keep: 14,
-  items: Object.freeze({ 'jira-plus': true, flashcards: true, notes: true }),
+  items: Object.freeze({ 'jira-plus': true, flashcards: true, notes: true, flows: true }),
   beforeUpdate: true,
 })
 

@@ -43,6 +43,12 @@ export interface ModuleDefinition {
      */
     group?: string
   }
+  /**
+   * `full`: the page fills the body under the top bar edge to edge, with no
+   * container or gutters (canvas pages such as Flows). Defaults to the
+   * centered 1536px container.
+   */
+  layout?: 'full'
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType
   /**

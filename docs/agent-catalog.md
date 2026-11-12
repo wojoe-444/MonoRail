@@ -7,7 +7,8 @@ audience: human, ai
 **Agents > Catalog** lists every subagent on this computer, explains each one
 in plain language, and lets you create, edit, duplicate and delete them.
 For what a subagent is and how to write one by hand, see
-[Create an agent](guide/agents/create-an-agent.md).
+[Create an agent](guide/agents/create-an-agent.md). A [flow](flows.md) can use
+any listed subagent as a step.
 
 ## Where subagents come from
 

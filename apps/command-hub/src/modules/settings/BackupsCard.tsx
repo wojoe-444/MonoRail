@@ -22,12 +22,13 @@ const UNITS: BackupUnit[] = ['hour', 'day', 'week']
 /** Browser dev server: fictional, kept in memory. */
 const SAMPLE_FOLDER = 'C:\\Users\\sample\\OneDrive\\MonoRail backups'
 let sample: BackupStatus = {
-  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true, notes: true }, beforeUpdate: true },
+  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true, notes: true, flows: true }, beforeUpdate: true },
   pages: [
     { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.', folder: null, repos: 1 },
     { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'flows', title: 'Flows', what: 'All flows with their versions (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
   ],
 }
 function sampleSave(s: GlobalBackupSettings): BackupStatus {
@@ -58,7 +59,7 @@ const call = <T,>(method: string, args?: unknown): Promise<T> =>
 
 const same = (a: GlobalBackupSettings, b: GlobalBackupSettings) =>
   a.enabled === b.enabled && a.folder === b.folder && a.times === b.times && a.unit === b.unit && a.keep === b.keep &&
-  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards && a.items.notes === b.items.notes &&
+  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards && a.items.notes === b.items.notes && a.items.flows === b.items.flows &&
   a.beforeUpdate === b.beforeUpdate
 
 const clamp = (v: string, max: number) => Math.max(1, Math.min(max, Math.trunc(Number(v)) || 1))

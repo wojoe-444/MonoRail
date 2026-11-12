@@ -30,6 +30,11 @@ tools of its own. See [skills](agents/create-an-agent.md#skills).
 A special chat that talks to your other chats for you. See
 [the Coordinator](agents/coordinator.md).
 
+## Flow
+
+An agent drawn as steps joined by lines on a canvas: inputs, agents,
+subagents, prompts and an output. See [Build a flow](agents/flows.md).
+
 ## Chat
 
 One conversation with an agent, from first message to last. Also called a

@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "categories": [
+    { "id": "io", "label": "Input & output" },
+    { "id": "agents", "label": "Agents" },
+    { "id": "models", "label": "Models" },
+    { "id": "text", "label": "Prompts & text" }
+  ],
+  "components": [
+    {
+      "kind": "chat-input",
+      "category": "io",
+      "title": "Chat input",
+      "description": "What you type in the Playground. The test message is used when you run a single step.",
+      "fields": [{ "id": "text", "label": "Test message", "kind": "text", "value": "Hello" }],
+      "outputs": [{ "id": "message", "label": "Message", "type": "message" }]
+    },
+    {
+      "kind": "text-input",
+      "category": "io",
+      "title": "Text input",
+      "description": "A fixed piece of text, like a repo name, a topic or a rule.",
+      "fields": [{ "id": "text", "label": "Text", "kind": "textarea", "value": "" }],
+      "outputs": [{ "id": "text", "label": "Text", "type": "text" }]
+    },
+    {
+      "kind": "chat-output",
+      "category": "io",
+      "title": "Chat output",
+      "description": "The flow's answer, shown in the Playground.",
+      "fields": [
+        { "id": "input", "label": "Reply", "kind": "text", "port": "any", "required": true },
+        { "id": "details", "label": "Details (optional)", "kind": "text", "port": "any" }
+      ],
+      "outputs": []
+    },
+    {
+      "kind": "agent",
+      "category": "agents",
+      "title": "Agent",
+      "description": "A Claude or pi agent that works in one of your allowed repos, like a Chat turn.",
+      "mochi": "agent",
+      "fields": [
+        { "id": "sdk", "label": "Runs on", "kind": "select", "options": ["claude", "pi"], "value": "claude" },
+        { "id": "model", "label": "Model", "kind": "select", "optionsFrom": "models", "value": "default" },
+        { "id": "folder", "label": "Repo", "kind": "select", "optionsFrom": "repos", "value": "", "hint": "Empty: the flow's repo." },
+        { "id": "mode", "label": "Permissions", "kind": "select", "options": ["ask", "agent"], "value": "ask" },
+        { "id": "input", "label": "Task", "kind": "text", "port": "any", "required": true },
+        { "id": "instructions", "label": "Instructions", "kind": "textarea", "port": "any", "value": "" }
+      ],
+      "outputs": [{ "id": "reply", "label": "Reply", "type": "message" }]
+    },
+    {
+      "kind": "subagent",
+      "category": "agents",
+      "title": "Subagent from Catalog",
+      "description": "One of your Claude Code or pi subagents from Agents > Catalog, given a task.",
+      "mochi": "researcher",
+      "fields": [
+        { "id": "subagent", "label": "Subagent", "kind": "select", "optionsFrom": "subagents", "value": "", "required": true },
+        { "id": "folder", "label": "Repo", "kind": "select", "optionsFrom": "repos", "value": "", "hint": "Empty: the flow's repo." },
+        { "id": "mode", "label": "Permissions", "kind": "select", "options": ["ask", "agent"], "value": "ask" },
+        { "id": "input", "label": "Task", "kind": "text", "port": "any", "required": true }
+      ],
+      "outputs": [{ "id": "reply", "label": "Reply", "type": "message" }]
+    },
+    {
+      "kind": "model",
+      "category": "models",
+      "title": "Model call",
+      "description": "One prompt in, one answer out, on Claude. Asked not to use tools.",
+      "fields": [
+        { "id": "model", "label": "Model", "kind": "select", "optionsFrom": "models", "value": "claude-haiku-5-5" },
+        { "id": "input", "label": "Prompt", "kind": "text", "port": "any", "required": true }
+      ],
+      "outputs": [{ "id": "text", "label": "Answer", "type": "text" }]
+    },
+    {
+      "kind": "prompt",
+      "category": "text",
+      "title": "Prompt template",
+      "description": "Text with {placeholders}. Each placeholder becomes an input you can connect.",
+      "fields": [{ "id": "template", "label": "Template", "kind": "textarea", "value": "Summarize this for a busy reader:\n\n{text}" }],
+      "outputs": [{ "id": "text", "label": "Prompt", "type": "text" }]
+    },
+    {
+      "kind": "combine",
+      "category": "text",
+      "title": "Combine text",
+      "description": "Joins two inputs into one, with a separator between them.",
+      "fields": [
+        { "id": "a", "label": "First", "kind": "text", "port": "any" },
+        { "id": "b", "label": "Second", "kind": "text", "port": "any" },
+        { "id": "sep", "label": "Separator", "kind": "text", "value": "\\n\\n" }
+      ],
+      "outputs": [{ "id": "text", "label": "Text", "type": "text" }]
+    }
+  ]
+}

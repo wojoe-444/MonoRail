@@ -4,6 +4,7 @@ import { claudeStatsModule } from './claude-stats'
 import { connectionsModule } from './connections'
 import { extensionsModule } from './extensions'
 import { flashcardsModule } from './flashcards'
+import { flowsModule } from './flows'
 import { mcpModule } from './mcp'
 import { notesModule } from './notes'
 import { remoteModule } from './remote'
@@ -18,7 +19,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [notesModule, agentCatalogModule, agentChatModule, flashcardsModule, claudeStatsModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsHomeModule, settingsModule, appearanceModule, backupsModule, wikiModule]
+export const modules: ModuleDefinition[] = [notesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsHomeModule, settingsModule, appearanceModule, backupsModule, wikiModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()

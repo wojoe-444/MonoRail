@@ -54,7 +54,7 @@ export interface ReleaseChanges {
 export type BackupUnit = 'hour' | 'day' | 'week'
 
 /** Pages the global schedule backs up itself (GLOBAL_ITEMS in electron/backups/global.cjs). */
-export type GlobalItem = 'jira-plus' | 'flashcards' | 'notes'
+export type GlobalItem = 'jira-plus' | 'flashcards' | 'notes' | 'flows'
 
 /** The global backup folder (electron/backups/global.cjs). */
 export interface GlobalBackupSettings {

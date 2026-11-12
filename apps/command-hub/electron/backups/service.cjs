@@ -72,6 +72,23 @@ const ITEMS = {
       await require('../apps/github-plus/git.cjs').createBundle(src, file)
     },
   },
+  flows: {
+    prefix: 'flows-',
+    suffix: '.bundle',
+    async source(userData) {
+      const dir = path.join(userData, 'modules', 'flows', 'repo')
+      try {
+        await fs.access(path.join(dir, '.git'))
+        return dir
+      } catch {
+        return null
+      }
+    },
+    async write(src, file) {
+      // A flow saved in the last minute may not be committed yet; the next backup has it.
+      await require('../apps/github-plus/git.cjs').createBundle(src, file)
+    },
+  },
   flashcards: {
     prefix: 'flashcards-',
     suffix: '.json',

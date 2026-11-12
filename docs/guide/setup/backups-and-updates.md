@@ -21,7 +21,8 @@ Each page gets its own subfolder:
   [local issues](../workspace/local-issues.md);
 - your [Jira+](../workspace/jira-plus.md#private-projects) private projects;
 - your [Flashcards](../../flashcards.md) decks;
-- your [Notes](../../notes.md).
+- your [Notes](../../notes.md);
+- your [flows](../agents/flows.md#versions), with every version.
 
 **Back up now** runs a backup right away. A repository can also have its own
 folder or schedule on GitHub+'s **Backups** tab; its own settings win over
@@ -51,7 +52,7 @@ went into each update, written for people using the app.
 
 **Your data is backed up first.** When you have a backup folder set (see
 [Backups](#backups) above), MonoRail backs up your Jira+ private projects,
-Notes and Flashcards into a `before-update` subfolder right before an update
+Notes, Flashcards and flows into a `before-update` subfolder right before an update
 installs, and keeps the last five of each. This is on by default; you can turn
 it off with **Back up before updating** in **Settings > Backups**. If that
 backup fails, nothing is installed: the pop-up says what went wrong and lets
