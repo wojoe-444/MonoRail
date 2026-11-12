@@ -64,6 +64,7 @@ const SCOPES = Object.freeze({
   'modules/developer': 'machine', // Developer Mode tools; keeps no files
   'modules/extensions': 'machine', // keeps no files; extensions are machine-wide
   'modules/flashcards': 'profile', // decks, cards, study history
+  'modules/flows': 'profile', // the Flows page's local git repo and run metadata
   'modules/home': 'profile', // keeps no files
   'modules/jira': 'profile', // Jira+'s legacy folder (read in place)
   'modules/mcp': 'profile', // per-agent consent and the activity log

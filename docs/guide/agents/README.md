@@ -19,7 +19,8 @@ pages follow the life of working with one:
    [mochi crew](../../mochi-crew.md), and the
    [Agent Catalog](../../agent-catalog.md) explains and edits them.
 3. **Let it run the others.** [The Coordinator](coordinator.md) is a chat that
-   talks to your other chats for you.
+   talks to your other chats for you, and a [flow](flows.md) is a team of
+   agents you draw on a canvas.
 4. **Watch the cost.** [Keep an eye on spending](spend.md): where the money
    goes, by day, [model](../glossary.md#model) and [effort](../glossary.md#effort).
 5. **Decide what it may touch.** [Let agents use MonoRail](agent-access.md):

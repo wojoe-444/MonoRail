@@ -23,6 +23,7 @@ the folder itself stays tidy:
   jira-plus\jira-plus-projects-2026-11-11_200532.bundle
   flashcards\flashcards-2026-11-11_200532.json
   notes\notes-2026-11-11_200532.bundle
+  flows\flows-2026-11-11_200532.bundle
 ```
 
 | Page | What is backed up | How to restore |
@@ -31,8 +32,9 @@ the folder itself stays tidy:
 | Jira+ | Your private projects (Jira+'s local git repo) as one `.bundle` | `git clone "<file>"`, then copy it over `local-repo` in Jira+'s data folder with MonoRail closed |
 | Flashcards | All decks, cards and study history as one `.json` | Copy it over `decks.json` in the Flashcards data folder with MonoRail closed |
 | Notes | Every note and its history (the Notes git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Notes data folder with MonoRail closed |
+| [Flows](flows.md) | Every flow and its versions (the Flows git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Flows data folder with MonoRail closed |
 
-Jira+, Flashcards and Notes run on the global schedule; each has a switch in the
+Jira+, Flashcards, Notes and Flows run on the global schedule; each has a switch in the
 card to leave it out. **Back up now** runs them right away. A page with nothing
 to back up yet (no private projects, no decks, no notes) is skipped. Notes typed in the last
 minute may not be committed yet; the next backup has them. A damaged

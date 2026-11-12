@@ -4,8 +4,8 @@ import { Workflow } from 'lucide-react'
 import type { ModuleDefinition } from '../types'
 
 /**
- * Flows (design preview): agents built as a graph of steps on a canvas.
- * Sample data only; no backend yet. See docs/flows-plan.md.
+ * Flows: agents built as a graph of steps on a canvas.
+ * Backend: electron/modules/flows.cjs. Docs: docs/flows.md.
  */
 export const flowsModule: ModuleDefinition = {
   id: 'flows',
@@ -15,5 +15,6 @@ export const flowsModule: ModuleDefinition = {
   path: '/agents/flows',
   nav: { section: 'Workspace', parent: '/agents' },
   layout: 'full',
+  dataMethods: ['list', 'get', 'create', 'save', 'flush', 'remove', 'history', 'version', 'options', 'run', 'pollRun', 'stopRun', 'runningRun', 'runs'],
   component: lazy(() => import('./FlowsPage')),
 }

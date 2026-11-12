@@ -337,6 +337,7 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/agents/chat': MessagesSquare,
   'guide/agents/create-an-agent': Plus,
   'guide/agents/coordinator': Workflow,
+  'guide/agents/flows': Workflow,
   'guide/agents/spend': ChartLine,
   'guide/agents/agent-access': KeyRound,
   'guide/workspace': FolderGit2,

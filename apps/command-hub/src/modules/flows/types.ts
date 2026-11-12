@@ -1,78 +1,148 @@
 import type { MochiRoleId } from '@/components/mochi'
-import type { IconComponent } from '@/modules/types'
 
-/**
- * What travels along an edge. A port only connects to a port of the same
- * type (or `any`), and the type decides the edge and handle color.
- */
-export type PortType = 'message' | 'text' | 'data' | 'agent' | 'tool' | 'any'
+/** What travels along an edge (electron/modules/flows-components.json). */
+export type PortType = 'message' | 'text' | 'data' | 'any'
 
 export interface Port {
   id: string
   label: string
   type: PortType
+  required?: boolean
 }
 
-export type FieldKind = 'text' | 'textarea' | 'select' | 'number' | 'toggle' | 'code'
+export type FieldKind = 'text' | 'textarea' | 'select'
 
-/** A setting shown on the node card. With `port`, an edge can feed it instead. */
+/** A setting on a step. With `port`, an edge can feed it instead. */
 export interface Field {
   id: string
   label: string
   kind: FieldKind
-  value?: string | number | boolean
+  value?: string
   options?: string[]
+  /** Options from the editor's lists instead of fixed ones. */
+  optionsFrom?: 'models' | 'repos' | 'subagents'
   port?: PortType
   required?: boolean
   hint?: string
 }
 
-export type CategoryId = 'io' | 'agents' | 'models' | 'text' | 'tools' | 'control' | 'custom'
-
 export interface Category {
-  id: CategoryId
+  id: string
   label: string
-  icon: IconComponent
 }
 
-/** A component in the palette: the template every node of its kind starts from. */
 export interface ComponentDef {
   kind: string
-  category: CategoryId
+  category: string
   title: string
   description: string
-  icon: IconComponent
-  /** Agent-like components show a mochi instead of an icon. */
   mochi?: MochiRoleId
   fields: Field[]
   outputs: Port[]
-  /** Runs code on this PC (Python): shown with a lock until the user allows it. */
-  runsCode?: boolean
 }
 
-export type NodeStatus = 'idle' | 'queued' | 'running' | 'done' | 'error' | 'waiting'
-
-export interface FlowNodeData extends Record<string, unknown> {
+export interface FlowNode {
+  id: string
   kind: string
+  x: number
+  y: number
   title?: string
-  /** For agent nodes: the name the mochi is picked from. */
-  agentName?: string
-  values: Record<string, string | number | boolean>
-  status?: NodeStatus
-  /** e.g. "1.4 s · $0.012" after a run. */
-  result?: string
+  values: Record<string, string>
+}
+
+export interface FlowEdge {
+  id: string
+  source: string
+  sourceHandle: string
+  target: string
+  targetHandle: string
+}
+
+export interface Flow {
+  format: 1
+  id: string
+  name: string
+  description: string
+  /** One of Chat's allowed repos, by name: where agent steps run by default. */
+  folder: string
+  nodes: FlowNode[]
+  edges: FlowEdge[]
 }
 
 export interface FlowSummary {
   id: string
   name: string
   description: string
-  /** Node kinds in the flow, for the mini preview and the "uses" chips. */
+  folder: string
   kinds: string[]
-  nodes: number
-  updated: number
-  runs7d: number
-  deployed: ('mcp' | 'api' | 'chat')[]
-  usesPython: boolean
+  steps: number
   agentName: string
+  updated: number
+  runs7d?: number
+  running?: boolean
+  error?: string
+}
+
+export interface FlowList {
+  flows: FlowSummary[]
+  pending: number
+}
+
+export interface FlowDoc {
+  flow: Flow
+  updated: number
+  committed: boolean
+}
+
+export interface Template {
+  id: string
+  title: string
+  text: string
+}
+
+export interface ModelOption {
+  id: string
+  label: string
+}
+
+export interface EditorOptions {
+  repos: { name: string }[]
+  subagents: { id: string; name: string; tool: 'claude' | 'pi'; scope: string; repo?: string; description?: string }[]
+  models: { claude: ModelOption[]; pi: ModelOption[] }
+  sdks: { id: string; ready: boolean; reason?: string }[]
+  templates: Template[]
+}
+
+export type StepStatus = 'queued' | 'running' | 'done' | 'failed' | 'skipped' | 'stopped'
+
+export interface RunStep {
+  nodeId: string
+  kind: string
+  label: string
+  status: StepStatus
+  startedAt?: number
+  endedAt?: number
+  costUsd?: number
+  tools: number
+  output?: string
+  error?: string
+}
+
+export interface RunSnapshot {
+  id: string
+  flowId: string
+  status: 'running' | 'done' | 'failed' | 'stopped' | 'timed_out'
+  startedAt: number
+  endedAt?: number
+  reply?: string
+  details?: string
+  error?: string
+  costUsd: number
+  steps: RunStep[]
+}
+
+export interface Version {
+  oid: string
+  message: string
+  time: number
 }

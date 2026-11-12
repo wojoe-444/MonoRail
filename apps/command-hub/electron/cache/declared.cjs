@@ -133,6 +133,7 @@ const DATA_FILES = Object.freeze({
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
   'modules/notes': ['repo/'],
+  'modules/flows': ['repo/', 'runs.json'],
   'modules/storage': ['goals.json'],
   'modules/backups': ['settings.json', 'state.json'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
@@ -151,6 +152,7 @@ const NOT_CACHED = Object.freeze({
   'modules/agent-catalog': 'Subagent files are read in place on every call and never cached. Before the user edits or deletes one, a copy of that file goes to backups/ (newest 200 kept) so it can be brought back; nothing else is stored.',
   'modules/backups': 'The global backup folder setting (folder, frequency, which pages are included) and the last result per page (time, file name, size or error). Backups themselves go to the folder the user picked, never into AppData.',
   'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
+  'modules/flows': 'Flows are the user\'s own JSON files in a local git repo (repo/, no remote), read on every call and never cached. runs.json keeps metadata of the newest 200 runs (flow id, start time, duration, outcome, cost, step count), never a prompt, a reply or a step\'s output; outputs live only in memory while the app runs.',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 

@@ -35,6 +35,7 @@ const moduleBackends = [
   require('./developer.cjs'),
   require('./docker.cjs'),
   require('./flashcards.cjs'),
+  require('./flows.cjs'),
   require('./home.cjs'),
   require('./mcp.cjs'),
   require('./notes.cjs'),
