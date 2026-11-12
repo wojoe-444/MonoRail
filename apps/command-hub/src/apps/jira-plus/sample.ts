@@ -3,7 +3,7 @@
 
 import type { JiraApi } from './api'
 import { sampleRepoLinks } from './sampleRepoLinks'
-import type { Comment, IssueDetail, Overview, Project, Source, StatusCategory } from './types'
+import type { Comment, IssueDetail, Overview, ParentRef, Project, Source, StatusCategory, Worklog } from './types'
 
 const LOCAL_STATUSES: { name: string; category: StatusCategory }[] = [
   { name: 'To Do', category: 'todo' },
@@ -18,7 +18,7 @@ const JIRA_STATUSES: { name: string; category: StatusCategory }[] = [
   { name: 'Code Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 const SITE = 'https://example-team.atlassian.net'
 
@@ -42,6 +42,9 @@ function seed(): { projects: Project[]; rows: Row[]; next: Record<string, number
     ['local', 'ME', 3, 'Review the onboarding doc before Thursday', 'Task', 'High', 'To Do', [], 0],
     ['local', 'ME', 4, 'Clean up the flaky retry test locally', 'Bug', 'Medium', 'In Review', ['tests'], 2],
     ['local', 'ME', 5, 'Prep demo script for the Friday sync', 'Task', 'Medium', 'To Do', ['demo'], 0],
+    ['local', 'ME', 6, 'Reporting job refresh', 'Epic', 'High', 'In Progress', ['reporting'], 0],
+    ['local', 'ME', 7, 'Weekly summary email from the new reports', 'Story', 'Medium', 'To Do', ['reporting'], 0],
+    ['jira', 'PLAT', 100, 'Scheduler hardening', 'Epic', 'High', 'In Progress', [], 5, 'Sam Rivera'],
     ['jira', 'PLAT', 112, 'Rate limiter drops requests during deploys', 'Bug', 'Highest', 'In Progress', ['reliability'], 0, 'Sam Rivera'],
     ['jira', 'PLAT', 118, 'Move job scheduler config to the shared store', 'Story', 'Medium', 'Selected for Development', [], 3, 'Sam Rivera'],
     ['jira', 'PLAT', 97, 'Add tracing to the ingest worker', 'Task', 'Low', 'Done', ['observability'], 9, 'Jordan Lee'],
@@ -88,10 +91,33 @@ function seed(): { projects: Project[]; rows: Row[]; next: Record<string, number
               ]
             : [],
         transitions: [],
+        worklogs: [],
+        children: [],
+        timeTracking: { spentSeconds: 0, totalSeconds: 0 },
       },
     }
   })
-  return { projects, rows, next: { ME: 6, PLAT: 119, WEB: 441 } }
+  // Parents and time logs, so the tree and the totals have something to show.
+  const parents: Record<string, string> = { 'ME-1': 'ME-6', 'ME-2': 'ME-6', 'ME-4': 'ME-6', 'ME-7': 'ME-6', 'PLAT-112': 'PLAT-100', 'PLAT-118': 'PLAT-100' }
+  const logs: Record<string, [number, number, string, string?][]> = {
+    'ME-6': [[0.5, 4, 'Broke the work into stories']],
+    'ME-1': [[1, 6, 'Wrote up the notes']],
+    'ME-2': [[1.5, 1, 'Tried the builder on two reports'], [0.75, 0, 'Compared run times']],
+    'ME-4': [[2, 2, 'Found the timing issue in the retry loop']],
+    'PLAT-112': [[3, 1, 'Reproduced during a staging deploy', 'Casey Morgan'], [1, 0, 'Paired on the fix', 'Sam Rivera']],
+    'PLAT-118': [[1.25, 3, '', 'Casey Morgan']],
+  }
+  for (const { issue } of rows) {
+    if (parents[issue.key]) issue.parent = { key: parents[issue.key] }
+    issue.worklogs = (logs[issue.key] ?? []).map(([h, d, comment, author], n) => ({
+      id: `${issue.key}-w${n}`,
+      author: author ?? 'You',
+      started: daysAgo(d, 3 + n),
+      seconds: Math.round(h * 3600),
+      comment,
+    }))
+  }
+  return { projects, rows, next: { ME: 8, PLAT: 119, WEB: 441 } }
 }
 
 function fakeSha(s: string): string {
@@ -118,9 +144,26 @@ export function createSampleBackend(): JiraApi {
     return row.issue
   }
   const visible = () => db.rows.map((r) => r.issue).filter((i) => connected || i.source === 'local')
+  const spent = (i: IssueDetail) => i.worklogs.reduce((n, w) => n + w.seconds, 0)
+  const ref = (key: string): ParentRef => {
+    const p = db.rows.find((r) => r.issue.key === key)?.issue
+    return p ? { key, summary: p.summary, type: p.type, status: p.status, statusCategory: p.statusCategory } : { key, missing: true }
+  }
+  const below = (key: string): Set<string> => {
+    const out = new Set<string>()
+    const walk = (k: string) =>
+      db.rows.forEach(({ issue }) => {
+        if (issue.parent?.key === k && !out.has(issue.key)) {
+          out.add(issue.key)
+          walk(issue.key)
+        }
+      })
+    walk(key)
+    return out
+  }
   const summary = (i: IssueDetail) => {
-    const { comments: _c, history: _h, transitions: _t, ...rest } = i
-    return rest
+    const { comments: _c, history: _h, transitions: _t, worklogs: _w, children: _ch, timeTracking: _tt, ...rest } = i
+    return { ...rest, ...(i.parent ? { parent: ref(i.parent.key) } : {}), timeSpentSeconds: spent(i) }
   }
   const touch = (i: IssueDetail, text: string) => {
     i.updated = new Date().toISOString()
@@ -156,7 +199,20 @@ export function createSampleBackend(): JiraApi {
       const transitions = statusesFor(i.source)
         .filter((s) => s.name !== i.status)
         .map((s) => ({ id: s.name, name: s.name, toStatus: s.name, toCategory: s.category }))
-      return wait({ ...i, transitions })
+      const children = db.rows
+        .map((r) => r.issue)
+        .filter((c) => c.parent?.key === key)
+        .sort((a, b) => Number(a.key.split('-')[1]) - Number(b.key.split('-')[1]))
+        .map(summary)
+      const total = [...below(key)].reduce((n, k) => n + spent(find(k)), spent(i))
+      return wait({
+        ...i,
+        ...(i.parent ? { parent: ref(i.parent.key) } : {}),
+        worklogs: [...i.worklogs].sort((a, b) => b.started.localeCompare(a.started)),
+        transitions,
+        children,
+        timeTracking: { spentSeconds: spent(i), totalSeconds: total },
+      })
     },
     async getIssueTypes({ source }) {
       return wait(source === 'local' ? TYPES : ['Task', 'Bug', 'Story'])
@@ -189,6 +245,10 @@ export function createSampleBackend(): JiraApi {
         comments: [],
         history: args.source === 'local' ? [{ id: fakeSha(key), at: now, text: `Created "${args.summary.trim()}"` }] : [],
         transitions: [],
+        worklogs: [],
+        children: [],
+        timeTracking: { spentSeconds: 0, totalSeconds: 0 },
+        ...(args.parent ? { parent: { key: args.parent } } : {}),
       }
       db.rows.push({ issue })
       return wait(summary(issue))
@@ -219,6 +279,48 @@ export function createSampleBackend(): JiraApi {
     },
     async deleteIssue({ key }) {
       db.rows = db.rows.filter((r) => r.issue.key !== key)
+      db.rows.forEach(({ issue }) => issue.parent?.key === key && delete issue.parent)
+      return wait({ ok: true as const })
+    },
+    async setParent({ key, parent }) {
+      const i = find(key)
+      if (parent) {
+        const p = find(parent)
+        if (p.projectKey !== i.projectKey) throw new Error('A parent must be in the same project.')
+        if (parent === key || below(key).has(parent)) throw new Error(`${parent} is below this issue, so it can't be its parent.`)
+        i.parent = { key: parent }
+      } else delete i.parent
+      touch(i, parent ? `Parent set to ${parent}` : 'Parent removed')
+      return wait(summary(i))
+    },
+    async parentOptions({ key, projectKey }) {
+      const project = projectKey ?? key?.split('-')[0]
+      const skip = key ? below(key) : new Set<string>()
+      const list = db.rows
+        .map((r) => r.issue)
+        .filter((i) => i.projectKey === project && i.key !== key && !skip.has(i.key))
+        .sort((a, b) => Number(b.key.split('-')[1]) - Number(a.key.split('-')[1]))
+        .map((i) => ref(i.key))
+      return wait(list)
+    },
+    async logWork({ key, seconds, started, comment }) {
+      const i = find(key)
+      if (!(seconds >= 60)) throw new Error('Log at least one minute.')
+      const w: Worklog = {
+        id: `${key}-w${Date.now()}`,
+        author: i.source === 'local' ? 'You' : 'Casey Morgan',
+        started: started ? new Date(started).toISOString() : new Date().toISOString(),
+        seconds,
+        comment: comment?.trim() ?? '',
+      }
+      i.worklogs.push(w)
+      touch(i, `Logged ${Math.round(seconds / 60)}m`)
+      return wait(w)
+    },
+    async deleteWorklog({ key, id }) {
+      const i = find(key)
+      i.worklogs = i.worklogs.filter((w) => w.id !== id)
+      touch(i, 'Removed a time log')
       return wait({ ok: true as const })
     },
     async createLocalProject({ key, name, description }) {

@@ -7,6 +7,7 @@ import { errorText, jiraApi } from '../api'
 import { useJira } from '../JiraContext'
 import type { Project } from '../types'
 import { ErrorNote, Field, Modal } from './Modal'
+import { ParentSelect } from './Parent'
 
 const projectId = (p: Project) => `${p.source}:${p.key}`
 
@@ -15,7 +16,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   const { dialog, closeDialog } = useJira()
   return (
     <>
-      <CreateIssueModal open={dialog?.kind === 'create'} defaultProject={dialog?.project} onClose={closeDialog} />
+      <CreateIssueModal open={dialog?.kind === 'create'} defaultProject={dialog?.project} defaultParent={dialog?.parent} onClose={closeDialog} />
       <Modal
         open={dialog?.kind === 'project'}
         onClose={closeDialog}
@@ -38,7 +39,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   )
 }
 
-function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; defaultProject?: Project; onClose: () => void }) {
+function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { open: boolean; defaultProject?: Project; defaultParent?: string; onClose: () => void }) {
   const { projects, priorities, refresh, openIssue } = useJira()
   const [project, setProject] = useState('')
   const [types, setTypes] = useState<string[]>(['Task'])
@@ -47,6 +48,7 @@ function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; de
   const [summary, setSummary] = useState('')
   const [description, setDescription] = useState('')
   const [labels, setLabels] = useState('')
+  const [parent, setParent] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -58,9 +60,10 @@ function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; de
     setSummary('')
     setDescription('')
     setLabels('')
+    setParent(defaultParent ?? '')
     setPriority('Medium')
     setError(undefined)
-  }, [open, defaultProject, projects])
+  }, [open, defaultProject, defaultParent, projects])
 
   const selected = projects.find((p) => projectId(p) === project)
   const selSource = selected?.source
@@ -96,6 +99,7 @@ function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; de
         description,
         type,
         priority: selected.source === 'local' ? priority : undefined,
+        parent: parent || undefined,
         labels: labels
           .split(',')
           .map((l) => l.trim().replace(/\s+/g, '-'))
@@ -137,7 +141,7 @@ function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; de
         </p>
         <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <Field id="jp-c-project" label="Project" required>
-            <select id="jp-c-project" className="jp-field" value={project} onChange={(e) => setProject(e.target.value)}>
+            <select id="jp-c-project" className="jp-field" value={project} onChange={(e) => (setProject(e.target.value), setParent(''))}>
               {locals.length > 0 && (
                 <optgroup label="Private (local repo)">
                   {locals.map((p) => (
@@ -197,6 +201,11 @@ function CreateIssueModal({ open, defaultProject, onClose }: { open: boolean; de
           <Field id="jp-c-labels" label="Labels" hint="Comma separated">
             <input id="jp-c-labels" className="jp-field" value={labels} onChange={(e) => setLabels(e.target.value)} />
           </Field>
+          {selected && (
+            <Field id="jp-c-parent" label="Parent" hint="An epic, story or task in this project">
+              <ParentSelect id="jp-c-parent" source={selected.source} projectKey={selected.key} value={parent} onChange={setParent} />
+            </Field>
+          )}
         </div>
         <ErrorNote error={error} />
       </form>

@@ -18,8 +18,9 @@ interface JiraContextValue {
   selected?: { source: Source; key: string }
   openIssue: (source: Source, key: string) => void
   closeIssue: () => void
-  dialog?: { kind: DialogKind; project?: Project }
-  openDialog: (kind: DialogKind, project?: Project) => void
+  /** parent: create the new issue under this key (from "Add child issue"). */
+  dialog?: { kind: DialogKind; project?: Project; parent?: string }
+  openDialog: (kind: DialogKind, project?: Project, parent?: string) => void
   closeDialog: () => void
 }
 
@@ -71,7 +72,7 @@ export function JiraProvider({ children }: { children: ReactNode }) {
         return p
       }),
     dialog,
-    openDialog: (kind, project) => setDialog({ kind, project }),
+    openDialog: (kind, project, parent) => setDialog({ kind, project, parent }),
     closeDialog: () => setDialog(undefined),
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

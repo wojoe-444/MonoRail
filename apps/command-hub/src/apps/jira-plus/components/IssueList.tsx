@@ -1,7 +1,9 @@
 import { formatRelative } from '@/lib/format'
 
 import { Avatar, Lozenge, PriorityIcon, ProjectAvatar, TypeIcon } from '../bits'
+import { formatDuration } from '../time'
 import type { Issue } from '../types'
+import { ParentChip } from './Parent'
 
 interface IssueListProps {
   issues: Issue[]
@@ -15,6 +17,8 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
   if (!issues.length) {
     return <div className="rounded-[3px] border border-(--jp-border) px-6 py-12 text-center text-(--jp-subtle)">{empty}</div>
   }
+  // Only show the Logged column once there is time to show.
+  const logged = issues.some((i) => i.timeSpentSeconds)
   return (
     <div className="overflow-x-auto rounded-[3px] border border-(--jp-border)">
       <table className="w-full border-collapse">
@@ -26,6 +30,7 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
             {showProject && <th className="px-2 py-2">Project</th>}
             <th className="px-2 py-2">Status</th>
             <th className="w-12 px-2 py-2">P</th>
+            {logged && <th className="w-20 px-2 py-2 text-right">Logged</th>}
             <th className="px-2 py-2">Assignee</th>
             <th className="w-28 px-3 py-2 text-right">Updated</th>
           </tr>
@@ -46,7 +51,12 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
             >
               <td className="px-3"><TypeIcon type={i.type} /></td>
               <td className="px-2 whitespace-nowrap"><span className="jp-link">{i.key}</span></td>
-              <td className="max-w-0 px-2"><div className="truncate">{i.summary}</div></td>
+              <td className="max-w-0 px-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{i.summary}</span>
+                  {i.parent && <ParentChip parent={i.parent} withSummary={false} className="shrink-0" />}
+                </div>
+              </td>
               {showProject && (
                 <td className="px-2 whitespace-nowrap">
                   <span className="flex items-center gap-2 text-(--jp-subtle)">
@@ -57,6 +67,11 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
               )}
               <td className="px-2 whitespace-nowrap"><Lozenge status={i.status} category={i.statusCategory} /></td>
               <td className="px-2"><PriorityIcon priority={i.priority} /></td>
+              {logged && (
+                <td className="px-2 text-right font-mono text-xs whitespace-nowrap text-(--jp-subtle) tabular-nums">
+                  {i.timeSpentSeconds ? formatDuration(i.timeSpentSeconds) : ''}
+                </td>
+              )}
               <td className="px-2 whitespace-nowrap">
                 <span className="flex items-center gap-2 text-(--jp-subtle)">
                   <Avatar name={i.assignee} />
