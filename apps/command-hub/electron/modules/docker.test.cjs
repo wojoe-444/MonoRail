@@ -93,9 +93,10 @@ describe('Docker page backend is opt-in', () => {
   })
 
   test('docker missing and engine stopped', async () => {
-    const missing = await docker._internal.getOverview({ hasConnection: async () => true, findOnPath: async () => undefined })
+    const missing = await docker._internal.getOverview({ platform: 'linux', hasConnection: async () => true, findOnPath: async () => undefined })
     assert.equal(missing.block, 'not-installed')
     const stopped = await docker._internal.getOverview({
+      platform: 'linux',
       hasConnection: async () => true,
       findOnPath: async () => '/usr/bin/docker',
       runFile: async () => ({ code: 1, stdout: JSON.stringify({ Client: { Version: '27.4.0' } }), stderr: 'Cannot connect to the Docker daemon' }),
@@ -108,6 +109,40 @@ describe('Docker page backend is opt-in', () => {
     const src = fs.readFileSync(path.join(__dirname, 'docker-cli.cjs'), 'utf8')
     for (const verb of ["'run'", "'start'", "'stop'", "'restart'", "'rm'", "'rmi'", "'prune'", "'kill'", "'exec'", "'pull'", "'create'"]) assert.ok(!src.includes(verb), `docker-cli.cjs must not use ${verb}`)
     assert.ok(!/writeFile|mkdir|appendFile/.test(fs.readFileSync(path.join(__dirname, 'docker.cjs'), 'utf8')))
+  })
+})
+
+describe('finding Docker installed after MonoRail started (Windows)', () => {
+  const win = 'win32'
+  const env = { PATH: 'C:\\Windows\\System32', SystemRoot: 'C:\\Windows', ProgramFiles: 'C:\\Program Files', LOCALAPPDATA: 'C:\\Users\\demo\\AppData\\Local', USERPROFILE: 'C:\\Users\\demo' }
+  const regOut = {
+    HKLM: '\r\nHKEY_LOCAL_MACHINE\\SYSTEM\\...\\Environment\r\n    Path    REG_EXPAND_SZ    %SystemRoot%\\system32;C:\\Program Files\\Docker\\Docker\\resources\\bin\r\n',
+    HKCU: '\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPAND_SZ    %LOCALAPPDATA%\\Microsoft\\WinGet\\Links\r\n',
+  }
+  const runFile = async (_file, args) => ({ code: 0, stdout: regOut[args[1].slice(0, 4)] ?? '', stderr: '' })
+
+  test('reads the current PATH from the registry', async () => {
+    const p = await cli.freshPath({ platform: win, env, runFile })
+    assert.deepEqual(p.split(';'), ['C:\\Windows\\system32', 'C:\\Program Files\\Docker\\Docker\\resources\\bin', 'C:\\Users\\demo\\AppData\\Local\\Microsoft\\WinGet\\Links'])
+  })
+
+  test('looks for docker on the fresh PATH', async () => {
+    let seenPath
+    const found = await cli.findDocker({ platform: win, env, runFile, findOnPath: async (_n, o) => ((seenPath = o.env.PATH), undefined), stat: async () => { throw new Error('none') } })
+    assert.equal(found, undefined)
+    assert.match(seenPath, /Docker\\Docker\\resources\\bin/)
+  })
+
+  test('falls back to the usual install folder', async () => {
+    const want = 'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe'
+    const found = await cli.findDocker({ platform: win, env, runFile: async () => ({ code: 1, stdout: '', stderr: '' }), findOnPath: async () => undefined, stat: async (f) => (f === want ? { isFile: () => true } : Promise.reject(new Error('none'))) })
+    assert.equal(found, want)
+  })
+
+  test('known lazydocker folders include winget and scoop', () => {
+    const list = cli.knownLocations('lazydocker', env)
+    assert.ok(list.some((f) => f.includes('WinGet')))
+    assert.ok(list.some((f) => f.includes('scoop')))
   })
 })
 
@@ -131,7 +166,7 @@ describe('Docker connector', () => {
   })
   test('lazydocker can be turned off', async () => {
     let lookedFor = []
-    const deps = { findOnPath: async (name) => (lookedFor.push(name), undefined) }
+    const deps = { platform: 'linux', findOnPath: async (name) => (lookedFor.push(name), undefined) }
     await connector.status({ values: { lazydocker: 'no' } }, deps)
     assert.deepEqual(lookedFor, ['docker'])
   })

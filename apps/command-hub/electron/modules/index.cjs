@@ -40,11 +40,13 @@ const moduleBackends = [
   require('./mcp.cjs'),
   require('./notes.cjs'),
   require('./profiles.cjs'),
+  require('./remote.cjs'),
   require('./settings.cjs'),
   require('./storage.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')
-const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
+const { setupExtensions, invokeExtension, onBroadcast } = require('../extensions/index.cjs')
+const { remoteService } = require('../remote/service.cjs')
 const { auditAll } = require('../cache/index.cjs')
 const { profiles } = require('../profiles/index.cjs')
 const { desktopOnlyIndex } = require('../bridge/desktop-only.cjs')
@@ -90,6 +92,8 @@ function startModuleBackends() {
     return fn(makeCtx(moduleId, entry), args)
   }
   invoke.isDesktopOnly = desktopOnly.isDesktopOnly
+  // Remote access (off by default) serves these same backends to a paired phone.
+  remoteService().attach({ invoke, isDesktopOnly: desktopOnly.isDesktopOnly, subscribe: onBroadcast })
   return invoke
 }
 

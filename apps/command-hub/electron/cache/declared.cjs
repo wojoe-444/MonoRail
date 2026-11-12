@@ -136,6 +136,7 @@ const DATA_FILES = Object.freeze({
   'modules/flows': ['repo/', 'runs.json'],
   'modules/storage': ['goals.json'],
   'modules/backups': ['settings.json', 'state.json'],
+  'modules/remote': ['settings.json', 'devices.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
   'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/', 'repo-links.json'],
