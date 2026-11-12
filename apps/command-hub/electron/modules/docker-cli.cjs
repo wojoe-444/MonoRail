@@ -56,10 +56,18 @@ function expandVars(text, env) {
   })
 }
 
-/** The Path value out of `reg query <key> /v Path` output. */
-function parseRegPath(stdout) {
-  const m = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.*)$/im.exec(String(stdout ?? ''))
+/** A value out of `reg query <key> /v <name>` output ('' when absent). */
+function parseRegValue(stdout, name) {
+  const m = new RegExp(`^\\s*${name}\\s+REG_(?:EXPAND_)?SZ\\s+(.*)$`, 'im').exec(String(stdout ?? ''))
   return m ? m[1].trim() : ''
+}
+
+function parseRegPath(stdout) {
+  return parseRegValue(stdout, 'Path')
+}
+
+function regExe(env) {
+  return path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'reg.exe')
 }
 
 /** PATH as Windows has it now: machine, then user (as Explorer builds it), then MonoRail's own. */
@@ -67,14 +75,19 @@ async function freshPath(deps = {}) {
   const env = deps.env ?? process.env
   const current = String(env.PATH ?? env.Path ?? '')
   if ((deps.platform ?? process.platform) !== 'win32') return current
-  if (!deps.runFile && freshCache && Date.now() - freshCache.at < FRESH_PATH_MS) return freshCache.value
-  const reg = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'reg.exe')
+  if (!deps.runFile && !deps.trace && freshCache && Date.now() - freshCache.at < FRESH_PATH_MS) return freshCache.value
+  const reg = regExe(env)
   const run = deps.runFile ?? runFile
   const parts = []
+  let read = 0
   for (const key of REG_KEYS) {
     const res = await run(reg, ['query', key, '/v', 'Path'], { timeoutMs: 5_000 })
-    if (res.code === 0) parts.push(...expandVars(parseRegPath(res.stdout), env).split(';'))
+    if (res.code === 0) {
+      read++
+      parts.push(...expandVars(parseRegPath(res.stdout), env).split(';'))
+    }
   }
+  if (deps.trace) deps.trace.registryPath = read > 0
   parts.push(...current.split(';'))
   const seen = new Set()
   const value = parts
@@ -105,6 +118,30 @@ function knownLocations(name, env = process.env) {
   return dirs.map((d) => path.win32.join(d, `${name}.exe`))
 }
 
+// Docker Desktop can be installed on another drive. Its installer records the
+// folder in the standard uninstall entry, read here like the PATH (reg.exe,
+// fixed arguments, one value).
+const DESKTOP_UNINSTALL_KEYS = [
+  'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Docker Desktop',
+  'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Docker Desktop',
+]
+
+/** Docker Desktop's install folder from its uninstall entry, or undefined. */
+async function dockerDesktopDir(deps = {}) {
+  if ((deps.platform ?? process.platform) !== 'win32') return undefined
+  const env = deps.env ?? process.env
+  const run = deps.runFile ?? runFile
+  for (const key of DESKTOP_UNINSTALL_KEYS) {
+    const res = await run(regExe(env), ['query', key, '/v', 'InstallLocation'], { timeoutMs: 5_000 })
+    const dir = res.code === 0 ? expandVars(parseRegValue(res.stdout, 'InstallLocation'), env).replace(/[\\/]+$/, '') : ''
+    if (dir) {
+      if (deps.trace) deps.trace.desktopDir = dir
+      return dir
+    }
+  }
+  return undefined
+}
+
 async function findProgram(name, exts, deps = {}) {
   const platform = deps.platform ?? process.platform
   const env = deps.env ?? process.env
@@ -112,7 +149,13 @@ async function findProgram(name, exts, deps = {}) {
   const found = await (deps.findOnPath ?? findOnPath)(name, { env: { ...env, PATH }, platform, exts })
   if (found || platform !== 'win32') return found
   const stat = deps.stat ?? fs.stat
-  for (const file of knownLocations(name, env)) {
+  const files = knownLocations(name, env)
+  if (name === 'docker') {
+    const dir = await dockerDesktopDir(deps)
+    if (dir) files.unshift(path.win32.join(dir, 'resources', 'bin', 'docker.exe'))
+  }
+  if (deps.trace) deps.trace.looked = files
+  for (const file of files) {
     try {
       if ((await stat(file)).isFile()) return file
     } catch {
@@ -436,6 +479,7 @@ module.exports = {
   freshPath,
   programEnv,
   knownLocations,
+  dockerDesktopDir,
   runFile,
   createDocker,
   parseLazydockerVersion,

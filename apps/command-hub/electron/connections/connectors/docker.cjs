@@ -25,11 +25,15 @@ function wantsLazydocker(conn) {
 }
 
 /** Docker Desktop's program in its default install folder, if it is there. */
-async function dockerDesktopExe({ env = process.env, stat = fs.stat } = {}) {
-  if (process.platform !== 'win32') return undefined
-  const local = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs')
-  for (const base of [env.ProgramFiles, env.ProgramW6432, local].filter(Boolean)) {
-    const file = path.join(base, 'Docker', 'Docker', 'Docker Desktop.exe')
+async function dockerDesktopExe(deps = {}) {
+  if ((deps.platform ?? process.platform) !== 'win32') return undefined
+  const env = deps.env ?? process.env
+  const stat = deps.stat ?? fs.stat
+  const local = env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs')
+  const installed = await cli.dockerDesktopDir(deps)
+  const dirs = [installed, ...[env.ProgramFiles, env.ProgramW6432, local].filter(Boolean).map((b) => path.win32.join(b, 'Docker', 'Docker'))]
+  for (const dir of dirs.filter(Boolean)) {
+    const file = path.win32.join(dir, 'Docker Desktop.exe')
     try {
       if ((await stat(file)).isFile()) return file
     } catch {
@@ -48,8 +52,17 @@ async function lazydockerFacts(deps) {
   return { found: true, version: cli.parseLazydockerVersion(res.stdout) }
 }
 
+/** Where the check looked, so a "not found" can be acted on. */
+function searchDetails(trace = {}) {
+  const details = [{ label: 'docker', value: 'Not found on PATH' }]
+  if (trace.registryPath !== undefined) details.push({ label: 'Windows PATH', value: trace.registryPath ? 'Read from Windows settings, no docker there' : 'Could not be read' })
+  details.push({ label: 'Docker Desktop', value: trace.desktopDir ? `Installed in ${trace.desktopDir}, but docker.exe is missing there` : 'No install recorded by Windows' })
+  for (const file of trace.looked ?? []) details.push({ label: 'Looked for', value: file })
+  return details
+}
+
 /** Fold the checks into one status. Exported for tests. */
-function summarize({ docker, version, containers, lazydocker, desktopInstalled }) {
+function summarize({ docker, version, containers, lazydocker, desktopInstalled, trace }) {
   const lazyDetail = lazydocker
     ? { label: 'lazydocker', value: lazydocker.found ? lazydocker.version ?? 'Found' : 'Not found on PATH (optional)', ok: lazydocker.found || undefined }
     : { label: 'lazydocker', value: 'Not looked for (turned off)' }
@@ -58,7 +71,7 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled }
       state: 'unavailable',
       summary: 'Docker was not found on this computer.',
       hint: 'Docker is optional. If you want it, install Docker Desktop yourself, then check again. MonoRail never installs it.',
-      details: [{ label: 'docker', value: 'Not found on PATH' }],
+      details: searchDetails(trace),
     }
   }
   const details = [{ label: 'docker CLI', value: version.client ?? 'Did not answer' }]
@@ -92,18 +105,19 @@ function summarize({ docker, version, containers, lazydocker, desktopInstalled }
 }
 
 async function status(conn, deps = {}) {
-  const docker = await cli.findDocker(deps)
+  const trace = {}
+  const docker = await cli.findDocker({ ...deps, trace })
   const lazydocker = wantsLazydocker(conn) ? await lazydockerFacts(deps) : undefined
-  if (!docker) return summarize({ lazydocker })
+  if (!docker) return summarize({ lazydocker, trace })
   const d = cli.createDocker(docker, deps)
   const version = await d.version()
   const containers = version.running ? await d.containers() : undefined
-  const desktopInstalled = !version.running && !!(await (deps.dockerDesktopExe ?? dockerDesktopExe)())
+  const desktopInstalled = !version.running && !!(await (deps.dockerDesktopExe ?? dockerDesktopExe)(deps))
   return summarize({ docker, version, containers, lazydocker, desktopInstalled })
 }
 
 async function startDesktop(_conn, job, deps = {}) {
-  const exe = await (deps.dockerDesktopExe ?? dockerDesktopExe)()
+  const exe = await (deps.dockerDesktopExe ?? dockerDesktopExe)(deps)
   if (!exe) throw new Error('Docker Desktop was not found in its usual folder. Start it from the Start menu.')
   const child = spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: false, shell: false })
   child.on('error', () => {})
