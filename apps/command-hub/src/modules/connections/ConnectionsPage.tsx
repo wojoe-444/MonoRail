@@ -311,6 +311,7 @@ export default function ConnectionsPage() {
               MonoRail forgets this connection and any token it saved. Accounts and tools set up outside MonoRail (gcloud, Claude Code, pi, git, Credential
               Manager) are not signed out or changed, and pi keeps its current scoped models.
               {removing?.kind === 'pi-playwright' && ' The use-my-browser skill MonoRail wrote for pi is removed; pi-playwright and the browser extension stay installed.'}
+              {removing?.kind === 'claude-playwright' && ' The playwright-extension server MonoRail added to Claude Code is removed (never one you added yourself); the browser extension stays installed.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -401,6 +402,7 @@ const USED_BY: Record<string, string> = {
   openai: 'OpenAI tools, Codex',
   pi: 'Chat',
   'pi-playwright': 'pi',
+  'claude-playwright': 'Claude Code in a terminal',
   git: 'GitHub+, Chat',
   github: 'GitHub+',
   docker: 'Docker page',

@@ -464,7 +464,20 @@ profile folder, and "Teach pi", which writes a MonoRail-marked
 `use-my-browser` skill to pi's skills folder (never overwrites a foreign one;
 removed when off or on removal). Actions: install in pi (terminal), get the
 extension (store page in the chosen browser), and Test connection (attach then
-detach, run with MonoRail's executable as Node, no shell). **github** is the github.com account GitHub+ uses
+detach, run with MonoRail's executable as Node, no shell). The second is
+**Claude > Playwright browser** (`connectors/claude-playwright.cjs`): saving
+runs `claude mcp add playwright-extension --scope user` (never edits
+`~/.claude.json`; only reads that one entry) for `npx -y @playwright/mcp@latest
+--extension` (`cmd /c npx` on Windows; `--browser msedge` for Edge), with
+`MONORAIL_MANAGED=1`, the profile folder and the optional extension token as
+`-e` values (`quoteArg()` in `run.cjs` lets a value keep its space). It only
+replaces or removes an entry carrying that mark and refuses a foreign one.
+The token is a secret field, checked in `validate()` (which receives the
+secrets typed in that save) and redacted from every status, error and job
+note, since `claude mcp get` prints env values. Test connection runs `claude
+mcp get` (Claude Code starts the server; no browser window) and keeps only
+its Status line. Chat does not load user MCP servers, so it only affects
+`claude` in a terminal. **github** is the github.com account GitHub+ uses
 (`connectors/github.cjs`, client `electron/connections/github-api.cjs`): the
 user's own GitHub CLI login (default; MonoRail runs `gh api` with fixed
 arguments, request bodies on stdin, and never reads the token), a pasted token

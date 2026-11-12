@@ -42,6 +42,21 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  'claude-playwright': {
+    state: 'ok',
+    summary: 'Claude Code can use your Google Chrome tabs.',
+    hint: 'Start claude in a terminal and ask it to use your browser. Chat inside MonoRail does not load this server.',
+    details: [
+      { label: 'Claude Code CLI', value: '2.0.0 (Claude Code)', ok: true },
+      { label: 'playwright-extension server', value: 'In Claude Code (user config)', ok: true },
+      { label: 'Google Chrome', value: 'Found', ok: true },
+      { label: 'Playwright Extension', value: 'Installed in Default', ok: true },
+      { label: 'Tab prompt', value: 'Google Chrome asks which tab to share' },
+    ],
+    actions: ['test-server'],
+    added: true,
+    checkedAt: at,
+  },
   openai: {
     state: 'ok',
     summary: 'API key works; Codex is signed in.',
@@ -192,6 +207,33 @@ export const sampleList: ConnectionsList = {
         },
       ],
       actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running claude auth login.', showWhen: ['expired', 'needs-setup', 'ok', 'error'] }],
+    },
+    {
+      kind: 'claude-playwright',
+      parent: 'claude',
+      title: 'Playwright browser',
+      description: 'Claude Code working in your own Chrome or Edge tabs (with your logins) through the Playwright Extension.',
+      icon: 'globe',
+      fields: [
+        {
+          key: 'browser',
+          label: 'Browser',
+          type: 'select',
+          defaultValue: 'chrome',
+          options: [
+            { value: 'chrome', label: 'Google Chrome' },
+            { value: 'msedge', label: 'Microsoft Edge' },
+          ],
+          help: 'The browser that has the Playwright Extension. Claude Code works in its open tabs.',
+        },
+        { key: 'profile', label: 'Browser profile folder (optional)', type: 'text', placeholder: 'Default, Profile 1, ...' },
+        { key: 'token', label: 'Extension token (optional)', type: 'secret', placeholder: 'Shown in the Playwright Extension', help: 'Skips the "which tab" prompt.' },
+      ],
+      actions: [
+        { id: 'register', label: 'Add to Claude Code', description: 'Runs claude mcp add to put the playwright-extension server in your Claude Code user settings.', showWhen: ['needs-setup', 'error'] },
+        { id: 'open-extension-page', label: 'Get the extension', description: 'Opens the Playwright Extension in the Chrome Web Store.', showWhen: ['needs-setup'] },
+        { id: 'test-server', label: 'Test connection', description: 'Asks Claude Code to start the server. It does not open a browser window.', showWhen: ['ok'] },
+      ],
     },
     {
       kind: 'openai',
@@ -391,6 +433,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.claude,
+    },
+    {
+      kind: 'claude-playwright',
+      values: { browser: 'chrome', profile: '' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses['claude-playwright'],
     },
     {
       kind: 'openai',

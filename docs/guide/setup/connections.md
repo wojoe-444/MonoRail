@@ -29,6 +29,12 @@ rule.
   [Claude Stats](../agents/spend.md#subscription-or-api). You can correct it
   if it guesses wrong. With API prices, a
   [spending limit](spending-limit.md) can cap what MonoRail spends.
+  Its **Playwright browser** add-on lets the `claude` you run in a terminal
+  work in your own Chrome or Edge tabs, signed in as you, through the
+  Playwright Extension. Saving it adds one server to Claude Code's settings
+  for you; removing it takes that server away again. MonoRail never changes
+  a server of the same name that you added yourself. Chat inside MonoRail
+  does not use it.
 - **GitHub**: your github.com account, used by
   [GitHub+](../workspace/browse-repos.md#your-github-repositories) to list
   your repositories and, if you ask, publish

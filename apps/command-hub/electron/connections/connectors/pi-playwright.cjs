@@ -559,5 +559,5 @@ module.exports = {
     },
   ],
   status,
-  _internal: { summarize, findExtensionProfiles, findPackage, matchSource, userDataDir, browserExecutable, skillText, syncSkill, readSkill, EXTENSION_ID, STORE_URL, SKILL_NAME, SKILL_MARKER },
+  _internal: { summarize, openExtensionPage, CHANNELS, PROFILE, findExtensionProfiles, findPackage, matchSource, userDataDir, browserExecutable, skillText, syncSkill, readSkill, EXTENSION_ID, STORE_URL, SKILL_NAME, SKILL_MARKER },
 }
