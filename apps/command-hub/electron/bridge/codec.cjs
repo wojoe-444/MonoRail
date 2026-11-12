@@ -1,5 +1,5 @@
-// JSON encoding for the browser dev bridge. IPC carries structured clones, so
-// backends may return Dates and binary data; plain JSON would turn those into
+// JSON encoding for the HTTP bridge (electron/bridge/server.cjs). IPC carries
+// structured clones, so backends may return Dates and binary data; plain JSON would turn those into
 // strings and objects. Tag them here and restore them in the page (the decoder
 // in vite.config.ts mirrors decode() below).
 

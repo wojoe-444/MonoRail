@@ -237,6 +237,9 @@ function requireSource(args) {
 
 module.exports = {
   id: 'jira-plus',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['pickRepoFolder'],
   tasksForRepo,
   repoLinks,
   /** For tests: swap where Atlassian credentials come from. */

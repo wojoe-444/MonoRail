@@ -200,6 +200,9 @@ async function checkForUpdates() {
 
 module.exports = {
   id: 'settings',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['installAndRestart', 'installWithoutBackup'],
   start() {
     if (!updateSupport().supported) return
     const run = () => checkForUpdates().catch(() => {})
