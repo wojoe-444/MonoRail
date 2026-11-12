@@ -48,6 +48,11 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Connect an agent', detail: 'Agent access: add MonoRail to Claude Code and others', path: '/mcp', keywords: 'mcp server claude code setup' },
   { label: 'Write tools per agent', detail: 'Agent access: what each agent may change', path: '/mcp', keywords: 'consent permission allow write tools' },
   { label: 'Activity', detail: 'Agent access: every tool call agents made', path: '/mcp', keywords: 'audit log history' },
+  // Remote access
+  { label: 'Use MonoRail from your phone', detail: 'Remote access: over Tailscale, never public', path: '/settings/remote', keywords: 'phone mobile tailscale remote tablet away' },
+  { label: 'Pair a phone', detail: 'Remote access: scan a code with the phone', path: '/settings/remote', keywords: 'qr code pair device phone' },
+  { label: 'Paired devices', detail: 'Remote access: rename or revoke a phone', path: '/settings/remote', keywords: 'revoke sign out device phone tablet' },
+  { label: 'Agent mode from the phone', detail: 'Remote access: let phone chats use Agent mode', path: '/settings/remote', keywords: 'ask agent mode phone permissions' },
   // Extensions
   { label: 'Install an extension', detail: 'Extensions: from a folder, a .zip or GitHub', path: '/settings/extensions', keywords: 'add install zip github release' },
   { label: 'Extension permissions', detail: 'Extensions: what each extension may access', path: '/settings/extensions', keywords: 'permissions approve folders network' },

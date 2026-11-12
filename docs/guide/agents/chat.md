@@ -79,5 +79,7 @@ conversation shows that subagent's character from the
 ## Related
 
 - [Working with agents](README.md) for the whole picture.
+- [Use MonoRail from your phone](../setup/remote-access.md) to read and send
+  chats while away from the PC.
 - [Questions and answers](../faq.md#my-chats-dont-show-up-in-chat) if a chat
   is missing.
