@@ -30,8 +30,34 @@ export interface Issue {
   created: string
   updated: string
   commentCount: number
+  /** The issue this one sits under (an epic, story or task in the same project). */
+  parent?: ParentRef
+  /** Time logged on this issue itself, in seconds. */
+  timeSpentSeconds?: number
   /** Jira only: link to the issue in Jira. */
   url?: string
+}
+
+/** A parent or a parent candidate: enough to show it as a chip. */
+export interface ParentRef {
+  key: string
+  summary?: string
+  type?: string
+  status?: string
+  statusCategory?: StatusCategory
+  /** Local only: the parent's file is gone. */
+  missing?: boolean
+}
+
+/** One "Log time" entry. Local ones live in the ticket's file; team ones are Jira worklogs. */
+export interface Worklog {
+  id: string
+  author: string
+  /** When the work started (ISO). */
+  started: string
+  seconds: number
+  comment: string
+  created?: string
 }
 
 export interface Comment {
@@ -60,6 +86,15 @@ export interface IssueDetail extends Issue {
   comments: Comment[]
   history: HistoryEntry[]
   transitions: Transition[]
+  worklogs: Worklog[]
+  /** Issues directly under this one. */
+  children: Issue[]
+  timeTracking: {
+    /** Logged on this issue. */
+    spentSeconds: number
+    /** This issue plus everything under it. */
+    totalSeconds: number
+  }
 }
 
 export interface Connection {
@@ -97,6 +132,7 @@ export interface NewIssue extends IssueFields {
   projectKey: string
   summary: string
   status?: string
+  parent?: string
 }
 
 /** Selected scope in the project list. */

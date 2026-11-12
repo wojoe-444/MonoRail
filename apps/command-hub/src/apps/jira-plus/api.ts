@@ -10,9 +10,11 @@ import type {
   IssueFields,
   NewIssue,
   Overview,
+  ParentRef,
   Project,
   RepoLink,
   Source,
+  Worklog,
 } from './types'
 
 const APP_ID = 'jira-plus'
@@ -32,6 +34,13 @@ export interface JiraApi {
   transitionIssue(args: { source: Source; key: string; transitionId: string }): Promise<Issue>
   addComment(args: { source: Source; key: string; body: string }): Promise<Comment>
   deleteIssue(args: { source: Source; key: string }): Promise<{ ok: true }>
+  /** Put an issue under another one in the same project, or take it out (parent: null). */
+  setParent(args: { source: Source; key: string; parent: string | null }): Promise<Issue>
+  /** Issues that can be the parent of `key`, or of a new issue in `projectKey`. */
+  parentOptions(args: { source: Source; key?: string; projectKey?: string }): Promise<ParentRef[]>
+  /** Log time on a ticket. Team tickets get a real Jira worklog. */
+  logWork(args: { source: Source; key: string; seconds: number; started?: string; comment?: string }): Promise<Worklog>
+  deleteWorklog(args: { source: Source; key: string; id: string }): Promise<{ ok: true }>
   createLocalProject(args: { key: string; name: string; description?: string }): Promise<Project>
   /** Jira+'s own settings; the account itself comes from the Connections page. */
   saveSettings(args: { scopeJql: string }): Promise<Connection>
@@ -61,6 +70,10 @@ function desktopApi(): JiraApi {
     transitionIssue: call('transitionIssue'),
     addComment: call('addComment'),
     deleteIssue: call('deleteIssue'),
+    setParent: call('setParent'),
+    parentOptions: call('parentOptions'),
+    logWork: call('logWork'),
+    deleteWorklog: call('deleteWorklog'),
     createLocalProject: call('createLocalProject'),
     saveSettings: call('saveSettings'),
     forgetLegacyConnection: call('forgetLegacyConnection'),

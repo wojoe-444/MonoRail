@@ -9,8 +9,8 @@ const { tmpdir } = require('node:os')
 const { join } = require('node:path')
 const git = require('isomorphic-git')
 
-const { createLocalStore } = require('./local.cjs')
-const { adfToText, textToAdf, normalizeSite } = require('./cloud.cjs')
+const { createLocalStore, formatSeconds } = require('./local.cjs')
+const { adfToText, textToAdf, normalizeSite, jiraTime } = require('./cloud.cjs')
 
 describe('local store', () => {
   it('commits every change and reads history from git', async () => {
@@ -50,6 +50,66 @@ describe('local store', () => {
     await s.createProject({ key: 'ME', name: 'Personal' })
     await assert.rejects(s.createProject({ key: 'ME', name: 'Again' }))
     await assert.rejects(s.createIssue({ projectKey: 'ME', summary: '  ' }))
+  })
+})
+
+describe('parents and time logs', () => {
+  it('sets parents, refuses loops and rolls time up the tree', async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo')
+    const s = createLocalStore(dir)
+    await s.createProject({ key: 'ME', name: 'Personal' })
+    await s.createProject({ key: 'XO', name: 'Other' })
+    await s.createIssue({ projectKey: 'ME', summary: 'Launch', type: 'Epic' })
+    await s.createIssue({ projectKey: 'ME', summary: 'Story', type: 'Story', parent: 'ME-1' })
+    await s.createIssue({ projectKey: 'ME', summary: 'Task' })
+    await s.createIssue({ projectKey: 'XO', summary: 'Elsewhere' })
+    await s.setParent({ key: 'ME-3', parent: 'ME-2' })
+
+    // No loops, no other projects, no unknown keys.
+    await assert.rejects(s.setParent({ key: 'ME-1', parent: 'ME-3' }), /below this issue/)
+    await assert.rejects(s.setParent({ key: 'ME-1', parent: 'ME-1' }), /this issue/)
+    await assert.rejects(s.setParent({ key: 'ME-3', parent: 'XO-1' }), /same project/)
+    await assert.rejects(s.createIssue({ projectKey: 'ME', summary: 'x', parent: 'ME-99' }), /same project/)
+    assert.deepEqual((await s.parentOptions({ key: 'ME-1' })).map((o) => o.key), [])
+    assert.deepEqual((await s.parentOptions({ key: 'ME-3' })).map((o) => o.key), ['ME-2', 'ME-1'])
+
+    await s.logWork({ key: 'ME-1', seconds: 1800, comment: 'Plan' })
+    await s.logWork({ key: 'ME-2', seconds: 3600 })
+    const log = await s.logWork({ key: 'ME-3', seconds: 2 * 3600, started: '2026-11-10T09:00:00Z' })
+    await assert.rejects(s.logWork({ key: 'ME-3', seconds: 10 }), /one minute/)
+    await assert.rejects(s.logWork({ key: 'ME-3', seconds: 8 * 24 * 3600 }), /at most a week/)
+
+    const epic = await s.getIssue('ME-1')
+    assert.deepEqual(epic.timeTracking, { spentSeconds: 1800, totalSeconds: 1800 + 3600 + 7200 })
+    assert.deepEqual(epic.children.map((c) => c.key), ['ME-2'])
+    assert.equal(epic.worklogs[0].comment, 'Plan')
+    const task = await s.getIssue('ME-3')
+    assert.equal(task.parent.key, 'ME-2')
+    assert.equal(task.parent.summary, 'Story')
+    assert.equal(task.worklogs[0].started, '2026-11-10T09:00:00.000Z')
+    assert.ok(task.history.some((h) => h.text === 'Logged 2h'))
+    assert.ok(task.history.some((h) => h.text === 'Parent set to ME-2'))
+
+    // Lists carry the parent and the time logged, never the raw logs.
+    const listed = (await s.listIssues('ME')).find((i) => i.key === 'ME-3')
+    assert.equal(listed.parent.summary, 'Story')
+    assert.equal(listed.timeSpentSeconds, 7200)
+    assert.equal(listed.worklogs, undefined)
+
+    await s.deleteWorklog({ key: 'ME-3', id: log.id })
+    assert.equal((await s.getIssue('ME-1')).timeTracking.totalSeconds, 1800 + 3600)
+    await s.setParent({ key: 'ME-3', parent: null })
+    assert.equal((await s.getIssue('ME-3')).parent, undefined)
+
+    // Deleting a parent keeps its children, without a parent.
+    await s.deleteIssue({ key: 'ME-1' })
+    assert.equal((await s.getIssue('ME-2')).parent, undefined)
+  })
+
+  it('formats time the way Jira does', () => {
+    assert.equal(formatSeconds(90 * 60), '1h 30m')
+    assert.equal(formatSeconds(9 * 3600), '1d 1h')
+    assert.equal(jiraTime('2026-11-12T09:30:00Z'), '2026-11-12T09:30:00.000+0000')
   })
 })
 
