@@ -11,6 +11,9 @@ function mainWindow() {
 
 module.exports = {
   id: 'developer',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['toggleDevTools'],
   methods: {
     /** Open or close DevTools, docked to the right like a browser's. */
     toggleDevTools() {

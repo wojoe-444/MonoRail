@@ -828,6 +828,9 @@ async function getChanges(ctx, args = {}) {
 
 module.exports = {
   id: 'agent-chat',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['pickReposRoot', 'addRepo'],
   start(ctx) {
     turnsApi.setLogger((msg, fields) => ctx.log(msg, JSON.stringify(fields)))
     try {

@@ -18,6 +18,9 @@ function view() {
 
 module.exports = {
   id: 'profiles',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['switchTo', 'restart'],
   methods: {
     getProfiles: () => view(),
     async rename(_ctx, args) {

@@ -146,6 +146,9 @@ async function pickPath(kind, title) {
 /** The built-in backend behind the Extensions page and the extension frame bridge. */
 const extensionsBackend = {
   id: 'extensions',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['inspect', 'requestFolder', 'openFolder', 'openExternal'],
   methods: {
     async list() {
       return manager.list()
