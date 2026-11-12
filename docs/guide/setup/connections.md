@@ -44,6 +44,8 @@ rule.
 - **OpenAI**: an API key and the Codex command line tool.
 - **git**: your git name and email, a quick check that your
   [commits](../glossary.md#commit) will carry the name you expect.
+- **Docker**: optional. Your own Docker and, if you have it, lazydocker, for
+  the [Docker](docker.md) page. MonoRail never installs either.
 
 ## Where secrets go
 

@@ -95,6 +95,21 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  docker: {
+    state: 'ok',
+    summary: 'Docker Desktop 4.37.1 is running (Engine 27.4.0). lazydocker 0.24.1 found.',
+    details: [
+      { label: 'docker CLI', value: '27.4.0' },
+      { label: 'Engine', value: '27.4.0, running', ok: true },
+      { label: 'Platform', value: 'Docker Desktop 4.37.1' },
+      { label: 'Context', value: 'desktop-linux' },
+      { label: 'Containers', value: '4 running, 3 stopped' },
+      { label: 'lazydocker', value: '0.24.1', ok: true },
+    ],
+    actions: ['open-lazydocker'],
+    added: true,
+    checkedAt: at,
+  },
 }
 
 const PI_DEFAULT_MODELS = 'anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5'
@@ -269,6 +284,29 @@ export const sampleList: ConnectionsList = {
       actions: [],
     },
     {
+      kind: 'docker',
+      title: 'Docker',
+      description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Utilities reads from it. Optional: MonoRail never installs either.',
+      icon: 'container',
+      fields: [
+        {
+          key: 'lazydocker',
+          label: 'lazydocker',
+          type: 'select',
+          options: [
+            { value: 'yes', label: 'Use it when it is installed' },
+            { value: 'no', label: 'Do not look for it' },
+          ],
+          defaultValue: 'yes',
+          help: 'lazydocker is a terminal dashboard for Docker. When it is on your PATH, the Docker page can open it in a terminal.',
+        },
+      ],
+      actions: [
+        { id: 'start-desktop', label: 'Start Docker Desktop', description: 'Opens Docker Desktop, if it is installed.', showWhen: ['error'] },
+        { id: 'open-lazydocker', label: 'Open lazydocker', description: 'Opens lazydocker in a terminal window.', showWhen: ['ok'] },
+      ],
+    },
+    {
       kind: 'github',
       title: 'GitHub',
       description: 'Your github.com account. GitHub+ lists your repositories (owned, shared with you, and your organizations\u2019) and can create an issue on GitHub when you ask it to.',
@@ -348,6 +386,14 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.git,
+    },
+    {
+      kind: 'docker',
+      values: { lazydocker: 'yes' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.docker,
     },
   ],
 }
