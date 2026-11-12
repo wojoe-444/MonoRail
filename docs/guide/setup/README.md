@@ -21,6 +21,9 @@ to them:
   MonoRail can spend each day or month. Off until you turn it on.
 - [Developer Mode](developer-mode.md): name any part of the screen in
   feedback, and try MonoRail as a brand new user.
+- [Use MonoRail from your phone](remote-access.md): reach MonoRail on
+  your PC from your phone over your own private Tailscale network. Off
+  until you turn it on.
 - [Docker](docker.md): if you use Docker, see your containers, logs and
   images under **Utilities > Docker**, and open lazydocker in one click.
 

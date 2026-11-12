@@ -728,6 +728,11 @@ async function startTurn(ctx, args = {}) {
   // The system prompt comes from the data folder, never from the page's turn request.
   const systemPrompt = prompts.promptForTurn(prompts.readPrompts(ctx.dataDir), { sdk, coordinator })
   const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator, systemPrompt })
+  // A turn from a paired phone (Remote access) carries its limits; they only ever restrict.
+  if (args.remoteLimits?.askOnly) {
+    if (coordinator) throw new Error('From the phone, the coordinator needs "Agent mode from the phone" (Settings > Remote access on your PC), because it can start chats that edit files.')
+    if (job.mode !== 'ask') throw new Error('Agent mode from the phone is off. Use Ask, or turn it on in Settings > Remote access on your PC.')
+  }
   const status = sdkStatus().find((s) => s.id === sdk)
   if (!status?.ready) throw new Error(status?.reason ?? 'That SDK is not available.')
   // The spending limit (off by default) may pause new turns; a running turn is never cut off.

@@ -68,6 +68,10 @@ that agent's provider, an issue you choose to publish goes to GitHub (see
 [Jira](workspace/jira-plus.md). MonoRail itself checks GitHub for [new
 versions](setup/backups-and-updates.md#updates) of the app, and that is all.
 
+If you turn on [Remote access](setup/remote-access.md), your own paired
+phone can open MonoRail over your private Tailscale network. It is never
+put on the public internet.
+
 An [extension](setup/extensions.md) can only reach the websites you approved
 when you installed it.
 

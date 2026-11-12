@@ -59,6 +59,9 @@ note above the message box says how much is used. At the limit, with
 - **Change limit** opens Settings.
 - **Allow one more turn** lets exactly one more reply start.
 
+Turns sent from your phone with [Remote access](remote-access.md) count
+toward the same limit. The limit itself can only be changed on the PC.
+
 ## Where it is kept
 
 The settings and one dollar total per day stay in your

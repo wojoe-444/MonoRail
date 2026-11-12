@@ -65,7 +65,8 @@ data folder above: existing data is read in place and nothing is moved,
 renamed or copied to make it so. Every folder has a scope in `SCOPES`
 (`profile`: appearance, connections, backups, Flashcards, Jira+, GitHub+,
 Email, Chat state, Agent access; `machine`: updates, installed extensions,
-Claude Stats' report of this computer's logs, Storage, `profiles.json`); a
+Claude Stats' report of this computer's logs, Storage, Remote access,
+`profiles.json`); a
 test fails when a backend or declared data folder has none. Later profiles
 live in `<data folder>\profiles\<id>\`. Backends reach other folders with
 `ctx.layout.folder('<folder>')` (main-process singletons: `appLayout()`),
@@ -173,7 +174,7 @@ To add a module:
    the PC's browser) goes in the backend's `desktopOnly: ['method']` list
    (`electron/bridge/desktop-only.cjs`; a test fails when a method calls
    `dialog`/`shell`/`BrowserWindow`/`autoUpdater` without it). The optional
-   Remote access mode (phone, planned, off by default) never runs those; in
+   Remote access mode (phone, off by default, see below) never runs those; in
    the page, `hasLocalScreen()` says whether to offer them.
 4. In the page, call it with `useModuleQuery(id, method)` or
    `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
@@ -511,6 +512,31 @@ until the app has recorded the extension's current data version, so
 `migrate()` only runs in the app). Jira+ local writes take a lock file
 in its `.git` so the app and the server never commit at once. Tests:
 `electron/mcp/mcp.test.cjs` (includes a real stdio run).
+
+`remote` (**Remote access**, a Settings page under "Accounts & access";
+docs: `docs/remote-access.md`, guide `docs/guide/setup/remote-access.md`)
+lets the user's own phone use MonoRail over the PC's private Tailscale
+address. **Fully optional, off by default:** while off there is no server, no
+port, no Tailscale command, no single-instance lock and closing the window
+quits as before; never change that. `electron/remote/`: `service.cjs` (one per
+process; `readEnabledSync` for `main.cjs`), `server.cjs` (127.0.0.1 only,
+default port 5170; Host must be the tailnet name or loopback; the
+`Tailscale-User-Login` header must be in `allowedLogins`; every path but
+`/__remote/pair` needs a paired device's HttpOnly cookie, stored as sha-256;
+pairing codes are single use, 2 minutes; serves `dist/` with
+`/__bridge/client.js` injected (`remote: true`) and the shared bridge handler),
+`policy.cjs` (`REMOTE_DENY`: settings that stay on the PC, plus every
+`desktopOnly` method and extension backends; a test checks every name
+exists), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
+machine-scope `modules/remote`; metadata only, damaged files never
+overwritten) and `tailscale.cjs` (status checks every 5 minutes while on; the
+one write is the user's "Set it up": `tailscale serve --bg`; a Funnel on the
+address stops the server). Phone turns get `remoteLimits.askOnly` from the
+server unless "Agent mode from the phone" is on (`startTurn` refuses Agent
+mode and the coordinator otherwise). While on, closing the window keeps
+MonoRail in the tray; turning it off revokes every device. A new backend
+method that changes accounts, secrets, permissions or MonoRail itself goes in
+`REMOTE_DENY`. Tests: `electron/remote/remote.test.cjs`.
 
 `storage` (**Storage**, under the **Utilities** section) is the Storage
 Manager (docs: `docs/storage.md`): free/used space per drive (`fs.statfs`,
