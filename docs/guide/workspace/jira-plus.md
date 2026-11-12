@@ -27,6 +27,26 @@ and Jira+ shows your team's projects and tickets too, fetched from Jira when
 you open them and not stored. Without a connection, Jira+ shows only private
 projects. The one Jira+ setting is a filter for which team tickets to show.
 
+## Parents and child issues
+
+Any issue can sit under a **parent**: an epic, a story or another task in the
+same project. Set it in the issue's **Parent** field, or pick one when you
+create the issue. The parent shows above the issue's title and on its board
+card. A parent lists its **child issues** with how many are done, and **Add
+child issue** creates a new one under it. In private projects any issue can
+be a parent (Epic is one of the types); for your team's Jira, Jira itself
+decides which types can be parents.
+
+## Logging time
+
+**Log time** in the issue's Details records how long you worked, when you
+started and what you did. The **Work log** tab lists every entry, and you can
+delete one there. Details shows the time logged on the issue and, for a
+parent, the total including all its child issues. Time is written the Jira
+way: `2h 30m`, `45m`, or `1d` for a day of 8 hours. In private projects the
+log is saved with the ticket, so its [history](#private-projects) records it;
+on team tickets it becomes a real Jira worklog your team can see.
+
 ## Tasks and repositories
 
 Any task, private or team, can be linked to local repositories and to

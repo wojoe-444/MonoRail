@@ -749,7 +749,13 @@ saved by older versions is still used when Connections has no Atlassian
 account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
 (`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
 change, the issue's git log is its History). That repo never gets a remote;
-do not add push or sync to it. Jira+ started as the `jira` module, so if
+do not add push or sync to it. **Parents and time**: an issue may have a
+`parent` in the same project (no loops; deleting a parent clears its
+children's field in the same commit) and `worklogs` (started, seconds,
+comment; 1 minute to 1 week each); child lists and roll-up totals are worked
+out on read, never stored. Team Jira uses its own `parent` field, `parent =`
+JQL for children and real worklogs (`aggregatetimespent` for sub-tasks).
+Jira+ started as the `jira` module, so if
 `%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
 the backend keeps using the old folder in place. Tests live in
 `jira-plus.test.cjs`.
