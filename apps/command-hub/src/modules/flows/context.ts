@@ -8,8 +8,10 @@ export interface EditorContextValue {
   setValue: (nodeId: string, field: string, value: string) => void
   setTitle: (nodeId: string, title: string) => void
   stepOf: (nodeId: string) => RunStep | undefined
+  /** Removes a step and its connections. */
+  removeStep: (nodeId: string) => void
 }
 
-export const EditorContext = createContext<EditorContextValue>({ setValue: () => {}, setTitle: () => {}, stepOf: () => undefined })
+export const EditorContext = createContext<EditorContextValue>({ setValue: () => {}, setTitle: () => {}, stepOf: () => undefined, removeStep: () => {} })
 
 export const useEditor = () => useContext(EditorContext)

@@ -15,6 +15,27 @@
 .flows-canvas .flow-port:hover {
   transform: translateY(-50%) scale(1.25);
 }
-.flows-canvas .react-flow__edge.animated path {
+.flows-canvas .react-flow__edge.animated .react-flow__edge-path {
   stroke-dasharray: 6 4;
+}
+/* Connection lines: a soft halo on hover, a stronger one when selected. */
+.flows-canvas .flow-edge-halo {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.flows-canvas .react-flow__edge:hover .flow-edge-halo {
+  opacity: 0.18;
+}
+.flows-canvas .react-flow__edge.selected .flow-edge-halo {
+  opacity: 0.32;
+}
+.flows-canvas .react-flow__edge {
+  cursor: pointer;
+}
+.flows-canvas .react-flow__edge:focus-visible {
+  outline: none;
 }
