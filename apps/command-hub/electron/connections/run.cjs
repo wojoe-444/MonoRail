@@ -70,11 +70,11 @@ function killTree(child) {
 }
 
 /** Open a visible terminal window running a command (Windows only), for sign-ins that ask questions. */
-function openTerminal(title, cmd, args) {
+function openTerminal(title, cmd, args, { env } = {}) {
   for (const a of [cmd, ...args]) if (!SAFE_ARG.test(a)) throw new Error(`Refusing unsafe argument: ${a}`)
   if (!SAFE_ARG.test(title.replace(/ /g, '_'))) throw new Error('Unsafe window title')
   if (!isWin) throw new Error(`Open a terminal and run: ${[cmd, ...args].join(' ')}`)
-  const child = spawn(`start "${title}" cmd /k ${[cmd, ...args].join(' ')}`, { shell: true, detached: true, stdio: 'ignore' })
+  const child = spawn(`start "${title}" cmd /k ${[cmd, ...args].join(' ')}`, { shell: true, detached: true, stdio: 'ignore', ...(env ? { env: { ...process.env, ...env } } : {}) })
   child.on('error', () => {})
   child.unref()
 }

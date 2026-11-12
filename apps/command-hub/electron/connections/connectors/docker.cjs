@@ -27,7 +27,8 @@ function wantsLazydocker(conn) {
 /** Docker Desktop's program in its default install folder, if it is there. */
 async function dockerDesktopExe({ env = process.env, stat = fs.stat } = {}) {
   if (process.platform !== 'win32') return undefined
-  for (const base of [env.ProgramFiles, env.ProgramW6432].filter(Boolean)) {
+  const local = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs')
+  for (const base of [env.ProgramFiles, env.ProgramW6432, local].filter(Boolean)) {
     const file = path.join(base, 'Docker', 'Docker', 'Docker Desktop.exe')
     try {
       if ((await stat(file)).isFile()) return file
@@ -43,7 +44,7 @@ async function lazydockerFacts(deps) {
   if (!bin) return { found: false }
   // A shim (.cmd/.ps1) cannot run without a shell; it is still found.
   if (!/\.(exe)$/i.test(bin) && process.platform === 'win32') return { found: true }
-  const res = await (deps.runFile ?? cli.runFile)(bin, ['--version'], { timeoutMs: 10_000 })
+  const res = await (deps.runFile ?? cli.runFile)(bin, ['--version'], { timeoutMs: 10_000, env: await cli.programEnv(undefined, deps) })
   return { found: true, version: cli.parseLazydockerVersion(res.stdout) }
 }
 
@@ -113,8 +114,14 @@ async function startDesktop(_conn, job, deps = {}) {
 /** Open lazydocker in a terminal window. Shared with the Docker page. */
 async function openLazydocker(conn, deps = {}) {
   if (!wantsLazydocker(conn)) throw new Error('Looking for lazydocker is turned off for the Docker connection.')
-  if (!(await cli.findLazydocker(deps))) throw new Error(`lazydocker was not found on PATH. It is optional; see ${LAZYDOCKER_URL} if you want it.`)
-  ;(deps.openTerminal ?? openTerminal)('lazydocker', 'lazydocker', [])
+  const bin = await cli.findLazydocker(deps)
+  if (!bin) throw new Error(`lazydocker was not found on PATH. It is optional; see ${LAZYDOCKER_URL} if you want it.`)
+  // The terminal gets the current PATH plus lazydocker's own folder (found in
+  // an install folder that is not on PATH) and docker's, so both start there.
+  const docker = await cli.findDocker(deps)
+  const extra = [path.dirname(bin), docker && path.dirname(docker)].filter(Boolean).join(path.delimiter)
+  const { PATH } = await cli.programEnv(undefined, deps)
+  ;(deps.openTerminal ?? openTerminal)('lazydocker', 'lazydocker', [], { env: { PATH: `${extra}${path.delimiter}${PATH}` } })
 }
 
 module.exports = {

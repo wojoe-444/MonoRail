@@ -16,7 +16,6 @@ const fs = require('node:fs/promises')
 const path = require('node:path')
 const { spawn } = require('node:child_process')
 
-const isWin = process.platform === 'win32'
 
 const CONTAINER_ID = /^[a-f0-9]{12,64}$/
 const OUTPUT_LIMIT = 4 * 1024 * 1024
@@ -39,24 +38,114 @@ async function findOnPath(name, { env = process.env, platform = process.platform
   return undefined
 }
 
+// Windows gives every program the PATH from when Explorer started. Docker
+// Desktop (or winget's lazydocker) installed after that is on the PATH in the
+// registry but not in MonoRail's own copy until the user signs out, so the
+// lookups below also read the current PATH from the registry (reg.exe query,
+// fixed arguments, values only) and check the usual install folders by file.
+
+const REG_KEYS = ['HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'HKCU\\Environment']
+const FRESH_PATH_MS = 60_000
+let freshCache
+
+/** "%SystemRoot%\\x" -> "C:\\Windows\\x", from the given environment. */
+function expandVars(text, env) {
+  return String(text).replace(/%([^%]+)%/g, (m, name) => {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === name.toLowerCase())
+    return key ? env[key] : m
+  })
+}
+
+/** The Path value out of `reg query <key> /v Path` output. */
+function parseRegPath(stdout) {
+  const m = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.*)$/im.exec(String(stdout ?? ''))
+  return m ? m[1].trim() : ''
+}
+
+/** PATH as Windows has it now: machine, then user (as Explorer builds it), then MonoRail's own. */
+async function freshPath(deps = {}) {
+  const env = deps.env ?? process.env
+  const current = String(env.PATH ?? env.Path ?? '')
+  if ((deps.platform ?? process.platform) !== 'win32') return current
+  if (!deps.runFile && freshCache && Date.now() - freshCache.at < FRESH_PATH_MS) return freshCache.value
+  const reg = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'reg.exe')
+  const run = deps.runFile ?? runFile
+  const parts = []
+  for (const key of REG_KEYS) {
+    const res = await run(reg, ['query', key, '/v', 'Path'], { timeoutMs: 5_000 })
+    if (res.code === 0) parts.push(...expandVars(parseRegPath(res.stdout), env).split(';'))
+  }
+  parts.push(...current.split(';'))
+  const seen = new Set()
+  const value = parts
+    .map((p) => p.trim())
+    .filter((p) => p && !seen.has(p.toLowerCase()) && seen.add(p.toLowerCase()))
+    .join(';')
+  if (!deps.runFile) freshCache = { at: Date.now(), value }
+  return value
+}
+
+/** Usual install folders, for when even the registry PATH has no entry. */
+function knownLocations(name, env = process.env) {
+  // Only used on Windows, so always Windows paths.
+  const home = env.USERPROFILE || ''
+  const local = env.LOCALAPPDATA || (home && path.win32.join(home, 'AppData', 'Local'))
+  const dirs =
+    name === 'docker'
+      ? [env.ProgramFiles, env.ProgramW6432, local && path.win32.join(local, 'Programs')]
+          .filter(Boolean)
+          .map((b) => path.win32.join(b, 'Docker', 'Docker', 'resources', 'bin'))
+          .concat(env.ProgramData ? [path.win32.join(env.ProgramData, 'DockerDesktop', 'version-bin')] : [])
+      : [
+          local && path.win32.join(local, 'Microsoft', 'WinGet', 'Links'),
+          home && path.win32.join(home, 'scoop', 'shims'),
+          env.ChocolateyInstall ? path.win32.join(env.ChocolateyInstall, 'bin') : env.ProgramData && path.win32.join(env.ProgramData, 'chocolatey', 'bin'),
+          home && path.win32.join(home, 'go', 'bin'),
+        ].filter(Boolean)
+  return dirs.map((d) => path.win32.join(d, `${name}.exe`))
+}
+
+async function findProgram(name, exts, deps = {}) {
+  const platform = deps.platform ?? process.platform
+  const env = deps.env ?? process.env
+  const PATH = await freshPath(deps)
+  const found = await (deps.findOnPath ?? findOnPath)(name, { env: { ...env, PATH }, platform, exts })
+  if (found || platform !== 'win32') return found
+  const stat = deps.stat ?? fs.stat
+  for (const file of knownLocations(name, env)) {
+    try {
+      if ((await stat(file)).isFile()) return file
+    } catch {
+      // not here
+    }
+  }
+  return undefined
+}
+
 /** docker.exe is a real program on Windows, so it never needs cmd.exe. */
 function findDocker(deps = {}) {
-  return (deps.findOnPath ?? findOnPath)('docker', { exts: isWin ? ['.exe'] : undefined })
+  return findProgram('docker', (deps.platform ?? process.platform) === 'win32' ? ['.exe'] : undefined, deps)
 }
 
 function findLazydocker(deps = {}) {
-  return (deps.findOnPath ?? findOnPath)('lazydocker')
+  return findProgram('lazydocker', undefined, deps)
+}
+
+/** The environment for docker and lazydocker: the fresh PATH, with docker's own folder first (its credential helpers live there). */
+async function programEnv(file, deps = {}) {
+  const PATH = await freshPath(deps)
+  return { PATH: file ? `${path.dirname(file)}${path.delimiter}${PATH}` : PATH }
 }
 
 /**
  * Run a program to completion, no shell: { code, stdout, stderr, timedOut }.
  * Never throws. Output past OUTPUT_LIMIT is dropped (truncated: true).
  */
-function runFile(file, args, { timeoutMs = 20_000 } = {}) {
+function runFile(file, args, { timeoutMs = 20_000, env } = {}) {
   return new Promise((resolve) => {
     let child
     try {
-      child = spawn(file, args, { windowsHide: true, shell: false, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, DOCKER_CLI_HINTS: 'false' } })
+      child = spawn(file, args, { windowsHide: true, shell: false, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(env ?? {}), DOCKER_CLI_HINTS: 'false' } })
     } catch (error) {
       resolve({ code: -1, stdout: '', stderr: String(error.message), timedOut: false })
       return
@@ -304,7 +393,11 @@ function assertId(id) {
 
 /** A docker client bound to one docker program. deps.runFile is for tests. */
 function createDocker(file, deps = {}) {
-  const run = (args, opts) => (deps.runFile ?? runFile)(file, args, opts)
+  let envP
+  const run = async (args, opts) => {
+    envP ??= programEnv(file, deps)
+    return (deps.runFile ?? runFile)(file, args, { ...opts, env: await envP })
+  }
   return {
     version: async () => parseVersion(await run(['version', '--format', '{{json .}}'], { timeoutMs: 15_000 })),
     info: async () => parseJson((await run(['info', '--format', '{{json .}}'], { timeoutMs: 20_000 })).stdout),
@@ -340,8 +433,11 @@ module.exports = {
   findOnPath,
   findDocker,
   findLazydocker,
+  freshPath,
+  programEnv,
+  knownLocations,
   runFile,
   createDocker,
   parseLazydockerVersion,
-  _internal: { jsonLines, parseSize, parsePair, parseVersion, parseContainers, parseDiskVerbose, parseDisk, parseNetworks, parseStats, mergeLogs, parseInspect, toIso, assertId },
+  _internal: { expandVars, parseRegPath, jsonLines, parseSize, parsePair, parseVersion, parseContainers, parseDiskVerbose, parseDisk, parseNetworks, parseStats, mergeLogs, parseInspect, toIso, assertId },
 }

@@ -79,11 +79,13 @@ describe('notes store', () => {
 
   it('batches saves into one commit after a quiet spell', async () => {
     const data = tmp()
-    const s = createNotesStore(data, { commitAfterMs: 50 })
+    // The quiet spell must outlast the gap between saves even on a slow
+    // Windows runner, where a 50 ms window let one save commit on its own.
+    const s = createNotesStore(data, { commitAfterMs: 600 })
     const n = await s.create('# A\n')
     await s.save(n.id, '# A\nmore')
     await s.save(n.id, '# A\nmore and more')
-    await new Promise((r) => setTimeout(r, 300))
+    await new Promise((r) => setTimeout(r, 1500))
     const log = await commits(join(data, 'repo'))
     assert.equal(log.length, 2)
     assert.equal((await s.get(n.id)).committed, true)
