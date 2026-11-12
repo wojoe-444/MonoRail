@@ -58,7 +58,12 @@ function seed(): { projects: Project[]; rows: Row[]; next: Record<string, number
     const updated = daysAgo(age, n % 7)
     const comments: Comment[] =
       n % 2 === 0
-        ? [{ id: `${key}-c1`, author: source === 'local' ? 'You' : (reporter ?? 'Teammate'), body: 'Looked at this today. Next step is in the description.', created: updated }]
+        ? [
+            { id: `${key}-c1`, author: source === 'local' ? 'You' : (reporter ?? 'Teammate'), body: 'Looked at this today. Next step is in the description.', created: updated, mine: source === 'local' },
+            ...(source === 'jira'
+              ? [{ id: `${key}-c2`, author: 'Casey Morgan', body: 'Thanks, I will pick it up after standup.', created: updated, updated, mine: true }]
+              : []),
+          ]
         : []
     return {
       issue: {
@@ -271,11 +276,27 @@ export function createSampleBackend(): JiraApi {
     },
     async addComment({ key, body }) {
       const i = find(key)
-      const c: Comment = { id: `${key}-c${Date.now()}`, author: i.source === 'local' ? 'You' : 'Casey Morgan', body, created: new Date().toISOString() }
+      const c: Comment = { id: `${key}-c${Date.now()}`, author: i.source === 'local' ? 'You' : 'Casey Morgan', body, created: new Date().toISOString(), mine: true }
       i.comments.push(c)
       i.commentCount = i.comments.length
       touch(i, 'Commented')
       return wait(c)
+    },
+    async updateComment({ key, id, body }) {
+      const i = find(key)
+      const c = i.comments.find((x) => x.id === id)
+      if (!c?.mine) throw new Error('You can only edit your own comments.')
+      c.body = body.trim()
+      c.updated = new Date().toISOString()
+      touch(i, 'Edited a comment')
+      return wait(c)
+    },
+    async deleteComment({ key, id }) {
+      const i = find(key)
+      i.comments = i.comments.filter((x) => x.id !== id)
+      i.commentCount = i.comments.length
+      touch(i, 'Deleted a comment')
+      return wait({ ok: true as const })
     },
     async deleteIssue({ key }) {
       db.rows = db.rows.filter((r) => r.issue.key !== key)

@@ -229,6 +229,24 @@ function jqlString(s) {
 
 // ---------- helpers ----------
 
+/** Team comments carry the author's account id only so "mine" can be worked out here. */
+function markMine({ authorId, ...c }, me) {
+  return { ...c, mine: !!me && !!authorId && authorId === me.accountId }
+}
+
+function commentBody(args) {
+  const body = String(args?.body ?? '').trim()
+  if (!body) throw new Error('Write something first.')
+  if (body.length > 30_000) throw new Error('That comment is too long (30,000 characters at most).')
+  return body
+}
+
+function commentId(args) {
+  const id = String(args?.id ?? '')
+  if (!/^\d{1,20}$/.test(id)) throw new Error('Unknown comment.')
+  return id
+}
+
 function requireSource(args) {
   const source = args?.source
   if (source !== 'jira' && source !== 'local') throw new Error(`Unknown source: ${source}`)
@@ -313,8 +331,9 @@ module.exports = {
 
     async getIssue(ctx, args) {
       if (requireSource(args) === 'local') return localStore(ctx).getIssue(args.key)
-      const { jira } = await client(ctx)
-      return jira.getIssue(args.key)
+      const { conn, jira } = await client(ctx)
+      const [issue, me] = await Promise.all([jira.getIssue(args.key), myAccount(conn, jira).catch(() => null)])
+      return { ...issue, comments: issue.comments.map((c) => markMine(c, me)) }
     },
 
     /** Issue types offered when creating a ticket in a project. */
@@ -348,10 +367,28 @@ module.exports = {
       return jira.getIssue(args.key)
     },
 
+    /** addComment({ source, key, body }): team tickets get a real Jira comment, visible to everyone who can see the ticket. */
     async addComment(ctx, args) {
       if (requireSource(args) === 'local') return localStore(ctx).addComment(args)
+      const body = commentBody(args)
+      const { conn, jira } = await client(ctx)
+      return markMine(await jira.addComment(args.key, body), await myAccount(conn, jira).catch(() => null))
+    },
+
+    /** updateComment({ source, key, id, body }): on team Jira, Jira decides who may edit (usually the author). */
+    async updateComment(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).updateComment(args)
+      const body = commentBody(args)
+      const { conn, jira } = await client(ctx)
+      return markMine(await jira.updateComment(args.key, commentId(args), body), await myAccount(conn, jira).catch(() => null))
+    },
+
+    /** deleteComment({ source, key, id }) */
+    async deleteComment(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).deleteComment(args)
       const { jira } = await client(ctx)
-      return jira.addComment(args.key, String(args.body ?? '').trim())
+      await jira.deleteComment(args.key, commentId(args))
+      return { ok: true }
     },
 
     /** setParent({ source, key, parent }): parent is an issue key in the same project, or null. */

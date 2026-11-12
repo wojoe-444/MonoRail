@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils'
 import { errorText, jiraApi } from '../api'
 import { Avatar, LocalChip, Lozenge, PriorityIcon, ProjectAvatar, TypeIcon } from '../bits'
 import { useJira } from '../JiraContext'
-import type { IssueDetail, IssueFields, Worklog } from '../types'
+import type { Comment, IssueDetail, IssueFields, Worklog } from '../types'
+import { Comments } from './Comments'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './Menu'
 import { ErrorNote } from './Modal'
 import { ParentPicker } from './Parent'
@@ -17,7 +18,7 @@ import { ChildIssues, LogTimeDialog, TimeSummary, WorklogList } from './TimeTrac
 
 /** The issue view: Jira's large modal with the ticket on the left and Details on the right. */
 export function IssueModal() {
-  const { selected, closeIssue, refresh, priorities, projects, openIssue, openDialog } = useJira()
+  const { selected, closeIssue, refresh, priorities, projects, openIssue, openDialog, overview } = useJira()
   const [logOpen, setLogOpen] = useState(false)
   const [issue, setIssue] = useState<IssueDetail>()
   const [types, setTypes] = useState<string[]>([])
@@ -127,8 +128,11 @@ export function IssueModal() {
                   <ChildIssues issue={issue} onOpen={(key) => openIssue(issue.source, key)} onAdd={() => openDialog('create', project, issue.key)} />
                   <Activity
                     issue={issue}
-                    busy={busy === 'comment'}
-                    onComment={(body) => run('comment', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
+                    me={overview?.connection.displayName}
+                    busy={busy}
+                    onComment={(body) => run('add', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
+                    onEditComment={(c, body) => run(`edit:${c.id}`, () => jiraApi().updateComment({ source: issue.source, key: issue.key, id: c.id, body }))}
+                    onDeleteComment={(c) => run(`delete:${c.id}`, () => jiraApi().deleteComment({ source: issue.source, key: issue.key, id: c.id }))}
                     worklogBusy={!!busy}
                     onDeleteWorklog={(w) => void run('worklog', () => jiraApi().deleteWorklog({ source: issue.source, key: issue.key, id: w.id }))}
                   />
@@ -408,21 +412,24 @@ function LabelsEditor({ value, disabled, onSave }: { value: string[]; disabled: 
 
 function Activity({
   issue,
+  me,
   busy,
   onComment,
+  onEditComment,
+  onDeleteComment,
   worklogBusy,
   onDeleteWorklog,
 }: {
   issue: IssueDetail
-  busy: boolean
+  me?: string
+  busy?: string
   onComment: (body: string) => Promise<boolean>
+  onEditComment: (c: Comment, body: string) => Promise<boolean>
+  onDeleteComment: (c: Comment) => Promise<boolean>
   worklogBusy: boolean
   onDeleteWorklog: (w: Worklog) => void
 }) {
   const [tab, setTab] = useState<'comments' | 'worklog' | 'history'>('comments')
-  const [body, setBody] = useState('')
-  const [focused, setFocused] = useState(false)
-  const submit = () => void onComment(body.trim()).then((ok) => ok && (setBody(''), setFocused(false)))
 
   return (
     <div>
@@ -430,7 +437,7 @@ function Activity({
       <div className="mb-4 flex items-center gap-1">
         <span className="mr-1 text-(--jp-subtle)">Show:</span>
         <button type="button" className={cn('jp-btn h-7 px-2', tab === 'comments' && 'jp-btn-selected')} onClick={() => setTab('comments')}>
-          Comments
+          Comments{issue.comments.length > 0 && ` (${issue.comments.length + (issue.commentsCut ?? 0)})`}
         </button>
         <button type="button" className={cn('jp-btn h-7 px-2', tab === 'worklog' && 'jp-btn-selected')} onClick={() => setTab('worklog')}>
           Work log{issue.worklogs.length > 0 && ` (${issue.worklogs.length})`}
@@ -443,47 +450,7 @@ function Activity({
       </div>
 
       {tab === 'comments' && (
-        <div className="flex flex-col gap-5">
-          <div className="flex gap-3">
-            <Avatar name="You" size={32} />
-            <div className="flex-1">
-              <textarea
-                rows={focused || body ? 4 : 1}
-                placeholder="Add a comment…"
-                aria-label="Add a comment"
-                value={body}
-                onFocus={() => setFocused(true)}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && body.trim()) submit()
-                }}
-                className="jp-field"
-              />
-              {(focused || body) && (
-                <div className="mt-2 flex gap-2">
-                  <button type="button" className="jp-btn jp-btn-primary" disabled={busy || !body.trim()} onClick={submit}>
-                    {busy && <Loader2 className="animate-spin" />} Save
-                  </button>
-                  <button type="button" className="jp-btn jp-btn-subtle" onClick={() => (setBody(''), setFocused(false))}>
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {[...issue.comments].reverse().map((c) => (
-            <div key={c.id} className="flex gap-3">
-              <Avatar name={c.author} size={32} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-semibold">{c.author}</span>
-                  <span className="text-xs text-(--jp-subtle)">{formatRelative(c.created)}</span>
-                </div>
-                <p className="mt-1 leading-6 break-words whitespace-pre-wrap">{c.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Comments issue={issue} me={me} busy={busy} onAdd={onComment} onEdit={onEditComment} onDelete={onDeleteComment} />
       )}
 
       {tab === 'worklog' && <WorklogList issue={issue} busy={worklogBusy} onDelete={onDeleteWorklog} />}

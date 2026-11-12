@@ -106,6 +106,28 @@ describe('parents and time logs', () => {
     assert.equal((await s.getIssue('ME-2')).parent, undefined)
   })
 
+  it('edits and deletes local comments, one commit each', async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo')
+    const s = createLocalStore(dir)
+    await s.createProject({ key: 'me', name: 'Personal' })
+    await s.createIssue({ projectKey: 'ME', summary: 'Task' })
+    const c = await s.addComment({ key: 'ME-1', body: 'First try' })
+    await assert.rejects(s.addComment({ key: 'ME-1', body: '  ' }), /Write something/)
+    const edited = await s.updateComment({ key: 'ME-1', id: c.id, body: 'Second try' })
+    assert.equal(edited.body, 'Second try')
+    assert.ok(edited.updated)
+    let issue = await s.getIssue('ME-1')
+    assert.equal(issue.comments[0].body, 'Second try')
+    assert.equal(issue.comments[0].mine, true)
+    assert.equal(issue.commentCount, 1)
+    await s.deleteComment({ key: 'ME-1', id: c.id })
+    await assert.rejects(s.updateComment({ key: 'ME-1', id: c.id, body: 'x' }), /gone/)
+    issue = await s.getIssue('ME-1')
+    assert.equal(issue.comments.length, 0)
+    assert.ok(issue.history.some((h) => h.text === 'Edited a comment'))
+    assert.ok(issue.history.some((h) => h.text === 'Deleted a comment'))
+  })
+
   it('formats time the way Jira does', () => {
     assert.equal(formatSeconds(90 * 60), '1h 30m')
     assert.equal(formatSeconds(9 * 3600), '1d 1h')
@@ -178,6 +200,61 @@ describe('team Jira connection', () => {
     assert.equal(o.connection.siteUrl, 'https://old.atlassian.net')
     const after = await backend.methods.forgetLegacyConnection(ctx)
     assert.equal(after.connected, false)
+    global.fetch = realFetch
+  })
+
+  it('posts, edits and deletes real Jira comments and marks your own', async () => {
+    const seen = []
+    backend._setCredentialSource(async () => ({ siteUrl: 'https://team.atlassian.net', email: 'comments@example.invalid', token: 't1' }))
+    const comment = (id, accountId, text) => ({
+      id,
+      author: { accountId, displayName: accountId === 'me1' ? 'Casey' : 'Sam' },
+      body: textToAdf(text),
+      created: '2026-11-12T10:00:00.000+0000',
+      updated: '2026-11-12T10:00:00.000+0000',
+    })
+    global.fetch = async (url, opts) => {
+      const path = new URL(url).pathname
+      seen.push([opts.method, path, opts.body ? JSON.parse(opts.body) : undefined])
+      let body = {}
+      if (path.endsWith('/myself')) body = { accountId: 'me1', displayName: 'Casey' }
+      else if (path.endsWith('/transitions')) body = { transitions: [] }
+      else if (path.endsWith('/worklog')) body = { worklogs: [] }
+      else if (path.includes('/search')) body = { isLast: true, issues: [] }
+      else if (opts.method === 'DELETE') return { ok: true, status: 204, text: async () => '' }
+      else if (path.endsWith('/comment')) body = comment('11', 'me1', 'Hello team')
+      else if (path.includes('/comment/')) body = { ...comment('11', 'me1', 'Hello again'), updated: '2026-11-12T11:00:00.000+0000' }
+      else
+        body = {
+          key: 'TEAM-1',
+          fields: {
+            summary: 'S', status: { name: 'To Do', statusCategory: { key: 'new' } }, issuetype: { name: 'Task' }, project: { key: 'TEAM' },
+            comment: { total: 3, comments: [comment('10', 'other', 'Theirs'), comment('11', 'me1', 'Mine')] },
+          },
+        }
+      return { ok: true, status: 200, text: async () => JSON.stringify(body) }
+    }
+    const ctx = ctxFor()
+    const issue = await backend.methods.getIssue(ctx, { source: 'jira', key: 'TEAM-1' })
+    assert.deepEqual(issue.comments.map((c) => [c.id, c.mine]), [['10', false], ['11', true]])
+    assert.equal(issue.comments[0].authorId, undefined)
+    assert.equal(issue.commentsCut, 1)
+
+    const posted = await backend.methods.addComment(ctx, { source: 'jira', key: 'TEAM-1', body: ' Hello team ' })
+    assert.equal(posted.mine, true)
+    assert.deepEqual(seen.at(-1).slice(0, 2), ['POST', '/rest/api/3/issue/TEAM-1/comment'])
+    assert.equal(adfToText(seen.at(-1)[2].body), 'Hello team')
+
+    const edited = await backend.methods.updateComment(ctx, { source: 'jira', key: 'TEAM-1', id: '11', body: 'Hello again' })
+    assert.equal(edited.body, 'Hello again')
+    assert.ok(edited.updated)
+    assert.deepEqual(seen.at(-1).slice(0, 2), ['PUT', '/rest/api/3/issue/TEAM-1/comment/11'])
+
+    await backend.methods.deleteComment(ctx, { source: 'jira', key: 'TEAM-1', id: '11' })
+    assert.deepEqual(seen.at(-1).slice(0, 2), ['DELETE', '/rest/api/3/issue/TEAM-1/comment/11'])
+
+    await assert.rejects(backend.methods.deleteComment(ctx, { source: 'jira', key: 'TEAM-1', id: '../x' }), /Unknown comment/)
+    await assert.rejects(backend.methods.addComment(ctx, { source: 'jira', key: 'TEAM-1', body: ' ' }), /Write something/)
     global.fetch = realFetch
   })
 

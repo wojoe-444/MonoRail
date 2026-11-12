@@ -20,6 +20,8 @@ export const jiraPlusApp: AppDefinition = {
     'updateIssue',
     'transitionIssue',
     'addComment',
+    'updateComment',
+    'deleteComment',
     'deleteIssue',
     'createLocalProject',
     'updateLocalProject',

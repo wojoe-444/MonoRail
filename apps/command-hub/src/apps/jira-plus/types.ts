@@ -65,6 +65,10 @@ export interface Comment {
   author: string
   body: string
   created: string
+  /** Set when the comment was edited after it was posted. */
+  updated?: string
+  /** Yours, so you may edit or delete it (all local comments are). */
+  mine?: boolean
 }
 
 export interface HistoryEntry {
@@ -84,6 +88,8 @@ export interface Transition {
 export interface IssueDetail extends Issue {
   description: string
   comments: Comment[]
+  /** Team Jira only: how many older comments Jira left out of this page. */
+  commentsCut?: number
   history: HistoryEntry[]
   transitions: Transition[]
   worklogs: Worklog[]

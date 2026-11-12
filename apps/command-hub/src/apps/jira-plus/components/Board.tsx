@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { MessageSquare } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -88,6 +89,12 @@ export function Board({ issues, onOpen, onMove, busyKey }: BoardProps) {
                   <TypeIcon type={issue.type} />
                   <span className={cn('text-xs font-semibold text-(--jp-subtle)', col === 'done' && 'line-through')}>{issue.key}</span>
                   <span className="ml-auto flex items-center gap-1.5">
+                    {issue.commentCount > 0 && (
+                      <span className="flex items-center gap-0.5 text-xs text-(--jp-subtle) tabular-nums" title={`${issue.commentCount} ${issue.commentCount === 1 ? 'comment' : 'comments'}`}>
+                        <MessageSquare className="size-3.5" />
+                        {issue.commentCount}
+                      </span>
+                    )}
                     {!!issue.timeSpentSeconds && (
                       <span className="font-mono text-xs text-(--jp-subtle) tabular-nums" title="Time logged">
                         {formatDuration(issue.timeSpentSeconds)}

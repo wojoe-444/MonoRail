@@ -99,6 +99,22 @@ function textToAdf(text) {
   }
 }
 
+// ---------- comments ----------
+
+/** A Jira comment as the page sees it. authorId is only used to work out "mine". */
+function toComment(c) {
+  const created = c.created
+  const updated = c.updated && c.updated !== c.created ? c.updated : undefined
+  return {
+    id: String(c.id),
+    author: c.author?.displayName ?? 'Someone',
+    authorId: c.author?.accountId,
+    body: adfToText(c.body),
+    created,
+    ...(updated ? { updated } : {}),
+  }
+}
+
 // ---------- client ----------
 
 function normalizeSite(siteUrl) {
@@ -232,16 +248,14 @@ function createJiraClient({ siteUrl, email, token }) {
         search(`parent = "${String(key).replace(/["\\]/g, '')}" ORDER BY key ASC`, 100).catch(() => []),
       ])
       const issue = toIssue(raw)
-      const comments = (raw.fields?.comment?.comments ?? []).map((c) => ({
-        id: c.id,
-        author: c.author?.displayName ?? 'Someone',
-        body: adfToText(c.body),
-        created: c.created,
-      }))
+      const comments = (raw.fields?.comment?.comments ?? []).map(toComment)
+      const commentTotal = raw.fields?.comment?.total ?? comments.length
       return {
         ...issue,
         description: adfToText(raw.fields?.description),
         comments,
+        // Jira returns a page of comments with the issue; say when some are left out.
+        ...(commentTotal > comments.length ? { commentsCut: commentTotal - comments.length } : {}),
         worklogs: logs,
         children,
         timeTracking: {
@@ -321,8 +335,17 @@ function createJiraClient({ siteUrl, email, token }) {
 
     async addComment(key, body) {
       const c = await request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body: textToAdf(body) })
-      return { id: c.id, author: c.author?.displayName ?? 'You', body: adfToText(c.body), created: c.created }
+      return toComment(c)
     },
+
+    /** Jira itself decides who may edit or delete a comment (usually its author). */
+    async updateComment(key, id, body) {
+      const c = await request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}/comment/${encodeURIComponent(id)}`, { body: textToAdf(body) })
+      return toComment(c)
+    },
+
+    deleteComment: (key, id) =>
+      request('DELETE', `/rest/api/3/issue/${encodeURIComponent(key)}/comment/${encodeURIComponent(id)}`),
   }
 }
 

@@ -812,6 +812,11 @@ children's field in the same commit) and `worklogs` (started, seconds,
 comment; 1 minute to 1 week each); child lists and roll-up totals are worked
 out on read, never stored. Team Jira uses its own `parent` field, `parent =`
 JQL for children and real worklogs (`aggregatetimespent` for sub-tasks).
+**Comments**: add, edit and delete. Local comments are all `mine` (one commit
+each); team tickets post, `PUT` and `DELETE` real Jira comments, `mine` is
+worked out from the account id (`myAccount`), and Jira enforces who may edit.
+The composer always says who will read it (team: visible to everyone on the
+ticket, may email watchers).
 Jira+ started as the `jira` module, so if
 `%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
 the backend keeps using the old folder in place. Tests live in
