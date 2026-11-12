@@ -13,8 +13,20 @@ const { appLayout } = require('../profiles/index.cjs')
 let service
 const get = () => (service ??= createGlobalBackups(appLayout().profileDir, (...a) => console.log('[backups]', ...a)))
 
+/** For the settings backend: back up everything before an update installs (service.cjs runBeforeUpdate). */
+const backupBeforeUpdate = (version) => get().runBeforeUpdate(version)
+
+/** What the update UI says about backing up first: 'on' | 'off' | 'no-folder'. */
+async function beforeUpdateMode() {
+  const g = await readGlobal(appLayout().profileDir)
+  if (!g.enabled || !g.folder) return 'no-folder'
+  return g.beforeUpdate ? 'on' : 'off'
+}
+
 module.exports = {
   id: 'backups',
+  backupBeforeUpdate,
+  beforeUpdateMode,
   start() {
     get().start()
   },

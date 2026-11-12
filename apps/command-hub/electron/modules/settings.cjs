@@ -12,6 +12,14 @@
 // few hours, the same check as the Settings button. The update pop-up
 // (src/modules/settings/UpdateToast.tsx) reads getStatus and offers the
 // update; its "Ignore for six hours" snooze is kept in the renderer.
+//
+// Back up before updating: when the global backup folder is on (Settings >
+// Backups) and its "Back up before updating" switch is too (the default),
+// everything is backed up into <folder>/before-update/ after the download and
+// before the installer runs (state 'backing-up'). If that backup fails the
+// update waits ('backup-failed') until the user tries again or chooses to
+// update without it. With no folder set nothing is backed up and the update
+// is never held up.
 
 const { app, net } = require('electron')
 const { changesSince } = require('../release-notes.cjs')
@@ -29,7 +37,7 @@ function updateSupport() {
 }
 
 const status = {
-  state: 'idle', // idle | checking | available | not-available | downloading | downloaded | error
+  state: 'idle', // idle | checking | available | not-available | downloading | downloaded | backing-up | backup-failed | error
   latestVersion: undefined,
   releaseDate: undefined,
   releaseNotes: undefined,
@@ -39,6 +47,8 @@ const status = {
   progress: undefined, // { percent, transferred, total, bytesPerSecond }
   error: undefined,
   lastChecked: undefined,
+  // The last "back up before updating" result (service.cjs runBeforeUpdate), this run only.
+  backup: undefined,
 }
 
 let updater
@@ -63,12 +73,44 @@ function getUpdater() {
   )
   autoUpdater.on('update-downloaded', (info) => {
     set({ state: 'downloaded', progress: undefined, ...fromInfo(info) })
-    // "Download and restart": install as soon as the download lands.
-    if (restartWhenDownloaded) setTimeout(() => autoUpdater.quitAndInstall(true, true), 1500)
+    // "Download and restart": back up, then install as soon as the download lands.
+    if (restartWhenDownloaded) backupThenInstall().catch(() => {})
   })
   autoUpdater.on('error', (err) => set({ state: 'error', progress: undefined, error: message(err) }))
   updater = autoUpdater
   return updater
+}
+
+const backups = () => require('./backups.cjs')
+
+let installing = false
+/** Back up (when set up), then quit and run the installer. Holds the update if the backup fails. */
+async function backupThenInstall({ skipBackup = false } = {}) {
+  if (installing) return
+  installing = true
+  try {
+    if (!skipBackup) {
+      set({ state: 'backing-up', backup: undefined })
+      let result
+      try {
+        result = await backups().backupBeforeUpdate(status.latestVersion)
+      } catch (err) {
+        result = { ok: false, at: new Date().toISOString(), error: message(err), items: [] }
+      }
+      set({ backup: result })
+      if (!result.ok) {
+        set({ state: 'backup-failed' })
+        installing = false
+        return
+      }
+    }
+    set({ state: 'downloaded' })
+    // Let the IPC reply and the pop-up's "Restarting" go out before the app quits.
+    setTimeout(() => getUpdater().quitAndInstall(true, true), 1500)
+  } catch (err) {
+    installing = false
+    set({ state: 'error', error: message(err) })
+  }
 }
 
 function set(patch) {
@@ -113,9 +155,16 @@ function message(err) {
   return text.split('\n')[0].slice(0, 300)
 }
 
-function snapshot() {
+async function snapshot() {
   const support = updateSupport()
+  let backupBeforeUpdate = 'no-folder'
+  try {
+    backupBeforeUpdate = await backups().beforeUpdateMode()
+  } catch {
+    /* treated as no folder */
+  }
   return {
+    backupBeforeUpdate,
     currentVersion: app.getVersion(),
     electronVersion: process.versions.electron,
     dataDir: app.getPath('userData'),
@@ -132,7 +181,7 @@ const CHECK_EVERY_MS = 4 * 60 * 60 * 1000
 let checking
 async function checkForUpdates() {
   if (!updateSupport().supported) return snapshot()
-  if (status.state === 'downloading' || status.state === 'downloaded') return snapshot()
+  if (['downloading', 'downloaded', 'backing-up', 'backup-failed'].includes(status.state)) return snapshot()
   if (checking) return checking
   checking = (async () => {
     try {
@@ -177,10 +226,17 @@ module.exports = {
       return snapshot()
     },
 
+    /** Install a downloaded update, backing up first when set up. Also "Try again" after a failed backup. */
     async installAndRestart() {
-      if (status.state !== 'downloaded') return snapshot()
-      // Let the IPC reply go out before the app quits.
-      setTimeout(() => getUpdater().quitAndInstall(true, true), 250)
+      if (status.state !== 'downloaded' && status.state !== 'backup-failed') return snapshot()
+      backupThenInstall().catch(() => {})
+      return snapshot()
+    },
+
+    /** After a failed backup, the user's explicit choice to update anyway. */
+    async installWithoutBackup() {
+      if (status.state !== 'backup-failed') return snapshot()
+      backupThenInstall({ skipBackup: true }).catch(() => {})
       return snapshot()
     },
   },

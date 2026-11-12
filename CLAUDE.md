@@ -712,7 +712,13 @@ frequency (`useGlobalFrequency`), read when each backup runs; a repo's own
 folder or frequency wins when its flag is off, and a schedule that follows a
 global folder that was turned off pauses with a reason. Jira+'s private
 projects repo (bundle) and Flashcards' `decks.json` (copy, refused when
-damaged) run on the global schedule (`service.cjs`, one switch each). Changing
+damaged) run on the global schedule (`service.cjs`, one switch each). **Back up
+before updating** (`beforeUpdate`, on by default): while the global folder is
+on, the settings backend backs up every global item into
+`<folder>/before-update/` (newest 5 each) after the download and before the
+installer runs (`runBeforeUpdate`); a failure holds the update
+(`backup-failed`: Try again / Update without a backup), and with no folder the
+update is never held up, only hinted. Changing
 the folder only affects future backups: never move, copy or delete backups in
 an earlier folder; pruning touches only MonoRail's own files in the folder it
 writes to. New pages with backups add an entry to `PAGES` in `global.cjs`.

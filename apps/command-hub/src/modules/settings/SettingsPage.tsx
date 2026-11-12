@@ -17,6 +17,7 @@ import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
 import { changeItems } from './changes'
 import { WhatsNewList } from './WhatsNew'
+import { BACKING_UP, BackupFailed, BeforeUpdateNote } from './BeforeUpdate'
 
 const MODULE_ID = 'settings'
 
@@ -45,7 +46,7 @@ export default function SettingsPage() {
   const status = live ?? query.data ?? (desktop ? undefined : browserStatus)
 
   // The backend is request/response, so poll while a download is running.
-  const downloading = status?.state === 'downloading'
+  const downloading = status?.state === 'downloading' || status?.state === 'backing-up'
   useEffect(() => {
     if (!downloading) return
     const t = setInterval(() => {
@@ -142,7 +143,7 @@ interface UpdatePanelProps {
 
 function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
   const { state } = status
-  const checking = state === 'checking' || (busy && state !== 'available' && state !== 'downloaded')
+  const checking = state === 'checking' || (busy && !['available', 'downloaded', 'backing-up', 'backup-failed'].includes(state))
   const pct = Math.round(status.progress?.percent ?? 0)
 
   return (
@@ -168,7 +169,7 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
               <RotateCcw /> Restart to update
             </Button>
           )}
-          {state !== 'downloading' && state !== 'downloaded' && (
+          {!['downloading', 'downloaded', 'backing-up', 'backup-failed'].includes(state) && (
             <Button
               variant={state === 'available' ? 'outline' : 'default'}
               onClick={() => onCall('checkForUpdates')}
@@ -180,6 +181,14 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
           )}
         </div>
       </div>
+
+      {state === 'available' && <BeforeUpdateNote status={status} />}
+
+      {state === 'backing-up' && <p className="text-sm text-muted-foreground">{BACKING_UP.text}</p>}
+
+      {state === 'backup-failed' && (
+        <BackupFailed status={status} busy={busy} onRetry={() => onCall('installAndRestart')} onSkip={() => onCall('installWithoutBackup')} />
+      )}
 
       {state === 'downloading' && (
         <div className="flex flex-col gap-2">
@@ -220,6 +229,10 @@ function headline(s: AppStatus, checking: boolean): string {
       return `Downloading version ${s.latestVersion}`
     case 'downloaded':
       return `Version ${s.latestVersion} is ready to install`
+    case 'backing-up':
+      return BACKING_UP.title
+    case 'backup-failed':
+      return 'The backup before updating failed'
     case 'not-available':
       return 'MonoRail is up to date'
     case 'error':
@@ -235,16 +248,20 @@ function StatusIcon({ status, checking }: { status: AppStatus; checking: boolean
     ? [Info, 'bg-info-soft text-info-soft-foreground']
     : checking
       ? [Loader2, 'bg-primary-soft text-primary-soft-foreground']
-      : state === 'available' || state === 'downloading' || state === 'downloaded'
-        ? [Sparkles, 'bg-primary-soft text-primary-soft-foreground']
-        : state === 'not-available'
-          ? [CheckCircle2, 'bg-success-soft text-success-soft-foreground']
-          : state === 'error'
-            ? [AlertTriangle, 'bg-destructive-soft text-destructive-soft-foreground']
-            : [RefreshCw, 'bg-muted text-muted-foreground']
+      : state === 'backing-up'
+        ? [Loader2, 'bg-primary-soft text-primary-soft-foreground']
+        : state === 'backup-failed'
+          ? [AlertTriangle, 'bg-warning-soft text-warning-soft-foreground']
+          : state === 'available' || state === 'downloading' || state === 'downloaded'
+            ? [Sparkles, 'bg-primary-soft text-primary-soft-foreground']
+            : state === 'not-available'
+              ? [CheckCircle2, 'bg-success-soft text-success-soft-foreground']
+              : state === 'error'
+                ? [AlertTriangle, 'bg-destructive-soft text-destructive-soft-foreground']
+                : [RefreshCw, 'bg-muted text-muted-foreground']
   return (
     <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', tone)}>
-      <Icon className={cn('size-5', checking && 'animate-spin')} />
+      <Icon className={cn('size-5', (checking || state === 'backing-up') && 'animate-spin')} />
     </div>
   )
 }
