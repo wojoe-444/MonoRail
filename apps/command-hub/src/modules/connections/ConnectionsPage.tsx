@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Cloud,
   Container,
+  Database,
   ExternalLink,
   GitBranch,
   Globe,
@@ -45,7 +46,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe, container: Container } as const
+const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe, container: Container, database: Database } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },
@@ -403,6 +404,7 @@ const USED_BY: Record<string, string> = {
   git: 'GitHub+, Chat',
   github: 'GitHub+',
   docker: 'Docker page',
+  metricflow: 'Semantic page',
 }
 
 /** The detail that says which account a connection uses, for the Account column. */
