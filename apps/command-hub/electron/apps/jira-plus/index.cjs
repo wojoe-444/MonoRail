@@ -20,7 +20,7 @@ const path = require('node:path')
 const { BrowserWindow, dialog, safeStorage } = require('electron')
 
 const { createJiraClient } = require('./cloud.cjs')
-const { createLocalStore } = require('./local.cjs')
+const { createLocalStore, worklogEntry } = require('./local.cjs')
 const { resolveJiraDataDir, CONNECTION_FILE } = require('./data-dir.cjs')
 const { createRepoLinks } = require('./repo-links.cjs')
 const ghGit = require('../github-plus/git.cjs')
@@ -349,6 +349,40 @@ module.exports = {
       if (requireSource(args) === 'local') return localStore(ctx).addComment(args)
       const { jira } = await client(ctx)
       return jira.addComment(args.key, String(args.body ?? '').trim())
+    },
+
+    /** setParent({ source, key, parent }): parent is an issue key in the same project, or null. */
+    async setParent(ctx, args) {
+      const parent = args?.parent ? String(args.parent).trim().toUpperCase() : null
+      if (parent && !/^[A-Z][A-Z0-9]+-\d+$/.test(parent)) throw new Error(`${parent} is not an issue key, like ME-12.`)
+      if (requireSource(args) === 'local') return localStore(ctx).setParent({ key: args.key, parent })
+      const { jira } = await client(ctx)
+      if (parent && parent.split('-')[0] !== String(args.key).split('-')[0]) throw new Error('A parent must be in the same project.')
+      await jira.setParent(args.key, parent)
+      return jira.getIssue(args.key)
+    },
+
+    /** Issues that can be the parent of `key` (or of a new issue in `projectKey`). */
+    async parentOptions(ctx, args) {
+      const projectKey = args?.projectKey ?? String(args?.key ?? '').split('-')[0]
+      if (requireSource(args) === 'local') return localStore(ctx).parentOptions({ projectKey, key: args?.key })
+      const { jira } = await client(ctx)
+      return jira.parentOptions(projectKey, args?.key)
+    },
+
+    /** logWork({ source, key, seconds, started?, comment? }): time spent on a ticket. Team tickets get a real Jira worklog. */
+    async logWork(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).logWork(args)
+      const entry = worklogEntry(args ?? {})
+      const { jira } = await client(ctx)
+      return jira.logWork(args.key, entry)
+    },
+
+    async deleteWorklog(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).deleteWorklog(args)
+      const { jira } = await client(ctx)
+      await jira.deleteWorklog(args.key, String(args.id ?? ''))
+      return { ok: true }
     },
 
     /** Local tickets only: team Jira deletes stay in Jira itself. */
