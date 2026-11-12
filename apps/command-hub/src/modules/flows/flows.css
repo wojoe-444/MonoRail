@@ -1,0 +1,20 @@
+/* Flows canvas: React Flow defaults, restyled with MonoRail tokens. */
+.flows-canvas {
+  --xy-background-color: var(--background);
+  --xy-edge-stroke: var(--muted-foreground);
+  --xy-connectionline-stroke: var(--primary);
+  --xy-selection-background-color: color-mix(in oklch, var(--primary) 8%, transparent);
+  --xy-selection-border: 1px dashed var(--primary);
+}
+.flows-canvas .flow-port {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 15%, transparent);
+}
+.flows-canvas .flow-port:hover {
+  transform: translateY(-50%) scale(1.25);
+}
+.flows-canvas .react-flow__edge.animated path {
+  stroke-dasharray: 6 4;
+}

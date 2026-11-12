@@ -92,7 +92,7 @@ export default function App() {
           onNavigate={openPath}
           collapsed={collapsed}
         />
-        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp || findModuleByPath(path, extensionList)?.layout === 'full' ? 'overflow-hidden' : 'overflow-y-auto')}>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
@@ -105,6 +105,11 @@ export default function App() {
             // A workspace app owns the whole page body, with its own look and scrolling.
             <main className="min-h-0 flex-1 overflow-auto">
               <AppBody key={workspaceApp.id} app={workspaceApp} />
+            </main>
+          ) : findModuleByPath(path, extensionList)?.layout === 'full' ? (
+            // A canvas page fills the body edge to edge.
+            <main className="min-h-0 flex-1 overflow-hidden">
+              <RouteView path={path} navItems={navItems} onOpen={openPath} />
             </main>
           ) : (
             // Content container: max 1536px with 24/32px gutters
