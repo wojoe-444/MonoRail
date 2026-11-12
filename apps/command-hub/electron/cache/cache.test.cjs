@@ -209,6 +209,20 @@ test('A4: a lock left by a dead process is broken', async () => {
   assert.equal(fs.existsSync(lock), false)
 })
 
+test('A4: a lock still being written is busy, not stale; an old unreadable one is broken', async () => {
+  const { dir } = tmpDir()
+  const lock = path.join(dir, 'x.lock')
+  // Another holder has just created the file and not yet written its pid.
+  fs.writeFileSync(lock, '')
+  assert.equal(await tryLock(lock, { staleMs: HOUR }), undefined)
+  assert.equal(fs.existsSync(lock), true)
+  const old = new Date(Date.now() - 2 * HOUR)
+  fs.utimesSync(lock, old, old)
+  const release = await tryLock(lock, { staleMs: HOUR })
+  assert.ok(release)
+  await release()
+})
+
 test('A4: a build that runs past its time limit fails and frees the lock', async () => {
   const { ctx } = tmpDir()
   const r = cache.report(ctx, 'test.report', { build: () => new Promise(() => {}) })
