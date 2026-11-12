@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './flows.css'
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, History, Loader2, Maximize, Minus, PanelRight, Plus, RotateCcw, Search, Send, Square, SquareTerminal, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, Maximize, Minus, PanelRight, Plus, RotateCcw, Search, Send, Square, SquareTerminal, Trash2, X } from 'lucide-react'
 
 import { AgentMochi, MochiAvatar } from '@/components/mochi'
 import { Badge } from '@/components/ui/badge'
@@ -28,10 +28,12 @@ import { ChatMarkdown } from '@/modules/agent-chat/ChatMarkdown'
 import { call, errorText } from './api'
 import { CATEGORIES, CATEGORY_ICON, COMPONENTS, KIND_ICON, PORT_COLOR, canConnect, componentFor, inputsOf } from './components'
 import { EditorContext, type EditorContextValue } from './context'
+import { FlowEdge } from './FlowEdge'
 import { FlowNode, type FlowNodeData } from './FlowNode'
 import type { EditorOptions, Flow, FlowDoc, PortType, RunSnapshot, RunStep, Version } from './types'
 
 const nodeTypes = { component: FlowNode }
+const edgeTypes = { flow: FlowEdge }
 const DRAG_TYPE = 'application/x-monorail-flow-step'
 const SAVE_AFTER_MS = 700
 
@@ -121,7 +123,7 @@ function Palette() {
         })}
       </div>
       <div className="border-t p-3 text-[11px] leading-relaxed text-muted-foreground">
-        Connect a dot on the right of a step to a dot on the left of another. Select a step or a line and press Delete to remove it.
+        Connect a dot on the right of a step to a dot on the left of another. To remove a step or a line, click it and press Delete, use its x, or right-click it.
       </div>
     </aside>
   )
@@ -360,6 +362,39 @@ function VersionsDialog({ flowId, open, onOpenChange, onRestore }: { flowId: str
   )
 }
 
+type CanvasMenu = { x: number; y: number; target: { kind: 'edge' | 'node'; id: string } }
+
+/** The right-click menu for a step or a connection line. */
+function CanvasMenuView({ menu, onClose, onDelete, onDuplicate }: { menu: CanvasMenu; onClose: () => void; onDelete: () => void; onDuplicate: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector('button')?.focus()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onDown = (e: PointerEvent) => !ref.current?.contains(e.target as globalThis.Node) && onClose()
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onDown, true)
+    }
+  }, [onClose])
+  const item = 'flex h-8 w-full items-center gap-2 rounded-sm px-2 text-sm outline-none hover:bg-accent focus-visible:bg-accent [&_svg]:size-4'
+  const isEdge = menu.target.kind === 'edge'
+  return (
+    <div ref={ref} role="menu" className="absolute z-20 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-elevation-3 ring-1 ring-foreground/10" style={{ left: menu.x, top: menu.y }}>
+      {!isEdge && (
+        <button type="button" role="menuitem" className={item} onClick={() => { onDuplicate(); onClose() }}>
+          <Copy className="text-muted-foreground" /> Duplicate step
+        </button>
+      )}
+      <button type="button" role="menuitem" className={cn(item, 'text-destructive')} onClick={() => { onDelete(); onClose() }}>
+        <Trash2 /> {isEdge ? 'Delete connection' : 'Delete step'}
+        <span className="ml-auto pl-4 text-xs text-muted-foreground">Del</span>
+      </button>
+    </div>
+  )
+}
+
 type SaveState = { kind: 'saved' } | { kind: 'saving' } | { kind: 'error'; message: string }
 
 function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOptions; onBack: () => void }) {
@@ -485,8 +520,9 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
       stepOf,
       setValue: (nodeId, field, value) => setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, values: { ...n.data.values, [field]: value } } } : n))),
       setTitle: (nodeId, title) => setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, title: title.trim() || undefined } } : n))),
+      removeStep: (nodeId) => void rf.deleteElements({ nodes: [{ id: nodeId }] }),
     }),
-    [options, stepOf, setNodes],
+    [options, stepOf, setNodes, rf],
   )
 
   // A placeholder removed from a prompt drops the edges that fed it.
@@ -534,8 +570,28 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
     [rf, setNodes],
   )
 
+  const [menu, setMenu] = useState<CanvasMenu>()
+  const closeMenu = useCallback(() => setMenu(undefined), [])
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const openMenu = (e: { preventDefault: () => void; clientX: number; clientY: number }, target: CanvasMenu['target']) => {
+    e.preventDefault()
+    const box = canvasRef.current?.getBoundingClientRect()
+    if (!box) return
+    if (target.kind === 'edge') setEdges((es) => es.map((x) => ({ ...x, selected: x.id === target.id })))
+    else setNodes((ns) => ns.map((x) => ({ ...x, selected: x.id === target.id })))
+    setMenu({ x: e.clientX - box.left, y: e.clientY - box.top, target })
+  }
+  const duplicateStep = (nodeId: string) =>
+    setNodes((ns) => {
+      const src = ns.find((n) => n.id === nodeId)
+      if (!src) return ns
+      const id = newId(src.data.kind.replace(/[^a-z]/g, '').slice(0, 8) || 'step', new Set(ns.map((n) => n.id)))
+      const copy: RFNode = { ...src, id, position: { x: src.position.x + 40, y: src.position.y + 40 }, selected: true, data: { ...src.data, values: { ...src.data.values } } }
+      return [...ns.map((n) => ({ ...n, selected: false })), copy]
+    })
+
   const live = run?.status === 'running' ? new Set(run.steps.filter((s) => s.status === 'running').map((s) => s.nodeId)) : new Set<string>()
-  const styledEdges = edges.map((ed) => ({ ...ed, animated: live.has(ed.target), style: { stroke: PORT_COLOR[outType(nodes, ed.source, ed.sourceHandle)], strokeWidth: 2 } }))
+  const styledEdges = edges.map((ed) => ({ ...ed, type: 'flow', animated: live.has(ed.target), data: { color: PORT_COLOR[outType(nodes, ed.source, ed.sourceHandle)] } }))
 
   const restore = (flow: Flow) => {
     const rfFlow = toRF(flow)
@@ -587,7 +643,7 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
         </div>
         <div className="flex min-h-0 flex-1">
           <Palette />
-          <div className="relative min-w-0 flex-1 bg-background" onDragOver={(e) => {
+          <div ref={canvasRef} className="relative min-w-0 flex-1 bg-background" onDragOver={(e) => {
             if (e.dataTransfer.types.includes(DRAG_TYPE)) {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
@@ -601,6 +657,15 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
               onConnect={onConnect}
               isValidConnection={isValidConnection}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onEdgeContextMenu={(e, edge) => openMenu(e, { kind: 'edge', id: edge.id })}
+              onNodeContextMenu={(e, node) => openMenu(e, { kind: 'node', id: node.id })}
+              onPaneClick={() => setMenu(undefined)}
+              onPaneContextMenu={(e) => {
+                e.preventDefault()
+                setMenu(undefined)
+              }}
+              onMoveStart={() => setMenu(undefined)}
               deleteKeyCode={['Backspace', 'Delete']}
               fitView
               fitViewOptions={{ padding: 0.12, maxZoom: 1 }}
@@ -614,6 +679,14 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
             <Button variant="outline" size="sm" className="absolute bottom-4 left-4 z-10 bg-card shadow-elevation-2" onClick={() => setShowLogs((v) => !v)}>
               <SquareTerminal /> Logs
             </Button>
+            {menu && (
+              <CanvasMenuView
+                menu={menu}
+                onClose={closeMenu}
+                onDelete={() => void rf.deleteElements(menu.target.kind === 'edge' ? { edges: [{ id: menu.target.id }] } : { nodes: [{ id: menu.target.id }] })}
+                onDuplicate={() => duplicateStep(menu.target.id)}
+              />
+            )}
             {showLogs && <LogsDrawer run={run} onClose={() => setShowLogs(false)} />}
           </div>
           {showPlay && (

@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { Handle, Position, useEdges, type Node, type NodeProps } from '@xyflow/react'
-import { AlertCircle, Check, Loader2, Lock, MinusCircle } from 'lucide-react'
+import { AlertCircle, Check, Loader2, Lock, MinusCircle, X } from 'lucide-react'
 
 import { AgentMochi, MochiAvatar } from '@/components/mochi'
 import { cn } from '@/lib/utils'
@@ -101,7 +101,7 @@ function ms(a?: number, b?: number) {
 
 export const FlowNode = memo(function FlowNode({ id, data, selected }: NodeProps<Node<FlowNodeData>>) {
   const def = componentFor(data.kind)
-  const { stepOf, setTitle } = useEditor()
+  const { stepOf, setTitle, removeStep } = useEditor()
   const edges = useEdges()
   const connected = new Set(edges.filter((e) => e.target === id).map((e) => e.targetHandle))
   const Icon = KIND_ICON[data.kind]
@@ -143,7 +143,11 @@ export const FlowNode = memo(function FlowNode({ id, data, selected }: NodeProps
           <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">{data.title && data.title !== def.title ? def.title : def.description}</div>
         </div>
         <div className="-mr-1 grid size-7 shrink-0 place-items-center">
-          {status === 'running' ? <Loader2 className="size-3.5 animate-spin text-primary" /> : status === 'done' ? <Check className="size-3.5 text-success" /> : status === 'failed' ? <AlertCircle className="size-3.5 text-destructive" /> : status === 'stopped' || status === 'skipped' ? <MinusCircle className="size-3.5 text-muted-foreground" /> : null}
+          {selected && status !== 'running' ? (
+            <button type="button" onClick={() => removeStep(id)} aria-label={`Delete ${title}`} title="Delete this step (Delete key)" className="nodrag grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-white">
+              <X className="size-4" />
+            </button>
+          ) : status === 'running' ? <Loader2 className="size-3.5 animate-spin text-primary" /> : status === 'done' ? <Check className="size-3.5 text-success" /> : status === 'failed' ? <AlertCircle className="size-3.5 text-destructive" /> : status === 'stopped' || status === 'skipped' ? <MinusCircle className="size-3.5 text-muted-foreground" /> : null}
         </div>
       </div>
       {(def.fields.length > 0 || vars.length > 0) && (

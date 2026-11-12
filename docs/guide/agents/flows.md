@@ -38,8 +38,12 @@ Drag a step from the list on the left onto the canvas. Each step is a card:
 Drag from a dot on the right of a step (what it produces) to a dot on the left
 of another (what it needs). A field that receives a line shows "Receiving
 input"; otherwise type its value straight into the card. Double-click a step's
-name to rename it, and select a step or a line and press Delete to remove it.
-Steps that do not depend on each other run at the same time.
+name to rename it. Steps that do not depend on each other run at the same time.
+
+To remove a step or a line, click it the way you would a shape on a slide: it
+lights up, and you can press Delete, click the small x that appears on it (in
+the middle of a line, in the corner of a step), or right-click it and choose
+Delete. Right-clicking a step also offers Duplicate step.
 
 ## Try it in the Playground
 
