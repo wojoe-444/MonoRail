@@ -389,6 +389,13 @@ function projectName(cwd, dirName) {
 const summaryCache = new Map()
 /** id -> { source, file } for sessions this backend has listed. */
 const known = new Map()
+/**
+ * Git repos that hold hidden chats, as handed to the page by listSessions
+ * (real paths, normalised keys). allowHiddenRepo only accepts one of these,
+ * so the page can allow a repo with one click without ever naming a folder
+ * of its own choosing.
+ */
+const offeredRepos = new Map()
 
 async function summarize(source, root, file) {
   const stat = await fs.promises.stat(file)
@@ -528,20 +535,58 @@ async function listSessions(opts = {}) {
       kept: Math.min(sessions.length, LIST_KEEP),
       dropped: Math.max(0, sessions.length - LIST_KEEP),
       outsideAllowed,
-      // The folders with the most hidden chats (display only; allowing one
-      // still goes through the system folder picker).
-      hiddenFolders: await Promise.all(
-        [...hidden.values()]
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5)
-          .map(async (h) => {
-            const r = await real(h.path).catch(() => undefined)
-            return { ...h, gitRepo: !!r && (await isGitRepo(r)) }
-          }),
-      ),
+      // Where the hidden chats ran, grouped by the git repo that holds each
+      // folder (most chats first). A repo can be allowed with one click
+      // (allowHiddenRepo); a folder outside any repo cannot be allowed.
+      hiddenFolders: await hiddenRepos(hidden, home),
     },
     folders: { reposRoot: folders.reposRoot, reposRootFound: folders.reposRootFound, repoCount: folders.repos.length },
   }
+}
+
+const HIDDEN_KEEP = 50
+
+/** Group hidden chat folders by their enclosing git repo, and remember the repos offered. */
+async function hiddenRepos(hidden, home) {
+  const groups = new Map()
+  const homeReal = (await real(home).catch(() => undefined)) ?? home
+  for (const h of hidden.values()) {
+    const r = await real(h.path).catch(() => undefined)
+    const root = r ? await gitRootOf(r, homeReal) : undefined
+    const at = root ?? h.path
+    const key = process.platform === 'win32' ? at.toLowerCase() : at
+    const g = groups.get(key) ?? { path: at, count: 0, gitRepo: !!root }
+    g.count += h.count
+    groups.set(key, g)
+  }
+  const out = [...groups.values()].sort((a, b) => b.count - a.count).slice(0, HIDDEN_KEEP)
+  for (const g of out) if (g.gitRepo) offeredRepos.set(process.platform === 'win32' ? g.path.toLowerCase() : g.path, g.path)
+  return out
+}
+
+/**
+ * The git repo that holds `dir` (a real path): `dir` or the nearest parent with
+ * a .git entry. The home folder and drive roots never count, so a dotfiles
+ * repo in the home folder is not offered as a way to allow everything.
+ */
+async function gitRootOf(dir, homeReal) {
+  const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b)
+  let d = dir
+  for (;;) {
+    const parent = path.dirname(d)
+    if (parent === d || same(d, homeReal)) return undefined
+    if (await isGitRepo(d)) return d
+    d = parent
+  }
+}
+
+/** Allow one repo the last list offered (see offeredRepos). */
+async function allowHiddenRepo(dataDir, p) {
+  const key = typeof p === 'string' ? (process.platform === 'win32' ? p.toLowerCase() : p) : ''
+  const repo = offeredRepos.get(key)
+  if (!repo) throw new Error('That folder is not one of the repos with hidden chats. Use Add repo instead.')
+  await addRepo(dataDir, repo)
+  offeredRepos.delete(key)
 }
 
 /** Read at most the last `bytes` of a file, starting at a whole line. */
@@ -886,6 +931,8 @@ module.exports = {
       if (dir) await addRepo(ctx.dataDir, dir)
       return !!dir
     },
+    /** One click from the Folders dialog: only a repo listSessions offered (hidden chats ran in it). */
+    allowHiddenRepo: async (ctx, args) => allowHiddenRepo(ctx.dataDir, args?.path),
     /** Only removes an entry from the list of added repos. */
     removeRepo: async (ctx, args) => {
       if (typeof args?.path === 'string') await removeRepo(ctx.dataDir, args.path)
@@ -893,7 +940,7 @@ module.exports = {
   },
   // Exported for tests.
   _format: { clip, oneLine, inputSummary, formatInput, contentText },
-  _internal: { startTurn, getComposer, listSessions, getSession, claudeTranscript, claudeSubagentCalls, piSpend, chatTotal, piTranscript, piBranch, claudeMeta, piMeta },
+  _internal: { allowHiddenRepo, startTurn, getComposer, listSessions, getSession, claudeTranscript, claudeSubagentCalls, piSpend, chatTotal, piTranscript, piBranch, claudeMeta, piMeta },
 }
 
 async function pickFolder(title) {
