@@ -176,13 +176,16 @@ export function IssueModal() {
                           />
                         </div>
                       </DetailRow>
+                      <DetailRow label="Expected end"><input aria-label="Expected end date" type="date" className="jp-field" value={issue.dueDate ?? ''} disabled={!!busy} onChange={(e) => update({ dueDate: e.target.value })} /></DetailRow>
+                      {issue.type === 'Recurring' && <DetailRow label="Repeat"><select aria-label="Repeat schedule" className="jp-field" value={issue.recurrence ?? 'weekly'} disabled={!!busy} onChange={(e) => update({ recurrence: e.target.value as 'daily' | 'weekly' | 'monthly' })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></DetailRow>}
+                      {issue.nextOccurrence && <DetailRow label="Next occurrence"><button type="button" className="jp-link" onClick={() => openIssue(issue.source, issue.nextOccurrence!)}>{issue.nextOccurrence}</button></DetailRow>}
                       <DetailRow label="Issue type">
                         <div className="flex items-center gap-1">
                           <TypeIcon type={issue.type} />
                           <InlineSelect
                             value={issue.type}
                             options={types.includes(issue.type) ? types : [issue.type, ...types]}
-                            disabled={!!busy}
+                            disabled={!!busy || issue.type === 'Recurring'}
                             onChange={(type) => update({ type })}
                           />
                         </div>

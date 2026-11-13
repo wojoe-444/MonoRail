@@ -33,7 +33,7 @@ const STATUSES = [
   { name: 'In Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task', 'Recurring']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
 const README = `# MonoRail local Jira
@@ -49,6 +49,22 @@ const MAX_WORKLOG_SECONDS = 7 * 24 * 3600
 
 function categoryOf(status) {
   return STATUSES.find((s) => s.name === status)?.category ?? 'todo'
+}
+
+function nextDueDate(date, recurrence) {
+  const d = new Date(date + 'T00:00:00Z')
+  if (recurrence === 'monthly') {
+    const day = d.getUTCDate()
+    d.setUTCDate(1)
+    d.setUTCMonth(d.getUTCMonth() + 1)
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    d.setUTCDate(Math.min(day, last))
+  } else d.setUTCDate(d.getUTCDate() + (recurrence === 'weekly' ? 7 : 1))
+  return d.toISOString().slice(0, 10)
+}
+
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value
 }
 
 function validKey(key) {
@@ -323,12 +339,14 @@ function createLocalStore(repoDir) {
         return p
       }),
 
-    createIssue: ({ projectKey, summary, description, type, priority, labels, status, parent }) =>
+    createIssue: ({ projectKey, summary, description, type, priority, labels, status, parent, dueDate, recurrence }) =>
       serial(async () => {
         await ensureRepo()
         summary = String(summary ?? '').trim()
         if (!summary) throw new Error('A ticket needs a summary.')
         const p = await readJson(projectFile(projectKey))
+        if (dueDate && !validDate(dueDate)) throw new Error('Enter a valid expected end date.')
+        if (type === 'Recurring' && (!dueDate || !['daily', 'weekly', 'monthly'].includes(recurrence))) throw new Error('Recurring items need an expected end date and schedule.')
         if (type === 'Sub-task' && !parent) throw new Error('A sub-task needs a parent issue.')
         if (parent) {
           await checkParent(undefined, parent, p.key)
@@ -348,6 +366,8 @@ function createLocalStore(repoDir) {
           assignee: 'You',
           reporter: 'You',
           labels: Array.isArray(labels) ? labels : [],
+          ...(dueDate ? { dueDate } : {}),
+          ...(type === 'Recurring' ? { recurrence } : {}),
           ...(parent ? { parent } : {}),
           created: now,
           updated: now,
@@ -367,8 +387,11 @@ function createLocalStore(repoDir) {
       serial(async () => {
         await ensureRepo()
         const issue = await readIssue(key)
+        if (fields?.dueDate && !validDate(fields.dueDate)) throw new Error('Enter a valid expected end date.')
+        if (issue.type === 'Recurring' && fields?.dueDate === '') throw new Error('Recurring items need an expected end date.')
+        if (fields?.recurrence !== undefined && !['daily', 'weekly', 'monthly'].includes(fields.recurrence)) throw new Error('Choose a valid schedule.')
         const changed = []
-        for (const f of ['summary', 'description', 'type', 'priority', 'labels']) {
+        for (const f of ['summary', 'description', 'type', 'priority', 'labels', 'dueDate', 'recurrence']) {
           if (fields?.[f] === undefined) continue
           if (JSON.stringify(issue[f]) === JSON.stringify(fields[f])) continue
           if (f === 'summary' && !String(fields.summary).trim()) throw new Error('A ticket needs a summary.')
@@ -390,7 +413,17 @@ function createLocalStore(repoDir) {
         const from = issue.status
         issue.status = transitionId
         issue.updated = new Date().toISOString()
-        await writeAndCommit([[issueRel(key), issue]], `${key}: Status ${from} → ${transitionId}`)
+        const writes = [[issueRel(key), issue]]
+        if (issue.type === 'Recurring' && transitionId === 'Done' && !issue.nextOccurrence && validDate(issue.dueDate) && ['daily', 'weekly', 'monthly'].includes(issue.recurrence)) {
+          const project = await readJson(projectFile(issue.projectKey))
+          const nextKey = `${project.key}-${project.nextNumber}`
+          project.nextNumber += 1
+          issue.nextOccurrence = nextKey
+          const next = { ...issue, key: nextKey, status: 'To Do', dueDate: nextDueDate(issue.dueDate, issue.recurrence), created: issue.updated, updated: issue.updated, comments: [], worklogs: [] }
+          delete next.nextOccurrence
+          writes.push([`projects/${project.key}/project.json`, project], [issueRel(nextKey), next])
+        }
+        await writeAndCommit(writes, `${key}: Status ${from} → ${transitionId}${issue.nextOccurrence ? `; next occurrence ${issue.nextOccurrence}` : ''}`)
         return summarize(issue)
       }),
 

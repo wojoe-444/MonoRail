@@ -338,7 +338,7 @@ module.exports = {
 
     /** Issue types offered when creating a ticket in a project. */
     async getIssueTypes(ctx, args) {
-      if (requireSource(args) === 'local') return localStore(ctx).meta.types.filter((t) => (t === 'Sub-task') === !!args.subtask)
+      if (requireSource(args) === 'local') return localStore(ctx).meta.types.filter((t) => t !== 'Recurring' && (t === 'Sub-task') === !!args.subtask)
       const { jira } = await client(ctx)
       return jira.issueTypes(args.projectKey, !!args.subtask)
     },

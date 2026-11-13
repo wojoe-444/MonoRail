@@ -18,7 +18,7 @@ const JIRA_STATUSES: { name: string; category: StatusCategory }[] = [
   { name: 'Code Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task', 'Recurring']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 const SITE = 'https://example-team.atlassian.net'
 
@@ -220,7 +220,7 @@ export function createSampleBackend(): JiraApi {
       })
     },
     async getIssueTypes({ source, subtask }) {
-      return wait((source === 'local' ? TYPES : ['Task', 'Bug', 'Story', 'Epic', 'Sub-task']).filter((t) => (t === 'Sub-task') === !!subtask))
+      return wait((source === 'local' ? TYPES : ['Task', 'Bug', 'Story', 'Epic', 'Sub-task']).filter((t) => t !== 'Recurring' && (t === 'Sub-task') === !!subtask))
     },
     async createIssue(args) {
       if (!args.summary.trim()) throw new Error('A ticket needs a summary.')
@@ -236,6 +236,8 @@ export function createSampleBackend(): JiraApi {
         projectName: db.projects.find((p) => p.key === args.projectKey)?.name,
         summary: args.summary.trim(),
         description: args.description ?? '',
+        dueDate: args.dueDate,
+        recurrence: args.recurrence,
         type: args.type ?? 'Task',
         priority: args.priority ?? 'Medium',
         status: status.name,
@@ -271,6 +273,19 @@ export function createSampleBackend(): JiraApi {
       const from = i.status
       i.status = to.name
       i.statusCategory = to.category
+      if (i.type === 'Recurring' && to.category === 'done' && !i.nextOccurrence && i.dueDate && i.recurrence) {
+        const n = db.next[i.projectKey] ?? 1
+        db.next[i.projectKey] = n + 1
+        const key = `${i.projectKey}-${n}`
+        const d = new Date(i.dueDate + 'T00:00:00Z')
+        if (i.recurrence === 'monthly') {
+          const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + 1)
+          d.setUTCDate(Math.min(day, new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()))
+        } else d.setUTCDate(d.getUTCDate() + (i.recurrence === 'weekly' ? 7 : 1))
+        i.nextOccurrence = key
+        const now = new Date().toISOString()
+        db.rows.push({ issue: { ...i, key, dueDate: d.toISOString().slice(0, 10), nextOccurrence: undefined, status: statusesFor(i.source)[0].name, statusCategory: 'todo', created: now, updated: now, comments: [], commentCount: 0, worklogs: [], history: [], children: [], timeTracking: { spentSeconds: 0, totalSeconds: 0 } } })
+      }
       touch(i, `Status ${from} → ${to.name}`)
       return wait(summary(i))
     },
