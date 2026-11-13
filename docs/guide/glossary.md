@@ -91,7 +91,7 @@ A separate line of changes in a repository. GitHub+ can
 ## Issue
 
 A to-do or bug report. MonoRail keeps [local issues](workspace/local-issues.md)
-inside a repository and tasks in [Jira+](workspace/jira-plus.md).
+inside a repository and tasks in [Tasks](workspace/tasks.md).
 
 ## Connection
 

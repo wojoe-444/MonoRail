@@ -83,8 +83,3 @@ export function useJira(): JiraContextValue {
   if (!v) throw new Error('useJira outside JiraProvider')
   return v
 }
-
-/** Route segment for a project: /projects/local/ME or /projects/jira/PLAT. */
-export function projectPath(p: { source: Source; key: string }, view: 'board' | 'list' | 'epics' | 'recurring' | 'on-trigger' = 'board'): string {
-  return `/projects/${p.source}/${encodeURIComponent(p.key)}/${view}`
-}

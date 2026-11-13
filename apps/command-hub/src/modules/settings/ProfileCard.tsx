@@ -37,7 +37,7 @@ const PROFILE_ITEMS = [
   'Backup folder and schedules',
   'Flashcards decks and study history',
   'Notes',
-  'Jira+ projects, task links and filter',
+  'Tasks projects, task links and filter',
   'GitHub+ recent repos and local backups',
   'Email accounts',
   'Chat folders, flags, prompts and choices',

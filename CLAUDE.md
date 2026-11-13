@@ -671,7 +671,7 @@ one page in the hub's own style, an app may look and feel like its own
 product: its own colors, fonts, layout and in-app routing. The contract is
 `AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
-**Workspace apps** (`placement: 'workspace'`: GitHub+, Jira+, Email) are
+**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Calendar, Email) are
 Workspace pages. The hub's drawer and top bar stay on screen (breadcrumb
 `Workspace > <app>`) and the app fills the page body below them, scrolling on
 its own (`AppBody` in `App.tsx`). Each gets a nav item under Workspace that
@@ -722,7 +722,7 @@ repo-configured textconv/external diff, and only serves repos the user opened.
 Recent repo paths are kept in its data folder, never in the repo. Repos other
 MonoRail apps create are listed with them automatically (`linked.cjs`): so
 far Jira+'s private projects repo (found with `resolveJiraDataDir`, shown as
-"Jira+ projects" with a Jira+ badge, not removable, never written to
+"Tasks projects" with a Tasks badge, not removable, never written to
 `recents.json` until opened). It is not added to Chat's allowed folders. It makes no
 network requests of its own (remote images in READMEs are blocked and external
 links do nothing) except through the GitHub connection below. Tests live in
@@ -795,10 +795,21 @@ working tree and index are never touched, every change is a commit, backups
 carry them and a normal push does not. Keep that ref out of commit feeds
 (`--exclude=refs/local-issues --all`).
 
-`jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
-tracker (own look under `.jp`, Your work / Projects / board / list / issue
-dialog) where a private local repo is a first-class project next to the
-team's real Jira projects. Team issues go through the Jira Cloud REST API
+`jira-plus` (**Tasks**, formerly Jira+; guide `docs/guide/workspace/tasks.md`)
+applies the GitHub+ idea to Jira: a task tracker where a private local repo is
+a first-class project next to the team's real Jira projects. It is a
+Workspace app that looks like a native hub page (`TasksApp.tsx`: `PageHeader`,
+Overview / List / Board / Calendar views in a `Segmented`, project chips,
+`StatTile`s, cards; routes in `scope.ts`) and a task panel that slides in from
+the right (`IssueModal.tsx`, `?selectedIssue=`). Its `.jp` variables in
+`styles.css` map onto the hub's design tokens, so palettes and dark mode apply;
+never give it its own palette again. The Calendar page shares its calendar
+(`src/apps/calendar/TaskCalendar.tsx`). **Names that must not change**: the
+app id, route `/apps/jira-plus`, backend `electron/apps/jira-plus`, its data
+folder `apps\jira-plus`, the backup id `jira-plus` and the MCP tool names
+`*_jira_plus_*` (agents' consent is stored by tool name): renaming any of
+them strands the user's tasks or permissions. Only user-facing text says
+Tasks. Team issues go through the Jira Cloud REST API
 (`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
 Connections (`getCredentials('atlassian')`); only shown when one is set up.
 Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token

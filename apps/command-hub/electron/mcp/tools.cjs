@@ -8,7 +8,7 @@
 //   list_github_plus_repos   GitHub+'s recent repos, with issue counts
 //   list_github_plus_issues  local issues of one of those repos (refs/local-issues)
 //   get_github_plus_issue
-//   list_jira_plus_projects  Jira+'s private local projects (never team Jira)
+//   list_jira_plus_projects  Tasks' private local projects (never team Jira)
 //   list_jira_plus_issues
 //   get_jira_plus_issue
 //   connection_status        Connections' last check per account (no secrets)
@@ -181,7 +181,7 @@ async function githubRepo(dir, wanted) {
   throw new Error(`"${wanted}" is not one of the repos opened in GitHub+. Call list_github_plus_repos for the list; open a repo in MonoRail's GitHub+ to add it.`)
 }
 
-// ---------- Jira+ ----------
+// ---------- Tasks ----------
 
 function jiraStore(dir) {
   const repoDir = path.join(dir, 'local-repo')
@@ -355,21 +355,21 @@ function readTools({ rootDir }) {
 
     {
       name: 'list_jira_plus_projects',
-      title: 'Jira+ local projects',
-      description: "The user's private local projects in MonoRail's Jira+ (kept in a git repo on this machine, never synced), with issue counts. Team Jira Cloud projects are not available here.",
+      title: 'Private Tasks projects',
+      description: "The user's private local projects in MonoRail's Tasks page (kept in a git repo on this machine, never synced), with issue counts. Team Jira Cloud projects are not available here.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: READ_ONLY,
       async handler() {
         const store = jiraStore(dir.jiraPlus)
-        if (!store) return { projects: [], note: 'No local Jira+ projects yet.' }
+        if (!store) return { projects: [], note: 'No private Tasks projects yet.' }
         return { projects: await store.listProjects() }
       },
     },
 
     {
       name: 'list_jira_plus_issues',
-      title: 'Jira+ local issues',
-      description: 'Issues of one local Jira+ project, most recently updated first (key, summary, type, priority, status, labels, times, comment count).',
+      title: 'Private tasks',
+      description: 'Issues of one private Tasks project, most recently updated first (key, summary, type, priority, status, labels, times, comment count).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -385,7 +385,7 @@ function readTools({ rootDir }) {
         const key = project.toUpperCase()
         if (!JIRA_PROJECT.test(key)) throw new Error('Project keys are 2 to 10 letters or digits and start with a letter.')
         const store = jiraStore(dir.jiraPlus)
-        if (!store) throw new Error(`There is no local Jira+ project ${key}.`)
+        if (!store) throw new Error(`There is no private Tasks project ${key}.`)
         const all = (await store.listIssues(key)).filter((i) => !statusCategory || i.statusCategory === statusCategory)
         return { project: key, total: all.length, issues: all.slice(0, limit).map(({ description: _d, ...i }) => i) }
       },
@@ -393,8 +393,8 @@ function readTools({ rootDir }) {
 
     {
       name: 'get_jira_plus_issue',
-      title: 'Jira+ local issue',
-      description: 'One local Jira+ issue with its description, comments and history.',
+      title: 'Private task',
+      description: 'One private task with its description, comments and history.',
       inputSchema: {
         type: 'object',
         properties: { key: { type: 'string', maxLength: 20, description: 'Issue key, e.g. "ME-4".' } },
@@ -406,12 +406,12 @@ function readTools({ rootDir }) {
         const k = key.toUpperCase()
         if (!JIRA_ISSUE.test(k)) throw new Error('Issue keys look like ME-4.')
         const store = jiraStore(dir.jiraPlus)
-        if (!store) throw new Error(`There is no local Jira+ issue ${k}.`)
+        if (!store) throw new Error(`There is no private task ${k}.`)
         let issue
         try {
           issue = await store.getIssue(k)
         } catch (e) {
-          if (e.code === 'ENOENT') throw new Error(`There is no local Jira+ issue ${k}.`)
+          if (e.code === 'ENOENT') throw new Error(`There is no private task ${k}.`)
           throw e
         }
         const { transitions: _t, ...rest } = issue
@@ -573,8 +573,8 @@ function writeTools({ rootDir }) {
     },
     {
       name: 'create_jira_plus_issue',
-      title: 'Raise a Jira+ local issue',
-      description: 'Create an issue in one of the user\'s private local Jira+ projects (never team Jira).' + NOTE,
+      title: 'Raise a private task',
+      description: 'Create an issue in one of the user\'s private private Tasks projects (never team Jira).' + NOTE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -593,7 +593,7 @@ function writeTools({ rootDir }) {
         const key = project.toUpperCase()
         if (!JIRA_PROJECT.test(key)) throw new Error('Project keys are 2 to 10 letters or digits and start with a letter.')
         const store = jiraStore(dir.jiraPlus)
-        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', key, 'project.json'))) throw new Error(`There is no local Jira+ project ${key}.`)
+        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', key, 'project.json'))) throw new Error(`There is no private Tasks project ${key}.`)
         const issue = await store.createIssue({ projectKey: key, summary, description, type, priority })
         ctx.did(`Created ${issue.key} "${issue.summary}"`)
         return { key: issue.key, summary: issue.summary, status: issue.status, type: issue.type, priority: issue.priority }
@@ -601,8 +601,8 @@ function writeTools({ rootDir }) {
     },
     {
       name: 'comment_jira_plus_issue',
-      title: 'Comment on a Jira+ local issue',
-      description: 'Add a comment to an issue in a local Jira+ project.' + NOTE,
+      title: 'Comment on a private task',
+      description: 'Add a comment to an issue in a private Tasks project.' + NOTE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -618,7 +618,7 @@ function writeTools({ rootDir }) {
         const k = key.toUpperCase()
         if (!JIRA_ISSUE.test(k)) throw new Error('Issue keys look like ME-4.')
         const store = jiraStore(dir.jiraPlus)
-        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', k.split('-')[0], 'issues', `${k}.json`))) throw new Error(`There is no local Jira+ issue ${k}.`)
+        if (!store || !fsSync.existsSync(path.join(dir.jiraPlus, 'local-repo', 'projects', k.split('-')[0], 'issues', `${k}.json`))) throw new Error(`There is no private task ${k}.`)
         await store.addComment({ key: k, body })
         ctx.did(`Commented on ${k}`)
         return { key: k, commented: true }

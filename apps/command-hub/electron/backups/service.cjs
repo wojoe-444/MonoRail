@@ -1,5 +1,5 @@
 // The global backup schedule: backs up the pages that have no schedule of their
-// own (Jira+ private projects, Flashcards, Notes) into <global folder>/<page id>/ at
+// own (Tasks private projects, Flashcards, Notes) into <global folder>/<page id>/ at
 // the global frequency. GitHub+ repos run on GitHub+'s own per-repo scheduler
 // (electron/apps/github-plus/backup.cjs), which reads the same settings.
 //

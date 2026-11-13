@@ -25,7 +25,7 @@ let sample: BackupStatus = {
   settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true, notes: true, flows: true }, beforeUpdate: true },
   pages: [
     { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.', folder: null, repos: 1 },
-    { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'jira-plus', title: 'Tasks', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'flows', title: 'Flows', what: 'All flows with their versions (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
@@ -237,7 +237,7 @@ function BeforeUpdateRow({ form, last, onChange }: { form: GlobalBackupSettings;
             : <Badge variant="destructive">Failed {formatRelative(last.at)}</Badge>)}
         </div>
         <div className="text-xs text-muted-foreground">
-          Before an update installs, Jira+, Notes and Flashcards are backed up here, whatever their own switches say. The newest 5 of each are
+          Before an update installs, Tasks, Notes and Flashcards are backed up here, whatever their own switches say. The newest 5 of each are
           kept. If the backup fails, the update waits and asks you.
         </div>
         <div className="truncate font-mono text-xs text-muted-foreground" title={preview}>{preview}</div>

@@ -6,13 +6,13 @@ import { cn } from '@/lib/utils'
 export const Menu = M.Root
 export const MenuTrigger = M.Trigger
 
-/** Jira-style dropdown; portaled, so it carries the `.jp` scope class. */
+/** Dropdown menu in MonoRail's look; portaled, so it carries the `.jp` scope class. */
 export function MenuContent({ className, sideOffset = 4, ...props }: ComponentProps<typeof M.Content>) {
   return (
     <M.Portal>
       <M.Content
         sideOffset={sideOffset}
-        className={cn('jp z-50 min-w-48 rounded-[3px] bg-(--jp-raised) py-1.5 shadow-(--jp-shadow-overlay) outline-none', className)}
+        className={cn('jp z-50 min-w-48 rounded-lg bg-popover p-1 text-popover-foreground shadow-elevation-3 ring-1 ring-foreground/10 outline-none', className)}
         {...props}
       />
     </M.Portal>
@@ -23,7 +23,7 @@ export function MenuItem({ className, ...props }: ComponentProps<typeof M.Item>)
   return (
     <M.Item
       className={cn(
-        'flex cursor-default items-center gap-2 px-4 py-1.5 text-(--jp-text) outline-none select-none data-[highlighted]:bg-(--jp-hover) data-[disabled]:opacity-50',
+        'flex cursor-default items-center gap-2 rounded-md px-3 py-1.5 text-sm text-(--jp-text) outline-none select-none data-[highlighted]:bg-(--jp-hover) data-[disabled]:opacity-50',
         className,
       )}
       {...props}

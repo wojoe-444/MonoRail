@@ -14,7 +14,7 @@ terminal. It only reads; it never changes your files.
 
 Press **Open a repository** and pick a folder. GitHub+ remembers it on its
 home page with its recent activity. Repositories that MonoRail itself keeps,
-like your [Jira+](jira-plus.md) private projects, are listed there
+like your [Tasks](tasks.md) private projects, are listed there
 automatically.
 
 ## What you can see
@@ -44,7 +44,7 @@ GitHub+ makes no requests to GitHub at all.
 
 ## Linked tasks
 
-The **Tasks** tab shows [Jira+](jira-plus.md#tasks-and-repositories) tasks
+The **Tasks** tab shows [Tasks](tasks.md#tasks-and-repositories) tasks
 linked to the repository, and you can link more from either side.
 
 ## Backups

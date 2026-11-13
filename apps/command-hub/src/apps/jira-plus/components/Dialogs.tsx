@@ -133,7 +133,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
     <Modal
       open={open}
       onClose={onClose}
-      title={recurring ? 'Create recurring item' : subtask ? 'Create subtask' : defaultType ? 'Create epic' : 'Create issue'}
+      title={recurring ? 'New recurring task' : subtask ? 'New subtask' : defaultType ? 'New epic' : 'New task'}
       width={760}
       footer={
         <>
@@ -173,7 +173,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
               )}
             </select>
           </Field>
-          <Field id="jp-c-type" label="Issue type" required>
+          <Field id="jp-c-type" label="Type" required>
             <select id="jp-c-type" className="jp-field" value={type} disabled={!!defaultType || recurring || (subtask && types.length <= 1)} onChange={(e) => setType(e.target.value)}>
               {!type && <option value="">{error ? 'Issue types unavailable' : types.length ? 'Epic is not available in this project' : 'Loading issue types…'}</option>}
               {types.map((t) => (
@@ -183,7 +183,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
           </Field>
         </div>
         <div
-          className="mb-4 flex items-start gap-2 rounded-[3px] px-3 py-2 text-xs"
+          className="mb-4 flex items-start gap-2 rounded-md px-3 py-2 text-xs"
           style={{ background: selected?.source === 'jira' ? 'var(--jp-info-bg)' : 'var(--jp-local-bg)' }}
         >
           {selected?.source === 'jira' ? (
@@ -358,7 +358,7 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
       open={open}
       onClose={onClose}
       title="Team Jira"
-      description="Your team projects appear next to your private ones. Jira+ signs in with the Atlassian account from MonoRail's Connections page, so you see and change exactly what you can in Jira."
+      description="Your team projects appear next to your private ones. Tasks signs in with the Atlassian account from MonoRail's Connections page, so you see and change exactly what you can in Jira."
       width={600}
       footer={
         <>
@@ -375,14 +375,14 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
       }
     >
       <form id="jp-connect" onSubmit={save}>
-        <div className="mb-4 rounded-[3px] bg-(--jp-sunken) px-3 py-2 text-sm">
+        <div className="mb-4 rounded-md bg-(--jp-sunken) px-3 py-2 text-sm">
           {connected ? (
             <div className="flex items-center gap-2">
-              <span className="size-2 shrink-0 rounded-full bg-(--jp-type-story)" />
+              <span className="size-2 shrink-0 rounded-full bg-success" />
               <span>
                 Connected to <span className="font-medium">{site}</span>
                 {connection?.displayName && <> as {connection.displayName}</>}
-                {legacy ? ' with the token saved in Jira+.' : ' through Connections.'}
+                {legacy ? ' with the token saved by Jira+ (the old name of Tasks).' : ' through Connections.'}
               </span>
             </div>
           ) : connection?.error ? (
@@ -404,10 +404,10 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
           )}
         </div>
         {legacy && (
-          <div className="mb-4 flex items-start gap-3 rounded-[3px] bg-(--jp-warning-bg) px-3 py-2 text-xs text-(--jp-warning-fg)">
+          <div className="mb-4 flex items-start gap-3 rounded-md bg-(--jp-warning-bg) px-3 py-2 text-xs text-(--jp-warning-fg)">
             <span className="flex-1">
-              This token was saved by an earlier version of Jira+. Add the same account on the Connections page, then forget the copy here.
-              Once Connections has an Atlassian account, Jira+ uses that one.
+              This token was saved by Jira+, the earlier version of Tasks. Add the same account on the Connections page, then forget the copy here.
+              Once Connections has an Atlassian account, Tasks uses that one.
             </span>
             <button type="button" className="jp-btn h-7 shrink-0" disabled={!!busy} onClick={forget}>
               {busy === 'forget' && <Loader2 className="animate-spin" />} Forget saved token
@@ -417,9 +417,9 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
         <Field id="jp-j-jql" label="Which team issues to show (JQL)" hint="Default: issues assigned to you. Done issues drop off after 14 days.">
           <input id="jp-j-jql" className="jp-field font-mono text-xs" value={scopeJql} onChange={(e) => setScopeJql(e.target.value)} />
         </Field>
-        <div className="mb-4 flex items-start gap-2 rounded-[3px] bg-(--jp-sunken) px-3 py-2 text-xs text-(--jp-subtle)">
+        <div className="mb-4 flex items-start gap-2 rounded-md bg-(--jp-sunken) px-3 py-2 text-xs text-(--jp-subtle)">
           <Lock className="mt-0.5 size-3 shrink-0" />
-          <span>The filter is saved on this computer, in MonoRail's data folder. Your API token is kept by Connections, not by Jira+.</span>
+          <span>The filter is saved on this computer, in MonoRail's data folder. Your API token is kept by Connections, not by Tasks.</span>
         </div>
         <ErrorNote error={error} />
       </form>

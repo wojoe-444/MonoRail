@@ -3,7 +3,7 @@
 //
 // Private data rule: the list of recently opened repo paths is kept in
 // %APPDATA%\MonoRail\apps\github-plus\recents.json (ctx.dataDir). Repos other
-// MonoRail apps created (Jira+'s private projects) are listed next to them
+// MonoRail apps created (Tasks' private projects) are listed next to them
 // without being stored there (linked.cjs). Local issues are
 // stored inside each repo under refs/local-issues (issues.cjs).
 //
@@ -33,8 +33,8 @@ const gh = createGitHubService({
 })
 const CLONE_TIMEOUT_MS = 15 * 60_000
 
-// Jira+ tasks linked to repos (electron/apps/jira-plus/repo-links.cjs). Jira+
-// owns the links; GitHub+ only reads them, from Jira+'s data folder, which
+// tasks linked to repos (electron/apps/jira-plus/repo-links.cjs). Tasks
+// owns the links; GitHub+ only reads them, from Tasks' data folder, which
 // sits next to its own (<userData>\apps\<id>).
 const jiraPlus = () => require('../jira-plus/index.cjs')
 const jiraCtx = (ctx) => ({ dataDir: path.resolve(ctx.dataDir, '..', 'jira-plus') })
@@ -269,32 +269,32 @@ module.exports = {
     },
     updateIssue: (_ctx, { repo, number, title, body, state } = {}) => issues.updateIssue(guard(repo), number, { title, body, state }),
     addIssueComment: (_ctx, { repo, number, body } = {}) => issues.addComment(guard(repo), number, { body }),
-    /** Jira+ tasks linked to this repo, by its folder or its github.com remote. */
+    /** tasks linked to this repo, by its folder or its github.com remote. */
     async linkedTasks(ctx, { repo } = {}) {
       guard(repo)
       const github = pickGitHubRemote(await git.remotes(repo).catch(() => []))
       return jiraPlus().tasksForRepo(jiraCtx(ctx), { path: repo, github })
     },
-    /** How many Jira+ tasks are linked to this repo (the tab's counter). Reads the links file and the repo's remotes only. */
+    /** How many tasks are linked to this repo (the tab's counter). Reads the links file and the repo's remotes only. */
     async linkedTaskCount(ctx, { repo } = {}) {
       guard(repo)
       const github = pickGitHubRemote(await git.remotes(repo).catch(() => []))
       return (await jiraPlus().repoLinks(jiraCtx(ctx)).forRepo({ path: repo, github })).length
     },
-    /** Jira+ tasks linked to a repo on github.com that is not open here. Reads the links file only. */
+    /** tasks linked to a repo on github.com that is not open here. Reads the links file only. */
     async linkedTasksOnGitHub(ctx, { fullName } = {}) {
       if (typeof fullName !== 'string' || !NAME_RE.test(fullName)) throw new Error('Invalid repository')
       return jiraPlus().tasksForRepo(jiraCtx(ctx), { github: fullName })
     },
-    /** How many Jira+ tasks each repo has, for the Home lists: { paths, github }. Reads the links file only. */
+    /** How many tasks each repo has, for the Home lists: { paths, github }. Reads the links file only. */
     linkCounts: (ctx) => jiraPlus().repoLinks(jiraCtx(ctx)).counts(),
-    /** Unlink a Jira+ task from this repo (the link is removed from Jira+'s links file only). */
+    /** Unlink a task from this repo (the link is removed from Tasks' links file only). */
     async unlinkTask(ctx, { repo, source, key, linkId } = {}) {
       guard(repo)
       await jiraPlus().repoLinks(jiraCtx(ctx)).unlink({ source, key }, String(linkId ?? ''))
       return module.exports.methods.linkedTasks(ctx, { repo })
     },
-    /** Link a Jira+ task (by source and key) to this repo, from the GitHub+ side. */
+    /** Link a task (by source and key) to this repo, from the GitHub+ side. */
     async linkTask(ctx, { repo, source, key } = {}) {
       guard(repo)
       const github = pickGitHubRemote(await git.remotes(repo).catch(() => []))

@@ -42,5 +42,5 @@ Agents never publish an issue to GitHub.
 ## Issues or tasks?
 
 Local issues belong to one repository. For work that spans several, or that
-your team tracks in Jira, use [Jira+](jira-plus.md), which can link a task to
+your team tracks in Jira, use [Tasks](tasks.md), which can link a task to
 any number of repositories.

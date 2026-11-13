@@ -17,9 +17,9 @@ it helps.
   [connect GitHub](../setup/connections.md#the-connections).
 - **To-dos next to the code.** [Local issues](local-issues.md) live inside a
   repository, so they travel with it.
-- **Tasks.** [Jira+](jira-plus.md) keeps private projects on your computer
+- **Tasks.** [Tasks](tasks.md) (formerly Jira+) keeps private projects on your computer
   next to your team's real Jira, and links tasks to repositories.
-- **Calendar.** Calendar shows Jira+ tasks on their expected end dates. Select a date to see its tasks, then open one in Jira+. Team issues follow the Jira+ filter.
+- **Calendar.** Calendar shows your tasks on their expected end dates. Select a date to see its tasks, then open one in Tasks. Team issues follow the Team Jira filter in Tasks.
 - **Mail.** [Email](email.md) reads Gmail or the classic Outlook on your PC.
 - **Learning.** [Flashcards](../../flashcards.md) keeps spaced repetition
   decks; agents can add cards if you [let them](../agents/agent-access.md).

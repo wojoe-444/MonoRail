@@ -397,7 +397,7 @@ function StateBadge({ status, checking }: { status?: ConnectionStatus; checking:
 /** What uses each connection, shown in the table. Display only; a connector missing here shows a dash. */
 const USED_BY: Record<string, string> = {
   gcloud: 'Google Cloud tools',
-  atlassian: 'Jira+',
+  atlassian: 'Tasks',
   claude: 'Chat, Coordinator, Claude Stats',
   openai: 'OpenAI tools, Codex',
   pi: 'Chat',

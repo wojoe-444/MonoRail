@@ -48,7 +48,7 @@ private data, so keep it that way.
 ## In GitHub+
 
 GitHub+ lists the repository as **Notes** (with a Notes badge) as soon as it
-exists, the same way it lists Jira+'s private projects. **Open in GitHub+** on
+exists, the same way it lists Tasks' private projects. **Open in GitHub+** on
 the Notes page opens it there, for the file tree, commits and diffs. It is not
 added to Chat's allowed folders.
 

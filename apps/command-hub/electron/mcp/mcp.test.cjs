@@ -63,7 +63,7 @@ before(async () => {
   fs.mkdirSync(ghDir, { recursive: true })
   fs.writeFileSync(path.join(ghDir, 'recents.json'), JSON.stringify([repo, path.join(root, 'gone')]))
 
-  // A Jira+ local project.
+  // A Private project.
   const jira = createLocalStore(path.join(root, 'apps', 'jira-plus', 'local-repo'))
   await jira.createProject({ key: 'ME', name: 'Me' })
   await jira.createIssue({ projectKey: 'ME', summary: 'Write docs', description: 'All of them.' })
@@ -234,7 +234,7 @@ describe('MonoRail read tools', () => {
     assert.match(r.text, /not one of the repos opened in GitHub\+/)
   })
 
-  it('reads Jira+ local projects and issues', async () => {
+  it('reads Private Tasks projects and issues', async () => {
     const projects = (await call(server, 'list_jira_plus_projects', {})).value.projects
     assert.equal(projects[0].key, 'ME')
     assert.equal(projects[0].openCount, 1)
@@ -250,9 +250,9 @@ describe('MonoRail read tools', () => {
     assert.equal(issue.transitions, undefined)
   })
 
-  it('validates Jira+ keys and never creates the local repo', async () => {
+  it('validates Tasks keys and never creates the local repo', async () => {
     assert.match((await call(server, 'get_jira_plus_issue', { key: '../../x' })).text, /look like/)
-    assert.match((await call(server, 'get_jira_plus_issue', { key: 'ME-99' })).text, /no local Jira\+ issue/)
+    assert.match((await call(server, 'get_jira_plus_issue', { key: 'ME-99' })).text, /no private task/)
     const emptyRoot = tmp('monorail-mcp-empty-')
     const empty = createServer({ rootDir: emptyRoot })
     assert.deepEqual((await call(empty, 'list_jira_plus_projects', {})).value.projects, [])
@@ -324,14 +324,14 @@ describe('write tools and consent', () => {
     assert.equal((await call(server, 'create_github_plus_issue', { repo: 'demo-repo', title: 'Again' })).isError, true)
   })
 
-  it('writes Jira+ local issues and comments when allowed', async () => {
+  it('writes private tasks and comments when allowed', async () => {
     await access.setAllowed(root, 'test-agent', 'create_jira_plus_issue', true)
     await access.setAllowed(root, 'test-agent', 'comment_jira_plus_issue', true)
     const created = await call(server, 'create_jira_plus_issue', { project: 'ME', summary: 'Agent task', type: 'Bug' })
     assert.equal(created.value.key, 'ME-3')
     assert.equal((await call(server, 'comment_jira_plus_issue', { key: 'ME-3', body: 'Done soon.' })).isError, false)
-    assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no local Jira\+ project/)
-    assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no local Jira\+ issue/)
+    assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no private Tasks project/)
+    assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no private task/)
   })
 
   it('lists flashcard decks and adds cards only when allowed', async () => {

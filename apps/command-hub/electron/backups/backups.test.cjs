@@ -60,7 +60,7 @@ describe('global backup schedule', () => {
     assert.deepEqual(readdirSync(root), [])
   })
 
-  it('backs up Flashcards and Jira+ into their own subfolders and keeps the newest N', async () => {
+  it('backs up Flashcards and Tasks into their own subfolders and keeps the newest N', async () => {
     const { userData, root, svc } = setup()
     const decks = join(userData, 'modules', 'flashcards')
     mkdirSync(decks, { recursive: true })

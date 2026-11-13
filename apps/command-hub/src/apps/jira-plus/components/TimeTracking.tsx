@@ -170,7 +170,7 @@ export function ChildIssues({ issue, onOpen, onAdd, onAddSubtask }: { issue: Iss
               {done} of {kids.length} done
             </span>
           </div>
-          <ul className="overflow-hidden rounded-[3px] border border-(--jp-border)">
+          <ul className="overflow-hidden rounded-md border border-(--jp-border)">
             {kids.map((c) => (
               <li key={c.key} className="border-b border-(--jp-border) last:border-b-0">
                 <button type="button" onClick={() => onOpen(c.key)} className="jp-focusable flex h-10 w-full items-center gap-2 px-3 text-left outline-none hover:bg-(--jp-hover)">

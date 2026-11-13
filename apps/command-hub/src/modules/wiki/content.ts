@@ -71,7 +71,7 @@ export type WikiNode = { kind: 'page'; page: WikiPage } | { kind: 'folder'; fold
 const ORDER: Record<string, string[]> = {
   guide: ['first-ten-minutes', 'private-data', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
   'guide/agents': ['chat', 'create-an-agent', 'coordinator', 'flows', 'spend', 'agent-access'],
-  'guide/workspace': ['browse-repos', 'local-issues', 'jira-plus', 'email'],
+  'guide/workspace': ['browse-repos', 'local-issues', 'tasks', 'email'],
   'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'extensions', 'spending-limit', 'remote-access', 'developer-mode', 'docker', 'semantic'],
   extensions: ['concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'non-node-runtimes', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
 }

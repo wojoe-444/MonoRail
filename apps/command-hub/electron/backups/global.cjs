@@ -33,7 +33,7 @@ const STATE_FILE = 'state.json'
 /** Pages that back up into the global folder, in display order. Each gets <folder>/<id>. */
 const PAGES = Object.freeze([
   { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.' },
-  { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.' },
+  { id: 'jira-plus', title: 'Tasks', what: 'Your private projects (the local git repo), as one .bundle file.' },
   { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.' },
   { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.' },
   { id: 'flows', title: 'Flows', what: 'All flows with their versions (the local git repo), as one .bundle file.' },

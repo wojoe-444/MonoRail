@@ -6,7 +6,7 @@ summary: How profiles scope settings and data (default profile over the existing
 # Profiles
 
 A **profile** is one person's settings and data inside a copy of MonoRail:
-their appearance, connections, backups, Flashcards decks, Jira+ projects and so
+their appearance, connections, backups, Flashcards decks, Tasks projects and so
 on. Profiles have a name and a folder. They have **no password and no
 sign-in**, and they are not a security boundary (see [Not a lock](#not-a-lock)).
 
@@ -38,7 +38,7 @@ Every folder MonoRail keeps belongs to one of two scopes.
 
 | Scope | Belongs to | Examples |
 | --- | --- | --- |
-| **profile** | the person | Appearance and nav layout, Connections and their secrets, Settings > Backups, Flashcards, Notes, Jira+ (projects, repo links, filter), GitHub+ (recents, backup schedules), Email accounts, Chat (allowed folders, flags, prompts, composer choices), Agent access consent and activity |
+| **profile** | the person | Appearance and nav layout, Connections and their secrets, Settings > Backups, Flashcards, Notes, Tasks (projects, repo links, filter), GitHub+ (recents, backup schedules), Email accounts, Chat (allowed folders, flags, prompts, composer choices), Agent access consent and activity |
 | **machine** | this copy of MonoRail on this computer | Updates and the app version, installed extensions, the Claude Stats report (built from this computer's agent logs), Storage measurements, Agent Catalog's backups of subagent files, Chromium's own files and the encryption key, `profiles.json` |
 
 The machine scope holds what is the same whoever sits at the computer. Claude

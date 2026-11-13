@@ -166,7 +166,7 @@ export const sampleList: ConnectionsList = {
     {
       kind: 'atlassian',
       title: 'Atlassian',
-      description: 'An Atlassian API token for Jira Cloud. Used by Jira+.',
+      description: 'An Atlassian API token for Jira Cloud. Used by Tasks.',
       icon: 'key',
       fields: [
         { key: 'siteUrl', label: 'Site', type: 'text', placeholder: 'your-team.atlassian.net' },

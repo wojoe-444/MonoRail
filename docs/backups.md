@@ -29,12 +29,12 @@ the folder itself stays tidy:
 | Page | What is backed up | How to restore |
 | --- | --- | --- |
 | GitHub+ | Each repo you set to use the global folder on its **Backups** tab: every branch, tag and commit as one `.bundle` | `git clone "<file>" <name>` |
-| Jira+ | Your private projects (Jira+'s local git repo) as one `.bundle` | `git clone "<file>"`, then copy it over `local-repo` in Jira+'s data folder with MonoRail closed |
+| Tasks | Your private projects (Tasks' local git repo) as one `.bundle` | `git clone "<file>"`, then copy it over `local-repo` in Tasks' data folder (`apps\jira-plus`) with MonoRail closed |
 | Flashcards | All decks, cards and study history as one `.json` | Copy it over `decks.json` in the Flashcards data folder with MonoRail closed |
 | Notes | Every note and its history (the Notes git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Notes data folder with MonoRail closed |
 | [Flows](flows.md) | Every flow and its versions (the Flows git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Flows data folder with MonoRail closed |
 
-Jira+, Flashcards, Notes and Flows run on the global schedule; each has a switch in the
+Tasks, Flashcards, Notes and Flows run on the global schedule; each has a switch in the
 card to leave it out. **Back up now** runs them right away. A page with nothing
 to back up yet (no private projects, no decks, no notes) is skipped. Notes typed in the last
 minute may not be committed yet; the next backup has them. A damaged
@@ -66,7 +66,7 @@ On by default (Settings > Backups, "Back up before updating"; `beforeUpdate` in
 after the download and before the installer runs, the settings backend
 (`electron/modules/settings.cjs`, state `backing-up`) calls
 `runBeforeUpdate(version)` in `electron/backups/service.cjs`. It backs up
-**every** global item (Jira+ private projects, Notes, Flashcards), whatever
+**every** global item (Tasks private projects, Notes, Flashcards), whatever
 their own switches say, into `<folder>\before-update\` as
 `<prefix><stamp>-before-<version><suffix>`, and keeps the newest 5 of each
 (`BEFORE_UPDATE_KEEP`). GitHub+ repositories are not included: an update never
@@ -94,5 +94,5 @@ never uploads half a file. After a failure it retries after 15 minutes.
 The settings and the last result per page live in `modules\backups` in
 MonoRail's data folder (`settings.json`, `state.json`); GitHub+ schedules in
 `apps\github-plus\backups.json`. Code: `electron/backups/` (shared schedule
-rules, global settings and the Jira+/Flashcards schedule) and
+rules, global settings and the Tasks/Flashcards schedule) and
 `electron/apps/github-plus/backup.cjs`.

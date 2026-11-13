@@ -65,7 +65,7 @@ until you allow it, tool by tool.
 Only what you ask for: a message you send in [Chat](agents/chat.md) goes to
 that agent's provider, an issue you choose to publish goes to GitHub (see
 [local issues](workspace/local-issues.md)), a team ticket is fetched from
-[Jira](workspace/jira-plus.md). MonoRail itself checks GitHub for [new
+[Jira](workspace/tasks.md). MonoRail itself checks GitHub for [new
 versions](setup/backups-and-updates.md#updates) of the app, and that is all.
 
 If you turn on [Remote access](setup/remote-access.md), your own paired

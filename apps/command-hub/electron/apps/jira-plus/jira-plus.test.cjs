@@ -1,4 +1,4 @@
-// Tests for the Jira+ backend pieces that run without Electron: the local
+// Tests for the Tasks backend pieces that run without Electron: the local
 // git-backed store and the ADF <-> plain text conversion. Run with `npm test`.
 
 const { describe, it } = require('node:test')
@@ -273,7 +273,7 @@ describe('team Jira connection', () => {
     global.fetch = realFetch
   })
 
-  it('falls back to the token Jira+ saved before Connections existed', async () => {
+  it('falls back to the token Tasks saved before Connections existed', async () => {
     stubFetch()
     backend._setCredentialSource(async () => {
       throw new Error('Add an Atlassian connection on the Connections page first.')
@@ -355,7 +355,7 @@ describe('team Jira connection', () => {
     assert.deepEqual(o.projects.map((p) => p.key), ['ME'])
   })
 
-  it('keeps the JQL as a Jira+ setting', async () => {
+  it('keeps the JQL as a Tasks setting', async () => {
     backend._setCredentialSource(async () => {
       throw new Error('Add an Atlassian connection on the Connections page first.')
     })
