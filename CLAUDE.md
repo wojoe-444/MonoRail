@@ -745,6 +745,11 @@ issue on the repo's own remote (never a repo named by the page), then saves
 the local issue with a `github` link (`{ repo, number, url }`); later edits
 and comments stay local. The MCP server's GitHub+ tools never publish.
 
+GitHub+ can show a repo's folder in File Explorer (repo header button and
+the home page's repo list, `openInExplorer`): only for a repo opened this
+session, on its recents list or linked, only a directory (`shell.openPath` would run a
+file).
+
 GitHub+ speed: starting a git process is the costly part (on Windows most of
 all, and Node starts each one on the main process), so every page uses as few
 as it can and `git.cjs` runs at most 6 at a time. A folder lists in one

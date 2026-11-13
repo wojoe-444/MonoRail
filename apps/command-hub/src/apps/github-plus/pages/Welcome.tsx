@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { BackupIcon, BranchIcon, CloudIcon, CommitIcon, IssueOpenIcon, RepoIcon } from '../components/Icons'
+import { BackupIcon, BranchIcon, CloudIcon, CommitIcon, FolderIcon, IssueOpenIcon, RepoIcon } from '../components/Icons'
 import { Avatar } from '../components/CommitList'
 import GitHubRepoList from '../components/GitHubRepoList'
 import { commitLink, compareLink, issueLink, issuesLink, treeLink } from '../links'
 import type { ActiveBranch, CommitSummary, RepoActivity } from '../types'
-import { fullDate, timeAgo } from '../util'
+import { fileManagerName, fullDate, timeAgo } from '../util'
+import { hasLocalScreen } from '@/modules/client'
 
 const SIDEBAR_LIMIT = 8
 
@@ -111,6 +112,7 @@ export default function Welcome() {
                     {r?.github && <span className="gh-mark muted" title={`Also on GitHub: ${r.github}`} aria-label={`Also on GitHub: ${r.github}`}><CloudIcon /></span>}
                     {r?.error && <span className="badge">{/not inside a git repository/.test(r.error) ? 'not a repo' : 'unavailable'}</span>}
                   </button>
+                  {!r?.error && hasLocalScreen() && <button className="icon-btn folder-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => api.openInExplorer(p).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))}><FolderIcon /></button>}
                   {!l && <button className="icon-btn" title="Remove from recent repositories" aria-label={`Remove ${nameOf(p)} from recent repositories`} onClick={() => forget(p)}>×</button>}
                 </li>
               )

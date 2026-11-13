@@ -137,7 +137,7 @@ module.exports = {
   id: 'github-plus',
   // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
   // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
-  desktopOnly: ['pickRepoFolder', 'pickBackupFolder', 'cloneGitHubRepo', 'openOnGitHub'],
+  desktopOnly: ['pickRepoFolder', 'pickBackupFolder', 'cloneGitHubRepo', 'openOnGitHub', 'openInExplorer'],
   /** Called once at startup: runs the backup scheduler inside MonoRail. */
   start(ctx) {
     dataDir = ctx.dataDir
@@ -207,6 +207,22 @@ module.exports = {
       const next = (await readRecents(ctx)).filter((x) => x !== p)
       await writeRecents(ctx, next)
       return next
+    },
+    /**
+     * Show a repo's folder in the system file manager (File Explorer on
+     * Windows). Only a repo opened this session, on the stored recents list or
+     * linked (Jira+), and only a folder: shell.openPath would run a file.
+     */
+    async openInExplorer(ctx, { path: p } = {}) {
+      if (typeof p !== 'string' || !(openedRepos.has(p) || (await readRecents(ctx)).includes(p) || (await linkedRepos(ctx.dataDir)).some((l) => l.path === p))) {
+        throw new Error('Repository has not been opened')
+      }
+      const dir = path.normalize(p)
+      const st = await fs.stat(dir).catch(() => null)
+      if (!st?.isDirectory()) throw new Error('The folder no longer exists')
+      const err = await shell.openPath(dir)
+      if (err) throw new Error(err)
+      return null
     },
     listRefs: (_ctx, { repo } = {}) => git.listRefs(guard(repo)),
     listTree: (_ctx, { repo, ref, path: p } = {}) => git.listTree(guard(repo), ref, p),
