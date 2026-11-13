@@ -15,6 +15,8 @@ import type {
   RepoLink,
   Source,
   Worklog,
+  TriggerTemplate,
+  TriggerTemplateDraft,
 } from './types'
 
 const APP_ID = 'jira-plus'
@@ -25,6 +27,9 @@ const APP_ID = 'jira-plus'
  * store seeded with fictional sample data, so every screen still works.
  */
 export interface JiraApi {
+  listTriggerTemplates(args: { source: Source; projectKey: string }): Promise<TriggerTemplate[]>
+  saveTriggerTemplate(args: TriggerTemplateDraft): Promise<TriggerTemplate>
+  deleteTriggerTemplate(args: { source: Source; projectKey: string; id: string }): Promise<{ ok: true }>
   getOverview(): Promise<Overview>
   listIssues(args: { source: Source | 'all'; projectKey?: string }): Promise<Issue[]>
   getIssue(args: { source: Source; key: string }): Promise<IssueDetail>
@@ -63,6 +68,9 @@ function desktopApi(): JiraApi {
     (args?: A) =>
       invokeApp<R>(APP_ID, method, args)
   return {
+    listTriggerTemplates: call('listTriggerTemplates'),
+    saveTriggerTemplate: call('saveTriggerTemplate'),
+    deleteTriggerTemplate: call('deleteTriggerTemplate'),
     getOverview: call('getOverview'),
     listIssues: call('listIssues'),
     getIssue: call('getIssue'),

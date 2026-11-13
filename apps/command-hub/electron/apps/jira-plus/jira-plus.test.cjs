@@ -53,6 +53,27 @@ describe('local store', () => {
   })
 })
 
+describe('trigger templates', () => {
+  it('persists, edits and deletes project-scoped templates without creating issues', async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo')
+    const store = createLocalStore(dir)
+    await store.createProject({ key: 'ME', name: 'Personal' })
+    await assert.rejects(store.saveTriggerTemplate({ source: 'local', projectKey: '../X', summary: 'Bad' }), /Invalid project/)
+    await assert.rejects(store.saveTriggerTemplate({ source: 'local', projectKey: 'ME', summary: ' ' }), /summary/)
+    const template = await store.saveTriggerTemplate({ source: 'local', projectKey: 'ME', summary: ' Check logs ', condition: 'When error rate rises', priority: 'High', description: 'Inspect service' })
+    await store.saveTriggerTemplate({ source: 'jira', projectKey: 'ME', summary: 'Team task' })
+    const reopened = createLocalStore(dir)
+    assert.equal((await reopened.listTriggerTemplates({ source: 'local', projectKey: 'ME' }))[0].summary, 'Check logs')
+    assert.equal((await reopened.listTriggerTemplates({ source: 'jira', projectKey: 'ME' })).length, 1)
+    const updated = await reopened.saveTriggerTemplate({ ...template, summary: 'Check alerts' })
+    assert.equal(updated.created, template.created)
+    assert.equal((await reopened.listIssues('ME')).length, 0)
+    await reopened.deleteTriggerTemplate({ source: 'local', projectKey: 'ME', id: template.id })
+    assert.deepEqual(await reopened.listTriggerTemplates({ source: 'local', projectKey: 'ME' }), [])
+    await assert.rejects(reopened.saveTriggerTemplate({ ...template }), /no longer exists/)
+  })
+})
+
 describe('recurring maintenance', () => {
   it('creates exactly one scheduled next occurrence and retains the completed item', async () => {
     const s = createLocalStore(join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo'))

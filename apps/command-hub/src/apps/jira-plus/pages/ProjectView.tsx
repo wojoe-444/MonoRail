@@ -12,6 +12,7 @@ import { ErrorNote } from '../components/Modal'
 import { projectPath, useJira } from '../JiraContext'
 import type { Issue, Source, StatusCategory } from '../types'
 import { useIssues } from '../useIssues'
+import { TriggerTemplates } from './TriggerTemplates'
 
 /** Local workflow: which status a card lands in when dropped on a column. */
 const LOCAL_STATUS_FOR: Record<StatusCategory, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' }
@@ -32,7 +33,7 @@ export function ProjectView() {
   }, [issues, query, view])
 
   if (overview && !project) return <Navigate to="/projects" replace />
-  if (view !== 'board' && view !== 'list' && view !== 'epics' && view !== 'recurring') return <Navigate to={projectPath({ source, key })} replace />
+  if (view !== 'board' && view !== 'list' && view !== 'epics' && view !== 'recurring' && view !== 'on-trigger') return <Navigate to={projectPath({ source, key })} replace />
 
   async function move(issue: Issue, to: StatusCategory) {
     setBusyKey(issue.key)
@@ -85,6 +86,7 @@ export function ProjectView() {
             <Zap className="size-4" /> Epics
           </NavLink>
           <NavLink to={projectPath({ source, key }, 'recurring')} className={navItem}><Repeat className="size-4" /> Recurring</NavLink>
+          <NavLink to={projectPath({ source, key }, 'on-trigger')} className={navItem}><span className="ml-7">On Trigger</span></NavLink>
         </nav>
         <div className="mx-3 my-4 h-px bg-(--jp-border)" />
         {local ? (
@@ -103,7 +105,7 @@ export function ProjectView() {
         )}
       </aside>
 
-      <main className="min-w-0 flex-1 px-10 py-6">
+      {view === 'on-trigger' && project ? <TriggerTemplates key={`${source}:${key}`} project={project} /> : <main className="min-w-0 flex-1 px-10 py-6">
         <div className="text-(--jp-subtle)">
           <Link to="/projects" className="hover:underline">
             Projects
@@ -139,7 +141,7 @@ export function ProjectView() {
           ) : (
             <IssueList issues={filtered} empty={view === 'recurring' ? (query ? 'No recurring items match your search.' : 'No recurring items yet.') : view === 'epics' ? (query ? 'No epics match your search.' : 'No epics yet. Create an epic to get started.') : undefined} onOpen={(i) => openIssue(i.source, i.key)} />
           ))}
-      </main>
+      </main>}
     </div>
   )
 }

@@ -31,6 +31,8 @@ projects. The one Jira+ setting is a filter for which team tickets to show.
 
 In a private project, open **Recurring** and create a maintenance item with an expected end date and a daily, weekly or monthly schedule. When you mark an occurrence Done, Jira+ creates the next one with its date advanced from the previous expected end date. Monthly dates that do not exist in the next month move to its last day. Reopening and completing an old occurrence does not create another copy. Recurring items are listed separately from the project board and regular task list. Team Jira recurrence is managed in Jira.
 
+Under **Recurring → On Trigger**, save task templates and describe the conditions you want to connect later. Templates are stored in the private Jira+ repository, including for team projects. Hooks are not connected yet, so these notes do not create tasks.
+
 Any issue can have an **Expected end date**, set at creation or in Details. For a team issue this is Jira's due date and is subject to that project's Jira permissions and field configuration.
 
 ## Parents and child issues

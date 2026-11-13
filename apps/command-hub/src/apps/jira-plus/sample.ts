@@ -139,6 +139,7 @@ const wait = <T,>(v: T, ms = 150) => new Promise<T>((r) => setTimeout(() => r(st
 
 export function createSampleBackend(): JiraApi {
   const db = seed()
+  const templates: import('./types').TriggerTemplate[] = []
   let connected = true
   let scopeJql = 'assignee = currentUser()'
 
@@ -176,6 +177,22 @@ export function createSampleBackend(): JiraApi {
   }
 
   return {
+    async listTriggerTemplates({ source, projectKey }) { return wait(templates.filter((t) => t.source === source && t.projectKey === projectKey)) },
+    async saveTriggerTemplate(args) {
+      const index = templates.findIndex((t) => t.id === args.id && t.source === args.source && t.projectKey === args.projectKey)
+      if (args.id && index < 0) throw new Error('That template no longer exists.')
+      if (!args.summary.trim()) throw new Error('A template needs a task summary.')
+      const now = new Date().toISOString()
+      const entry = { ...args, id: args.id ?? crypto.randomUUID(), summary: args.summary.trim(), created: index < 0 ? now : templates[index].created, updated: now }
+      if (index < 0) templates.push(entry); else templates[index] = entry
+      return wait(entry)
+    },
+    async deleteTriggerTemplate({ source, projectKey, id }) {
+      const index = templates.findIndex((t) => t.id === id && t.source === source && t.projectKey === projectKey)
+      if (index < 0) throw new Error('That template no longer exists.')
+      templates.splice(index, 1)
+      return wait({ ok: true as const })
+    },
     async getOverview() {
       const projects = db.projects
         .filter((p) => connected || p.source === 'local')

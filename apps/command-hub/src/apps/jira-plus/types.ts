@@ -163,3 +163,17 @@ export interface RepoLink {
   }
   linkedAt: string
 }
+
+/** A saved task template; its condition is descriptive until hooks are connected. */
+export interface TriggerTemplate {
+  id: string
+  source: Source
+  projectKey: string
+  summary: string
+  description: string
+  condition: string
+  priority: string
+  created: string
+  updated: string
+}
+export type TriggerTemplateDraft = Pick<TriggerTemplate, 'source' | 'projectKey' | 'summary' | 'description' | 'condition' | 'priority'> & { id?: string }
