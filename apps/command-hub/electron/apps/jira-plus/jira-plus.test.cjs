@@ -54,6 +54,22 @@ describe('local store', () => {
 })
 
 describe('parents and time logs', () => {
+  it('creates sub-tasks under an issue and preserves them when their parent is deleted', async () => {
+    const s = createLocalStore(join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo'))
+    await s.createProject({ key: 'ME', name: 'Personal' })
+    await s.createIssue({ projectKey: 'ME', summary: 'Parent' })
+    await assert.rejects(s.createIssue({ projectKey: 'ME', summary: 'Orphan', type: 'Sub-task' }), /needs a parent/)
+    const sub = await s.createIssue({ projectKey: 'ME', summary: 'Step', type: 'Sub-task', parent: 'ME-1' })
+    assert.equal(sub.type, 'Sub-task')
+    assert.deepEqual((await s.getIssue('ME-1')).children.map((i) => i.key), [sub.key])
+    await assert.rejects(s.createIssue({ projectKey: 'ME', summary: 'Nested', type: 'Sub-task', parent: sub.key }), /cannot be the parent/)
+    await assert.rejects(s.setParent({ key: sub.key, parent: null }), /needs a parent/)
+    await s.deleteIssue({ key: 'ME-1' })
+    const kept = await s.getIssue(sub.key)
+    assert.equal(kept.type, 'Task')
+    assert.equal(kept.parent, undefined)
+  })
+
   it('sets parents, refuses loops and rolls time up the tree', async () => {
     const dir = join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo')
     const s = createLocalStore(dir)

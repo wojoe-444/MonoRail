@@ -33,7 +33,7 @@ const STATUSES = [
   { name: 'In Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
 const README = `# MonoRail local Jira
@@ -329,7 +329,11 @@ function createLocalStore(repoDir) {
         summary = String(summary ?? '').trim()
         if (!summary) throw new Error('A ticket needs a summary.')
         const p = await readJson(projectFile(projectKey))
-        if (parent) await checkParent(undefined, parent, p.key)
+        if (type === 'Sub-task' && !parent) throw new Error('A sub-task needs a parent issue.')
+        if (parent) {
+          await checkParent(undefined, parent, p.key)
+          if (type === 'Sub-task' && (await readIssue(parent)).type === 'Sub-task') throw new Error('A sub-task cannot be the parent of another sub-task.')
+        }
         const key = `${p.key}-${p.nextNumber}`
         p.nextNumber += 1
         const now = new Date().toISOString()
@@ -439,6 +443,8 @@ function createLocalStore(repoDir) {
         await ensureRepo()
         const issue = await readIssue(key)
         parent = parent ? String(parent).trim().toUpperCase() : null
+        if (issue.type === 'Sub-task' && !parent) throw new Error('A sub-task needs a parent issue.')
+        if (issue.type === 'Sub-task' && parent && (await readIssue(parent)).type === 'Sub-task') throw new Error('A sub-task cannot be the parent of another sub-task.')
         if ((issue.parent ?? null) === parent) return summarize(issue)
         if (parent) await checkParent(key, parent, issue.projectKey)
         const from = issue.parent
@@ -483,6 +489,7 @@ function createLocalStore(repoDir) {
         for (const child of all.values()) {
           if (child.parent !== key) continue
           delete child.parent
+          if (child.type === 'Sub-task') child.type = 'Task'
           child.updated = new Date().toISOString()
           const childRel = issueRel(child.key)
           await fsp.writeFile(path.join(repoDir, childRel), JSON.stringify(child, null, 2) + '\n')

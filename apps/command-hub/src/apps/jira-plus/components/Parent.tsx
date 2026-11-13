@@ -156,14 +156,14 @@ function OptionRow({ onPick, children }: { onPick: () => void; children: React.R
 }
 
 /** Parent field in Create issue: a plain select of issues in the chosen project. */
-export function ParentSelect({ id, source, projectKey, value, onChange }: { id: string; source: Source; projectKey: string; value: string; onChange: (key: string) => void }) {
+export function ParentSelect({ id, source, projectKey, value, onChange, disabled }: { id: string; source: Source; projectKey: string; value: string; onChange: (key: string) => void; disabled?: boolean }) {
   const { options, error } = useParentOptions({ source, projectKey })
   // A preset parent (from "Add child issue") stays listed even before the options arrive.
   const list = options ?? []
   const missing = value && !list.some((o) => o.key === value)
   return (
     <>
-      <select id={id} className="jp-field" value={value} onChange={(e) => onChange(e.target.value)} disabled={!options && !value}>
+      <select id={id} className="jp-field" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || (!options && !value)}>
         <option value="">None</option>
         {missing && <option value={value}>{value}</option>}
         {list.map((o) => (

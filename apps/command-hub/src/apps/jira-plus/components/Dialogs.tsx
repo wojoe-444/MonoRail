@@ -16,7 +16,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   const { dialog, closeDialog } = useJira()
   return (
     <>
-      <CreateIssueModal open={dialog?.kind === 'create'} defaultProject={dialog?.project} defaultParent={dialog?.parent} onClose={closeDialog} />
+      <CreateIssueModal open={dialog?.kind === 'create' || dialog?.kind === 'create-epic' || dialog?.kind === 'create-subtask'} subtask={dialog?.kind === 'create-subtask'} defaultType={dialog?.kind === 'create-epic' ? 'Epic' : undefined} defaultProject={dialog?.project} defaultParent={dialog?.parent} onClose={closeDialog} />
       <Modal
         open={dialog?.kind === 'project'}
         onClose={closeDialog}
@@ -39,7 +39,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   )
 }
 
-function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { open: boolean; defaultProject?: Project; defaultParent?: string; onClose: () => void }) {
+function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, subtask, onClose }: { open: boolean; subtask?: boolean; defaultProject?: Project; defaultParent?: string; defaultType?: string; onClose: () => void }) {
   const { projects, priorities, refresh, openIssue } = useJira()
   const [project, setProject] = useState('')
   const [types, setTypes] = useState<string[]>(['Task'])
@@ -70,21 +70,25 @@ function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { op
   const selKey = selected?.key
 
   useEffect(() => {
-    if (!selSource || !selKey) return
+    if (!open || !selSource || !selKey) return
     let live = true
+    setTypes([])
+    setType('')
+    setError(undefined)
     jiraApi()
-      .getIssueTypes({ source: selSource, projectKey: selKey })
+      .getIssueTypes({ source: selSource, projectKey: selKey, subtask })
       .then((t) => {
         if (!live) return
-        const list = t.length ? t : ['Task']
+        const list = t
+        if (!list.length) setError(subtask ? 'No subtask issue types are available for this project.' : 'No issue types are available for this project.')
         setTypes(list)
-        setType((cur) => (list.includes(cur) ? cur : list.includes('Task') ? 'Task' : list[0]))
+        setType(subtask ? (list[0] ?? '') : defaultType ? (list.find((t) => t.toLowerCase() === defaultType.toLowerCase()) ?? '') : (list.includes('Task') ? 'Task' : (list[0] ?? '')))
       })
-      .catch(() => live && setTypes(['Task']))
+      .catch(() => { if (live) { setTypes([]); setType(''); setError('Could not load issue types for this project.') } })
     return () => {
       live = false
     }
-  }, [selSource, selKey])
+  }, [open, selSource, selKey, defaultType, subtask])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -122,14 +126,14 @@ function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { op
     <Modal
       open={open}
       onClose={onClose}
-      title="Create issue"
+      title={subtask ? 'Create subtask' : defaultType ? 'Create epic' : 'Create issue'}
       width={760}
       footer={
         <>
           <button type="button" className="jp-btn jp-btn-subtle" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="jp-create" className="jp-btn jp-btn-primary" disabled={busy || !summary.trim() || !selected}>
+          <button type="submit" form="jp-create" className="jp-btn jp-btn-primary" disabled={busy || !summary.trim() || !selected || !type || (subtask && !parent)}>
             {busy && <Loader2 className="animate-spin" />} Create
           </button>
         </>
@@ -141,7 +145,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { op
         </p>
         <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <Field id="jp-c-project" label="Project" required>
-            <select id="jp-c-project" className="jp-field" value={project} onChange={(e) => (setProject(e.target.value), setParent(''))}>
+            <select id="jp-c-project" className="jp-field" value={project} disabled={subtask} onChange={(e) => (setProject(e.target.value), setParent(''))}>
               {locals.length > 0 && (
                 <optgroup label="Private (local repo)">
                   {locals.map((p) => (
@@ -163,7 +167,8 @@ function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { op
             </select>
           </Field>
           <Field id="jp-c-type" label="Issue type" required>
-            <select id="jp-c-type" className="jp-field" value={type} onChange={(e) => setType(e.target.value)}>
+            <select id="jp-c-type" className="jp-field" value={type} disabled={!!defaultType || (subtask && types.length <= 1)} onChange={(e) => setType(e.target.value)}>
+              {!type && <option value="">{error ? 'Issue types unavailable' : types.length ? 'Epic is not available in this project' : 'Loading issue types…'}</option>}
               {types.map((t) => (
                 <option key={t}>{t}</option>
               ))}
@@ -203,7 +208,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, onClose }: { op
           </Field>
           {selected && (
             <Field id="jp-c-parent" label="Parent" hint="An epic, story or task in this project">
-              <ParentSelect id="jp-c-parent" source={selected.source} projectKey={selected.key} value={parent} onChange={setParent} />
+              <ParentSelect id="jp-c-parent" source={selected.source} projectKey={selected.key} value={parent} onChange={setParent} disabled={subtask} />
             </Field>
           )}
         </div>

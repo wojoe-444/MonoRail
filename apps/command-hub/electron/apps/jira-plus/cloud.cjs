@@ -273,9 +273,9 @@ function createJiraClient({ siteUrl, email, token }) {
       }
     },
 
-    async issueTypes(projectKey) {
+    async issueTypes(projectKey, subtask = false) {
       const data = await request('GET', `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`)
-      return (data?.issueTypes ?? data?.values ?? []).filter((t) => !t.subtask).map((t) => t.name)
+      return (data?.issueTypes ?? data?.values ?? []).filter((t) => !!t.subtask === subtask).map((t) => t.name)
     },
 
     async createIssue({ projectKey, summary, description, type, labels, accountId, parent }) {
