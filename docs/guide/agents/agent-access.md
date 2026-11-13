@@ -22,7 +22,7 @@ it, even when the MonoRail window is closed.
 
 Every connected agent can **read**: [spending](spend.md) summaries, your
 [chat list](chat.md) (allowed folders only),
-[local issues](../workspace/local-issues.md) and [Jira+](../workspace/jira-plus.md)
+[local issues](../workspace/local-issues.md) and [Tasks](../workspace/tasks.md)
 tasks, the metrics of your [dbt project](../setup/semantic.md), and whether your [connections](../setup/connections.md) work. Nothing
 it reads includes passwords or tokens.
 

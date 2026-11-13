@@ -1,6 +1,6 @@
-// Links between Jira+ tasks and code repositories.
+// Links between tasks and code repositories.
 //
-// A task (a local Jira+ ticket or a team Jira issue) can be linked to any
+// A task (a local Tasks ticket or a team Jira issue) can be linked to any
 // number of repositories, and a repository to any number of tasks. A
 // repository is either
 //   - a local git repo, by its folder (the path git reports, as GitHub+ names
@@ -9,7 +9,7 @@
 // GitHub+ shows a repo's tasks by matching either one, so a link made to the
 // GitHub copy also shows on a local clone of it, and the other way round.
 //
-// Links live in one file, <Jira+ data>\repo-links.json. They are never
+// Links live in one file, <Tasks data>\repo-links.json. They are never
 // written to Jira, to GitHub or into any repository. The file holds issue
 // keys, repo folders and repo names only: no ticket text (team tickets are
 // fetched on demand, see the cache declaration), no tokens.

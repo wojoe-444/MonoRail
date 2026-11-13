@@ -32,7 +32,7 @@ export default function RepoLayout() {
           <NavLink to={treeLink(ref, '')} className={({ isActive }) => (isActive ? 'active' : '')} end={false}><CodeIcon /> Code</NavLink>
           <NavLink to={commitsLink(ref)}><CommitIcon /> Commits</NavLink>
           <NavLink to={issuesLink()}><IssueOpenIcon /> Issues{counts.data?.open ? <span className="counter">{counts.data.open}</span> : null}</NavLink>
-          <NavLink to={tasksLink()} title="Jira+ tasks linked to this repository"><TaskIcon /> Tasks{taskCount.data ? <span className="counter">{taskCount.data}</span> : null}</NavLink>
+          <NavLink to={tasksLink()} title="Tasks linked to this repository"><TaskIcon /> Tasks{taskCount.data ? <span className="counter">{taskCount.data}</span> : null}</NavLink>
           <NavLink to="/repo/branches"><BranchIcon /> Branches</NavLink>
           <NavLink to={compareLink()}><CompareIcon /> Compare</NavLink>
           <NavLink to={backupsLink()}><BackupIcon /> Backups</NavLink>

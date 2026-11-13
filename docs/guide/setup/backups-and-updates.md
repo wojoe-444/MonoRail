@@ -19,7 +19,7 @@ Each page gets its own subfolder:
 
 - [GitHub+](../workspace/browse-repos.md#backups) repositories, with their
   [local issues](../workspace/local-issues.md);
-- your [Jira+](../workspace/jira-plus.md#private-projects) private projects;
+- your [Tasks](../workspace/tasks.md#private-projects) private projects;
 - your [Flashcards](../../flashcards.md) decks;
 - your [Notes](../../notes.md);
 - your [flows](../agents/flows.md#versions), with every version.
@@ -51,7 +51,7 @@ update you skipped, grouped by version. The notes come from the changes that
 went into each update, written for people using the app.
 
 **Your data is backed up first.** When you have a backup folder set (see
-[Backups](#backups) above), MonoRail backs up your Jira+ private projects,
+[Backups](#backups) above), MonoRail backs up your Tasks private projects,
 Notes, Flashcards and flows into a `before-update` subfolder right before an update
 installs, and keeps the last five of each. This is on by default; you can turn
 it off with **Back up before updating** in **Settings > Backups**. If that

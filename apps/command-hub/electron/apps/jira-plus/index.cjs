@@ -1,4 +1,4 @@
-// Jira+ backend: one tracker for two kinds of projects.
+// Tasks backend: one tracker for two kinds of projects.
 //
 //   source "jira"   your team's Jira Cloud site, through the REST API (cloud.cjs)
 //   source "local"  personal projects kept in a git repository under AppData
@@ -7,10 +7,10 @@
 // Both return the same issue shape, so the app treats them alike.
 //
 // Private data rule: team Jira credentials come from the Atlassian connection
-// on the Connections page (see "connection" below); Jira+ keeps only its JQL
+// on the Connections page (see "connection" below); Tasks keeps only its JQL
 // setting in <dataDir>\settings.json. The local repo is <dataDir>\local-repo.
 //
-// <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Jira+ was an app it
+// <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Tasks was an app it
 // was the "jira" module, whose data lives in ...\modules\jira. If that folder
 // holds data and the new one doesn't, keep using the old one in place. It is
 // never moved or copied (see "names that must not change" in CLAUDE.md).
@@ -95,7 +95,7 @@ async function tasksForRepo(ctx, { path: p, github } = {}) {
     local.map((l) =>
       localStore(ctx)
         .getIssue(l.issue.key)
-        .then((i) => taskRow(l, i), () => taskRow(l, null, 'This ticket no longer exists in Jira+.')),
+        .then((i) => taskRow(l, i), () => taskRow(l, null, 'This ticket no longer exists in Tasks.')),
     ),
   )
 
@@ -129,7 +129,7 @@ async function tasksForRepo(ctx, { path: p, github } = {}) {
 // before Connections existed may still have their own connection.json here
 // (site, email, safeStorage-encrypted token); it is used only when no
 // Atlassian connection is set up, and "Forget" deletes it. Which issues to
-// show (scopeJql) is a Jira+ setting, kept in settings.json.
+// show (scopeJql) is a Tasks setting, kept in settings.json.
 
 const SETTINGS_FILE = 'settings.json'
 const NOT_SET_UP = /Add an Atlassian connection/i
@@ -462,7 +462,7 @@ module.exports = {
     /**
      * linkRepo({ source, key, path }) links a local repo (checked with git,
      * stored by its root and github.com remote); linkRepo({ source, key,
-     * github: 'owner/name' }) links a repo on github.com. Stored in Jira+'s
+     * github: 'owner/name' }) links a repo on github.com. Stored in Tasks'
      * data folder only. Returns the task's links.
      */
     async linkRepo(ctx, args) {
@@ -510,7 +510,7 @@ module.exports = {
       return publicConnection({ ...conn, scopeJql })
     },
 
-    /** Deletes the token Jira+ saved itself before the Connections page existed. */
+    /** Deletes the token Tasks saved itself before the Connections page existed. */
     async forgetLegacyConnection(ctx) {
       await fs.rm(path.join(dataDir(ctx), CONNECTION_FILE), { force: true })
       return publicConnection(await resolveConnection(ctx))

@@ -32,7 +32,7 @@ export interface NavSection {
  * through the same registries (src/extensions).
  */
 function coreSections(list: ExtensionList): NavSection[] {
-  // Workspace apps (GitHub+, Jira+, Email) are pages under the drawer; their
+  // Workspace apps (GitHub+, Tasks, Email) are pages under the drawer; their
   // own routes all belong to their one nav item.
   const workspaceApps: NavItem[] = apps
     .filter(isWorkspaceApp)

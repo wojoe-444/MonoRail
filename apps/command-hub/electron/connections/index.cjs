@@ -327,7 +327,7 @@ function connections() {
 }
 
 /**
- * Credentials of a connection, for other backends. For example Jira+:
+ * Credentials of a connection, for other backends. For example Tasks:
  *   const { siteUrl, email, token } = await getCredentials('atlassian')
  */
 function getCredentials(kind) {

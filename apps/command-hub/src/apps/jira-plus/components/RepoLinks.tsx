@@ -57,7 +57,7 @@ export function RepoLinks({ source, issueKey }: { source: Source; issueKey: stri
     <div className="flex min-w-0 flex-col gap-1">
       {links === undefined && !error && <Loader2 className="size-4 animate-spin text-(--jp-subtlest)" />}
       {links?.map((l) => (
-        <div key={l.id} className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-[3px] px-1 hover:bg-(--jp-hover)">
+        <div key={l.id} className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-md px-1 hover:bg-(--jp-hover)">
           {l.repo.kind === 'local' ? <FolderGit2 className="size-4 shrink-0 text-(--jp-subtle)" /> : <Cloud className="size-4 shrink-0 text-(--jp-subtle)" />}
           <button
             type="button"
@@ -85,7 +85,7 @@ export function RepoLinks({ source, issueKey }: { source: Source; issueKey: stri
         </div>
       ))}
       {links && !picking && (
-        <button type="button" className="jp-focusable -ml-1 flex w-fit items-center gap-1 rounded-[3px] px-1 py-1 text-(--jp-subtle) hover:bg-(--jp-hover)" onClick={() => setPicking(true)}>
+        <button type="button" className="jp-focusable -ml-1 flex w-fit items-center gap-1 rounded-md px-1 py-1 text-(--jp-subtle) hover:bg-(--jp-hover)" onClick={() => setPicking(true)}>
           <Plus className="size-4" /> {links.length ? 'Link another' : 'Link a repository'}
         </button>
       )}
@@ -155,7 +155,7 @@ function RepoPicker({
       .then((dir) => dir && onPick({ path: dir }), (e) => onError(errorText(e)))
 
   return (
-    <div className="mt-1 rounded-[3px] border border-(--jp-border) bg-(--jp-raised)">
+    <div className="mt-1 rounded-md border border-(--jp-border) bg-(--jp-raised)">
       <div className="flex items-center gap-2 border-b border-(--jp-border) px-2">
         <Search className="size-4 shrink-0 text-(--jp-subtlest)" />
         <input

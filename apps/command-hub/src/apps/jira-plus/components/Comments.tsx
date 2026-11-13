@@ -89,7 +89,7 @@ export function Comments({
 function Visibility({ issue, me }: { issue: IssueDetail; me?: string }) {
   if (issue.source === 'jira') {
     return (
-      <p className="mt-2 flex items-start gap-2 rounded-[3px] bg-(--jp-warning-bg) px-2 py-1.5 text-sm text-(--jp-warning-fg)">
+      <p className="mt-2 flex items-start gap-2 rounded-md bg-(--jp-warning-bg) px-2 py-1.5 text-sm text-(--jp-warning-fg)">
         <Globe className="mt-0.5 size-4 shrink-0" />
         <span>
           <b>Visible to your team.</b> This posts a real comment on {issue.key} in Jira{me ? ` as ${me}` : ''}. Everyone who can see the ticket can read it, and
@@ -99,10 +99,10 @@ function Visibility({ issue, me }: { issue: IssueDetail; me?: string }) {
     )
   }
   return (
-    <p className="mt-2 flex items-start gap-2 rounded-[3px] bg-(--jp-local-bg) px-2 py-1.5 text-sm text-(--jp-local)">
+    <p className="mt-2 flex items-start gap-2 rounded-md bg-(--jp-local-bg) px-2 py-1.5 text-sm text-(--jp-local)">
       <Lock className="mt-0.5 size-4 shrink-0" />
       <span>
-        <b>Private.</b> Saved only in your local Jira+ repo on this computer. Never sent anywhere.
+        <b>Private.</b> Saved only in your private Tasks repo on this computer. Never sent anywhere.
       </span>
     </p>
   )
@@ -177,17 +177,17 @@ function CommentRow({
 
         {c.mine && editing === undefined && !confirm && (
           <div className="mt-1 flex gap-3 text-sm text-(--jp-subtle)">
-            <button type="button" className="jp-focusable rounded-[3px] font-medium outline-none hover:underline" onClick={() => setEditing(c.body)}>
+            <button type="button" className="jp-focusable rounded-md font-medium outline-none hover:underline" onClick={() => setEditing(c.body)}>
               Edit
             </button>
-            <button type="button" className="jp-focusable rounded-[3px] font-medium outline-none hover:underline" onClick={() => setConfirm(true)}>
+            <button type="button" className="jp-focusable rounded-md font-medium outline-none hover:underline" onClick={() => setConfirm(true)}>
               Delete
             </button>
           </div>
         )}
 
         {confirm && (
-          <div className={cn('mt-2 flex flex-wrap items-center gap-2 rounded-[3px] bg-(--jp-danger-bg) px-2 py-1.5 text-sm')}>
+          <div className={cn('mt-2 flex flex-wrap items-center gap-2 rounded-md bg-(--jp-danger-bg) px-2 py-1.5 text-sm')}>
             <span className="flex-1">
               {team ? 'Delete this comment from Jira? It is removed for everyone on the team.' : 'Delete this comment? It stays in your local repo’s history.'}
             </span>

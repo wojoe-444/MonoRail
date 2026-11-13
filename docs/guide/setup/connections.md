@@ -41,7 +41,7 @@ rule.
   [issues](../workspace/local-issues.md#also-on-github-if-you-want). Uses your
   GitHub CLI login by default, or a token you paste.
 - **Atlassian**: your Jira site, email and API token, used by
-  [Jira+](../workspace/jira-plus.md#your-teams-jira).
+  [Tasks](../workspace/tasks.md#your-teams-jira).
 - **Google Cloud**: your `gcloud` login.
 - **pi**: the pi coding agent, its version and which providers it is signed
   in to, plus the [models](../glossary.md#model) it offers by default.

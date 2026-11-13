@@ -32,7 +32,7 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   // Backups
   { label: 'Global backup folder', detail: 'One folder every page backs up into', path: '/settings/backups', keywords: 'backup onedrive folder copy bundle' },
   { label: 'Backup frequency', detail: 'Times per hour, day or week, and how many to keep', path: '/settings/backups', keywords: 'schedule how often keep prune' },
-  { label: 'Back up before updating', detail: 'Back up Jira+, Notes and Flashcards before an update installs', path: '/settings/backups', anchor: 'settings-backup-before-update', keywords: 'update upgrade safety backup install before' },
+  { label: 'Back up before updating', detail: 'Back up Tasks, Notes and Flashcards before an update installs', path: '/settings/backups', anchor: 'settings-backup-before-update', keywords: 'update upgrade safety backup install before' },
   { label: 'Back up now', detail: 'Run every included backup', path: '/settings/backups', keywords: 'run backup' },
   // Connections (connector names; their rows have ids `connection-<kind>`)
   { label: 'Google Cloud', detail: 'Connections: gcloud login and Application Default Credentials', path: '/connections', anchor: 'connection-gcloud', keywords: 'gcloud gcp adc sign in' },

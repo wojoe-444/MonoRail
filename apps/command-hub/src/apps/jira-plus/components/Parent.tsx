@@ -15,7 +15,7 @@ export function ParentChip({ parent, withSummary = true, className }: { parent: 
   return (
     <span
       title={parent.summary ? `Parent: ${parent.key} ${parent.summary}` : `Parent: ${parent.key}`}
-      className={cn('inline-flex max-w-full min-w-0 items-center gap-1 rounded-[3px] bg-(--jp-hover) px-1 text-xs leading-5 text-(--jp-subtle)', className)}
+      className={cn('inline-flex max-w-full min-w-0 items-center gap-1 rounded-md bg-primary-soft px-1.5 py-0.5 text-[11px] leading-4 font-medium text-primary-soft-foreground', className)}
     >
       <TypeIcon type={parent.type ?? 'Epic'} className="size-3.5" />
       <span className="font-semibold whitespace-nowrap">{parent.key}</span>
@@ -85,7 +85,7 @@ export function ParentPicker({
     <P.Root open={open} onOpenChange={setOpen}>
       <div className="flex min-h-8 items-center gap-1">
         <P.Trigger asChild disabled={disabled}>
-          <button type="button" className="jp-focusable -ml-1 flex min-h-8 min-w-0 flex-1 items-center rounded-[3px] px-1 text-left outline-none hover:bg-(--jp-hover)">
+          <button type="button" className="jp-focusable -ml-1 flex min-h-8 min-w-0 flex-1 items-center rounded-md px-1 text-left outline-none hover:bg-(--jp-hover)">
             {value ? <ParentChip parent={value} /> : <span className="text-(--jp-subtle)">None</span>}
           </button>
         </P.Trigger>
@@ -96,7 +96,7 @@ export function ParentPicker({
         )}
       </div>
       <P.Portal>
-        <P.Content align="start" sideOffset={4} className="jp z-50 w-[360px] rounded-[3px] bg-(--jp-raised) shadow-(--jp-shadow-overlay) outline-none">
+        <P.Content align="start" sideOffset={4} className="jp z-50 w-[360px] rounded-md bg-(--jp-raised) shadow-(--jp-shadow-overlay) outline-none">
           <div className="relative p-2">
             <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-(--jp-subtlest)" />
             <input

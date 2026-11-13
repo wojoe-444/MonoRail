@@ -14,7 +14,7 @@
 // "Notes" (electron/apps/github-plus/linked.cjs).
 //
 // isomorphic-git does the git work (no git install needed, works from the
-// packaged app.asar), like Jira+'s private projects repo. No Electron here, so
+// packaged app.asar), like Tasks' private projects repo. No Electron here, so
 // tests run under plain Node.
 
 const fs = require('node:fs')

@@ -503,7 +503,7 @@ const MODULE_NAMES: Record<string, string> = {
   remote: 'Remote access',
   home: 'Home',
   'app:github-plus': 'GitHub+',
-  'app:jira-plus': 'Jira+',
+  'app:jira-plus': 'Tasks',
   'app:email': 'Email',
 }
 

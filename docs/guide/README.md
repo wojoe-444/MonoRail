@@ -27,7 +27,7 @@ everything; [private data stays local](private-data.md) explains it.
   agents cost, by day and by model.
 - **Look after your work.** [GitHub+](workspace/browse-repos.md) browses the
   git repositories on your computer, with [local issues](workspace/local-issues.md);
-  [Jira+](workspace/jira-plus.md) keeps tasks; [Email](workspace/email.md)
+  [Tasks](workspace/tasks.md) keeps tasks; [Email](workspace/email.md)
   reads mail. All of it is in [your workspace](workspace/README.md).
 - **Let agents help themselves.** [Agent access](agents/agent-access.md) lets
   an agent read what MonoRail knows, and, only with your OK, write a few

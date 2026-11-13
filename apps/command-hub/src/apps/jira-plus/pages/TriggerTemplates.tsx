@@ -47,8 +47,8 @@ export function TriggerTemplates({ project }: { project: Project }) {
     <p className="mt-4 text-(--jp-subtle)">Save task templates for future triggers. Conditions are notes for now; hooks are not connected and no tasks will be created automatically.</p>
     <div className="mt-6"><ErrorNote error={error} /></div>
     {!items && !error && <div className="flex items-center gap-2 text-(--jp-subtle)"><Loader2 className="size-4 animate-spin" /> Loading…</div>}
-    {items?.length === 0 && <div className="rounded-[3px] border border-(--jp-border) px-6 py-12 text-center text-(--jp-subtle)">No templates yet. Create one for a future trigger.</div>}
-    {!!items?.length && <ul className="flex flex-col gap-3">{items.map((item) => <li key={item.id} className="rounded-[3px] border border-(--jp-border) p-4">
+    {items?.length === 0 && <div className="rounded-md border border-(--jp-border) px-6 py-12 text-center text-(--jp-subtle)">No templates yet. Create one for a future trigger.</div>}
+    {!!items?.length && <ul className="flex flex-col gap-3">{items.map((item) => <li key={item.id} className="rounded-md border border-(--jp-border) p-4">
       <div className="flex items-start gap-3"><div className="min-w-0 flex-1"><div className="font-semibold break-words">{item.summary}</div><div className="mt-1 text-xs text-(--jp-subtle)">Priority: {item.priority} · Trigger not connected</div></div>
         <button type="button" className="jp-btn jp-btn-subtle" onClick={() => edit(item)}>Edit</button>
         {deleting === item.id ? <><button type="button" className="jp-btn jp-btn-danger" disabled={busy} onClick={() => void remove(item.id)}>Delete template?</button><button type="button" className="jp-btn jp-btn-subtle" onClick={() => setDeleting(undefined)}>Cancel</button></> : <button type="button" className="jp-btn jp-btn-subtle" onClick={() => setDeleting(item.id)} aria-label={`Delete template ${item.summary}`}><Trash2 /></button>}

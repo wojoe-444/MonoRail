@@ -42,7 +42,7 @@ export function BeforeUpdateNote({ status, onNavigate }: { status: AppStatus; on
 /** Title and text while the backup runs. */
 export const BACKING_UP = {
   title: 'Backing up your data first…',
-  text: 'Jira+, Notes and Flashcards are saved to your backup folder. MonoRail restarts when it is done.',
+  text: 'Tasks, Notes and Flashcards are saved to your backup folder. MonoRail restarts when it is done.',
 }
 
 /** What failed, and the two ways on: try again, or update without a backup. */

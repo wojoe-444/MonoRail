@@ -19,7 +19,7 @@ export interface RepoApi {
   saveSettings(settings: GitHubPlusSettings): Promise<GitHubPlusSettings>
   /** Recently opened repo paths, newest first. Kept in the app's AppData folder. */
   getRecents(): Promise<string[]>
-  /** Repos other MonoRail apps created (Jira+'s private projects), listed without being opened first. */
+  /** Repos other MonoRail apps created (Tasks' private projects), listed without being opened first. */
   getLinked(): Promise<LinkedRepo[]>
   /** Home dashboard: activity across the recently opened repos and the linked ones. */
   getActivity(): Promise<RepoActivity[]>
@@ -53,13 +53,13 @@ export interface RepoApi {
   /** Open a repo (or one of its issues) on github.com in the system browser. */
   openOnGitHub(fullName: string, issue?: number): Promise<null>
   updateIssue(repo: string, number: number, edit: IssueEdit): Promise<Issue>
-  /** Jira+ tasks linked to this repo (by folder or github.com remote). */
+  /** tasks linked to this repo (by folder or github.com remote). */
   linkedTasks(repo: string): Promise<LinkedTask[]>
-  /** How many Jira+ tasks are linked to this repo. Contacts nobody. */
+  /** How many tasks are linked to this repo. Contacts nobody. */
   linkedTaskCount(repo: string): Promise<number>
-  /** Jira+ tasks linked to a repo on github.com. */
+  /** tasks linked to a repo on github.com. */
   linkedTasksOnGitHub(fullName: string): Promise<LinkedTask[]>
-  /** Task counts per repo for the Home lists. Reads Jira+'s links file only. */
+  /** Task counts per repo for the Home lists. Reads Tasks' links file only. */
   linkCounts(): Promise<LinkCounts>
   linkTask(repo: string, source: 'local' | 'jira', key: string): Promise<LinkedTask[]>
   unlinkTask(repo: string, task: Pick<LinkedTask, 'source' | 'key' | 'linkId'>): Promise<LinkedTask[]>

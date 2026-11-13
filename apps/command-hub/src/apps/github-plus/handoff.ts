@@ -1,7 +1,7 @@
 import { navigate } from '@/lib/router'
 
 /**
- * Opening a repo in GitHub+ from another app (Jira+'s linked repositories).
+ * Opening a repo in GitHub+ from another app (Tasks' linked repositories).
  * Kept in memory for the next GitHub+ mount only; nothing is stored. The
  * repo opens like one the user picked (it must still be a git repo).
  */

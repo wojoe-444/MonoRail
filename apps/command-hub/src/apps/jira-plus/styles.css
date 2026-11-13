@@ -1,107 +1,57 @@
 /*
- * Jira+ look: a Jira-style tracker, deliberately not the MonoRail palette
- * (apps may look like their own thing). Everything is scoped under .jp:
+ * Tasks (formerly Jira+). Everything is scoped under .jp:
  * the app root and every dialog the app portals to <body> carry the class,
  * so none of it leaks into the hub. Components use these variables through
  * Tailwind arbitrary values, e.g. bg-(--jp-sunken).
  */
 .jp {
-  --jp-bg: #ffffff;
-  --jp-sunken: #f7f8f9;
-  --jp-raised: #ffffff;
-  --jp-text: #172b4d;
-  --jp-subtle: #44546f;
-  --jp-subtlest: #626f86;
-  --jp-border: #091e4224;
-  --jp-border-bold: #758195;
-  --jp-hover: #091e420f;
-  --jp-pressed: #091e4224;
-  --jp-selected: #e9f2ff;
-  --jp-selected-fg: #0c66e4;
-  --jp-brand: #0c66e4;
-  --jp-brand-hover: #0055cc;
-  --jp-brand-fg: #ffffff;
-  --jp-link: #0c66e4;
-  --jp-focus: #388bff;
-  --jp-input: #ffffff;
-  --jp-input-border: #8590a2;
-  --jp-danger: #c9372c;
-  --jp-danger-bg: #ffeceb;
-  --jp-warning-bg: #fff7d6;
-  --jp-warning-fg: #7f5f01;
-  --jp-info-bg: #e9f2ff;
-  --jp-lz-todo-bg: #dcdfe4;
-  --jp-lz-todo-fg: #44546f;
-  --jp-lz-prog-bg: #cce0ff;
-  --jp-lz-prog-fg: #0055cc;
-  --jp-lz-done-bg: #baf3db;
-  --jp-lz-done-fg: #216e4e;
-  --jp-local: #6e5dc6;
-  --jp-local-bg: #f3f0ff;
-  --jp-shadow-raised: 0 1px 1px #091e4240, 0 0 1px #091e424f;
-  --jp-shadow-overlay: 0 8px 12px #091e4226, 0 0 1px #091e424f;
-  --jp-blanket: #091e427d;
-  /* Issue type tiles, priority arrows and avatar colors (same in both modes) */
-  --jp-type-task: #4bade8;
-  --jp-type-bug: #e5493a;
-  --jp-type-story: #63ba3c;
-  --jp-type-spike: #904ee2;
-  --jp-type-epic: #904ee2;
-  --jp-type-subtask: #4bade8;
-  --jp-pri-highest: #cd1317;
-  --jp-pri-high: #e9494a;
-  --jp-pri-medium: #e97f33;
-  --jp-pri-low: #2d8738;
-  --jp-pri-lowest: #57a55a;
-  --jp-av-1: #0052cc;
-  --jp-av-2: #00875a;
-  --jp-av-3: #ff5630;
-  --jp-av-4: #6554c0;
-  --jp-av-5: #00a3bf;
-  --jp-av-6: #ff991f;
-  color-scheme: light;
-
-  .dark & {
-    --jp-bg: #1d2125;
-    --jp-sunken: #161a1d;
-    --jp-raised: #22272b;
-    --jp-text: #b6c2cf;
-    --jp-subtle: #9fadbc;
-    --jp-subtlest: #8c9bab;
-    --jp-border: #a6c5e229;
-    --jp-border-bold: #738496;
-    --jp-hover: #a1bdd914;
-    --jp-pressed: #a6c5e229;
-    --jp-selected: #1c2b41;
-    --jp-selected-fg: #579dff;
-    --jp-brand: #579dff;
-    --jp-brand-hover: #85b8ff;
-    --jp-brand-fg: #1d2125;
-    --jp-link: #579dff;
-    --jp-focus: #85b8ff;
-    --jp-input: #22272b;
-    --jp-input-border: #738496;
-    --jp-danger: #f87168;
-    --jp-danger-bg: #42221f;
-    --jp-warning-bg: #332e1b;
-    --jp-warning-fg: #f5cd47;
-    --jp-info-bg: #1c2b41;
-    --jp-lz-todo-bg: #a1bdd914;
-    --jp-lz-todo-fg: #9fadbc;
-    --jp-lz-prog-bg: #09326c;
-    --jp-lz-prog-fg: #85b8ff;
-    --jp-lz-done-bg: #164b35;
-    --jp-lz-done-fg: #7ee2b8;
-    --jp-local: #b8acf6;
-    --jp-local-bg: #2b273f;
-    --jp-shadow-raised: 0 1px 1px #03040480, 0 0 1px #03040480;
-    --jp-shadow-overlay: 0 0 0 1px #bcd6f00a, 0 8px 12px #0304045c, 0 0 1px #03040480;
-    --jp-blanket: #10121499;
-    color-scheme: dark;
-  }
+  /*
+   * Tasks follows MonoRail's own look: every --jp-* variable maps onto a hub
+   * design token, so the color scheme and light/dark mode from Settings >
+   * Appearance apply here too (no second palette, no dark override).
+   */
+  --jp-bg: var(--background);
+  --jp-sunken: var(--muted);
+  --jp-raised: var(--card);
+  --jp-text: var(--foreground);
+  --jp-subtle: var(--muted-foreground);
+  --jp-subtlest: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+  --jp-border: var(--border);
+  --jp-border-bold: color-mix(in oklch, var(--foreground) 35%, transparent);
+  --jp-hover: var(--accent);
+  --jp-pressed: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --jp-selected: var(--primary-soft);
+  --jp-selected-fg: var(--primary-soft-foreground);
+  --jp-brand: var(--primary);
+  --jp-brand-hover: color-mix(in oklch, var(--primary) 90%, transparent);
+  --jp-brand-fg: var(--primary-foreground);
+  --jp-link: var(--primary);
+  --jp-focus: var(--ring);
+  --jp-input: var(--card);
+  --jp-input-border: var(--input);
+  --jp-danger: var(--destructive);
+  --jp-danger-bg: var(--destructive-soft);
+  --jp-warning-bg: var(--warning-soft);
+  --jp-warning-fg: var(--warning-soft-foreground);
+  --jp-info-bg: var(--info-soft);
+  --jp-lz-todo-bg: var(--secondary);
+  --jp-lz-todo-fg: var(--secondary-foreground);
+  --jp-lz-prog-bg: var(--info-soft);
+  --jp-lz-prog-fg: var(--info-soft-foreground);
+  --jp-lz-done-bg: var(--success-soft);
+  --jp-lz-done-fg: var(--success-soft-foreground);
+  --jp-local: var(--highlight-soft-foreground);
+  --jp-local-bg: var(--highlight-soft);
+  --jp-shadow-raised: none;
+  --jp-shadow-overlay: var(--shadow-elevation-3);
+  --jp-blanket: color-mix(in oklch, var(--foreground) 20%, transparent);
+  --jp-pri-highest: var(--destructive);
+  --jp-pri-high: var(--warning);
+  --jp-pri-medium: var(--muted-foreground);
+  --jp-pri-low: var(--info);
+  --jp-pri-lowest: var(--info);
 
   color: var(--jp-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Helvetica Neue', sans-serif;
   font-size: 14px;
   line-height: 20px;
 }
@@ -109,44 +59,45 @@
 /* Controls sit in the components layer so Tailwind utilities (pl-8, h-8, ...) can override them. */
 @layer components {
   .jp {
-  /* Jira-style controls */
+  /* Controls in the hub look */
     .jp-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      height: 32px;
-      padding: 0 12px;
-      border-radius: 3px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--jp-border);
       font-weight: 500;
       white-space: nowrap;
-      background: var(--jp-hover);
-      color: var(--jp-subtle);
+      background: var(--jp-raised);
+      color: var(--jp-text);
       transition: background 0.1s;
       outline: none;
     }
-    .jp-btn:hover { background: var(--jp-pressed); }
+    .jp-btn:hover { background: var(--jp-hover); }
     .jp-btn:focus-visible, .jp-field:focus-visible, .jp-focusable:focus-visible { box-shadow: 0 0 0 2px var(--jp-focus); }
     .jp-btn:disabled { opacity: 0.5; pointer-events: none; }
     .jp-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .jp-btn-primary { background: var(--jp-brand); color: var(--jp-brand-fg); }
+    .jp-btn-primary { background: var(--jp-brand); color: var(--jp-brand-fg); border-color: transparent; box-shadow: var(--shadow-elevation-1); }
     .jp-btn-primary:hover { background: var(--jp-brand-hover); }
-    .jp-btn-subtle { background: transparent; }
+    .jp-btn-subtle { background: transparent; border-color: transparent; }
     .jp-btn-subtle:hover { background: var(--jp-hover); }
-    .jp-btn-danger { background: var(--jp-danger); color: #fff; }
-    .jp-btn-selected { background: var(--jp-selected); color: var(--jp-selected-fg); }
+    .jp-btn-danger { background: var(--jp-danger); color: #fff; border-color: transparent; }
+    .jp-btn-selected { background: var(--jp-selected); color: var(--jp-selected-fg); border-color: transparent; }
 
     .jp-field {
       width: 100%;
       min-height: 36px;
       padding: 6px 8px;
       border: 1px solid var(--jp-input-border);
-      border-radius: 3px;
+      border-radius: var(--radius-lg);
       background: var(--jp-input);
       color: var(--jp-text);
       outline: none;
     }
-    .jp-field:focus { border-color: var(--jp-focus); box-shadow: inset 0 0 0 1px var(--jp-focus); }
+    .jp-field:focus { border-color: var(--jp-focus); box-shadow: 0 0 0 3px color-mix(in oklch, var(--jp-focus) 35%, transparent); }
     select.jp-field { appearance: auto; }
 
     .jp-label {
@@ -160,13 +111,12 @@
     .jp-lozenge {
       display: inline-flex;
       align-items: center;
-      height: 16px;
-      padding: 0 4px;
-      border-radius: 3px;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 16px;
-      text-transform: uppercase;
+      height: 20px;
+      padding: 0 8px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 20px;
       white-space: nowrap;
     }
     .jp-lz-todo { background: var(--jp-lz-todo-bg); color: var(--jp-lz-todo-fg); }
@@ -174,10 +124,10 @@
     .jp-lz-done { background: var(--jp-lz-done-bg); color: var(--jp-lz-done-fg); }
 
     .jp-overline {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      color: var(--jp-subtlest);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--jp-subtle);
       text-transform: uppercase;
     }
 

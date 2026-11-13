@@ -28,7 +28,7 @@ export default function Welcome() {
   const nav = useNavigate()
   const [filter, setFilter] = useState('')
   const [showAll, setShowAll] = useState(false)
-  // Opened repos first, then repos other MonoRail apps created (Jira+), which are always listed.
+  // Opened repos first, then repos other MonoRail apps created (Tasks), which are always listed.
   const recents = useMemo(() => [...opened, ...linked.map((l) => l.path).filter((p) => !opened.includes(p))], [opened, linked])
   const linkedBy = useMemo(() => new Map(linked.map((l) => [l.path, l])), [linked])
   const fetched = useAsync(() => api.getActivity(), [recents.join('\n')])
@@ -37,7 +37,7 @@ export default function Welcome() {
   const repos = useMemo(() => activity.data ?? [], [activity.data])
 
   const byPath = useMemo(() => new Map(repos.map((r) => [r.path, r])), [repos])
-  // Jira+ task links per repo (Jira+'s links file; no Jira request).
+  // task links per repo (Tasks' links file; no Jira request).
   const linkCounts = useAsync(() => api.linkCounts(), [])
   const taskCount = (p: string) => {
     const k = p.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -108,7 +108,7 @@ export default function Welcome() {
                     <span className={`repo-dot${r?.error ? ' missing' : ''}`}><RepoIcon /></span>
                     <span className="ellipsis">{nameOf(p)}</span>
                     {l && <span className="badge" title={`Created by ${l.label}. Always listed while it exists.`}>{l.label}</span>}
-                    {taskCount(p) > 0 && <span className="badge" title="Jira+ tasks linked to this repository">{taskCount(p)} task{taskCount(p) === 1 ? '' : 's'}</span>}
+                    {taskCount(p) > 0 && <span className="badge" title="Tasks linked to this repository">{taskCount(p)} task{taskCount(p) === 1 ? '' : 's'}</span>}
                     {r?.github && <span className="gh-mark muted" title={`Also on GitHub: ${r.github}`} aria-label={`Also on GitHub: ${r.github}`}><CloudIcon /></span>}
                     {r?.error && <span className="badge">{/not inside a git repository/.test(r.error) ? 'not a repo' : 'unavailable'}</span>}
                   </button>

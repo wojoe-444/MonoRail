@@ -7,7 +7,7 @@ export interface RepoInfo {
   isEmpty: boolean
   /** Branch shown by default: current branch, else main/master, else first branch. */
   defaultRef: string | null
-  /** Set when another MonoRail app created this repo (e.g. Jira+'s private projects). */
+  /** Set when another MonoRail app created this repo (e.g. Tasks' private projects). */
   linked?: LinkedSource
 }
 
@@ -205,7 +205,7 @@ export interface RepoActivity {
   isEmpty?: boolean
   /** Set when the repo could not be read (moved, deleted, no longer a repo). */
   error?: string
-  /** Set when another MonoRail app created this repo (e.g. Jira+'s private projects). */
+  /** Set when another MonoRail app created this repo (e.g. Tasks' private projects). */
   linked?: LinkedSource
   /** Newest commits on any branch. */
   commits: CommitSummary[]
@@ -278,7 +278,7 @@ export type IssueSummary = Omit<Issue, 'body' | 'timeline'> & { comments: number
 export interface IssueCounts { open: number; closed: number }
 export interface IssueEdit { title?: string; body?: string; state?: IssueState }
 
-/** A Jira+ task linked to a repo (links are kept by Jira+, in its data folder). */
+/** A task linked to a repo (links are kept by Tasks, in its data folder). */
 export interface LinkedTask {
   /** The link's repo id, for unlinking. */
   linkId: string
@@ -295,5 +295,5 @@ export interface LinkedTask {
   error?: string
   linkedAt: string
 }
-/** How many Jira+ tasks each repo has, keyed by folder (forward slashes) and by lowercased "owner/name". */
+/** How many tasks each repo has, keyed by folder (forward slashes) and by lowercased "owner/name". */
 export interface LinkCounts { paths: Record<string, number>; github: Record<string, number> }
