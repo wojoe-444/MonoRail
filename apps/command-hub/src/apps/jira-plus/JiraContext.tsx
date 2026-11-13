@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { errorText, jiraApi } from './api'
 import type { Overview, Project, Source } from './types'
 
-type DialogKind = 'create' | 'project' | 'connect'
+type DialogKind = 'create' | 'create-epic' | 'create-subtask' | 'create-recurring' | 'project' | 'connect'
 
 interface JiraContextValue {
   overview?: Overview
@@ -18,8 +18,9 @@ interface JiraContextValue {
   selected?: { source: Source; key: string }
   openIssue: (source: Source, key: string) => void
   closeIssue: () => void
-  dialog?: { kind: DialogKind; project?: Project }
-  openDialog: (kind: DialogKind, project?: Project) => void
+  /** parent: create the new issue under this key (from "Add child issue"). */
+  dialog?: { kind: DialogKind; project?: Project; parent?: string }
+  openDialog: (kind: DialogKind, project?: Project, parent?: string) => void
   closeDialog: () => void
 }
 
@@ -71,7 +72,7 @@ export function JiraProvider({ children }: { children: ReactNode }) {
         return p
       }),
     dialog,
-    openDialog: (kind, project) => setDialog({ kind, project }),
+    openDialog: (kind, project, parent) => setDialog({ kind, project, parent }),
     closeDialog: () => setDialog(undefined),
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
@@ -84,6 +85,6 @@ export function useJira(): JiraContextValue {
 }
 
 /** Route segment for a project: /projects/local/ME or /projects/jira/PLAT. */
-export function projectPath(p: { source: Source; key: string }, view: 'board' | 'list' = 'board'): string {
+export function projectPath(p: { source: Source; key: string }, view: 'board' | 'list' | 'epics' | 'recurring' | 'on-trigger' = 'board'): string {
   return `/projects/${p.source}/${encodeURIComponent(p.key)}/${view}`
 }

@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRight, CheckCircle2, Download, Info, Loader2, Puzzle, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, Info, Loader2, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
-import { AppearanceCard } from '@/components/theme/ThemePicker'
+import { SpendingCard } from '@/components/spending/SpendingCard'
+import { DeveloperModeCard } from '@/components/dev/DeveloperModeCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
-import { useExtensionList } from '@/extensions/store'
 import { formatRelative } from '@/lib/format'
-import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
+import { refreshSettingsAlerts } from './alerts'
+import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
+import { changeItems } from './changes'
+import { WhatsNewList } from './WhatsNew'
+import { BACKING_UP, BackupFailed, BeforeUpdateNote } from './BeforeUpdate'
 
 const MODULE_ID = 'settings'
 
@@ -39,11 +43,10 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [callError, setCallError] = useState<string>()
 
-  const extensionCount = useExtensionList().extensions.length
   const status = live ?? query.data ?? (desktop ? undefined : browserStatus)
 
   // The backend is request/response, so poll while a download is running.
-  const downloading = status?.state === 'downloading'
+  const downloading = status?.state === 'downloading' || status?.state === 'backing-up'
   useEffect(() => {
     if (!downloading) return
     const t = setInterval(() => {
@@ -61,64 +64,62 @@ export default function SettingsPage() {
       setCallError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+      void refreshSettingsAlerts()
     }
   }
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Configure" title="Settings" description="Appearance, app version, updates and local data." />
+      <PageHeader title="General" description="Your profile, app version and updates, spending limit and where MonoRail keeps its local data." />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Updates</CardTitle>
-            <CardDescription>New versions are published from the MonoRail repository on GitHub.</CardDescription>
-          </CardHeader>
-          <Separator />
-          <CardContent className="flex flex-col gap-6">
-            {!status ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> Loading…
-              </div>
-            ) : (
-              <UpdatePanel status={status} busy={busy} callError={callError ?? query.error?.message} onCall={call} />
-            )}
-          </CardContent>
-        </Card>
+        <div id="settings-updates" className="scroll-mt-24 rounded-xl lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Updates</CardTitle>
+              <CardDescription>New versions are published from the MonoRail repository on GitHub.</CardDescription>
+            </CardHeader>
+            <Separator />
+            <CardContent className="flex flex-col gap-6">
+              {!status ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <UpdatePanel status={status} busy={busy} callError={callError ?? query.error?.message} onCall={call} />
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>About</CardTitle>
-            <CardDescription>This copy of MonoRail.</CardDescription>
-          </CardHeader>
-          <Separator />
-          <CardContent>
-            <dl className="flex flex-col divide-y text-sm">
-              <Row label="Version" value={status?.currentVersion} />
-              <Row label="Electron" value={status?.electronVersion} />
-              <Row label="Local data" value={status?.dataDir} mono />
-            </dl>
-          </CardContent>
-        </Card>
+        <div id="settings-about" className="scroll-mt-24 rounded-xl">
+          <Card>
+            <CardHeader>
+              <CardTitle>About</CardTitle>
+              <CardDescription>This copy of MonoRail.</CardDescription>
+            </CardHeader>
+            <Separator />
+            <CardContent>
+              <dl className="flex flex-col divide-y text-sm">
+                <Row label="Version" value={status?.currentVersion} />
+                <Row label="Electron" value={status?.electronVersion} />
+                <Row label="Local data" value={status?.dataDir} mono />
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card className="lg:col-span-3">
-          <CardContent className="flex flex-wrap items-center gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-highlight-soft text-highlight-soft-foreground">
-              <Puzzle className="size-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">Extensions</div>
-              <div className="text-sm text-muted-foreground">
-                {extensionCount ? `${extensionCount} installed. ` : ''}Add modules and apps built in other repositories, and choose what they may access.
-              </div>
-            </div>
-            <Button variant="outline" onClick={() => navigate('/settings/extensions')}>
-              Manage extensions <ArrowRight />
-            </Button>
-          </CardContent>
-        </Card>
+        <div id="settings-profile" className="scroll-mt-24 rounded-xl lg:col-span-3">
+          <ProfileCard />
+        </div>
 
-        <AppearanceCard className="lg:col-span-3" />
+        <div id="settings-spending" className="scroll-mt-24 rounded-xl lg:col-span-3">
+          <SpendingCard />
+        </div>
+
+        <div id="settings-developer" className="scroll-mt-24 rounded-xl lg:col-span-3">
+          <DeveloperModeCard />
+        </div>
       </div>
     </div>
   )
@@ -142,7 +143,7 @@ interface UpdatePanelProps {
 
 function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
   const { state } = status
-  const checking = state === 'checking' || (busy && state !== 'available' && state !== 'downloaded')
+  const checking = state === 'checking' || (busy && !['available', 'downloaded', 'backing-up', 'backup-failed'].includes(state))
   const pct = Math.round(status.progress?.percent ?? 0)
 
   return (
@@ -168,7 +169,7 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
               <RotateCcw /> Restart to update
             </Button>
           )}
-          {state !== 'downloading' && state !== 'downloaded' && (
+          {!['downloading', 'downloaded', 'backing-up', 'backup-failed'].includes(state) && (
             <Button
               variant={state === 'available' ? 'outline' : 'default'}
               onClick={() => onCall('checkForUpdates')}
@@ -180,6 +181,14 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
           )}
         </div>
       </div>
+
+      {state === 'available' && <BeforeUpdateNote status={status} />}
+
+      {state === 'backing-up' && <p className="text-sm text-muted-foreground">{BACKING_UP.text}</p>}
+
+      {state === 'backup-failed' && (
+        <BackupFailed status={status} busy={busy} onRetry={() => onCall('installAndRestart')} onSkip={() => onCall('installWithoutBackup')} />
+      )}
 
       {state === 'downloading' && (
         <div className="flex flex-col gap-2">
@@ -200,19 +209,14 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
         </div>
       )}
 
-      {status.releaseNotes && (state === 'available' || state === 'downloading' || state === 'downloaded') && (
+      {(state === 'available' || state === 'downloading' || state === 'downloaded') && changeItems(status).length > 0 && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">What's new</div>
-          <p className="text-sm whitespace-pre-line">{stripHtml(status.releaseNotes)}</p>
+          <WhatsNewList status={status} />
         </div>
       )}
     </>
   )
-}
-
-/** Release notes come from GitHub as HTML; show plain text. */
-function stripHtml(html: string): string {
-  return new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? ''
 }
 
 function headline(s: AppStatus, checking: boolean): string {
@@ -225,6 +229,10 @@ function headline(s: AppStatus, checking: boolean): string {
       return `Downloading version ${s.latestVersion}`
     case 'downloaded':
       return `Version ${s.latestVersion} is ready to install`
+    case 'backing-up':
+      return BACKING_UP.title
+    case 'backup-failed':
+      return 'The backup before updating failed'
     case 'not-available':
       return 'MonoRail is up to date'
     case 'error':
@@ -240,16 +248,20 @@ function StatusIcon({ status, checking }: { status: AppStatus; checking: boolean
     ? [Info, 'bg-info-soft text-info-soft-foreground']
     : checking
       ? [Loader2, 'bg-primary-soft text-primary-soft-foreground']
-      : state === 'available' || state === 'downloading' || state === 'downloaded'
-        ? [Sparkles, 'bg-primary-soft text-primary-soft-foreground']
-        : state === 'not-available'
-          ? [CheckCircle2, 'bg-success-soft text-success-soft-foreground']
-          : state === 'error'
-            ? [AlertTriangle, 'bg-destructive-soft text-destructive-soft-foreground']
-            : [RefreshCw, 'bg-muted text-muted-foreground']
+      : state === 'backing-up'
+        ? [Loader2, 'bg-primary-soft text-primary-soft-foreground']
+        : state === 'backup-failed'
+          ? [AlertTriangle, 'bg-warning-soft text-warning-soft-foreground']
+          : state === 'available' || state === 'downloading' || state === 'downloaded'
+            ? [Sparkles, 'bg-primary-soft text-primary-soft-foreground']
+            : state === 'not-available'
+              ? [CheckCircle2, 'bg-success-soft text-success-soft-foreground']
+              : state === 'error'
+                ? [AlertTriangle, 'bg-destructive-soft text-destructive-soft-foreground']
+                : [RefreshCw, 'bg-muted text-muted-foreground']
   return (
     <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', tone)}>
-      <Icon className={cn('size-5', checking && 'animate-spin')} />
+      <Icon className={cn('size-5', (checking || state === 'backing-up') && 'animate-spin')} />
     </div>
   )
 }

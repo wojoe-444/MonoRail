@@ -22,7 +22,7 @@ export function YourWork() {
     const needle = q.toLowerCase()
     return (issues ?? []).filter(
       (i) =>
-        (tab === 'done' ? i.statusCategory === 'done' : i.statusCategory !== 'done') &&
+        i.type !== 'Recurring' && (tab === 'done' ? i.statusCategory === 'done' : i.statusCategory !== 'done') &&
         (!needle || i.key.toLowerCase().includes(needle) || i.summary.toLowerCase().includes(needle) || i.labels.some((l) => l.toLowerCase().includes(needle))),
     )
   }, [issues, q, tab])
@@ -96,7 +96,7 @@ export function YourWork() {
             )}
           >
             {t === 'open' ? 'Assigned to me' : 'Done'}
-            {t === 'open' && issues && <span className="ml-2 rounded-full bg-(--jp-hover) px-2 text-xs">{(issues ?? []).filter((i) => i.statusCategory !== 'done').length}</span>}
+            {t === 'open' && issues && <span className="ml-2 rounded-full bg-(--jp-hover) px-2 text-xs">{(issues ?? []).filter((i) => i.type !== 'Recurring' && i.statusCategory !== 'done').length}</span>}
           </button>
         ))}
         {q && (

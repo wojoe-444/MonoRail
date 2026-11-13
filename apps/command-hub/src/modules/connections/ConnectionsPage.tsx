@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  Aperture,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Cloud,
+  Container,
+  Database,
   ExternalLink,
   GitBranch,
   Globe,
@@ -23,16 +28,16 @@ import {
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
-import { Separator } from '@/components/ui/separator'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
+import { refreshSettingsAlerts } from '@/modules/settings/alerts'
 
 import { ClaudeAccountBadge } from './ClaudeAccountBadge'
 import { sampleList, sampleStatuses } from './sample'
@@ -41,7 +46,7 @@ import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, Conn
 
 const MODULE_ID = 'connections'
 
-const ICONS = { cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe } as const
+const ICONS = { aperture: Aperture, cloud: Cloud, key: KeyRound, sparkles: Sparkles, terminal: SquareTerminal, git: GitBranch, globe: Globe, container: Container, database: Database } as const
 
 const STATE_LOOK: Record<ConnectionState, { label: string; badge: 'success' | 'warning' | 'info' | 'destructive' | 'secondary'; tile: string }> = {
   ok: { label: 'Connected', badge: 'success', tile: 'bg-success-soft text-success-soft-foreground' },
@@ -78,6 +83,8 @@ export default function ConnectionsPage() {
         setStatuses((all) => ({ ...all, [kind]: { state: 'error', summary: message(e), details: [], added: true, checkedAt: new Date().toISOString() } }))
       } finally {
         setChecking((c) => ({ ...c, [kind]: false }))
+        // The check's summary is written just after it returns; Settings alerts read it.
+        setTimeout(() => void refreshSettingsAlerts(), 500)
       }
     },
     [desktop],
@@ -98,10 +105,12 @@ export default function ConnectionsPage() {
     }
   }, [desktop])
 
-  // First load: list, then check every connector (added ones show their
-  // status, the others show what was detected before they are added).
+  // First load: list, then check the connections the user has set up (a
+  // recent result is reused). Connectors that are not set up are never
+  // checked: MonoRail runs nothing for a tool or account the user has not
+  // asked it to look at.
   useEffect(() => {
-    void load().then((l) => l?.connectors.forEach((c) => void check(c.kind)))
+    void load().then((l) => l?.connections.forEach((c) => void check(c.kind)))
   }, [load, check])
 
   // Poll running jobs (sign-ins) and re-check when one finishes.
@@ -122,16 +131,22 @@ export default function ConnectionsPage() {
     return () => clearInterval(t)
   }, [runningKinds, check])
 
-  // Coming back to the window (e.g. after signing in in a terminal or the
-  // browser) re-checks whatever was not connected.
+  // Coming back to the window after a sign-in the user started here (in a
+  // terminal or the browser) re-checks that connection while it is not
+  // connected. Nothing else is re-checked on focus.
   const statusesRef = useRef(statuses)
+  const signingIn = useRef(new Set<string>())
   useEffect(() => {
     statusesRef.current = statuses
   })
   useEffect(() => {
     if (!desktop) return
     const onFocus = () => {
-      for (const [kind, s] of Object.entries(statusesRef.current)) if (s.state !== 'ok') void check(kind, true)
+      for (const kind of signingIn.current) {
+        const s = statusesRef.current[kind]
+        if (s?.state === 'ok' || !s?.added) signingIn.current.delete(kind)
+        else void check(kind, true)
+      }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -139,6 +154,7 @@ export default function ConnectionsPage() {
 
   async function runAction(kind: string, action: string) {
     if (!desktop) return
+    signingIn.current.add(kind)
     try {
       const job = await invokeModule<ConnectionJob>(MODULE_ID, 'runAction', { kind, action })
       setJobs((all) => ({ ...all, [kind]: job }))
@@ -174,64 +190,65 @@ export default function ConnectionsPage() {
   const yours = topLevel.filter((c) => added.has(c.kind))
   const available = topLevel.filter((c) => !added.has(c.kind))
   const addedSubs = (list?.connectors ?? []).filter((c) => c.parent && added.has(c.kind))
+  const addedKinds = [...yours, ...addedSubs].map((c) => c.kind)
   const needsAttention = [...yours, ...addedSubs].filter((c) => statuses[c.kind] && statuses[c.kind].state !== 'ok').length
 
-  /** A connector's subconnectors, drawn inside its card. */
-  function subconnectors(parent: Connector) {
-    const subs = (list?.connectors ?? []).filter((c) => c.parent === parent.kind)
-    if (!subs.length) return undefined
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Add-ons</div>
-        {subs.map((c) => renderCard(c, true))}
-      </div>
-    )
-  }
-
-  function renderCard(c: Connector, nested = false) {
+  /** A connector and its subconnectors (drawn under it, indented), as table rows. */
+  function rowsFor(c: Connector, child = false): React.ReactNode[] {
     const connection = added.get(c.kind)
-    if (!connection) {
-      return (
-        <AvailableCard
-          key={c.kind}
-          connector={c}
-          detected={statuses[c.kind]}
-          busy={!!checking[c.kind]}
-          nested={nested}
-          onAdd={() => (c.fields.length ? setEditing(c) : void addWithoutFields(c.kind))}
-        >
-          {!nested && subconnectors(c)}
-        </AvailableCard>
-      )
-    }
-    return (
-      <ConnectionCard
+    const row = connection ? (
+      <ConnectionRow
         key={c.kind}
         connector={c}
         connection={connection}
         status={statuses[c.kind]}
         checking={!!checking[c.kind]}
         job={jobs[c.kind]}
-        nested={nested}
+        child={child}
+        open={open.has(c.kind)}
+        onToggle={() => toggle(c.kind)}
         onCheck={() => void check(c.kind, true)}
-        onAction={(a) => void runAction(c.kind, a)}
+        onAction={(a) => {
+          setOpen((o) => new Set(o).add(c.kind))
+          void runAction(c.kind, a)
+        }}
         onCancel={() => void cancelJob(c.kind)}
         onEdit={() => setEditing(c)}
         onRemove={() => setRemoving(c)}
-      >
-        {!nested && subconnectors(c)}
-      </ConnectionCard>
+      />
+    ) : (
+      <AvailableRow
+        key={c.kind}
+        connector={c}
+        child={child}
+        busy={!!checking[c.kind]}
+        onAdd={() => (c.fields.length ? setEditing(c) : void addWithoutFields(c.kind))}
+      />
     )
+    const subs = child ? [] : (list?.connectors ?? []).filter((s) => s.parent === c.kind)
+    return [row, ...subs.flatMap((s) => rowsFor(s, true))]
   }
+
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (kind: string) =>
+    setOpen((o) => {
+      const next = new Set(o)
+      if (!next.delete(kind)) next.add(kind)
+      return next
+    })
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Configure"
         title="Connections"
         description="Accounts MonoRail signs in with, and whether each one still works. Secrets stay encrypted on this PC."
         actions={
-          <Button variant="outline" onClick={() => list?.connectors.forEach((c) => void check(c.kind, true))} disabled={!desktop || Object.values(checking).some(Boolean)}>
+          <Button
+            variant="outline"
+            onClick={() => addedKinds.forEach((kind) => void check(kind, true))}
+            disabled={!desktop || !addedKinds.length || Object.values(checking).some(Boolean)}
+            title="Checks the connections you have set up"
+          >
             <RefreshCw className={cn(Object.values(checking).some(Boolean) && 'animate-spin')} /> Check all
           </Button>
         }
@@ -250,23 +267,25 @@ export default function ConnectionsPage() {
       )}
 
       {yours.length > 0 && (
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-3">
           <SectionHeading
             title="Your connections"
             note={needsAttention ? `${needsAttention} need${needsAttention === 1 ? 's' : ''} attention` : undefined}
           />
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 2xl:grid-cols-3">
-            {yours.map((c) => renderCard(c))}
-          </div>
+          <Card className="@container gap-0 py-0">
+            <TableHead />
+            <div className="divide-y">{yours.flatMap((c) => rowsFor(c))}</div>
+          </Card>
         </section>
       )}
 
       {available.length > 0 && (
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-3">
           <SectionHeading title={yours.length ? 'Add a connection' : 'Set up a connection'} />
-          <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 2xl:grid-cols-3">
-            {available.map((c) => renderCard(c))}
-          </div>
+          <p className="-mt-1 text-sm text-muted-foreground">
+            MonoRail does not look for these tools or accounts on this PC until you set one up. Setting up runs its check; nothing runs for the others.
+          </p>
+          <Card className="@container gap-0 divide-y py-0">{available.flatMap((c) => rowsFor(c))}</Card>
         </section>
       )}
 
@@ -292,6 +311,7 @@ export default function ConnectionsPage() {
               MonoRail forgets this connection and any token it saved. Accounts and tools set up outside MonoRail (gcloud, Claude Code, pi, git, Credential
               Manager) are not signed out or changed, and pi keeps its current scoped models.
               {removing?.kind === 'pi-playwright' && ' The use-my-browser skill MonoRail wrote for pi is removed; pi-playwright and the browser extension stay installed.'}
+              {removing?.kind === 'claude-playwright' && ' The playwright-extension server MonoRail added to Claude Code is removed (never one you added yourself); the browser extension stays installed.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -309,8 +329,9 @@ export default function ConnectionsPage() {
                   setLoadError(message(e))
                 }
                 setStatuses(({ [kind]: _gone, ...rest }) => rest)
+                setTimeout(() => void refreshSettingsAlerts(), 500)
+                signingIn.current.delete(kind)
                 await load()
-                void check(kind, true)
               }}
             >
               <Trash2 /> Remove
@@ -373,47 +394,151 @@ function StateBadge({ status, checking }: { status?: ConnectionStatus; checking:
   )
 }
 
-interface ConnectionCardProps {
+/** What uses each connection, shown in the table. Display only; a connector missing here shows a dash. */
+const USED_BY: Record<string, string> = {
+  gcloud: 'Google Cloud tools',
+  atlassian: 'Jira+',
+  claude: 'Chat, Coordinator, Claude Stats',
+  openai: 'OpenAI tools, Codex',
+  pi: 'Chat',
+  'pi-playwright': 'pi',
+  'claude-playwright': 'Claude Code in a terminal',
+  git: 'GitHub+, Chat',
+  github: 'GitHub+',
+  docker: 'Docker page',
+  metricflow: 'Semantic page',
+}
+
+/** The detail that says which account a connection uses, for the Account column. */
+const ACCOUNT_DETAIL = /^(account|email|site|signed in to|user\.email|codex sign-in|api key|context)$/i
+
+/**
+ * The table's columns. They drop out as the table gets narrow (container
+ * queries on the card): Used by and Checked first, then Status and Account,
+ * whose badge then moves under the name.
+ */
+const COLS =
+  'grid items-center gap-x-4 grid-cols-[minmax(0,1fr)_auto] @2xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_auto] @4xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_minmax(0,1fr)_6rem_auto]'
+
+function TableHead() {
+  return (
+    <div className={cn(COLS, 'border-b px-5 py-2.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase')}>
+      <span>Connection</span>
+      <span className="hidden @2xl:block">Status</span>
+      <span className="hidden @2xl:block">Account</span>
+      <span className="hidden @4xl:block">Used by</span>
+      <span className="hidden @4xl:block">Checked</span>
+      <span className="sr-only">Actions</span>
+    </div>
+  )
+}
+
+/** The name cell: icon, title and one line; subconnectors are indented on a tree corner. */
+function NameCell({
+  connector,
+  line,
+  child,
+  state,
+  checking,
+  badge,
+  extra,
+}: {
+  connector: Connector
+  line: string
+  child?: boolean
+  state?: ConnectionState
+  checking?: boolean
+  /** Shown under the name only while the Status column is hidden. */
+  badge?: React.ReactNode
+  /** Shown beside the name (the Claude account type). */
+  extra?: React.ReactNode
+}) {
+  return (
+    <div className={cn('flex min-w-0 items-center gap-3', child && 'pl-7')}>
+      {child && <span className="-ml-4 h-6 w-3 shrink-0 -translate-y-2 rounded-bl border-b border-l border-border" aria-hidden />}
+      <ConnectorIcon connector={connector} state={state} checking={checking} small />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">{connector.title}</span>
+          {child && <span className="hidden shrink-0 text-xs whitespace-nowrap text-muted-foreground @5xl:inline">Add-on</span>}
+          {extra}
+        </div>
+        <div className="truncate text-xs text-muted-foreground" title={line}>
+          {line}
+        </div>
+        {badge && <div className="mt-1 flex flex-wrap gap-1.5 @2xl:hidden">{badge}</div>}
+      </div>
+    </div>
+  )
+}
+
+interface ConnectionRowProps {
   connector: Connector
   connection: Connection
   status?: ConnectionStatus
   checking: boolean
   job?: ConnectionJob
+  /** A subconnector, drawn under its parent. */
+  child?: boolean
+  open: boolean
+  onToggle: () => void
   onCheck: () => void
   onAction: (id: string) => void
   onCancel: () => void
   onEdit: () => void
   onRemove: () => void
-  /** A subconnector, drawn inside its parent's card. */
-  nested?: boolean
-  children?: React.ReactNode
 }
 
-/** Nested (subconnector) cards: a quieter, tighter card inside the parent's. */
-const NESTED_CARD = 'gap-4 rounded-lg bg-muted/40 py-4 ring-foreground/10 [&>[data-slot=card-content]]:px-4 [&>[data-slot=card-header]]:px-4'
-
-function ConnectionCard({ connector, connection, status, checking, job, onCheck, onAction, onCancel, onEdit, onRemove, nested, children }: ConnectionCardProps) {
+/**
+ * One connection: a table row (status, account, what uses it, last check and
+ * the action that fits its state), and below it, when opened, everything the
+ * check found, the actions and any sign-in that is running. A running or
+ * failed sign-in keeps the details open.
+ */
+function ConnectionRow({ connector, connection, status, checking, job, child, open: opened, onToggle, onCheck, onAction, onCancel, onEdit, onRemove }: ConnectionRowProps) {
   const running = job?.state === 'running'
+  const open = opened || running || job?.state === 'failed'
   const actions = connector.actions.filter((a) => !status || (a.showWhen.includes(status.state) && (!status.actions || status.actions.includes(a.id))))
-  const attention = status && status.state !== 'ok'
+  const attention = !!status && status.state !== 'ok'
+  const main = attention ? actions[0] : undefined
+  const account = status?.details.find((d) => ACCOUNT_DETAIL.test(d.label) && d.value)
+  const Chevron = open ? ChevronDown : ChevronRight
+  const badges = <StateBadge status={status} checking={checking} />
 
   return (
-    <Card className={cn(nested && NESTED_CARD)}>
-      <CardHeader>
-        <div className={cn('flex items-center', nested ? 'gap-3' : 'gap-4')}>
-          <ConnectorIcon connector={connector} state={status?.state} checking={checking && !status} small={nested} />
-          <div className="min-w-0">
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              {connector.title} <StateBadge status={status} checking={checking} />
-              {status?.account && <ClaudeAccountBadge account={status.account} />}
-            </CardTitle>
-            <CardDescription className="mt-1">{connector.description}</CardDescription>
-          </div>
+    <div id={`connection-${connector.kind}`} className={cn('scroll-mt-24', open && 'bg-muted/30')}>
+      <div
+        className={cn(COLS, 'min-h-16 cursor-pointer px-5 py-3 hover:bg-muted/40')}
+        onClick={onToggle}
+      >
+        <NameCell
+          connector={connector}
+          line={status?.summary ?? (checking ? 'Checking…' : 'Not checked yet.')}
+          child={child}
+          state={status?.state}
+          checking={checking && !status}
+          badge={badges}
+          extra={status?.account && <ClaudeAccountBadge account={status.account} />}
+        />
+        <div className="hidden min-w-0 flex-wrap gap-1.5 @2xl:flex">{badges}</div>
+        <div className="hidden min-w-0 truncate font-mono text-xs @2xl:block" title={account ? `${account.label}: ${account.value}` : undefined}>
+          {account?.value ?? <span className="text-muted-foreground">–</span>}
         </div>
-        <CardAction>
+        <div className="hidden truncate text-xs text-muted-foreground @4xl:block">{USED_BY[connector.kind] ?? '–'}</div>
+        <div className="hidden text-xs text-muted-foreground tabular-nums @4xl:block">{status?.checkedAt ? formatRelative(status.checkedAt) : '–'}</div>
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {main ? (
+            <Button size="sm" onClick={() => onAction(main.id)} disabled={running || !isDesktop()} title={main.description}>
+              {running && job?.action === main.id ? <Loader2 className="animate-spin" /> : <LogIn />} {main.label}
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={onCheck} disabled={checking || !isDesktop()}>
+              <RefreshCw className={cn(checking && 'animate-spin')} /> Check
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={`${connector.title} options`}>
+              <Button variant="ghost" size="icon" className="size-8" aria-label={`${connector.title} options`}>
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
@@ -432,73 +557,78 @@ function ConnectionCard({ connector, connection, status, checking, job, onCheck,
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </CardAction>
-      </CardHeader>
-      <Separator />
-      <CardContent className="flex flex-col gap-4">
-        {status ? (
-          <>
-            <div>
-              <div className="text-sm font-medium">{status.summary}</div>
-              {status.hint && <div className="mt-1 text-sm text-muted-foreground">{status.hint}</div>}
-            </div>
-            {status.account && <AccountNote account={status.account} onEdit={onEdit} />}
-            {status.details.length > 0 && (
-              <dl className="flex flex-col divide-y text-sm">
-                {status.details.map((d) => (
-                  <div key={d.label} className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
-                    <dt className="text-muted-foreground">{d.label}</dt>
-                    <dd
-                      className={cn(
-                        'min-w-0 truncate text-right font-medium',
-                        d.ok === true && 'text-success-soft-foreground',
-                        d.ok === false && 'text-warning-soft-foreground',
-                      )}
-                      title={d.value}
-                    >
-                      {d.value ?? '–'}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Checking…
-          </div>
-        )}
-
-        {job && <JobPanel job={job} onCancel={onCancel} />}
-
-        <div className="flex flex-wrap items-center gap-2">
-          {actions.map((a) => (
-            <Button
-              key={a.id}
-              variant={attention ? 'default' : 'outline'}
-              onClick={() => onAction(a.id)}
-              disabled={running || !isDesktop()}
-              title={a.description}
-            >
-              {running && job?.action === a.id ? <Loader2 className="animate-spin" /> : <LogIn />} {a.label}
-            </Button>
-          ))}
-          {connector.fields.length > 0 && attention && (
-            <Button variant="outline" onClick={onEdit}>
-              <Pencil /> Edit
-            </Button>
-          )}
-          <Button variant="ghost" onClick={onCheck} disabled={checking || !isDesktop()}>
-            <RefreshCw className={cn(checking && 'animate-spin')} /> Check
-          </Button>
-          {status?.checkedAt && <span className="ml-auto text-xs text-muted-foreground">Checked {formatRelative(status.checkedAt)}</span>}
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-label={open ? `Hide ${connector.title} details` : `Show ${connector.title} details`}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Chevron className="size-4" />
+          </button>
         </div>
-        {connection.updatedAt && connector.fields.length > 0 && (
-          <div className="text-xs text-muted-foreground">Settings saved {formatRelative(connection.updatedAt)}</div>
-        )}
-        {children}
-      </CardContent>
-    </Card>
+      </div>
+
+      {open && (
+        <div className={cn('flex flex-col gap-4 border-t border-dashed py-4 pr-5', child ? 'pl-[104px]' : 'pl-[68px]')}>
+          <div className="text-sm text-muted-foreground">{connector.description}</div>
+          {status ? (
+            <>
+              {status.hint && <div className="text-sm">{status.hint}</div>}
+              {status.account && <AccountNote account={status.account} onEdit={onEdit} />}
+              {status.details.length > 0 && (
+                <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm @xl:grid-cols-2 @4xl:grid-cols-4">
+                  {status.details.map((d) => (
+                    <div key={d.label} className="min-w-0">
+                      <dt className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{d.label}</dt>
+                      <dd
+                        className={cn(
+                          'mt-0.5 font-medium break-words',
+                          d.ok === true && 'text-success-soft-foreground',
+                          d.ok === false && 'text-warning-soft-foreground',
+                        )}
+                      >
+                        {d.value ?? '–'}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </>
+          ) : null}
+
+          {job && <JobPanel job={job} onCancel={onCancel} />}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {actions.map((a) => (
+              <Button
+                key={a.id}
+                size="sm"
+                variant={attention ? 'default' : 'outline'}
+                onClick={() => onAction(a.id)}
+                disabled={running || !isDesktop()}
+                title={a.description}
+              >
+                {running && job?.action === a.id ? <Loader2 className="animate-spin" /> : <LogIn />} {a.label}
+              </Button>
+            ))}
+            {connector.fields.length > 0 && (
+              <Button size="sm" variant="outline" onClick={onEdit}>
+                <Pencil /> Edit
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={onCheck} disabled={checking || !isDesktop()}>
+              <RefreshCw className={cn(checking && 'animate-spin')} /> Check
+            </Button>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {status?.checkedAt && `Checked ${formatRelative(status.checkedAt)}`}
+              {status?.checkedAt && connection.updatedAt && connector.fields.length > 0 && ' · '}
+              {connection.updatedAt && connector.fields.length > 0 && `Settings saved ${formatRelative(connection.updatedAt)}`}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -585,44 +715,25 @@ function JobPanel({ job, onCancel }: { job: ConnectionJob; onCancel: () => void 
   )
 }
 
-interface AvailableCardProps {
+interface AvailableRowProps {
   connector: Connector
-  detected?: ConnectionStatus
   busy: boolean
   onAdd: () => void
-  nested?: boolean
-  children?: React.ReactNode
+  child?: boolean
 }
 
-function AvailableCard({ connector, detected, busy, onAdd, nested, children }: AvailableCardProps) {
-  // For detect-only connectors (no fields) and subconnectors, show what was found on this PC.
-  const showDetected = detected && (connector.fields.length === 0 || detected.account || nested)
+/** A connector that is not set up. Nothing has been checked for it, so it shows no status. */
+function AvailableRow({ connector, busy, onAdd, child }: AvailableRowProps) {
   return (
-    <Card className={cn('gap-4', nested && NESTED_CARD)}>
-      <CardContent className="flex flex-col gap-4">
-        <div className={cn('flex items-start', nested ? 'gap-3' : 'gap-4')}>
-          <ConnectorIcon connector={connector} small={nested} />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium">{connector.title}</div>
-            <div className="mt-1 text-sm text-muted-foreground">{connector.description}</div>
-          </div>
-        </div>
-        {showDetected && (
-          <div className="flex items-center gap-2 text-sm">
-            <StateBadge status={detected} checking={busy} />
-            {detected.account && <ClaudeAccountBadge account={detected.account} />}
-            <span className="min-w-0 truncate text-muted-foreground">{detected.summary}</span>
-          </div>
-        )}
-        {showDetected && detected.account && <p className="text-xs text-muted-foreground">{detected.account.billing} Set up to change the account type.</p>}
-        <div>
-          <Button onClick={onAdd} disabled={busy || !isDesktop()}>
-            {busy ? <Loader2 className="animate-spin" /> : <Plus />} Set up
-          </Button>
-        </div>
-        {children}
-      </CardContent>
-    </Card>
+    <div id={`connection-${connector.kind}`} className="flex min-h-16 scroll-mt-24 items-center gap-4 px-5 py-3">
+      <div className="min-w-0 flex-1">
+        <NameCell connector={connector} line={connector.description} child={child} />
+      </div>
+      <span className="hidden shrink-0 text-xs text-muted-foreground @2xl:block">{USED_BY[connector.kind] && `Used by ${USED_BY[connector.kind]}`}</span>
+      <Button size="sm" variant="outline" onClick={onAdd} disabled={busy || !isDesktop()}>
+        {busy ? <Loader2 className="animate-spin" /> : <Plus />} Set up
+      </Button>
+    </div>
   )
 }
 

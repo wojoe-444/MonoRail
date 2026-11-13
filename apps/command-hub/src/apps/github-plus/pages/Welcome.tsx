@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { BackupIcon, BranchIcon, CommitIcon, FolderIcon, IssueOpenIcon, RepoIcon } from '../components/Icons'
+import { BackupIcon, BranchIcon, CloudIcon, CommitIcon, FolderIcon, IssueOpenIcon, RepoIcon } from '../components/Icons'
 import { Avatar } from '../components/CommitList'
+import GitHubRepoList from '../components/GitHubRepoList'
 import { commitLink, compareLink, issueLink, issuesLink, treeLink } from '../links'
 import type { ActiveBranch, CommitSummary, RepoActivity } from '../types'
 import { fileManagerName, fullDate, timeAgo } from '../util'
+import { hasLocalScreen } from '@/modules/client'
 
 const SIDEBAR_LIMIT = 8
 
@@ -35,9 +37,18 @@ export default function Welcome() {
   const repos = useMemo(() => activity.data ?? [], [activity.data])
 
   const byPath = useMemo(() => new Map(repos.map((r) => [r.path, r])), [repos])
+  // Jira+ task links per repo (Jira+'s links file; no Jira request).
+  const linkCounts = useAsync(() => api.linkCounts(), [])
+  const taskCount = (p: string) => {
+    const k = p.replace(/\\/g, '/').replace(/\/+$/, '')
+    const c = linkCounts.data?.paths
+    return c ? (c[k] ?? c[k.toLowerCase()] ?? 0) : 0
+  }
   const openAt = (path: string, to: (r: RepoActivity | undefined) => string) => {
     open(path).then(() => nav(to(byPath.get(path))), () => undefined)
   }
+  // Local repos whose github.com remote is known, so the GitHub list leaves them out.
+  const localGitHub = useMemo(() => new Set(repos.map((r) => r.github?.toLowerCase()).filter((x): x is string => !!x)), [repos])
   const openPicker = () => pick().then((ok) => ok && nav('/repo/tree'), () => undefined)
 
   const nameOf = (p: string) => linkedBy.get(p)?.name ?? byPath.get(p)?.name ?? p.split(/[\\/]/).pop() ?? p
@@ -97,9 +108,11 @@ export default function Welcome() {
                     <span className={`repo-dot${r?.error ? ' missing' : ''}`}><RepoIcon /></span>
                     <span className="ellipsis">{nameOf(p)}</span>
                     {l && <span className="badge" title={`Created by ${l.label}. Always listed while it exists.`}>{l.label}</span>}
+                    {taskCount(p) > 0 && <span className="badge" title="Jira+ tasks linked to this repository">{taskCount(p)} task{taskCount(p) === 1 ? '' : 's'}</span>}
+                    {r?.github && <span className="gh-mark muted" title={`Also on GitHub: ${r.github}`} aria-label={`Also on GitHub: ${r.github}`}><CloudIcon /></span>}
                     {r?.error && <span className="badge">{/not inside a git repository/.test(r.error) ? 'not a repo' : 'unavailable'}</span>}
                   </button>
-                  {!r?.error && <button className="icon-btn folder-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => api.openInExplorer(p).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))}><FolderIcon /></button>}
+                  {!r?.error && hasLocalScreen() && <button className="icon-btn folder-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => api.openInExplorer(p).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))}><FolderIcon /></button>}
                   {!l && <button className="icon-btn" title="Remove from recent repositories" aria-label={`Remove ${nameOf(p)} from recent repositories`} onClick={() => forget(p)}>×</button>}
                 </li>
               )
@@ -109,11 +122,12 @@ export default function Welcome() {
           {!filter && shown.length > SIDEBAR_LIMIT && (
             <button className="link-btn small" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show less' : 'Show more'}</button>
           )}
+          <GitHubRepoList taskCounts={linkCounts.data?.github} filter={filter} localGitHub={localGitHub} onCloned={(p) => openAt(p, () => '/repo/tree')} />
         </aside>
 
         <main className="home-main">
           <h1 className="greeting">{greeting()}!</h1>
-          <p className="muted">What’s been happening in your local repositories. Everything here is read from this computer.</p>
+          <p className="muted">What’s been happening in your local repositories. Everything here is read from this computer; only the “On GitHub” list asks github.com, once you set up GitHub.</p>
           {error && !initOffer && <div className="flash error">{error}</div>}
 
           {recents.length === 0 ? (

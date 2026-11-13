@@ -1,7 +1,23 @@
 // A fictional repository for the browser dev server, where there is no git
 // backend. Every name, path, person and line of code here is made up.
 import type { RepoApi } from './api'
-import type { BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
+import { jiraApi } from '../jira-plus/api'
+import { sampleRepoLinks } from '../jira-plus/sampleRepoLinks'
+import type { LinkedTask } from './types'
+
+/** Linked tasks from the shared sample links, with summaries from the Jira+ sample tickets. */
+async function sampleTasks(repo: { path?: string; github?: string | null }): Promise<LinkedTask[]> {
+  const all = await jiraApi().listIssues({ source: 'all' })
+  return sampleRepoLinks.forRepo(repo).map(({ issue, link }) => {
+    const i = all.find((x) => x.source === issue.source && x.key === issue.key)
+    const base = { linkId: link.id, source: issue.source, key: issue.key, linkedAt: link.linkedAt }
+    return i
+      ? { ...base, summary: i.summary, status: i.status, statusCategory: i.statusCategory, type: i.type, projectName: i.projectName, url: i.url }
+      : { ...base, error: 'This ticket no longer exists in Jira+.' }
+  })
+}
+const sampleGitHubOf = (repo: string) => (repo.endsWith('/orbit-notes') ? 'sample-dev/orbit-notes' : null)
+import type { GitHubRepo, BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
   path: 'C:/Users/sample/Repos/orbit-notes',
@@ -11,6 +27,30 @@ const REPO: RepoInfo = {
   isEmpty: false,
   defaultRef: 'main',
 }
+
+// Fictional github.com repositories: orbit-notes matches the local sample repo.
+const ghRepo = (fullName: string, relation: GitHubRepo['relation'], extra: Partial<GitHubRepo> = {}): GitHubRepo => ({
+  fullName,
+  owner: fullName.split('/')[0],
+  name: fullName.split('/')[1],
+  description: '',
+  private: false,
+  fork: false,
+  archived: false,
+  hasIssues: true,
+  canPush: true,
+  relation,
+  pushedAt: new Date(Date.now() - 3_600_000).toISOString(),
+  defaultBranch: 'main',
+  ...extra,
+})
+const GITHUB_REPOS: GitHubRepo[] = [
+  ghRepo('sample-dev/orbit-notes', 'owner', { description: 'A tiny note-taking library.' }),
+  ghRepo('acme-demo/platform-api', 'organization', { private: true, description: 'Team service (fictional).' }),
+  ghRepo('acme-demo/web-console', 'organization', { private: true }),
+  ghRepo('river-labs/data-pipes', 'collaborator', { description: 'Shared with you as a collaborator.' }),
+  ghRepo('sample-dev/dotfiles', 'owner', { archived: true }),
+]
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
 
@@ -153,6 +193,10 @@ let backup: BackupState = {
   lastResult: { ok: true, at: day(0.3), file: 'C:/Users/sample/OneDrive/Backups/orbit-notes/orbit-notes-sample.bundle', size: 48_213 },
   lastSuccessAt: day(0.3),
   nextDueAt: new Date(Date.parse(day(0.3)) + UNIT_MS.day).toISOString(),
+  effective: { destination: 'C:/Users/sample/OneDrive/Backups', times: 1, unit: 'day', keep: 14 },
+  problem: null,
+  global: { enabled: true, folder: 'C:/Users/sample/OneDrive/MonoRail backups', times: 1, unit: 'day', keep: 14 },
+  globalFolder: 'C:/Users/sample/OneDrive/MonoRail backups/github-plus',
   running: false,
   files: [0.3, 1.3, 2.3].map((d) => {
     const at = day(d)
@@ -160,10 +204,16 @@ let backup: BackupState = {
     return { name, path: `C:/Users/sample/OneDrive/Backups/orbit-notes/${name}`, size: 48_213, createdAt: at }
   }),
 }
-const reschedule = (b: BackupState): BackupState => ({
-  ...b,
-  nextDueAt: b.schedule?.enabled ? new Date((b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : Date.now()) + UNIT_MS[b.schedule.unit] / b.schedule.times).toISOString() : null,
-})
+const reschedule = (b: BackupState): BackupState => {
+  const s = b.schedule
+  const f = s?.useGlobalFrequency && b.global ? b.global : s
+  const effective = s && f ? { destination: s.useGlobalFolder ? b.globalFolder ?? '' : s.destination, times: f.times, unit: f.unit, keep: f.keep } : null
+  return {
+    ...b,
+    effective,
+    nextDueAt: s?.enabled && effective ? new Date((b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : Date.now()) + UNIT_MS[effective.unit] / effective.times).toISOString() : null,
+  }
+}
 
 const wait = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 60))
 
@@ -287,6 +337,7 @@ export const sampleApi: RepoApi = {
       backup: backup.schedule ? { schedule: backup.schedule, lastResult: backup.lastResult, nextDueAt: backup.nextDueAt } : null,
       openIssues: issues.filter((i) => i.state === 'open').length,
       issues: issues.filter((i) => i.state === 'open').slice(0, 5).map(issueSummary),
+      github: 'sample-dev/orbit-notes',
     }
     const plain: RepoActivity = plainIsRepo
       ? { ...orbit, path: PLAIN, name: 'Job search', backup: null }
@@ -294,6 +345,24 @@ export const sampleApi: RepoApi = {
     return wait([orbit, plain, ...OTHER_REPOS, JIRA_ACTIVITY])
   },
   getLinked: () => wait([JIRA_REPO]),
+  githubRepos: () => wait({ connected: true, login: 'sample-dev', repos: GITHUB_REPOS, truncated: false, fetchedAt: new Date().toISOString() }),
+  githubTarget: (repo) => wait({ repo: repo === REPO.path ? 'sample-dev/orbit-notes' : null, connected: true }),
+  cloneGitHubRepo: async () => {
+    throw new Error('Cloning needs the desktop app.')
+  },
+  openOnGitHub: () => wait(null),
+  linkedTasks: (repo) => sampleTasks({ path: repo, github: sampleGitHubOf(repo) }),
+  linkedTaskCount: async (repo) => wait(sampleRepoLinks.forRepo({ path: repo, github: sampleGitHubOf(repo) }).length),
+  linkedTasksOnGitHub: (fullName) => sampleTasks({ github: fullName }),
+  linkCounts: async () => wait(sampleRepoLinks.counts()),
+  async linkTask(repo, source, key) {
+    sampleRepoLinks.link({ source, key }, { kind: 'local', path: repo, name: repo.split('/').pop() ?? repo, github: sampleGitHubOf(repo) })
+    return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
+  },
+  async unlinkTask(repo, t) {
+    sampleRepoLinks.unlink({ source: t.source, key: t.key }, t.linkId)
+    return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
+  },
   removeRecent: () => wait([]),
   // No file manager in the browser dev server.
   openInExplorer: () => wait(null),
@@ -342,11 +411,12 @@ export const sampleApi: RepoApi = {
   listIssues: (_repo, state) => wait(issues.filter((i) => state === 'all' || i.state === state).map(issueSummary)),
   issueCounts: () => wait({ open: issues.filter((i) => i.state === 'open').length, closed: issues.filter((i) => i.state === 'closed').length }),
   getIssue: async (_repo, n) => wait(findIssue(n)),
-  async createIssue(_repo, title, body) {
+  async createIssue(_repo, title, body, onGitHub) {
     if (!title.trim()) throw new Error('An issue needs a title')
     const now = new Date().toISOString()
     const number = Math.max(0, ...issues.map((i) => i.number)) + 1
-    return saveIssue({ number, title: title.trim(), body, state: 'open', author: SAMPLE_USER, createdAt: now, updatedAt: now, closedAt: null, timeline: [] })
+    const github = onGitHub ? { repo: 'sample-dev/orbit-notes', number: 40 + number, url: `https://github.com/sample-dev/orbit-notes/issues/${40 + number}` } : null
+    return saveIssue({ number, title: title.trim(), body, state: 'open', author: SAMPLE_USER, createdAt: now, updatedAt: now, closedAt: null, timeline: [], github })
   },
   async updateIssue(_repo, n, edit) {
     const i = structuredClone(findIssue(n))
@@ -372,13 +442,14 @@ export const sampleApi: RepoApi = {
   pickBackupFolder: () => wait('C:/Users/sample/OneDrive/Backups'),
   getBackup: () => wait(backup),
   saveBackup: async (_repo, schedule) => wait((backup = reschedule({ ...backup, schedule }))),
-  removeBackup: async () => wait((backup = { schedule: null, lastResult: null, lastSuccessAt: null, nextDueAt: null, running: false, files: [] })),
+  removeBackup: async () => wait((backup = { ...backup, schedule: null, effective: null, lastResult: null, lastSuccessAt: null, nextDueAt: null, running: false, files: [] })),
   async runBackup() {
     if (!backup.schedule) throw new Error('Set up backups for this repository first')
     const at = new Date().toISOString()
     const name = `orbit-notes-${at.slice(0, 19).replace(/:/g, '').replace('T', '_')}.bundle`
-    const file = { name, path: `${backup.schedule.destination}/orbit-notes/${name}`, size: 48_213, createdAt: at }
-    backup = reschedule({ ...backup, lastSuccessAt: at, lastResult: { ok: true, at, file: file.path, size: file.size }, files: [file, ...backup.files].slice(0, backup.schedule.keep) })
+    const eff = backup.effective ?? { destination: backup.schedule.destination, keep: backup.schedule.keep }
+    const file = { name, path: `${eff.destination}/orbit-notes/${name}`, size: 48_213, createdAt: at }
+    backup = reschedule({ ...backup, lastSuccessAt: at, lastResult: { ok: true, at, file: file.path, size: file.size }, files: [file, ...backup.files].slice(0, eff.keep) })
     return wait(backup)
   },
   async compareRefs(_repo, base, head) {

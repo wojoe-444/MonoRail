@@ -1,3 +1,7 @@
+---
+audience: ai
+---
+
 # MonoRail extensions
 
 The extension docs moved to [docs/extensions](extensions/README.md):

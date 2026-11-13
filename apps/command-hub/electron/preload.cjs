@@ -3,14 +3,18 @@
 // module backends registered in electron/modules/index.cjs.
 // Also exposes on(channel, cb) for the two push channels the extension system
 // uses: 'extension:event' (an extension backend's ctx.emit) and
-// 'extension:changed' (installed set or a status changed).
+// 'extension:changed' (installed set or a status changed), plus
+// 'window:fullscreen' (the window entered or left full screen, see
+// electron/window-fullscreen.cjs, which also handles toggleFullScreen).
 const { contextBridge, ipcRenderer } = require('electron')
 
-const PUSH_CHANNELS = new Set(['extension:event', 'extension:changed'])
+const PUSH_CHANNELS = new Set(['extension:event', 'extension:changed', 'window:fullscreen'])
 
 contextBridge.exposeInMainWorld('commandHub', {
   platform: process.platform,
   invoke: (moduleId, method, args) => ipcRenderer.invoke('module:invoke', { moduleId, method, args }),
+  toggleFullScreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+  isFullScreen: () => ipcRenderer.invoke('window:is-fullscreen'),
   on: (channel, cb) => {
     if (!PUSH_CHANNELS.has(channel) || typeof cb !== 'function') return () => {}
     const listener = (_event, payload) => cb(payload)

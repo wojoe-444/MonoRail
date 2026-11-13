@@ -25,6 +25,8 @@ export const sampleSetup: McpSetup = {
     { name: 'list_jira_plus_issues', title: 'Jira+ local issues', description: 'Issues of one local Jira+ project.', readOnly: true },
     { name: 'get_jira_plus_issue', title: 'Jira+ local issue', description: 'One local Jira+ issue with comments and history.', readOnly: true },
     { name: 'connection_status', title: 'Account connections', description: 'Whether each connection still works. No credentials.', readOnly: true },
+    { name: 'list_flashcard_decks', title: 'Flashcard decks', description: 'Your spaced repetition decks and what is due.', readOnly: true },
+    { name: 'add_flashcards', title: 'Add flashcards', description: 'Add cards to a Flashcards deck.', readOnly: false, needsConsent: true },
     { name: 'create_github_plus_issue', title: 'Raise a GitHub+ local issue', description: 'Create a local issue in a GitHub+ repo.', readOnly: false, needsConsent: true },
     { name: 'comment_github_plus_issue', title: 'Comment on a GitHub+ local issue', description: 'Add a comment to a local issue.', readOnly: false, needsConsent: true },
     { name: 'create_jira_plus_issue', title: 'Raise a Jira+ local issue', description: 'Create an issue in a private local Jira+ project.', readOnly: false, needsConsent: true },

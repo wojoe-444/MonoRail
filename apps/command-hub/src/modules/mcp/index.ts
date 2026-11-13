@@ -13,7 +13,7 @@ export const mcpModule: ModuleDefinition = {
   description: 'Let Claude Code and other agents use MonoRail through its MCP server.',
   icon: Plug,
   path: '/mcp',
-  nav: { section: 'Configure', order: 110 },
+  nav: { section: 'Settings', group: 'Accounts & access', order: 110 },
   component: lazy(() => import('./McpPage')),
   dataMethods: ['getSetup', 'getAccess', 'setAllowed', 'forgetAgent', 'getAudit', 'clearAudit'],
 }

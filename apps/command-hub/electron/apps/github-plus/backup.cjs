@@ -14,6 +14,15 @@
 // startup, so a backup that came due while the app was closed runs as soon
 // as it opens (one catch-up run, not one per missed slot).
 //
+// Global backup folder (Settings > Backups, electron/backups/global.cjs): a
+// schedule may follow the global folder (useGlobalFolder: backups go to
+// <global folder>/github-plus/<repo name>/) and/or the global frequency
+// (useGlobalFrequency: times, unit and keep come from there). Both are read
+// when a backup runs, so changing the global folder only moves future backups;
+// existing bundles stay where they are. A repo's own folder or frequency wins
+// whenever its flag is off. Older schedules have neither flag and keep working
+// exactly as before.
+//
 // Private data rule: schedules and results live in
 // %APPDATA%\MonoRail\apps\github-plus\backups.json.
 
@@ -22,18 +31,22 @@ const path = require('node:path')
 
 const git = require('./git.cjs')
 const { writeAtomic } = require('../../cache/files.cjs')
+const { UNIT_MS, validateFrequency, nextDue: dueAt, stamp, listBackups, errorLine } = require('../../backups/schedule.cjs')
+const global = require('../../backups/global.cjs')
 
 const FILE = 'backups.json'
-const UNIT_MS = { hour: 3_600_000, day: 86_400_000, week: 604_800_000 }
 const CHECK_EVERY_MS = 60_000
-const MAX_TIMES = 24
-const MAX_KEEP = 365
 
-function createBackupService(getDataDir, log = () => {}) {
+/**
+ * getDataDir() is %APPDATA%\MonoRail\apps\github-plus; the global settings sit
+ * two folders up (<userData>\modules\backups), unless getUserData is given.
+ */
+function createBackupService(getDataDir, log = () => {}, getUserData = () => path.resolve(getDataDir(), '..', '..')) {
   const running = new Set()
   let timer
 
   const file = () => path.join(getDataDir(), FILE)
+  const readGlobal = () => global.readGlobal(getUserData())
 
   async function readAll() {
     try {
@@ -55,64 +68,52 @@ function createBackupService(getDataDir, log = () => {}) {
     return data.repos[repo]
   }
 
-  function validateSchedule(s) {
+  function validateSchedule(s, g) {
     if (!s || typeof s !== 'object') throw new Error('Invalid backup settings')
-    const times = Math.trunc(Number(s.times))
-    if (!(times >= 1 && times <= MAX_TIMES)) throw new Error(`Times must be between 1 and ${MAX_TIMES}`)
-    if (!UNIT_MS[s.unit]) throw new Error('Unit must be hour, day or week')
-    const keep = Math.trunc(Number(s.keep))
-    if (!(keep >= 1 && keep <= MAX_KEEP)) throw new Error(`Keep must be between 1 and ${MAX_KEEP}`)
-    if (typeof s.destination !== 'string' || !path.isAbsolute(s.destination)) throw new Error('Pick a destination folder')
-    return { enabled: !!s.enabled, times, unit: s.unit, keep, destination: path.normalize(s.destination) }
+    const useGlobalFolder = !!s.useGlobalFolder
+    const useGlobalFrequency = !!s.useGlobalFrequency
+    if ((useGlobalFolder || useGlobalFrequency) && !g.enabled)
+      throw new Error('The global backup folder is off. Turn it on in Settings > Backups, or choose a folder and frequency here.')
+    const freq = validateFrequency(s)
+    let destination = ''
+    if (typeof s.destination === 'string' && s.destination && path.isAbsolute(s.destination)) destination = path.normalize(s.destination)
+    if (!useGlobalFolder && !destination) throw new Error('Pick a destination folder')
+    return { enabled: !!s.enabled, ...freq, destination, useGlobalFolder, useGlobalFrequency }
   }
 
-  const intervalMs = (s) => UNIT_MS[s.unit] / s.times
-
   /**
-   * When the next backup is due (ISO), or undefined when the schedule is off.
-   * Due one interval after the last success (immediately if there is none).
-   * After a failure, retry no sooner than 15 minutes (or one interval, if shorter).
+   * What a schedule means right now, with the global settings applied:
+   * { destination, times, unit, keep } or { problem } when it cannot run
+   * (it follows the global folder or frequency and that is off).
    */
-  function nextDue(entry) {
+  function effective(s, g) {
+    if (!s) return null
+    if ((s.useGlobalFolder || s.useGlobalFrequency) && !g.enabled)
+      return { problem: 'This schedule uses the global backup folder, which is off. Turn it on in Settings > Backups, or choose a folder and frequency here.' }
+    const destination = s.useGlobalFolder ? global.pageRoot(g, 'github-plus') : s.destination
+    const f = s.useGlobalFrequency ? g : s
+    return { destination, times: f.times, unit: f.unit, keep: f.keep }
+  }
+
+  /** When the next backup is due (ISO), or undefined when the schedule is off or cannot run. */
+  function nextDue(entry, g) {
     const s = entry?.schedule
     if (!s?.enabled) return undefined
-    let due = entry.lastSuccessAt ? Date.parse(entry.lastSuccessAt) + intervalMs(s) : 0
-    if (entry.lastResult && !entry.lastResult.ok && entry.lastAttemptAt)
-      due = Math.max(due, Date.parse(entry.lastAttemptAt) + Math.min(intervalMs(s), 15 * 60_000))
-    return new Date(due).toISOString()
+    const eff = effective(s, g)
+    return eff?.problem ? undefined : dueAt(eff, entry)
   }
 
   const safeName = (repo) => path.basename(repo).replace(/[^\w.-]+/g, '_') || 'repo'
-  const stamp = (d) => d.toISOString().replace(/\.\d+Z$/, '').replace(/:/g, '').replace('T', '_')
-
-  async function listBundles(repo, destination) {
-    const dir = path.join(destination, safeName(repo))
-    const prefix = safeName(repo) + '-'
-    let names = []
-    try {
-      names = await fs.readdir(dir)
-    } catch {
-      return []
-    }
-    const files = []
-    for (const n of names) {
-      if (!n.startsWith(prefix) || !n.endsWith('.bundle')) continue
-      try {
-        const st = await fs.stat(path.join(dir, n))
-        files.push({ name: n, path: path.join(dir, n), size: st.size, createdAt: st.mtime.toISOString() })
-      } catch {
-        /* vanished */
-      }
-    }
-    return files.sort((a, b) => b.name.localeCompare(a.name))
-  }
+  const listBundles = (repo, destination) => listBackups(path.join(destination, safeName(repo)), safeName(repo) + '-', '.bundle')
 
   /** Make one backup now. Records the result either way. */
   async function run(repo) {
     if (running.has(repo)) throw new Error('A backup of this repository is already running')
     const entry = (await readAll()).repos[repo]
     if (!entry?.schedule) throw new Error('Set up backups for this repository first')
-    const { destination, keep } = entry.schedule
+    const eff = effective(entry.schedule, await readGlobal())
+    if (eff.problem) throw new Error(eff.problem)
+    const { destination, keep } = eff
     running.add(repo)
     const startedAt = new Date()
     try {
@@ -129,7 +130,7 @@ function createBackupService(getDataDir, log = () => {}) {
         await fs.rm(partial, { force: true })
       }
       const st = await fs.stat(target)
-      // Retention: keep the newest `keep` bundles for this repo.
+      // Retention: keep the newest `keep` bundles for this repo, in this folder only.
       const old = (await listBundles(repo, destination)).slice(keep)
       for (const f of old) await fs.rm(f.path, { force: true })
       const result = { ok: true, at: new Date().toISOString(), file: target, size: st.size }
@@ -137,7 +138,7 @@ function createBackupService(getDataDir, log = () => {}) {
       log('backup ok', target)
       return result
     } catch (err) {
-      const result = { ok: false, at: new Date().toISOString(), error: String(err?.message ?? err).split('\n')[0].slice(0, 300) }
+      const result = { ok: false, at: new Date().toISOString(), error: errorLine(err) }
       await update(repo, (e) => e && { ...e, lastAttemptAt: result.at, lastResult: result })
       log('backup failed', repo, result.error)
       throw new Error(result.error)
@@ -149,9 +150,10 @@ function createBackupService(getDataDir, log = () => {}) {
   /** Run every backup that is due. Failures are recorded and retried after a short wait. */
   async function tick() {
     const { repos } = await readAll()
+    const g = await readGlobal()
     const now = Date.now()
     for (const [repo, entry] of Object.entries(repos)) {
-      const due = nextDue(entry)
+      const due = nextDue(entry, g)
       if (due && Date.parse(due) <= now && !running.has(repo)) await run(repo).catch(() => undefined)
     }
   }
@@ -159,18 +161,24 @@ function createBackupService(getDataDir, log = () => {}) {
   return {
     async get(repo) {
       const entry = (await readAll()).repos[repo]
-      const files = entry?.schedule ? await listBundles(repo, entry.schedule.destination) : []
+      const g = await readGlobal()
+      const eff = effective(entry?.schedule, g)
+      const files = eff?.destination ? await listBundles(repo, eff.destination) : []
       return {
         schedule: entry?.schedule ?? null,
+        effective: eff && !eff.problem ? eff : null,
+        problem: eff?.problem ?? null,
+        global: global.summary(g),
+        globalFolder: global.pageRoot(g, 'github-plus'),
         lastResult: entry?.lastResult ?? null,
         lastSuccessAt: entry?.lastSuccessAt ?? null,
-        nextDueAt: nextDue(entry) ?? null,
+        nextDueAt: nextDue(entry, g) ?? null,
         running: running.has(repo),
         files,
       }
     },
     async save(repo, schedule) {
-      const s = validateSchedule(schedule)
+      const s = validateSchedule(schedule, await readGlobal())
       await update(repo, (e) => ({ ...(e ?? {}), schedule: s }))
       // A new or changed schedule may already be due (e.g. first setup): check soon.
       setTimeout(() => tick().catch(() => undefined), 2_000).unref?.()
@@ -193,6 +201,7 @@ function createBackupService(getDataDir, log = () => {}) {
       timer = undefined
     },
     _nextDue: nextDue,
+    _effective: effective,
   }
 }
 

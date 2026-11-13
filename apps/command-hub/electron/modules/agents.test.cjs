@@ -26,6 +26,7 @@ function fixture() {
     '---\nname: release-notes\ndescription: >\n  Drafts release notes\n  from merged PRs\nallowed-tools:\n  - Bash\n  - Read\n---\nSteps go here.\n',
   )
   write(path.join(repo, '.claude', 'agents', 'test-writer.md'), 'No header at all.\n')
+  write(path.join(home, '.pi', 'agent', 'agents', 'scout.md'), '---\nname: scout\ndescription: Fast recon\n---\nScout.\n')
   write(path.join(home, '.pi', 'agent', 'skills', 'triage', 'SKILL.md'), '---\nname: "triage"\ndescription: \'Labels issues\'\n---\n')
   write(path.join(repo, '.pi', 'skills', 'empty-dir', 'README.md'), 'no SKILL.md here')
   return { home, repos: [{ name: 'demo-app', path: repo }] }
@@ -46,6 +47,7 @@ test('lists user and project definitions, never handing out a path', async () =>
     [
       ['code-reviewer', 'claude', 'subagent', 'user', null],
       ['release-notes', 'claude', 'skill', 'user', null],
+      ['scout', 'pi', 'subagent', 'user', null],
       ['test-writer', 'claude', 'subagent', 'project', 'demo-app'],
       ['triage', 'pi', 'skill', 'user', null],
     ],

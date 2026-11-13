@@ -8,7 +8,8 @@
 //                 defaultValue?, placeholder?, help?, showIf? }]
 //              what the user fills in. 'secret' fields are encrypted with
 //              safeStorage and never sent back to the page.
-//   validate?  ({ values, secretsSet }) => void, throws a readable message
+//   validate?  ({ values, secretsSet, secrets }) => void, throws a readable
+//              message. secrets holds only what was typed in this save.
 //   status     (conn, deps) => { state, summary, hint?, details[] }
 //              state: ok | expired | needs-setup | error | unavailable.
 //              conn is undefined until the connection is added.
@@ -20,7 +21,8 @@
 //   afterRemove? (deps) => runs after the connection is removed (undo what
 //              afterSave wrote that only makes sense while it is set up).
 //   parent?    kind of another connector: this one is a subconnector, shown
-//              nested inside the parent's card (pi > Playwright browser).
+//              nested inside the parent's card (pi > Playwright browser,
+//              Claude > Playwright browser).
 //
 // A status may also carry actions: [ids], the actions that fit right now;
 // the page shows only those (on top of showWhen). A running job may set
@@ -28,6 +30,13 @@
 //
 // Other backends reach a connection through getCredentials(kind) below, in
 // the main process. The page only ever sees describe-level data.
+//
+// Opt-in: a connector runs nothing (no status(), no actions, no process, no
+// file probe, no network call) until the user sets it up on the page. A
+// check of a connector that is not added returns NOT_ADDED without calling
+// status(), runAction refuses, and nothing checks connections on startup.
+// Test users must never have MonoRail probing tools or accounts they did
+// not ask it to look at.
 
 const path = require('node:path')
 
@@ -39,13 +48,29 @@ const CONNECTORS = [
   require('./connectors/gcloud.cjs'),
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
+  require('./connectors/claude-playwright.cjs'),
+  require('./connectors/openai.cjs'),
   require('./connectors/pi.cjs'),
   require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
+  require('./connectors/github.cjs'),
+  require('./connectors/docker.cjs'),
+  require('./connectors/metricflow.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
 const OUTPUT_LIMIT = 8_000
+
+/** The status of a connector the user has not set up. Nothing was run to make it. */
+function notAdded() {
+  return {
+    state: 'needs-setup',
+    summary: 'Not set up. MonoRail checks nothing until you set it up.',
+    details: [],
+    added: false,
+    checkedAt: undefined,
+  }
+}
 
 function connectorOf(kind) {
   const c = typeof kind === 'string' ? byKind.get(kind) : undefined
@@ -89,6 +114,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
   async function check(kind, { force = false } = {}) {
     const c = connectorOf(kind)
     const conn = await store.get(kind)
+    if (!conn) return notAdded()
     const definition = { added: !!conn, values: conn?.values ?? {} }
     const result = await checks.get(
       kind,
@@ -160,7 +186,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       }
       const clean = {}
       for (const f of c.fields) if (f.type !== 'secret') clean[f.key] = typeof values[f.key] === 'string' ? values[f.key].trim() : (f.defaultValue ?? '')
-      c.validate?.({ values: clean, secretsSet })
+      c.validate?.({ values: clean, secretsSet, secrets })
       // Secrets of a field that is hidden by the current choice are dropped.
       const hidden = c.fields.filter((f) => f.type === 'secret' && f.showIf && Object.entries(f.showIf).some(([k, v]) => clean[k] !== v)).map((f) => f.key)
       await store.save(kind, c.fields, { values: clean, secrets, clearSecrets: [...clearSecrets, ...hidden] })
@@ -195,6 +221,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       const running = jobs.get(kind)
       if (running?.state === 'running') return publicJob(running)
       const conn = await store.get(kind)
+      if (!conn) throw new Error(`Set up ${c.title} first. MonoRail runs nothing for a connection you have not added.`)
       const job = {
         id: ++jobSeq,
         kind,
@@ -250,17 +277,28 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
      * with the user's override applied. Anything that shows Claude costs
      * should use it: Enterprise and API logins bill at API prices, a
      * subscription does not bill per token. Reuses a recent check.
+     * Undefined until the user has set up the Claude connection: nothing is
+     * run to find out otherwise.
      */
     async claudeAccount() {
+      if (!(await store.get('claude'))) return undefined
       const s = await check('claude')
       return s.account
+    },
+
+    /** True once the user has added this connection. Runs nothing (no status(), no process, no request). */
+    async has(kind) {
+      connectorOf(kind)
+      return !!(await store.get(kind))
     },
 
     /** For other backends in the main process: what a connector's credentials() returns. */
     async getCredentials(kind) {
       const c = connectorOf(kind)
       if (typeof c.credentials !== 'function') throw new Error(`${c.title} does not provide credentials.`)
-      return c.credentials(await store.get(kind), deps)
+      const conn = await store.get(kind)
+      if (!conn) throw new Error(`Set up ${c.title} on the Connections page first.`)
+      return c.credentials(conn, deps)
     },
 
     /** Generic Credential Manager entries (names only), for the entry picker. */
@@ -273,12 +311,12 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
 // ---------- the app's instance ----------
 
 let instance
-/** The Connections service over %APPDATA%\MonoRail\modules\connections. Main process only. */
+/** The Connections service over the active profile's modules\connections (electron/profiles). Main process only. */
 function connections() {
   if (instance) return instance
-  const { app, safeStorage } = require('electron')
+  const { safeStorage } = require('electron')
   instance = createConnections({
-    dataDir: path.join(app.getPath('userData'), 'modules', 'connections'),
+    dataDir: require('../profiles/index.cjs').appLayout().folder('modules/connections'),
     cipher: {
       isAvailable: () => safeStorage.isEncryptionAvailable(),
       encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),
@@ -296,9 +334,14 @@ function getCredentials(kind) {
   return connections().getCredentials(kind)
 }
 
+/** Whether the user has set up a connection of this kind. Checks the saved list only. */
+function hasConnection(kind) {
+  return connections().has(kind)
+}
+
 /** The Claude account type for cost views: `const { type, billedAtApiPrices } = await claudeAccount()`. */
 function claudeAccount() {
   return connections().claudeAccount()
 }
 
-module.exports = { connections, getCredentials, claudeAccount, createConnections, CONNECTORS }
+module.exports = { connections, getCredentials, hasConnection, claudeAccount, createConnections, CONNECTORS, notAdded }

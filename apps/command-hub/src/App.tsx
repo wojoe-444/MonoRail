@@ -4,15 +4,18 @@ import { AppBody, AppFrame } from '@/apps/AppFrame'
 import { findAppByPath, isWorkspaceApp } from '@/apps/registry'
 import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 
-import { findNavItem, flattenNav, useNavSections, type NavItem } from '@/components/layout/nav'
+import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
+import { Inspector } from '@/components/dev/Inspector'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
 import { currentPath, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { findModuleByPath } from '@/modules/registry'
+import { SettingsLayout } from '@/modules/settings/SettingsLayout'
+import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
@@ -75,6 +78,8 @@ export default function App() {
     return (
       <TooltipProvider>
         <AppFrame key={activeApp.id} app={activeApp} />
+        <UpdateToast />
+        <Inspector />
       </TooltipProvider>
     )
   }
@@ -87,7 +92,7 @@ export default function App() {
           onNavigate={openPath}
           collapsed={collapsed}
         />
-        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp || findModuleByPath(path, extensionList)?.layout === 'full' ? 'overflow-hidden' : 'overflow-y-auto')}>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
@@ -101,14 +106,27 @@ export default function App() {
             <main className="min-h-0 flex-1 overflow-auto">
               <AppBody key={workspaceApp.id} app={workspaceApp} />
             </main>
+          ) : findModuleByPath(path, extensionList)?.layout === 'full' ? (
+            // A canvas page fills the body edge to edge.
+            <main className="min-h-0 flex-1 overflow-hidden">
+              <RouteView path={path} navItems={navItems} onOpen={openPath} />
+            </main>
           ) : (
             // Content container: max 1536px with 24/32px gutters
             <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
-              <RouteView path={path} navItems={navItems} onOpen={openPath} />
+              {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
+                <SettingsLayout path={path}>
+                  <RouteView path={path} navItems={navItems} onOpen={openPath} />
+                </SettingsLayout>
+              ) : (
+                <RouteView path={path} navItems={navItems} onOpen={openPath} />
+              )}
             </main>
           )}
         </div>
       </div>
+      <UpdateToast />
+      <Inspector />
     </TooltipProvider>
   )
 }

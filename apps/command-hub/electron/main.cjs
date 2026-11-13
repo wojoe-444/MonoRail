@@ -5,7 +5,7 @@
 // %APPDATA%\MonoRail. That folder is outside the repo and is never committed.
 
 const path = require('node:path')
-const { app, BrowserWindow, shell } = require('electron')
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require('electron')
 
 // `MonoRail.exe --mcp`: an agent started the MCP server (electron/mcp). No
 // window, no app: hand stdio to the server and exit with it.
@@ -17,12 +17,29 @@ function startApp() {
   const { setupUserData } = require('./userData.cjs')
   // Before anything touches userData: picks the existing data folder (never moves it).
   setupUserData(app)
+  // Developer Mode's New User profile starts blank each time it is switched
+  // to: wipe its own folder (only profiles\new-user) before any backend opens it.
+  try {
+    if (require('./profiles/index.cjs').resetBlankProfile(app.getPath('userData'))) console.log('[profiles] New User profile reset to a blank slate')
+  } catch (err) {
+    console.error('[profiles] could not reset the New User profile', err)
+  }
+
+  // Remote access on (off by default): MonoRail may be running in the tray, so a
+  // second launch opens that copy's window instead of starting another one.
+  // With it off, nothing changes here.
+  const { remoteService, readEnabledSync } = require('./remote/service.cjs')
+  if (readEnabledSync(app.getPath('userData')) && !app.requestSingleInstanceLock()) {
+    app.quit()
+    return
+  }
 
   const { registerExtensionScheme } = require('./extensions/index.cjs')
   // The monorail-ext:// scheme (extension UIs) must be registered before 'ready'.
   registerExtensionScheme()
 
   const { registerModuleBackends } = require('./modules/index.cjs')
+  const { registerFullScreenIpc, attachFullScreen } = require('./window-fullscreen.cjs')
 
   const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
 
@@ -51,6 +68,7 @@ function startApp() {
     })
 
     win.once('ready-to-show', () => win.show())
+    attachFullScreen(win)
 
     // Open external links in the user's browser, not inside the app.
     win.webContents.setWindowOpenHandler(({ url }) => {
@@ -76,13 +94,61 @@ function startApp() {
 
   app.whenReady().then(() => {
     registerModuleBackends()
+    registerFullScreenIpc()
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
   })
 
+  // Remote access (off by default) keeps serving a paired phone after the
+  // window closes: MonoRail stays in the tray until it is turned off or quit.
+  let tray
+  let quitting = false
+  app.on('before-quit', () => (quitting = true))
+
+  async function showTray() {
+    if (tray) return
+    let icon = nativeImage.createEmpty()
+    try {
+      icon = await app.getFileIcon(process.execPath, { size: 'small' })
+    } catch {
+      // No icon: the tray entry still works.
+    }
+    tray = new Tray(icon)
+    tray.setToolTip('MonoRail: Remote access is on')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Open MonoRail', click: () => openWindow() },
+        { label: 'Turn off Remote access and quit', click: () => void remoteService().setEnabled(false).finally(() => app.quit()) },
+        { type: 'separator' },
+        { label: 'Quit MonoRail', click: () => app.quit() },
+      ]),
+    )
+    tray.on('click', () => openWindow())
+  }
+
+  function openWindow() {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      win.show()
+      win.focus()
+    } else createWindow()
+    tray?.destroy()
+    tray = undefined
+  }
+
+  app.on('second-instance', () => openWindow())
+  remoteService().onChange((on) => {
+    if (on) app.requestSingleInstanceLock()
+    else app.releaseSingleInstanceLock()
+  })
+
   app.on('window-all-closed', () => {
+    if (!quitting && remoteService().isOn()) {
+      void showTray()
+      return
+    }
     if (process.platform !== 'darwin') app.quit()
   })
 }

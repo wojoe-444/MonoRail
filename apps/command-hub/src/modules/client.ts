@@ -1,8 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-/** True when running inside the Electron app (preload bridge is present). */
+/**
+ * True when real backends are reachable: the Electron window (preload), the
+ * browser dev bridge, or a remote device (Remote access). Same as hasBackends();
+ * kept under this name because every page already uses it.
+ */
 export function isDesktop(): boolean {
+  return hasBackends()
+}
+
+/** True when module backends are reachable (any bridge is present). */
+export function hasBackends(): boolean {
   return typeof window !== 'undefined' && !!window.commandHub
+}
+
+/**
+ * True when the user is at this PC: actions that open a system dialog,
+ * Explorer, a terminal or restart the app make sense. False in the browser dev
+ * server (no backends) and on a remote device such as a phone. Backend methods
+ * that need it are listed in each backend's `desktopOnly`.
+ */
+export function hasLocalScreen(): boolean {
+  return hasBackends() && !window.commandHub?.remote
 }
 
 export class ModuleUnavailableError extends Error {

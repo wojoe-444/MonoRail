@@ -103,6 +103,13 @@ export const sampleTranscripts: Record<string, SessionTranscript> = {
             text: 'There is already an `applyTheme` helper, so the toggle only needs to call it and remember the choice:\n\n```tsx\n<Switch checked={dark} onCheckedChange={(v) => setMode(v ? "dark" : "light")} />\n```\n\nI added it under **Appearance** and saved the choice in local storage.',
           },
           { type: 'tool', name: 'Bash', summary: 'npm test', input: 'npm test', result: '12 passing', isError: false },
+          {
+            type: 'tool',
+            name: 'Agent',
+            summary: 'Review the theme toggle change',
+            input: '{\n  "subagent_type": "code-reviewer",\n  "description": "Review the theme toggle change"\n}',
+            result: 'No problems found. The choice is saved and restored on start.',
+          },
         ],
       },
       { role: 'user', ts: now - 14 * min, blocks: [{ type: 'text', text: 'Looks good. Can you also follow the system setting by default?' }] },

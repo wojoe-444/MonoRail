@@ -1,5 +1,6 @@
 // The MCP server's read-only tools. Each reads what MonoRail already keeps on
-// disk in its data folder (rootDir, e.g. %APPDATA%\MonoRail), or the local
+// disk in its data folder (rootDir: a data folder or a profile layout, see
+// electron/profiles; e.g. %APPDATA%\MonoRail), or the local
 // data MonoRail's own pages read, and never starts a slow build:
 //
 //   usage_summary            Claude Stats' summary file (written after each report build)
@@ -11,6 +12,9 @@
 //   list_jira_plus_issues
 //   get_jira_plus_issue
 //   connection_status        Connections' last check per account (no secrets)
+//   list_flashcard_decks     Flashcards' decks with what is due (decks.json)
+//   list_flashcards          cards of one deck, optionally searched
+//   list_semantic_metrics    the dbt project's metrics and dimensions (Semantic page; files only)
 //
 // Write tools (writeTools below) are off for every agent until the user turns
 // them on per agent on the Agent access page (access.cjs), and every call is
@@ -18,7 +22,10 @@
 //
 //   create_github_plus_issue, comment_github_plus_issue
 //   create_jira_plus_issue, comment_jira_plus_issue
+//   add_flashcards    adds cards to a Flashcards deck (creates the deck if asked)
 //   ask_coordinator   runs a turn of the user's Chat coordinator and returns its reply
+//   query_semantic_metrics  runs the user's own MetricFlow (mf) for a metrics query
+//                     (also needs "Run queries with MetricFlow" on in the connection)
 //
 // check_coordinator_reply only reads a turn this same connection started.
 //
@@ -35,6 +42,8 @@ const cache = require('../cache/index.cjs')
 const { readJson } = require('../cache/files.cjs')
 const issues = require('../apps/github-plus/issues.cjs')
 const { resolveJiraDataDir } = require('../apps/jira-plus/data-dir.cjs')
+const flashcards = require('../modules/flashcards-store.cjs')
+const { folderOf } = require('../profiles/index.cjs')
 
 const MAX_TEXT = 20_000
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -45,11 +54,112 @@ const minutes = (ms) => (typeof ms === 'number' ? Math.round(ms / 60000) : undef
 
 function folders(rootDir) {
   return {
-    claudeStats: path.join(rootDir, 'modules', 'claude-stats'),
-    agentChat: path.join(rootDir, 'modules', 'agent-chat'),
-    githubPlus: path.join(rootDir, 'apps', 'github-plus'),
-    jiraPlus: resolveJiraDataDir(path.join(rootDir, 'apps', 'jira-plus')),
+    claudeStats: folderOf(rootDir, 'modules/claude-stats'),
+    agentChat: folderOf(rootDir, 'modules/agent-chat'),
+    githubPlus: folderOf(rootDir, 'apps/github-plus'),
+    jiraPlus: resolveJiraDataDir(folderOf(rootDir, 'apps/jira-plus')),
+    flashcards: folderOf(rootDir, 'modules/flashcards'),
+    storage: folderOf(rootDir, 'modules/storage'),
+    connections: folderOf(rootDir, 'modules/connections'),
   }
+}
+
+// ---------- Semantic (MetricFlow) ----------
+
+/** The MetricFlow connection's two plain settings, read from Connections' file (no secrets there). */
+async function metricflowSettings(connectionsDir) {
+  const data = await readJson(path.join(connectionsDir, 'connections.json')).catch(() => undefined)
+  const values = data?.connections?.metricflow?.values
+  if (!values) return undefined
+  return { project: typeof values.project === 'string' ? values.project.trim() : undefined, run: values.run === 'on' ? 'on' : 'off' }
+}
+
+const SEMANTIC_NOT_SET_UP = 'MetricFlow is not set up. Ask the user to add the MetricFlow connection on the Connections page in MonoRail.'
+
+async function semanticProject(connectionsDir) {
+  const settings = await metricflowSettings(connectionsDir)
+  if (!settings) throw new Error(SEMANTIC_NOT_SET_UP)
+  const mfLib = require('../modules/semantic-mf.cjs')
+  const loaded = await mfLib.loadProject(settings)
+  if (loaded.block === 'no-project') throw new Error('The dbt project folder in the MetricFlow connection was not found.')
+  if (loaded.block) throw new Error('The dbt project has no readable semantic manifest (target/semantic_manifest.json). Ask the user to run dbt parse.')
+  return { settings, loaded, mfLib }
+}
+
+// ---------- Storage ----------
+
+const GB = 1024 ** 3
+const gb = (bytes) => (typeof bytes === 'number' ? Math.round((bytes / GB) * 100) / 100 : undefined)
+
+/** The Storage page's last saved scan and drive sample, shaped for an agent (sizes in GB). */
+async function storageScan(storageDir, { top = 40 } = {}) {
+  const all = await cache.history({ dataDir: storageDir, log: () => {} }, 'storage.history').list()
+  const scans = all.filter((s) => s.data?.kind === 'scan')
+  const last = scans.at(-1)
+  const lastDrives = all.at(-1)
+  // Free-space goals the user set on the Storage page (goals.json, when that feature is present).
+  const goalsFile = await readJson(path.join(storageDir, 'goals.json')).catch(() => undefined)
+  const goals = goalsFile?.version === 1 && goalsFile.goals && typeof goalsFile.goals === 'object' ? goalsFile.goals : {}
+  const drives = (lastDrives?.data?.drives ?? []).map((d) => {
+    const goal = typeof goals[d.id]?.freeBytes === 'number' ? goals[d.id].freeBytes : undefined
+    return {
+      drive: d.id,
+      totalGB: gb(d.total),
+      freeGB: gb(d.free),
+      usedPercent: d.total ? Math.round(((d.total - d.free) / d.total) * 100) : undefined,
+      ...(goal !== undefined ? { freeGoalGB: gb(goal), stillToFreeGB: gb(Math.max(0, goal - d.free)) } : {}),
+    }
+  })
+  if (!last) {
+    return {
+      available: false,
+      reason: 'No folder scan has been saved yet. Open Utilities > Storage in MonoRail and press Scan.',
+      drives,
+      drivesSampledAt: lastDrives ? new Date(lastDrives.takenAt).toISOString() : undefined,
+    }
+  }
+  const before = scans.at(-2)
+  const prev = new Map((before?.data.locations ?? []).map((l) => [l.id, l.bytes]))
+  const locations = (last.data.locations ?? [])
+    .filter((l) => typeof l.bytes === 'number')
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, top)
+    .map((l) => ({
+      id: l.id,
+      label: l.label,
+      group: l.group,
+      path: l.path,
+      sizeGB: gb(l.bytes),
+      files: l.files,
+      advice: l.advice,
+      tip: l.tip,
+      note: l.note,
+      measuredOnlyPartly: l.truncated || undefined,
+      changeSincePreviousScanGB: prev.has(l.id) ? gb(l.bytes - prev.get(l.id)) : undefined,
+      largestChildren: (l.children ?? []).slice(0, 8).map((c) => ({ name: c.name, kind: c.kind, sizeGB: gb(c.bytes) })),
+    }))
+  return {
+    available: true,
+    scannedAt: new Date(last.takenAt).toISOString(),
+    ageHours: Math.round((Date.now() - last.takenAt) / 36e5),
+    previousScanAt: before ? new Date(before.takenAt).toISOString() : undefined,
+    adviceMeaning: { safe: 'a cache its tool rebuilds; safe to clear with that tool', review: 'may hold things the user wants; the user decides', keep: 'in use; leave alone' },
+    drives,
+    locations,
+  }
+}
+
+// ---------- Flashcards ----------
+
+/** A deck by id or by name (case does not matter). */
+function flashcardDeck(data, wanted) {
+  const w = String(wanted ?? '').trim()
+  const byId = data.decks.find((d) => d.id === w)
+  if (byId) return byId
+  const byName = data.decks.filter((d) => d.name.toLowerCase() === w.toLowerCase())
+  if (byName.length === 1) return byName[0]
+  if (byName.length > 1) throw new Error(`Several decks are called "${w}". Pass the deck id from list_flashcard_decks.`)
+  return undefined
 }
 
 // ---------- GitHub+ ----------
@@ -323,11 +433,92 @@ function readTools({ rootDir }) {
         return { connections: list }
       },
     },
+    {
+      name: 'storage_scan',
+      title: 'Disk space and folder sizes',
+      description:
+        "The Storage page's last saved scan: free and used space per drive, and the size of known folders (MonoRail's data, agent tools, package manager caches, Temp, Downloads, system files), largest first, each with its largest subfolders, the change since the previous scan, and advice: safe (a cache its tool rebuilds), review (may hold things the user wants) or keep (in use), plus any free-space goal the user set per drive. Sizes in GB. Read-only: MonoRail never deletes or moves anything it measures. If there is no scan yet, ask the user to press Scan on the Storage page.",
+      inputSchema: {
+        type: 'object',
+        properties: { top: { type: 'integer', minimum: 1, maximum: 100, description: 'How many folders to return, largest first (default 40).' } },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ top = 40 }) {
+        return storageScan(dir.storage, { top })
+      },
+    },
+    {
+      name: 'list_flashcard_decks',
+      title: 'Flashcard decks',
+      description:
+        "The user's spaced repetition decks in MonoRail's Flashcards page: id, name, description, card count and what is due today (new cards within the daily limit, learning, reviews), plus reviews done today.",
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: READ_ONLY,
+      async handler() {
+        const { decks, reviewedToday } = flashcards.listDecks(await flashcards.createStore(dir.flashcards).read(), Date.now())
+        return {
+          decks: decks.map((d) => ({ id: d.id, name: d.name, description: d.description, cards: d.counts.total, due: { new: d.counts.new, learning: d.counts.learning, review: d.counts.review }, nextDue: iso(d.counts.nextDue) })),
+          reviewedToday,
+        }
+      },
+    },
+    {
+      name: 'list_flashcards',
+      title: 'Cards of a flashcard deck',
+      description: 'Cards of one Flashcards deck (front, back, state, next due), optionally only those whose front or back contains `query`. Use it to avoid adding duplicates. At most 500 cards.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          deck: { type: 'string', maxLength: 200, description: 'Deck name or id from list_flashcard_decks.' },
+          query: { type: 'string', maxLength: 200 },
+        },
+        required: ['deck'],
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ deck, query }) {
+        const data = await flashcards.createStore(dir.flashcards).read()
+        const d = flashcardDeck(data, deck)
+        if (!d) throw new Error(`There is no deck "${deck}". Call list_flashcard_decks for the list.`)
+        const { cards, total } = flashcards.listCards(data, { deckId: d.id, query })
+        return {
+          deck: d.name,
+          total,
+          cards: cards.slice(0, 500).map((c) => ({ front: clip(c.front, 2000), back: clip(c.back, 2000), state: c.state, suspended: c.suspended || undefined, due: c.state === 'new' ? undefined : iso(c.due) })),
+        }
+      },
+    },
+    {
+      name: 'list_semantic_metrics',
+      title: 'Semantic layer metrics',
+      description:
+        "The metrics, group-by dimensions and saved queries of the user's dbt project, from its MetricFlow semantic manifest (the Semantic page in MonoRail). Read from files only; nothing runs. Each metric lists the dimensions it can be grouped by (entity__dimension names; time dimensions take a grain suffix such as metric_time__month). canRunQueries says whether query_semantic_metrics may run.",
+      inputSchema: {
+        type: 'object',
+        properties: { search: { type: 'string', maxLength: 100, description: 'Only metrics whose name, label or description contains this.' } },
+        additionalProperties: false,
+      },
+      annotations: READ_ONLY,
+      async handler({ search }) {
+        const { loaded } = await semanticProject(dir.connections)
+        const q = typeof search === 'string' ? search.trim().toLowerCase() : ''
+        const metrics = loaded.metrics.filter((m) => !q || [m.name, m.label, m.description].some((t) => t?.toLowerCase().includes(q)))
+        return {
+          project: loaded.project?.name,
+          parsedAt: loaded.project?.manifestAt,
+          canRunQueries: loaded.metricflow.canRun && loaded.metricflow.found,
+          metrics: metrics.slice(0, 300).map((m) => ({ name: m.name, label: m.label, description: clip(m.description, 1000), type: m.type, definition: m.definition, filter: m.filter, dimensions: m.dimensions })),
+          dimensions: loaded.dimensions.map((d) => ({ name: d.name, type: d.type, grain: d.grain, description: clip(d.description, 500) })),
+          savedQueries: loaded.savedQueries,
+        }
+      },
+    },
   ]
 }
 
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
-const NOTE = ' Off until the user allows it for this agent in MonoRail (Configure > Agent access); every call is logged there.'
+const NOTE = ' Off until the user allows it for this agent in MonoRail (Settings > Agent access); every call is logged there.'
 
 /** The write tools. The server checks consent before each call (protocol.cjs authorize). */
 function writeTools({ rootDir }) {
@@ -431,6 +622,89 @@ function writeTools({ rootDir }) {
         await store.addComment({ key: k, body })
         ctx.did(`Commented on ${k}`)
         return { key: k, commented: true }
+      },
+    },
+    {
+      name: 'add_flashcards',
+      title: 'Add flashcards',
+      description:
+        'Add up to 200 cards to a Flashcards deck for the user to study with spaced repetition. Front and back are Markdown; keep each card to one fact. Pass createDeck to make the deck when no deck has that name.' + NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          deck: { type: 'string', minLength: 1, maxLength: 120, description: 'Deck name or id.' },
+          cards: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 200,
+            items: {
+              type: 'object',
+              properties: { front: { type: 'string', minLength: 1, maxLength: 20000 }, back: { type: 'string', maxLength: 20000 } },
+              required: ['front'],
+              additionalProperties: false,
+            },
+          },
+          createDeck: { type: 'boolean', description: 'Create the deck if it does not exist (default false).' },
+        },
+        required: ['deck', 'cards'],
+        additionalProperties: false,
+      },
+      annotations: WRITE,
+      write: true,
+      async handler({ deck, cards, createDeck = false }, ctx) {
+        if (!Array.isArray(cards) || cards.length === 0 || cards.length > 200) throw new Error('Pass 1 to 200 cards.')
+        const r = await flashcards.createStore(dir.flashcards).update((data, now) => {
+          let d = flashcardDeck(data, deck)
+          let created = false
+          if (!d) {
+            if (!createDeck) throw new Error(`There is no deck "${deck}". Call list_flashcard_decks, or pass createDeck: true.`)
+            d = flashcards.createDeck(data, { name: deck }, now)
+            created = true
+          }
+          const added = flashcards.addCards(data, d.id, cards, now)
+          return { deck: d.name, deckId: d.id, added: added.length, createdDeck: created }
+        })
+        ctx.did(`Added ${r.added} ${r.added === 1 ? 'card' : 'cards'} to "${r.deck}"${r.createdDeck ? ' (new deck)' : ''}`)
+        return r
+      },
+    },
+    {
+      name: 'query_semantic_metrics',
+      title: 'Query semantic layer metrics',
+      description:
+        "Run a metrics query with the user's own MetricFlow (mf) against their warehouse, through their dbt project (the Semantic page in MonoRail). Call list_semantic_metrics first for names. groupBy takes dimension names, with a grain for time (metric_time__week); where takes MetricFlow filters such as {{ Dimension('customer__region') }} = 'North'. Returns at most `limit` rows (default 200). Also needs \"Run queries with MetricFlow\" on in the user's MetricFlow connection. Set explain to get the SQL without running it." +
+        NOTE,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          metrics: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', maxLength: 200 } },
+          groupBy: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 200 } },
+          where: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 2000 } },
+          start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'First day of metric_time, e.g. 2026-01-01.' },
+          end: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+          orderBy: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 200 }, description: 'Chosen metrics or group-bys; a leading - sorts descending.' },
+          limit: { type: 'integer', minimum: 1, maximum: 2000 },
+          explain: { type: 'boolean', description: 'Return the SQL MetricFlow would run instead of running it.' },
+        },
+        required: ['metrics'],
+        additionalProperties: false,
+      },
+      // Changes nothing, but runs a program and reads the user's warehouse, so it needs consent like a write.
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      consent: true,
+      async handler({ metrics, groupBy = [], where = [], start, end, orderBy = [], limit = 200, explain = false }, ctx) {
+        const { settings, loaded, mfLib } = await semanticProject(dir.connections)
+        if (settings.run !== 'on') throw new Error('Running MetricFlow is off. The user can turn on "Run queries with MetricFlow" in the MetricFlow connection in MonoRail.')
+        const req = { metrics, groupBy, where, start, end, orderBy, limit: Math.min(limit, 2000) }
+        const args = { projectDir: loaded._internal.project.dir, mf: loaded._internal.mf, manifest: loaded, req }
+        if (explain) {
+          const r = await mfLib.explainQuery(args)
+          ctx.did(`Asked MetricFlow for the SQL of ${metrics.join(', ')}`)
+          return r
+        }
+        const r = await mfLib.runQuery(args)
+        ctx.did(`Queried ${metrics.join(', ')}${groupBy.length ? ` by ${groupBy.join(', ')}` : ''} (${r.rows.length} rows)`)
+        return r
       },
     },
     {

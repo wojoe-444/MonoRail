@@ -198,9 +198,14 @@ test('the Claude account override is a saved setting and reaches the summary fil
   assert.equal(account.type, 'enterprise')
   assert.equal(account.source, 'override')
   assert.equal((await svc.list()).connections.find((c) => c.kind === 'claude').values.accountType, 'enterprise')
-  await new Promise((r) => setTimeout(r, 50))
+  // The summary is written in the background: wait for it (a fixed sleep raced on busy CI runners).
   const cacheLib = require('../cache/index.cjs')
-  const summary = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']
+  let summary
+  for (let i = 0; i < 100; i++) {
+    summary = (await cacheLib.readSummaries(path.dirname(path.dirname(dataDir))))['connections.summary']
+    if (summary?.summary?.connections?.claude?.account?.source === 'override') break
+    await new Promise((r) => setTimeout(r, 20))
+  }
   assert.deepEqual(summary.summary.connections.claude.account, { type: 'enterprise', source: 'override', billedAtApiPrices: true })
 })
 
@@ -228,6 +233,44 @@ test('checks are reused until forced or the connection changes', async () => {
   assert.equal(calls.length, 3, 'stale after 15 minutes')
   await svc.save({ kind: 'atlassian', values: { siteUrl: 'e.atlassian.net', tokenSource: 'direct', email: 'a@example.com' } })
   assert.equal(calls.at(-1).url, 'https://e.atlassian.net/rest/api/3/myself')
+})
+
+test('opt-in: nothing runs for a connector the user has not set up', async () => {
+  const { CONNECTORS } = require('./index.cjs')
+  const ran = []
+  const saved = CONNECTORS.map((c) => ({ c, status: c.status, credentials: c.credentials, runs: c.actions.map((a) => a.run) }))
+  for (const c of CONNECTORS) {
+    c.status = async () => ran.push(`${c.kind}.status`)
+    if (c.credentials) c.credentials = async () => ran.push(`${c.kind}.credentials`)
+    for (const a of c.actions) a.run = async () => ran.push(`${c.kind}.${a.id}`)
+  }
+  try {
+    const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { fetch: fakeFetch(ran) } })
+    for (const c of CONNECTORS) {
+      const s = await svc.check(c.kind)
+      assert.equal(s.added, false)
+      assert.equal(s.state, 'needs-setup')
+      assert.equal((await svc.check(c.kind, { force: true })).added, false, 'Check button too')
+      for (const a of c.actions) await assert.rejects(svc.runAction({ kind: c.kind, action: a.id }), /Set up/)
+      if (c.credentials) await assert.rejects(svc.getCredentials(c.kind), /Set up/)
+    }
+    assert.equal(await svc.claudeAccount(), undefined)
+    assert.deepEqual(ran, [], 'no status(), action or credentials() ran')
+    // Setting one up is the opt-in: only that one runs.
+    await svc.save({ kind: 'git' })
+    assert.deepEqual(ran, ['git.status'])
+  } finally {
+    for (const { c, status, credentials, runs } of saved) {
+      c.status = status
+      if (credentials) c.credentials = credentials
+      c.actions.forEach((a, i) => (a.run = runs[i]))
+    }
+  }
+})
+
+test('opt-in: the Connections backend checks nothing on startup', () => {
+  const backend = require('../modules/connections.cjs')
+  assert.equal(backend.start, undefined)
 })
 
 // ---------- pi ----------
@@ -501,4 +544,268 @@ test('pi playwright: test attaches with the extension and detaches, passing the 
   assert.equal(failed.state, 'failed')
   assert.match(failed.error, /Playwright Extension not found/)
   assert.equal(calls.length, 2, 'detaches even after a failure')
+})
+
+// ---------- Claude > Playwright browser ----------
+
+const cpw = require('./connectors/claude-playwright.cjs')._internal
+const { quoteArg, checkArgs } = require('./run.cjs')
+
+test('run: quoteArg allows a space only when asked, and quotes it for cmd.exe', () => {
+  assert.deepEqual(checkArgs(['-e', quoteArg('X=Profile 1')], { win: true }), ['-e', '"X=Profile 1"'])
+  assert.deepEqual(checkArgs(['-e', quoteArg('X=Profile 1')], { win: false }), ['-e', 'X=Profile 1'])
+  assert.throws(() => checkArgs(['Profile 1']), /unsafe/)
+  for (const bad of ['a"b', 'a&b', 'a%b', 'a|b', 'a^b', 'a!b', 'a<b']) assert.throws(() => quoteArg(bad), /unsafe/)
+})
+
+/**
+ * A fake `claude` that keeps mcpServers in a real config file, the way
+ * `claude mcp add/remove/get --scope user` does. Records every call.
+ */
+function fakeClaude(configFile, { getStatus = '√ Connected' } = {}) {
+  const calls = []
+  const read = () => (fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {})
+  const write = (c) => fs.writeFileSync(configFile, JSON.stringify(c))
+  const runTool = async (cmd, rawArgs) => {
+    const args = checkArgs(rawArgs, { win: false })
+    calls.push(args)
+    assert.equal(cmd, 'claude')
+    if (args[0] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' }
+    const c = read()
+    c.mcpServers ??= {}
+    const [, verb, name] = args
+    if (verb === 'add') {
+      if (c.mcpServers[name]) return { code: 1, stdout: '', stderr: `MCP server ${name} already exists in user config\n` }
+      const dash = args.indexOf('--')
+      const env = {}
+      for (let i = 3; i < dash; i++) if (args[i] === '-e') env[args[i + 1].split('=')[0]] = args[i + 1].slice(args[i + 1].indexOf('=') + 1)
+      c.mcpServers[name] = { type: 'stdio', command: args[dash + 1], args: args.slice(dash + 2), env }
+      write(c)
+      return { code: 0, stdout: 'Added\n', stderr: '' }
+    }
+    if (verb === 'remove') {
+      if (!c.mcpServers[name]) return { code: 1, stdout: '', stderr: 'No MCP server\n' }
+      delete c.mcpServers[name]
+      write(c)
+      return { code: 0, stdout: 'Removed\n', stderr: '' }
+    }
+    if (verb === 'get') {
+      const e = c.mcpServers[name]
+      const envLines = Object.entries(e.env).map(([k, v]) => `    ${k}=${v}`).join('\n')
+      return { code: 0, stdout: `${name}:\n  Status: ${getStatus}\n  Environment:\n${envLines}\n`, stderr: '' }
+    }
+    return { code: 1, stdout: '', stderr: 'unknown' }
+  }
+  return { calls, runTool, read }
+}
+
+test('claude playwright: is a subconnector of Claude', async () => {
+  const { connectors } = await createConnections({ dataDir: tmp(), cipher: cipher() }).list()
+  const c = connectors.find((x) => x.kind === 'claude-playwright')
+  assert.equal(c.parent, 'claude')
+  assert.ok(connectors.findIndex((x) => x.kind === 'claude') < connectors.indexOf(c))
+})
+
+test('claude playwright: the server entry, with cmd /c on Windows', () => {
+  const conn = { values: { browser: 'msedge', profile: 'Profile 1' }, secrets: { token: 'tok_abc12345' } }
+  const linux = cpw.desiredEntry(conn, { platform: 'linux' })
+  assert.equal(linux.command, 'npx')
+  assert.deepEqual(linux.args, ['-y', '@playwright/mcp@latest', '--extension', '--browser', 'msedge'])
+  assert.deepEqual(linux.env, { MONORAIL_MANAGED: '1', PLAYWRIGHT_MCP_PROFILE_DIR_NAME: 'Profile 1', PLAYWRIGHT_MCP_EXTENSION_TOKEN: 'tok_abc12345' })
+  const win = cpw.desiredEntry({ values: { browser: 'chrome' } }, { platform: 'win32' })
+  assert.equal(win.command, 'cmd')
+  assert.deepEqual(win.args, ['/c', 'npx', '-y', '@playwright/mcp@latest', '--extension'])
+  assert.deepEqual(win.env, { MONORAIL_MANAGED: '1' })
+  // Every argument passes the shell check on Windows.
+  const a = checkArgs(cpw.addArgs(cpw.desiredEntry(conn, { platform: 'win32' })), { win: true })
+  assert.ok(a.includes('"PLAYWRIGHT_MCP_PROFILE_DIR_NAME=Profile 1"'))
+  assert.equal(a[a.indexOf('--') + 1], 'cmd')
+})
+
+test('claude playwright: save adds the entry, edit refreshes it, remove takes it away; the token never shows', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  fs.writeFileSync(configFile, JSON.stringify({ oauthAccount: { emailAddress: 'sam@example.com' }, mcpServers: { other: { command: 'x', args: [] } } }))
+  const browser = fakeBrowser({ ext: ['Default'] })
+  const claude = fakeClaude(configFile)
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => browser }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+
+  const s = await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'tok_secret_12345' } })
+  assert.equal(s.state, 'ok', s.summary)
+  assert.deepEqual(s.actions, ['test-server'])
+  const entry = claude.read().mcpServers[cpw.SERVER]
+  assert.equal(entry.env.MONORAIL_MANAGED, '1')
+  assert.equal(entry.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN, 'tok_secret_12345')
+  assert.ok(claude.read().mcpServers.other, 'other servers are left alone')
+  assert.equal(claude.read().oauthAccount.emailAddress, 'sam@example.com')
+  assert.ok(!JSON.stringify(s).includes('tok_secret_12345'))
+
+  // Saving again unchanged runs no add or remove.
+  claude.calls.length = 0
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } })
+  assert.ok(!claude.calls.some((c) => c[1] === 'add' || c[1] === 'remove'))
+
+  // A changed profile replaces MonoRail's own entry.
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome', profile: 'Profile 1' } })
+  assert.equal(claude.read().mcpServers[cpw.SERVER].env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME, 'Profile 1')
+  assert.equal(claude.read().mcpServers[cpw.SERVER].env.PLAYWRIGHT_MCP_EXTENSION_TOKEN, 'tok_secret_12345', 'token kept')
+
+  // Test connection keeps only the status line: never the env values Claude Code prints.
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } })
+  await svc.runAction({ kind: 'claude-playwright', action: 'test-server' })
+  await new Promise((r) => setTimeout(r, 50))
+  const job = svc.getJob({ kind: 'claude-playwright' })
+  assert.equal(job.state, 'done', job.error)
+  assert.ok(!JSON.stringify(job).includes('tok_secret_12345'))
+
+  await svc.remove({ kind: 'claude-playwright' })
+  assert.equal(claude.read().mcpServers[cpw.SERVER], undefined)
+  assert.ok(claude.read().mcpServers.other)
+})
+
+test('claude playwright: never replaces or removes an entry MonoRail did not add', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  const mine = { command: 'npx', args: ['@playwright/mcp@latest', '--extension'], env: {} }
+  fs.writeFileSync(configFile, JSON.stringify({ mcpServers: { [cpw.SERVER]: mine } }))
+  const claude = fakeClaude(configFile)
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => fakeBrowser({ ext: ['Default'] }) }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } }), /claude mcp remove playwright-extension --scope user/)
+  const s = await svc.check('claude-playwright', { force: true })
+  assert.equal(s.state, 'error')
+  await svc.remove({ kind: 'claude-playwright' })
+  assert.deepEqual(claude.read().mcpServers[cpw.SERVER], mine)
+  assert.ok(!claude.calls.some((c) => c[1] === 'add' || c[1] === 'remove'))
+})
+
+test('claude playwright: checks the token before storing it, and hides it in errors', async () => {
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { runTool: async () => ({ code: 0, stdout: '', stderr: '' }), env: {} } })
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'bad token"&' } }), /does not look like the token/)
+  assert.equal((await svc.list()).connections.length, 0, 'nothing saved')
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { profile: 'x"; rm -rf' } }), /profile folder/)
+  assert.equal(cpw.redact('failed PLAYWRIGHT_MCP_EXTENSION_TOKEN=abc and abc', ['abc']), 'failed PLAYWRIGHT_MCP_EXTENSION_TOKEN=(hidden) and (hidden)')
+})
+
+test('claude playwright: a failed server start is reported from the status line only', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  const claude = fakeClaude(configFile, { getStatus: '✗ Failed to connect' })
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => fakeBrowser({ ext: ['Default'] }) }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'tok_secret_12345' } })
+  await svc.runAction({ kind: 'claude-playwright', action: 'test-server' })
+  await new Promise((r) => setTimeout(r, 50))
+  const job = svc.getJob({ kind: 'claude-playwright' })
+  assert.equal(job.state, 'failed')
+  assert.match(job.error, /could not start the server: Failed to connect/)
+  assert.ok(!JSON.stringify(job).includes('tok_secret_12345'))
+})
+
+test('claude playwright: nothing runs until it is added', async () => {
+  let ran = false
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { runTool: async () => ((ran = true), { code: 0, stdout: '', stderr: '' }) } })
+  assert.equal((await svc.check('claude-playwright')).added, false)
+  await assert.rejects(svc.runAction({ kind: 'claude-playwright', action: 'test-server' }), /Set up/)
+  assert.equal(ran, false)
+})
+
+// ---------- OpenAI ----------
+
+const openai = require('./connectors/openai.cjs')._internal
+
+const fakeIdToken = (claims) => `x.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.y`
+
+test('openai: nothing is looked at until the connection is added', async () => {
+  const touched = []
+  const conn = require('./connectors/openai.cjs')
+  const s = await conn.status(undefined, {
+    findOnPath: async () => touched.push('path'),
+    readCredential: async () => touched.push('wincred'),
+    fetch: async () => touched.push('fetch'),
+  })
+  assert.equal(s.state, 'needs-setup')
+  assert.deepEqual(touched, [])
+})
+
+test('openai: Codex auth gives only the mode and plan', () => {
+  const auth = {
+    OPENAI_API_KEY: null,
+    tokens: { id_token: fakeIdToken({ email: 'demo@example.com', 'https://api.openai.com/auth': { chatgpt_plan_type: 'Plus' } }), access_token: 'acc-1', refresh_token: 'ref-1' },
+  }
+  assert.deepEqual(openai.readCodexAuth(auth), { mode: 'chatgpt', plan: 'plus' })
+  assert.deepEqual(openai.readCodexAuth({ auth_mode: 'apikey', OPENAI_API_KEY: 'sk-demo' }), { mode: 'apikey' })
+  assert.deepEqual(openai.readCodexAuth({ OPENAI_API_KEY: null, tokens: null }), { mode: 'none' })
+  assert.deepEqual(openai.readCodexAuth(undefined), { mode: 'none' })
+  assert.equal(openai.planFromIdToken('not-a-jwt'), undefined)
+})
+
+test('openai: env key is reported as set, never its value; check runs no program and no request', async () => {
+  const dataDir = tmp()
+  const calls = []
+  const deps = {
+    env: { OPENAI_API_KEY: 'sk-env-secret', PATH: '' },
+    findOnPath: async () => '/demo/bin/codex',
+    codexVersion: async () => '0.60.1',
+    codexHome: path.join(tmp(), 'codex'),
+    fetch: async (url) => {
+      calls.push(url)
+      return { status: 200, ok: true, json: async () => ({ data: [{}, {}] }) }
+    },
+  }
+  const svc = createConnections({ dataDir, cipher: cipher(), deps })
+  openai.resetTest()
+  const s = await svc.save({ kind: 'openai', values: { keySource: 'env', codex: 'yes' } })
+  assert.equal(s.state, 'ok')
+  assert.equal(calls.length, 0, 'the check makes no request')
+  assert.ok(!JSON.stringify(s).includes('sk-env-secret'))
+  assert.deepEqual(s.actions, ['test-key', 'codex-login'])
+  assert.equal(s.details.find((d) => d.label === 'Codex CLI').value, 'Installed (0.60.1)')
+  assert.equal(s.details.find((d) => d.label === 'Key test').value, 'Not tested yet')
+
+  // The test is the one request, started by the user; its result shows on the next check.
+  await svc.runAction({ kind: 'openai', action: 'test-key' })
+  await new Promise((r) => setTimeout(r, 20))
+  assert.deepEqual(calls, ['https://api.openai.com/v1/models'])
+  const after = await svc.check('openai', { force: true })
+  assert.equal(after.details.find((d) => d.label === 'Key test').value, 'Passed (2 models available)')
+  assert.equal(after.summary, 'API key works; Codex is not signed in.')
+})
+
+test('openai: pasted key is encrypted; a rejected key reads as expired', async () => {
+  const dataDir = tmp()
+  const deps = { env: {}, fetch: async () => ({ status: 401, ok: false, statusText: 'Unauthorized' }) }
+  const svc = createConnections({ dataDir, cipher: cipher(), deps })
+  openai.resetTest()
+  await assert.rejects(svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' } }), /Paste your OpenAI API key/)
+  await svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' }, secrets: { apiKey: 'sk-pasted-1' } })
+  assert.ok(!fs.readFileSync(path.join(dataDir, 'connections.json'), 'utf8').includes('sk-pasted-1'))
+  assert.deepEqual(await svc.getCredentials('openai'), { apiKey: 'sk-pasted-1' })
+  await svc.runAction({ kind: 'openai', action: 'test-key' })
+  await new Promise((r) => setTimeout(r, 20))
+  assert.equal((await svc.check('openai', { force: true })).state, 'expired')
+  // A new key is not shown as rejected.
+  await svc.save({ kind: 'openai', values: { keySource: 'direct', codex: 'no' }, secrets: { apiKey: 'sk-pasted-2' } })
+  assert.equal((await svc.check('openai', { force: true })).state, 'ok')
+})
+
+test('openai: Codex only, with and without a sign-in', () => {
+  const base = { source: 'none', key: { found: false }, codexWanted: true }
+  assert.equal(openai.summarize({ ...base, codex: { installed: false, auth: { mode: 'none' } } }).state, 'unavailable')
+  const notSigned = openai.summarize({ ...base, codex: { installed: true, auth: { mode: 'none' } } })
+  assert.equal(notSigned.state, 'needs-setup')
+  assert.deepEqual(notSigned.actions, ['codex-login'])
+  const signed = openai.summarize({ ...base, codex: { installed: true, version: '0.60.1', auth: { mode: 'chatgpt', plan: 'pro' } } })
+  assert.equal(signed.state, 'ok')
+  assert.equal(signed.details.find((d) => d.label === 'Codex sign-in').value, 'ChatGPT account, ChatGPT Pro plan')
+  assert.equal(openai.summarize({ ...base, codex: { installed: true, auth: { mode: 'none' }, keyring: true } }).state, 'ok')
+})
+
+test('openai: finds codex on PATH by file, with Windows extensions', async () => {
+  const dir = tmp()
+  fs.writeFileSync(path.join(dir, 'codex.cmd'), '@echo off')
+  const found = await openai.findOnPath('codex', { env: { PATH: dir, PATHEXT: '.EXE;.CMD' }, platform: 'win32' })
+  assert.equal(found, path.join(dir, 'codex.cmd'))
+  assert.equal(await openai.findOnPath('codex', { env: { PATH: dir }, platform: 'linux' }), undefined)
+  fs.mkdirSync(path.join(dir, 'node_modules', '@openai', 'codex'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'node_modules', '@openai', 'codex', 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.60.1' }))
+  assert.equal(await openai.codexVersion(found), '0.60.1')
 })

@@ -10,6 +10,7 @@ import {
   MessageSquarePlus,
   RefreshCw,
   Search,
+  Smile,
   Sparkles,
   Wrench,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ import {
 import { Sparkline } from '@/components/charts/Sparkline'
 import { StatTile } from '@/components/charts/StatTile'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { AgentMochi } from '@/components/mochi'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,8 +36,10 @@ import { openInChat } from '@/modules/agent-chat/handoff'
 import { SOURCE_LABEL, type SessionSource } from '@/modules/agent-chat/types'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 
+import { MochiCrewDialog } from './MochiCrewDialog'
 import { sampleDetail, sampleOverview } from './sample'
 import type { AgentDefinition, AgentsOverview, DefinitionDetail, RecentSession, SessionState } from './types'
+import { prefs } from '@/lib/prefs'
 
 type KindFilter = 'all' | 'subagent' | 'skill'
 
@@ -64,6 +68,7 @@ export function AgentsPage() {
   const sample = useMemo(() => (desktop ? undefined : sampleOverview()), [desktop])
   const data = desktop ? query.data : sample
   const [openDef, setOpenDef] = useState<AgentDefinition>()
+  const [crewOpen, setCrewOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-8">
@@ -84,6 +89,10 @@ export function AgentsPage() {
                 Refresh
               </Button>
             )}
+            <Button variant="outline" onClick={() => setCrewOpen(true)}>
+              <Smile />
+              Characters
+            </Button>
             <Button onClick={() => openInChat({ newChat: {} })}>
               <MessageSquarePlus />
               New chat
@@ -107,6 +116,7 @@ export function AgentsPage() {
 
       <DefinitionsCard data={data} loading={desktop && query.loading} onOpen={setOpenDef} />
 
+      <MochiCrewDialog open={crewOpen} onOpenChange={setCrewOpen} />
       <DefinitionDialog def={openDef} repos={data?.repos ?? []} onClose={() => setOpenDef(undefined)} />
     </div>
   )
@@ -266,7 +276,7 @@ function QuickLaunchCard({ data }: { data?: AgentsOverview }) {
   const repos = data?.repos ?? []
   const [repoPick, setRepo] = useState<string>()
   const repo = repoPick ?? repos[0]?.path
-  const [sdk, setSdk] = useState<SessionSource>(() => (localStorage.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
+  const [sdk, setSdk] = useState<SessionSource>(() => (prefs.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
   const [prompt, setPrompt] = useState('')
   const sdkInfo = data?.sdks.find((s) => s.id === sdk)
 
@@ -362,7 +372,7 @@ function DefinitionsCard({ data, loading, onOpen }: { data?: AgentsOverview; loa
     <Card className="gap-0 py-0">
       <CardHeader className="border-b px-6 py-5">
         <CardTitle>Agent definitions</CardTitle>
-        <CardDescription>Claude Code subagents and skills, and pi skills, from your home folder and your allowed repos</CardDescription>
+        <CardDescription>Claude Code subagents and skills, and pi subagents and skills, from your home folder and your allowed repos</CardDescription>
         <CardAction className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -403,7 +413,6 @@ function DefinitionsCard({ data, loading, onOpen }: { data?: AgentsOverview; loa
 }
 
 function DefinitionTile({ d, onOpen }: { d: AgentDefinition; onOpen: () => void }) {
-  const Icon = d.kind === 'subagent' ? Bot : Sparkles
   return (
     <button
       type="button"
@@ -411,9 +420,13 @@ function DefinitionTile({ d, onOpen }: { d: AgentDefinition; onOpen: () => void 
       className="flex h-full flex-col gap-3 rounded-xl p-4 text-left ring-1 ring-foreground/10 transition-shadow outline-none hover:shadow-elevation-2 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start gap-3">
-        <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', d.kind === 'subagent' ? 'bg-primary-soft text-primary-soft-foreground' : 'bg-info-soft text-info-soft-foreground')}>
-          <Icon className="size-4.5" />
-        </div>
+        {d.kind === 'subagent' ? (
+          <AgentMochi name={d.name} description={d.description} size={48} className="-my-1 -ml-1" />
+        ) : (
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-info-soft text-info-soft-foreground">
+            <Sparkles className="size-4.5" />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-sm font-semibold">{d.name}</div>
           <div className="mt-1 flex flex-wrap gap-1.5">
@@ -447,7 +460,8 @@ function EmptyDefinitions() {
       <p className="max-w-md text-sm text-muted-foreground">
         Claude Code subagents live in <code className="font-mono text-xs">~/.claude/agents</code> or a repo's{' '}
         <code className="font-mono text-xs">.claude/agents</code>, skills in <code className="font-mono text-xs">.claude/skills</code>, and pi
-        skills in <code className="font-mono text-xs">~/.pi/agent/skills</code> or <code className="font-mono text-xs">.pi/skills</code>.
+        skills in <code className="font-mono text-xs">~/.pi/agent/skills</code> or <code className="font-mono text-xs">.pi/skills</code>, and pi
+        subagents in <code className="font-mono text-xs">~/.pi/agent/agents</code> or <code className="font-mono text-xs">.pi/agents</code>.
       </p>
     </div>
   )

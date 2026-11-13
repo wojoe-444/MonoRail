@@ -107,6 +107,7 @@ function parse(json, number) {
       updatedAt: String(v.updatedAt ?? v.createdAt ?? ''),
       closedAt: v.closedAt ? String(v.closedAt) : null,
       timeline: Array.isArray(v.timeline) ? v.timeline.filter((t) => t && typeof t === 'object') : [],
+      github: cleanGitHubLink(v.github),
     }
   } catch {
     return null
@@ -164,6 +165,18 @@ function assertNumber(n) {
   return v
 }
 
+/**
+ * An issue that was also created on GitHub records where: { repo: 'owner/name',
+ * number, url }. Anything else reads as a local-only issue (null).
+ */
+function cleanGitHubLink(g) {
+  if (!g || typeof g !== 'object') return null
+  const repo = String(g.repo ?? '')
+  const number = Number(g.number)
+  if (!/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/.test(repo) || !Number.isInteger(number) || number < 1) return null
+  return { repo, number, url: `https://github.com/${repo}/issues/${number}` }
+}
+
 function cleanTitle(t) {
   if (typeof t !== 'string' || !t.trim()) throw new Error('An issue needs a title')
   if (t.length > MAX_TITLE) throw new Error(`Titles are limited to ${MAX_TITLE} characters`)
@@ -208,7 +221,7 @@ function mutate(repo, message, change) {
     const now = new Date().toISOString()
     const { number, issue } = await change({ list, who, now })
     const json = JSON.stringify(
-      { number, title: issue.title, body: issue.body, state: issue.state, author: issue.author, createdAt: issue.createdAt, updatedAt: issue.updatedAt, closedAt: issue.closedAt, timeline: issue.timeline },
+      { number, title: issue.title, body: issue.body, state: issue.state, author: issue.author, createdAt: issue.createdAt, updatedAt: issue.updatedAt, closedAt: issue.closedAt, timeline: issue.timeline, ...(issue.github ? { github: issue.github } : {}) },
       null,
       2,
     ) + '\n'
@@ -224,13 +237,15 @@ function mutate(repo, message, change) {
   })
 }
 
-async function createIssue(repo, { title, body } = {}) {
+async function createIssue(repo, { title, body, github } = {}) {
   const t = cleanTitle(title)
   const b = cleanBody(body)
+  const link = github === undefined ? null : cleanGitHubLink(github)
+  if (github !== undefined && !link) throw new Error('Invalid GitHub link')
   return mutate(repo, 'Open issue', async ({ list, who, now }) => {
     if (list.length >= MAX_ISSUES) throw new Error('This repository has too many issues')
     const number = list.reduce((m, e) => Math.max(m, e.number), 0) + 1
-    return { number, issue: { title: t, body: b, state: 'open', author: who.name, createdAt: now, updatedAt: now, closedAt: null, timeline: [] } }
+    return { number, issue: { title: t, body: b, state: 'open', author: who.name, createdAt: now, updatedAt: now, closedAt: null, timeline: [], github: link } }
   })
 }
 
@@ -278,4 +293,4 @@ async function addComment(repo, number, { body } = {}) {
   })
 }
 
-module.exports = { ISSUES_REF, listIssues, issueCounts, getIssue, createIssue, updateIssue, addComment }
+module.exports = { ISSUES_REF, listIssues, issueCounts, getIssue, createIssue, updateIssue, addComment, cleanTitle, cleanBody }

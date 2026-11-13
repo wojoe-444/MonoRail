@@ -2,17 +2,39 @@
 //
 // On Windows these tools are .cmd shims, which need cmd.exe, so the command
 // goes through the shell there. Only fixed arguments written in this repo are
-// ever passed (checked by SAFE_ARG), never text from the page.
+// ever passed (checked by SAFE_ARG), never text from the page. A value that
+// needs a space (a browser profile folder such as "Profile 1") is wrapped in
+// quoteArg(): it gets a slightly wider check (QUOTED_ARG: no quotes, no %, !,
+// ^, &, |, <, >) and double quotes on Windows, where cmd.exe parses the line.
 
 const { spawn } = require('node:child_process')
 
 const SAFE_ARG = /^[\w.:=/@-]+$/
+const QUOTED_ARG = /^[\w .:=/@()+-]+$/
 const isWin = process.platform === 'win32'
 
+/** An argument that may hold spaces (and + or parentheses). Pass it in place of the string. */
+function quoteArg(value) {
+  if (typeof value !== 'string' || !QUOTED_ARG.test(value)) throw new Error('Refusing unsafe argument')
+  return { quoted: value }
+}
+
+/** Check every argument; returns them as strings (quoted for cmd.exe on Windows when asked). */
+function checkArgs(args, { win = isWin } = {}) {
+  return args.map((a) => {
+    if (a && typeof a === 'object' && typeof a.quoted === 'string') {
+      if (!QUOTED_ARG.test(a.quoted)) throw new Error('Refusing unsafe argument')
+      return win ? `"${a.quoted}"` : a.quoted
+    }
+    if (typeof a !== 'string' || !SAFE_ARG.test(a)) throw new Error(`Refusing unsafe argument: ${a}`)
+    return a
+  })
+}
+
 function spawnTool(cmd, args, options = {}) {
-  for (const a of [cmd, ...args]) if (!SAFE_ARG.test(a)) throw new Error(`Refusing unsafe argument: ${a}`)
+  const [c, ...rest] = checkArgs([cmd, ...args])
   const opts = { windowsHide: true, ...options, env: { ...process.env, ...(options.env ?? {}) } }
-  return isWin ? spawn([cmd, ...args].join(' '), { ...opts, shell: true }) : spawn(cmd, args, opts)
+  return isWin ? spawn([c, ...rest].join(' '), { ...opts, shell: true }) : spawn(c, rest, opts)
 }
 
 /** True when the shell could not find the program (ENOENT, or cmd.exe's 9009). */
@@ -22,12 +44,16 @@ function isNotFound(code, stderr, error) {
   return /is not recognized as an internal or external command|command not found/i.test(stderr ?? '')
 }
 
-/** Run to completion: { code, stdout, stderr, notFound, timedOut }. Never throws. */
-function runTool(cmd, args, { timeoutMs = 30_000, env, cwd } = {}) {
+/**
+ * Run to completion: { code, stdout, stderr, notFound, timedOut }. Never throws.
+ * input, when given, is written to the program's stdin (request bodies go
+ * there, never on the command line).
+ */
+function runTool(cmd, args, { timeoutMs = 30_000, env, cwd, input } = {}) {
   return new Promise((resolve) => {
     let child
     try {
-      child = spawnTool(cmd, args, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+      child = spawnTool(cmd, args, { env, cwd, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] })
     } catch (error) {
       resolve({ code: -1, stdout: '', stderr: String(error.message), notFound: false, timedOut: false })
       return
@@ -39,8 +65,14 @@ function runTool(cmd, args, { timeoutMs = 30_000, env, cwd } = {}) {
       timedOut = true
       killTree(child)
     }, timeoutMs)
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
     child.stdout.on('data', (d) => (stdout += d))
     child.stderr.on('data', (d) => (stderr += d))
+    if (input !== undefined) {
+      child.stdin.on('error', () => {})
+      child.stdin.end(input)
+    }
     child.on('error', (error) => {
       clearTimeout(timer)
       resolve({ code: -1, stdout, stderr, notFound: isNotFound(-1, stderr, error), timedOut })
@@ -60,13 +92,13 @@ function killTree(child) {
 }
 
 /** Open a visible terminal window running a command (Windows only), for sign-ins that ask questions. */
-function openTerminal(title, cmd, args) {
+function openTerminal(title, cmd, args, { env } = {}) {
   for (const a of [cmd, ...args]) if (!SAFE_ARG.test(a)) throw new Error(`Refusing unsafe argument: ${a}`)
   if (!SAFE_ARG.test(title.replace(/ /g, '_'))) throw new Error('Unsafe window title')
   if (!isWin) throw new Error(`Open a terminal and run: ${[cmd, ...args].join(' ')}`)
-  const child = spawn(`start "${title}" cmd /k ${[cmd, ...args].join(' ')}`, { shell: true, detached: true, stdio: 'ignore' })
+  const child = spawn(`start "${title}" cmd /k ${[cmd, ...args].join(' ')}`, { shell: true, detached: true, stdio: 'ignore', ...(env ? { env: { ...process.env, ...env } } : {}) })
   child.on('error', () => {})
   child.unref()
 }
 
-module.exports = { runTool, spawnTool, killTree, openTerminal, isNotFound, SAFE_ARG }
+module.exports = { runTool, spawnTool, killTree, openTerminal, isNotFound, quoteArg, checkArgs, SAFE_ARG, QUOTED_ARG }

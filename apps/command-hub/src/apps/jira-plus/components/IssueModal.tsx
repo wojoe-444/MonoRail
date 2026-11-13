@@ -8,13 +8,18 @@ import { cn } from '@/lib/utils'
 import { errorText, jiraApi } from '../api'
 import { Avatar, LocalChip, Lozenge, PriorityIcon, ProjectAvatar, TypeIcon } from '../bits'
 import { useJira } from '../JiraContext'
-import type { IssueDetail, IssueFields } from '../types'
+import type { Comment, IssueDetail, IssueFields, Worklog } from '../types'
+import { Comments } from './Comments'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './Menu'
 import { ErrorNote } from './Modal'
+import { ParentPicker } from './Parent'
+import { RepoLinks } from './RepoLinks'
+import { ChildIssues, LogTimeDialog, TimeSummary, WorklogList } from './TimeTracking'
 
 /** The issue view: Jira's large modal with the ticket on the left and Details on the right. */
 export function IssueModal() {
-  const { selected, closeIssue, refresh, priorities, projects } = useJira()
+  const { selected, closeIssue, refresh, priorities, projects, openIssue, openDialog, overview } = useJira()
+  const [logOpen, setLogOpen] = useState(false)
   const [issue, setIssue] = useState<IssueDetail>()
   const [types, setTypes] = useState<string[]>([])
   const [error, setError] = useState<string>()
@@ -77,6 +82,20 @@ export function IssueModal() {
             <ProjectAvatar projectKey={projectKey} size={16} />
             <span className="truncate text-(--jp-subtle)">{project?.name ?? projectKey}</span>
             <span className="text-(--jp-subtlest)">/</span>
+            {issue?.parent && (
+              <>
+                <button
+                  type="button"
+                  className="jp-focusable flex min-w-0 items-center gap-1.5 rounded-[3px] text-(--jp-subtle) outline-none hover:underline"
+                  title={issue.parent.summary ? `${issue.parent.key} ${issue.parent.summary}` : issue.parent.key}
+                  onClick={() => openIssue(issue.source, issue.parent!.key)}
+                >
+                  <TypeIcon type={issue.parent.type ?? 'Epic'} />
+                  {issue.parent.key}
+                </button>
+                <span className="text-(--jp-subtlest)">/</span>
+              </>
+            )}
             {issue && <TypeIcon type={issue.type} />}
             <span className="text-(--jp-subtle)">{selected?.key}</span>
             {selected?.source === 'local' && <LocalChip className="ml-1" />}
@@ -106,10 +125,16 @@ export function IssueModal() {
                 <div className="flex min-w-0 flex-col gap-6">
                   <SummaryEditor value={issue.summary} disabled={!!busy} onSave={(summary) => update({ summary })} />
                   <DescriptionEditor value={issue.description} disabled={!!busy} onSave={(description) => update({ description })} />
+                  <ChildIssues issue={issue} onOpen={(key) => openIssue(issue.source, key)} onAdd={() => openDialog('create', project, issue.key)} onAddSubtask={project && !/^sub-?task$/i.test(issue.type) ? () => openDialog('create-subtask', project, issue.key) : undefined} />
                   <Activity
                     issue={issue}
-                    busy={busy === 'comment'}
-                    onComment={(body) => run('comment', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
+                    me={overview?.connection.displayName}
+                    busy={busy}
+                    onComment={(body) => run('add', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
+                    onEditComment={(c, body) => run(`edit:${c.id}`, () => jiraApi().updateComment({ source: issue.source, key: issue.key, id: c.id, body }))}
+                    onDeleteComment={(c) => run(`delete:${c.id}`, () => jiraApi().deleteComment({ source: issue.source, key: issue.key, id: c.id }))}
+                    worklogBusy={!!busy}
+                    onDeleteWorklog={(w) => void run('worklog', () => jiraApi().deleteWorklog({ source: issue.source, key: issue.key, id: w.id }))}
                   />
                 </div>
 
@@ -122,6 +147,15 @@ export function IssueModal() {
                   <div className="rounded-[3px] border border-(--jp-border)">
                     <div className="border-b border-(--jp-border) px-4 py-3 font-semibold">Details</div>
                     <dl className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-4 gap-y-3 p-4">
+                      <DetailRow label="Parent">
+                        <ParentPicker
+                          source={issue.source}
+                          issueKey={issue.key}
+                          value={issue.parent}
+                          disabled={!!busy}
+                          onChange={(parent) => void run('parent', () => jiraApi().setParent({ source: issue.source, key: issue.key, parent }))}
+                        />
+                      </DetailRow>
                       <DetailRow label="Assignee">
                         <Person name={issue.assignee} />
                       </DetailRow>
@@ -142,18 +176,30 @@ export function IssueModal() {
                           />
                         </div>
                       </DetailRow>
+                      <DetailRow label="Expected end"><input aria-label="Expected end date" type="date" className="jp-field" value={issue.dueDate ?? ''} disabled={!!busy} onChange={(e) => update({ dueDate: e.target.value })} /></DetailRow>
+                      {issue.type === 'Recurring' && <DetailRow label="Repeat"><select aria-label="Repeat schedule" className="jp-field" value={issue.recurrence ?? 'weekly'} disabled={!!busy} onChange={(e) => update({ recurrence: e.target.value as 'daily' | 'weekly' | 'monthly' })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></DetailRow>}
+                      {issue.nextOccurrence && <DetailRow label="Next occurrence"><button type="button" className="jp-link" onClick={() => openIssue(issue.source, issue.nextOccurrence!)}>{issue.nextOccurrence}</button></DetailRow>}
                       <DetailRow label="Issue type">
                         <div className="flex items-center gap-1">
                           <TypeIcon type={issue.type} />
                           <InlineSelect
                             value={issue.type}
                             options={types.includes(issue.type) ? types : [issue.type, ...types]}
-                            disabled={!!busy}
+                            disabled={!!busy || issue.type === 'Recurring'}
                             onChange={(type) => update({ type })}
                           />
                         </div>
                       </DetailRow>
+                      <DetailRow label="Time tracking" top>
+                        <TimeSummary issue={issue} disabled={!!busy} onLog={() => setLogOpen(true)} />
+                      </DetailRow>
                     </dl>
+                  </div>
+                  <div className="rounded-[3px] border border-(--jp-border)">
+                    <div className="border-b border-(--jp-border) px-4 py-3 font-semibold">Repositories</div>
+                    <div className="p-4 pt-3">
+                      <RepoLinks key={`${issue.source}:${issue.key}`} source={issue.source} issueKey={issue.key} />
+                    </div>
                   </div>
                   <div className="px-1 text-xs leading-5 text-(--jp-subtlest)">
                     <div>Created {formatRelative(issue.created)}</div>
@@ -164,16 +210,17 @@ export function IssueModal() {
               </div>
             )}
           </div>
+          <LogTimeDialog issue={issue} open={logOpen} onClose={() => setLogOpen(false)} onLogged={() => void run('log', async () => {})} />
         </D.Content>
       </D.Portal>
     </D.Root>
   )
 }
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+function DetailRow({ label, top, children }: { label: string; top?: boolean; children: React.ReactNode }) {
   return (
     <>
-      <dt className="text-sm font-semibold text-(--jp-subtle)">{label}</dt>
+      <dt className={cn('text-sm font-semibold text-(--jp-subtle)', top && 'self-start pt-1.5')}>{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </>
   )
@@ -366,11 +413,26 @@ function LabelsEditor({ value, disabled, onSave }: { value: string[]; disabled: 
   )
 }
 
-function Activity({ issue, busy, onComment }: { issue: IssueDetail; busy: boolean; onComment: (body: string) => Promise<boolean> }) {
-  const [tab, setTab] = useState<'comments' | 'history'>('comments')
-  const [body, setBody] = useState('')
-  const [focused, setFocused] = useState(false)
-  const submit = () => void onComment(body.trim()).then((ok) => ok && (setBody(''), setFocused(false)))
+function Activity({
+  issue,
+  me,
+  busy,
+  onComment,
+  onEditComment,
+  onDeleteComment,
+  worklogBusy,
+  onDeleteWorklog,
+}: {
+  issue: IssueDetail
+  me?: string
+  busy?: string
+  onComment: (body: string) => Promise<boolean>
+  onEditComment: (c: Comment, body: string) => Promise<boolean>
+  onDeleteComment: (c: Comment) => Promise<boolean>
+  worklogBusy: boolean
+  onDeleteWorklog: (w: Worklog) => void
+}) {
+  const [tab, setTab] = useState<'comments' | 'worklog' | 'history'>('comments')
 
   return (
     <div>
@@ -378,7 +440,10 @@ function Activity({ issue, busy, onComment }: { issue: IssueDetail; busy: boolea
       <div className="mb-4 flex items-center gap-1">
         <span className="mr-1 text-(--jp-subtle)">Show:</span>
         <button type="button" className={cn('jp-btn h-7 px-2', tab === 'comments' && 'jp-btn-selected')} onClick={() => setTab('comments')}>
-          Comments
+          Comments{issue.comments.length > 0 && ` (${issue.comments.length + (issue.commentsCut ?? 0)})`}
+        </button>
+        <button type="button" className={cn('jp-btn h-7 px-2', tab === 'worklog' && 'jp-btn-selected')} onClick={() => setTab('worklog')}>
+          Work log{issue.worklogs.length > 0 && ` (${issue.worklogs.length})`}
         </button>
         {issue.source === 'local' && (
           <button type="button" className={cn('jp-btn h-7 px-2', tab === 'history' && 'jp-btn-selected')} onClick={() => setTab('history')}>
@@ -388,48 +453,10 @@ function Activity({ issue, busy, onComment }: { issue: IssueDetail; busy: boolea
       </div>
 
       {tab === 'comments' && (
-        <div className="flex flex-col gap-5">
-          <div className="flex gap-3">
-            <Avatar name="You" size={32} />
-            <div className="flex-1">
-              <textarea
-                rows={focused || body ? 4 : 1}
-                placeholder="Add a comment…"
-                aria-label="Add a comment"
-                value={body}
-                onFocus={() => setFocused(true)}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && body.trim()) submit()
-                }}
-                className="jp-field"
-              />
-              {(focused || body) && (
-                <div className="mt-2 flex gap-2">
-                  <button type="button" className="jp-btn jp-btn-primary" disabled={busy || !body.trim()} onClick={submit}>
-                    {busy && <Loader2 className="animate-spin" />} Save
-                  </button>
-                  <button type="button" className="jp-btn jp-btn-subtle" onClick={() => (setBody(''), setFocused(false))}>
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {[...issue.comments].reverse().map((c) => (
-            <div key={c.id} className="flex gap-3">
-              <Avatar name={c.author} size={32} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-semibold">{c.author}</span>
-                  <span className="text-xs text-(--jp-subtle)">{formatRelative(c.created)}</span>
-                </div>
-                <p className="mt-1 leading-6 break-words whitespace-pre-wrap">{c.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Comments issue={issue} me={me} busy={busy} onAdd={onComment} onEdit={onEditComment} onDelete={onDeleteComment} />
       )}
+
+      {tab === 'worklog' && <WorklogList issue={issue} busy={worklogBusy} onDelete={onDeleteWorklog} />}
 
       {tab === 'history' && (
         <ol className="flex flex-col">

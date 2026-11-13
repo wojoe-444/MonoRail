@@ -13,6 +13,7 @@ import CommitsPage from './pages/CommitsPage'
 import ComparePage from './pages/ComparePage'
 import RepoLayout from './pages/RepoLayout'
 import TreePage from './pages/TreePage'
+import TasksPage from './pages/TasksPage'
 import Welcome from './pages/Welcome'
 import './styles.css'
 
@@ -39,6 +40,7 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
               <Route path="branches" element={<BranchesPage />} />
               <Route path="compare" element={<ComparePage />} />
               <Route path="backups" element={<BackupsPage />} />
+              <Route path="tasks" element={<TasksPage />} />
               <Route path="issues" element={<IssuesPage />} />
               <Route path="issues/new" element={<NewIssuePage />} />
               <Route path="issues/:number" element={<IssuePage />} />

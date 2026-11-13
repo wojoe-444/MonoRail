@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Troubleshooting
 
 Start with **Backend logs** (the extension's **…** menu on Settings >
@@ -14,6 +18,7 @@ Extensions). Every failed call is logged there with its code, e.g.
 | `Unknown permission "..."` | A typo, or a permission that doesn't exist. | Only `network`, `process` and `filesystem` exist. See [Manifest](manifest.md#permissions). |
 | `... paths must start with ~/` | An absolute path in `filesystem.read` or `filesystem.write`. | Use `~/...`, or `pickFolders` for folders outside home. |
 | `The extension contributes nothing` | No modules, apps or backend. | Add at least one. |
+| `The .zip is larger than 200 MB` | The package is over the limit (also 600 MB unpacked, 30,000 files). | Leave out what you can (tests, docs, unused wheels). |
 | Install button disabled, "Built for extension API ..." | `engines.monorail` excludes this MonoRail's API version. | Lower the range if you don't use newer features, or update MonoRail. |
 | GitHub install: no `.monorail.zip` asset | The release has no packed zip attached. | Run the release workflow, or attach `release/<id>-<version>.monorail.zip`. |
 | GitHub install: repository mismatch | The manifest's `repository` differs from the repo you installed from. | Make them the same `owner/name`. |
@@ -43,6 +48,11 @@ Extensions). Every failed call is logged there with its code, e.g.
 | `EXT_FS_DENIED` | A file outside your folders. Relative paths resolve against `ctx.dataDir`. | Use `ctx.dataDir`, declare `filesystem` paths, or ask with `pickFolder`. |
 | `EXT_NETWORK_DENIED` for a host you listed | Different name or port: `localhost` vs `127.0.0.1`, `example.com` vs `www.example.com`, or a port in the rule. | List the exact host your code connects to, including redirects' hosts. See [network matching](permissions.md#network-matching). |
 | `EXT_PROCESS_DENIED` | The program isn't listed, or you used `exec` or `shell: true` (that starts `cmd` or `sh`). | List the program's file name. Use `execFile` or `spawn` with arguments. |
+| `spawn python ENOENT` | The program isn't on the backend's `PATH`. The backend can't search the disk for it. | Bundle the runtime, or ask for its path in a setting. See [finding a runtime](non-node-runtimes.md#finding-a-runtime). |
+| Starting `python` installs a new Python into the data folder | The Python install manager alias in `WindowsApps` ran without `LOCALAPPDATA`. | Pass `APPDATA` and `LOCALAPPDATA` in `env`, or don't use the alias. See [the program's environment](non-node-runtimes.md#the-programs-environment). |
+| `DefaultCredentialsError` from Google auth in a program | `APPDATA` isn't set, so the login under `%APPDATA%\gcloud` isn't found. | Rebuild `APPDATA` in the program's `env`. See [Google application default credentials](non-node-runtimes.md#google-application-default-credentials). |
+| `EXT_NETWORK_DENIED ... DNS lookups of 127.0.0.1` when listening | `server.listen(port, '127.0.0.1')` needs `127.0.0.1` in `permissions.network`. | Let the started program pick the port, or list `127.0.0.1`. |
+| A program keeps running after MonoRail quits | It was started with `detached: true`. | Don't detach. On Windows a normal child ends with the backend. |
 | A program starts on Mac/Linux but not Windows | `.cmd` launchers (e.g. `npm`, `npx`) need a shell on Windows. | Run the real executable (`node path/to/cli.js`), and list `node`. |
 | `EXT_SECRETS_UNAVAILABLE` | The system offers no encryption (rare on Windows). | Tell the user. Never fall back to writing the secret to a file. |
 | `EXT_BAD_PAYLOAD` | A result, argument or event isn't plain JSON (`BigInt`, a cycle, a class instance) or is too large. | Return plain objects. Convert dates to strings. Page large results. |

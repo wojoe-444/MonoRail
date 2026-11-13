@@ -162,7 +162,7 @@ describe('MonoRail read tools', () => {
     const r = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
     assert.ok(r.result.tools.length >= 9)
     for (const t of r.result.tools) {
-      assert.equal(t.annotations.readOnlyHint, !/^(create|comment|ask)_/.test(t.name), t.name)
+      assert.equal(t.annotations.readOnlyHint, !/^(create|comment|ask|add)_/.test(t.name), t.name)
       assert.equal(t.inputSchema.type, 'object', t.name)
       assert.match(t.name, /^[a-z_]+$/)
     }
@@ -174,6 +174,35 @@ describe('MonoRail read tools', () => {
     assert.deepEqual(value.days, [{ date: '2026-11-10', cost: 2.25 }])
     assert.equal(value.totalForDays, 2.25)
     assert.equal(value.topModels30Days[0].model, 'claude-example')
+  })
+
+  it('storage_scan returns the last saved scan, largest folders first, with the change since the scan before', async () => {
+    const dir = path.join(root, 'modules', 'storage')
+    fs.mkdirSync(dir, { recursive: true })
+    const h = cache.history({ dataDir: dir, log: () => {} }, 'storage.history')
+    const GB = 1024 ** 3
+    const drives = [{ id: 'C:', total: 500 * GB, free: 50 * GB }]
+    await h.add({ kind: 'scan', tookMs: 1, drives, locations: [{ id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', bytes: 2 * GB }] })
+    await h.add({
+      kind: 'scan',
+      tookMs: 1,
+      drives,
+      locations: [
+        { id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', tip: 'npm cache clean --force', bytes: 3 * GB, children: [{ name: '_cacache', kind: 'dir', bytes: 3 * GB }] },
+        { id: 'downloads', label: 'Downloads', group: 'user', path: '/x/dl', advice: 'review', bytes: 9 * GB },
+      ],
+    })
+    let { value } = await call(server, 'storage_scan', {})
+    assert.equal(value.available, true)
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90 }])
+    fs.writeFileSync(path.join(dir, 'goals.json'), JSON.stringify({ version: 1, goals: { 'C:': { freeBytes: 80 * GB, setAt: '2026-11-11T00:00:00Z' } } }))
+    ;({ value } = await call(server, 'storage_scan', {}))
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90, freeGoalGB: 80, stillToFreeGB: 30 }])
+    assert.deepEqual(value.locations.map((l) => l.id), ['downloads', 'npm'])
+    assert.equal(value.locations[1].changeSincePreviousScanGB, 1)
+    assert.equal(value.locations[1].largestChildren[0].name, '_cacache')
+    const empty = createServer({ rootDir: tmp('monorail-mcp-empty-') })
+    assert.equal((await call(empty, 'storage_scan', {})).value.available, false)
   })
 
   it('usage_summary says when there is no report', async () => {
@@ -303,6 +332,23 @@ describe('write tools and consent', () => {
     assert.equal((await call(server, 'comment_jira_plus_issue', { key: 'ME-3', body: 'Done soon.' })).isError, false)
     assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no local Jira\+ project/)
     assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no local Jira\+ issue/)
+  })
+
+  it('lists flashcard decks and adds cards only when allowed', async () => {
+    assert.deepEqual((await call(server, 'list_flashcard_decks', {})).value.decks, [])
+    assert.equal(fs.existsSync(path.join(root, 'modules', 'flashcards', 'decks.json')), false, 'a read creates no file')
+    const cards = [{ front: 'hola', back: 'hello' }, { front: 'adiós', back: 'goodbye' }]
+    assert.equal((await call(server, 'add_flashcards', { deck: 'Spanish', cards, createDeck: true })).isError, true, 'off until allowed')
+    await access.setAllowed(root, 'test-agent', 'add_flashcards', true)
+    assert.match((await call(server, 'add_flashcards', { deck: 'Spanish', cards })).text, /no deck "Spanish"/)
+    const added = await call(server, 'add_flashcards', { deck: 'Spanish', cards, createDeck: true })
+    assert.deepEqual([added.value.added, added.value.createdDeck], [2, true])
+    assert.equal((await call(server, 'add_flashcards', { deck: 'spanish', cards: [{ front: 'gracias', back: 'thanks' }] })).value.createdDeck, false)
+    const decks = (await call(server, 'list_flashcard_decks', {})).value.decks
+    assert.deepEqual(decks.map((d) => [d.name, d.cards, d.due.new]), [['Spanish', 3, 3]])
+    const listed = (await call(server, 'list_flashcards', { deck: decks[0].id, query: 'grac' })).value
+    assert.deepEqual(listed.cards.map((c) => c.front), ['gracias'])
+    assert.equal((await call(server, 'add_flashcards', { deck: 'Spanish', cards: [{ front: '' }] })).isError, true)
   })
 
   it('logs every call with what a write did, and no arguments', async () => {

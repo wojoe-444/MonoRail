@@ -1,9 +1,10 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { RepoIcon, FolderIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon } from '../components/Icons'
+import { RepoIcon, FolderIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon, TaskIcon } from '../components/Icons'
 import { fileManagerName } from '../util'
-import { backupsLink, commitsLink, compareLink, issuesLink, treeLink } from '../links'
+import { hasLocalScreen } from '@/modules/client'
+import { backupsLink, commitsLink, compareLink, issuesLink, tasksLink, treeLink } from '../links'
 
 export default function RepoLayout() {
   const { repo, refresh, pick, restoring } = useRepo()
@@ -11,6 +12,7 @@ export default function RepoLayout() {
   const { pathname } = useLocation()
   // Re-read the count when moving between pages, so creating or closing an issue updates the tab.
   const counts = useAsync(() => (repo ? api.issueCounts(repo.path) : Promise.resolve(null)), [repo?.path, pathname])
+  const taskCount = useAsync(() => (repo ? api.linkedTaskCount(repo.path) : Promise.resolve(0)), [repo?.path, pathname])
   if (!repo && restoring) return <div className="pad muted center">Opening repository…</div>
   if (!repo) return <Navigate to="/" replace />
   const ref = repo.defaultRef ?? 'HEAD'
@@ -19,7 +21,7 @@ export default function RepoLayout() {
       <header className="topbar">
         <Link to="/" className="brand" title="GitHub+ home: open a repository">GitHub<span className="brand-plus">+</span></Link>
         <span className="spacer" />
-        <button className="btn" onClick={() => api.openInExplorer(repo.path).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))} title={`Open ${repo.path} in ${fileManagerName}`}><FolderIcon /> Open in {fileManagerName}</button>
+        {hasLocalScreen() && <button className="btn" onClick={() => api.openInExplorer(repo.path).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))} title={`Open ${repo.path} in ${fileManagerName}`}><FolderIcon /> Open in {fileManagerName}</button>}
         <button className="btn" onClick={() => refresh()} title="Re-read branches from disk">Refresh</button>
         <button className="btn" onClick={() => pick().then((ok) => ok && nav('/repo/tree'))}>Open…</button>
       </header>
@@ -30,6 +32,7 @@ export default function RepoLayout() {
           <NavLink to={treeLink(ref, '')} className={({ isActive }) => (isActive ? 'active' : '')} end={false}><CodeIcon /> Code</NavLink>
           <NavLink to={commitsLink(ref)}><CommitIcon /> Commits</NavLink>
           <NavLink to={issuesLink()}><IssueOpenIcon /> Issues{counts.data?.open ? <span className="counter">{counts.data.open}</span> : null}</NavLink>
+          <NavLink to={tasksLink()} title="Jira+ tasks linked to this repository"><TaskIcon /> Tasks{taskCount.data ? <span className="counter">{taskCount.data}</span> : null}</NavLink>
           <NavLink to="/repo/branches"><BranchIcon /> Branches</NavLink>
           <NavLink to={compareLink()}><CompareIcon /> Compare</NavLink>
           <NavLink to={backupsLink()}><BackupIcon /> Backups</NavLink>

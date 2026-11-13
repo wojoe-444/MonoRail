@@ -9,7 +9,7 @@
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { buildClaudeOptions, validateJob, DENY_MESSAGE } = require('./agent-chat-options.cjs')
+const { buildClaudeOptions, validateJob, findCoordinator, DENY_MESSAGE } = require('./agent-chat-options.cjs')
 const { _format: fmt } = require('./agent-chat.cjs')
 
 function emit(event) {
@@ -105,7 +105,10 @@ async function main() {
   // list, read, message and start the user's allowed chats.
   const coordinatorServer = job.coordinator && payload.dataDir ? await chatToolsServer(payload.dataDir) : undefined
 
-  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer })
+  // No coordinator.md of the user's own: run MonoRail's built-in coordinator.
+  const builtinCoordinator = job.coordinator && !findCoordinator()
+
+  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer, builtinCoordinator })
   options.stderr = () => {} // hook and debug output stays out of the page and the logs
 
   // Streaming input: the prompt goes to Claude Code over its stdin, never argv.

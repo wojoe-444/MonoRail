@@ -212,6 +212,53 @@ describe('backups', () => {
     assert.equal(state.lastResult.ok, false)
     assert.equal(Date.parse(state.nextDueAt) - Date.parse(state.lastResult.at), 15 * 60_000)
   })
+
+  it('follows the global backup folder and frequency, and a changed folder only moves future backups', async () => {
+    const globalLib = require('../../backups/global.cjs')
+    const userData = mkdtempSync(join(tmpdir(), 'ghp-user-'))
+    const dataDir = join(userData, 'apps', 'github-plus')
+    mkdirSync(dataDir, { recursive: true })
+    const svc = createBackupService(() => dataDir)
+    const repo = (await git.openRepo(dir)).path
+    const name = repo.split(/[\\/]/).at(-1)
+    const follow = { enabled: true, times: 1, unit: 'day', keep: 5, destination: '', useGlobalFolder: true, useGlobalFrequency: true }
+
+    // Global folder off: following it is refused.
+    await assert.rejects(svc.save(repo, follow), /global backup folder is off/)
+
+    const rootA = mkdtempSync(join(tmpdir(), 'ghp-rootA-'))
+    await globalLib.writeGlobal(userData, { enabled: true, folder: rootA, times: 3, unit: 'week', keep: 2 })
+    const saved = await svc.save(repo, follow)
+    assert.equal(saved.effective.destination, join(rootA, 'github-plus'))
+    assert.equal(saved.effective.times, 3)
+    assert.equal(saved.effective.unit, 'week')
+
+    await svc.run(repo)
+    assert.equal(readdirSync(join(rootA, 'github-plus', name)).filter((n) => n.endsWith('.bundle')).length, 1)
+    assert.deepEqual(readdirSync(rootA), ['github-plus'], 'nothing loose in the global folder')
+
+    // A new global folder: the next backup goes there, the old one is left alone.
+    const rootB = mkdtempSync(join(tmpdir(), 'ghp-rootB-'))
+    await globalLib.writeGlobal(userData, { enabled: true, folder: rootB, times: 1, unit: 'day', keep: 2 })
+    await new Promise((r) => setTimeout(r, 1100))
+    await svc.run(repo)
+    assert.equal(readdirSync(join(rootA, 'github-plus', name)).length, 1)
+    assert.equal(readdirSync(join(rootB, 'github-plus', name)).length, 1)
+    const state = await svc.get(repo)
+    assert.equal(Date.parse(state.nextDueAt) - Date.parse(state.lastSuccessAt), 86_400_000)
+
+    // An own folder wins over the global one.
+    const own = mkdtempSync(join(tmpdir(), 'ghp-own-'))
+    const ownSaved = await svc.save(repo, { ...follow, useGlobalFolder: false, destination: own })
+    assert.equal(ownSaved.effective.destination, own)
+
+    // Global turned off later: the schedule pauses with a reason instead of failing every minute.
+    await globalLib.writeGlobal(userData, { enabled: false, folder: rootB, times: 1, unit: 'day', keep: 2 })
+    const paused = await svc.get(repo)
+    assert.equal(paused.nextDueAt, null)
+    assert.match(paused.problem, /global backup folder/)
+    await assert.rejects(svc.run(repo), /global backup folder/)
+  })
 })
 
 describe('making a plain folder a repo', () => {

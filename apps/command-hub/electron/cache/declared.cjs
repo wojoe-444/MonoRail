@@ -100,6 +100,19 @@ const CACHES = Object.freeze([
       'The last check result per added connection (state, one-line summary, hint, time), for Home and the MCP server. Never stores secrets, tokens or check details.',
   },
   {
+    id: 'storage.history',
+    folder: 'modules/storage',
+    tier: 'history',
+    storage: 'disk',
+    file: 'history.json',
+    version: 1,
+    ttlMs: 6 * HOUR,
+    keep: 500,
+    content: 'derived',
+    policy:
+      'Storage Manager snapshots for the over-time view: free space per drive (sampled every 6 hours while the app runs) and, after each scan the user starts, the size, file count, local path and largest children of each known folder. Never reads or stores file contents.',
+  },
+  {
     id: 'connections.sign-in',
     folder: 'modules/connections',
     tier: 'check',
@@ -114,12 +127,19 @@ const CACHES = Object.freeze([
 
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
-  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'coordinator/', 'turn-locks/'],
+  'modules/agent-catalog': ['backups/'],
+  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'spending.json', 'spending.json.lock', 'coordinator/', 'turn-locks/'],
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
+  'modules/flashcards': ['decks.json', 'decks.json.lock'],
+  'modules/notes': ['repo/'],
+  'modules/flows': ['repo/', 'runs.json'],
+  'modules/storage': ['goals.json'],
+  'modules/backups': ['settings.json', 'state.json'],
+  'modules/remote': ['settings.json', 'devices.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
   'apps/email': ['config.json', 'accounts.json'],
-  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/'],
+  'apps/jira-plus': ['connection.json', 'settings.json', 'local-repo/', 'repo-links.json'],
 })
 
 /**
@@ -128,8 +148,13 @@ const DATA_FILES = Object.freeze({
  */
 const NOT_CACHED = Object.freeze({
   'apps/email': 'Mail is fetched on demand and never written to disk, by design.',
-  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
-  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached.',
+  'modules/agent-chat': 'Chat logs are read in place and never copied or cached to disk; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived) and the system prompt the user set per agent (system-prompts.json: Claude, pi, coordinator) and, only while the user has the spending limit on, its settings and dollars spent per day (spending.json, plus its lock file while a change is written) are kept, plus one lock file per running turn (turn-locks/: process id and start time only) and the coordinator working folder (coordinator/), which MonoRail leaves empty.',
+  'apps/jira-plus': 'Jira Cloud tickets are fetched on demand and not cached. Links between tasks and repositories (repo-links.json) keep issue keys, repo folders and repo names only, never ticket text.',
+  'modules/agent-catalog': 'Subagent files are read in place on every call and never cached. Before the user edits or deletes one, a copy of that file goes to backups/ (newest 200 kept) so it can be brought back; nothing else is stored.',
+  'modules/backups': 'The global backup folder setting (folder, frequency, which pages are included) and the last result per page (time, file name, size or error). Backups themselves go to the folder the user picked, never into AppData.',
+  'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
+  'modules/flows': 'Flows are the user\'s own JSON files in a local git repo (repo/, no remote), read on every call and never cached. runs.json keeps metadata of the newest 200 runs (flow id, start time, duration, outcome, cost, step count), never a prompt, a reply or a step\'s output; outputs live only in memory while the app runs.',
+  'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 
 const byId = new Map(CACHES.map((c) => [c.id, c]))

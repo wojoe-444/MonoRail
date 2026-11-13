@@ -18,7 +18,6 @@ import {
   Mail,
   MailOpen,
   MessagesSquare,
-  Network,
   Plus,
   RefreshCw,
   Search,
@@ -37,6 +36,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AgentMochi, MochiAvatar } from '@/components/mochi'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -535,7 +535,7 @@ function CoordinatorEntry({
   onOpen,
   onNew,
 }: {
-  status?: { ready: boolean; reason?: string; note?: string }
+  status?: { ready: boolean; reason?: string; note?: string; builtin?: boolean }
   latest?: SessionSummary
   active: boolean
   onOpen: () => void
@@ -550,9 +550,7 @@ function CoordinatorEntry({
         disabled={!ready && !latest}
         className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <Network className="size-4" />
-        </span>
+        <MochiAvatar role="coordinator" size={32} className="-my-0.5" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">Coordinator</span>
           <span className={cn('block truncate text-xs text-muted-foreground', ready && status?.note && 'text-warning')}>
@@ -567,7 +565,9 @@ function CoordinatorEntry({
       )}
     </div>
   )
-  const tip = ready ? status?.note : status?.reason
+  const tip = ready
+    ? (status?.note ?? (status?.builtin ? "MonoRail's built-in coordinator. To use your own, add ~/.claude/agents/coordinator.md." : undefined))
+    : status?.reason
   if (!tip) return entry
   return (
     <Tooltip>
@@ -1105,6 +1105,7 @@ function Thinking({ text }: { text: string }) {
 function ToolCall({ block }: { block: ToolBlock }) {
   const [open, setOpen] = useState(false)
   const status = block.result === undefined ? undefined : block.isError ? 'error' : 'ok'
+  const subagent = subagentOf(block)
   return (
     <div className="w-full overflow-hidden rounded-lg border bg-background/60 text-sm">
       <button
@@ -1113,8 +1114,8 @@ function ToolCall({ block }: { block: ToolBlock }) {
         aria-expanded={open}
         className="flex h-9 w-full items-center gap-2 px-3 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <Wrench className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="shrink-0 font-mono text-xs font-medium">{block.name}</span>
+        {subagent ? <AgentMochi name={subagent} size={20} className="-my-1" /> : <Wrench className="size-3.5 shrink-0 text-muted-foreground" />}
+        <span className="shrink-0 font-mono text-xs font-medium">{subagent ?? block.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{block.summary}</span>
         {status === 'ok' && <Check className="size-3.5 shrink-0 text-success" aria-label="Succeeded" />}
         {status === 'error' && <AlertTriangle className="size-3.5 shrink-0 text-destructive" aria-label="Failed" />}
@@ -1128,6 +1129,13 @@ function ToolCall({ block }: { block: ToolBlock }) {
       )}
     </div>
   )
+}
+
+/** The subagent an Agent (or older Task) tool call delegates to, if any. */
+function subagentOf(block: ToolBlock): string | undefined {
+  if ((block.name !== 'Agent' && block.name !== 'Task') || !block.input) return undefined
+  const m = /"subagent_type"\s*:\s*"([^"]{1,80})"/.exec(block.input)
+  return m?.[1]
 }
 
 function ToolPane({ label, text }: { label: string; text: string }) {

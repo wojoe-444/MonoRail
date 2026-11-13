@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import { MessageSquare } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 import { Avatar, CATEGORY_LABEL, Lozenge, PriorityIcon, TypeIcon } from '../bits'
+import { formatDuration } from '../time'
 import type { Issue, StatusCategory } from '../types'
+import { ParentChip } from './Parent'
 
 const COLUMNS: StatusCategory[] = ['todo', 'in_progress', 'done']
 
@@ -71,6 +74,7 @@ export function Board({ issues, onOpen, onMove, busyKey }: BoardProps) {
                 )}
               >
                 <span className="break-words text-(--jp-text)">{issue.summary}</span>
+                {issue.parent && <ParentChip parent={issue.parent} className="self-start" />}
                 {(issue.labels.length > 0 || (col === 'in_progress' && issue.status !== 'In Progress')) && (
                   <span className="flex flex-wrap gap-1">
                     {col === 'in_progress' && issue.status !== 'In Progress' && <Lozenge status={issue.status} category={issue.statusCategory} />}
@@ -85,6 +89,17 @@ export function Board({ issues, onOpen, onMove, busyKey }: BoardProps) {
                   <TypeIcon type={issue.type} />
                   <span className={cn('text-xs font-semibold text-(--jp-subtle)', col === 'done' && 'line-through')}>{issue.key}</span>
                   <span className="ml-auto flex items-center gap-1.5">
+                    {issue.commentCount > 0 && (
+                      <span className="flex items-center gap-0.5 text-xs text-(--jp-subtle) tabular-nums" title={`${issue.commentCount} ${issue.commentCount === 1 ? 'comment' : 'comments'}`}>
+                        <MessageSquare className="size-3.5" />
+                        {issue.commentCount}
+                      </span>
+                    )}
+                    {!!issue.timeSpentSeconds && (
+                      <span className="font-mono text-xs text-(--jp-subtle) tabular-nums" title="Time logged">
+                        {formatDuration(issue.timeSpentSeconds)}
+                      </span>
+                    )}
                     <PriorityIcon priority={issue.priority} />
                     <Avatar name={issue.assignee} />
                   </span>
