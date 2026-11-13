@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { BrandTile } from '@/components/layout/BrandMark'
-import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
 import { useSettingsAlerts } from '@/modules/settings/alerts'
@@ -94,7 +92,7 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
       </nav>
 
       {settings && (
-        // Settings: one button pinned above the footer. Its pages (Connections,
+        // Settings: one button pinned at the bottom. Its pages (Connections,
         // Agent access, Extensions, ...) have their own menu on the Settings page.
         <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
           <NavButton
@@ -106,12 +104,6 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
         </div>
       )}
 
-      {!collapsed && (
-        <div className="flex items-center justify-between border-t border-sidebar-border p-4 text-xs text-sidebar-muted-foreground">
-          <span>Version {__APP_VERSION__}</span>
-          {isDesktop() ? <Badge variant="success">desktop</Badge> : <Badge variant="info">browser preview</Badge>}
-        </div>
-      )}
     </aside>
   )
 }
