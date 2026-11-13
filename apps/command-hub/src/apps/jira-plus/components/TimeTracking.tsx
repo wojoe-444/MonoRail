@@ -147,14 +147,15 @@ export function WorklogList({ issue, onDelete, busy }: { issue: IssueDetail; onD
 }
 
 /** Child issues under the description: progress, one row each, and "Add child issue". */
-export function ChildIssues({ issue, onOpen, onAdd }: { issue: IssueDetail; onOpen: (key: string) => void; onAdd: () => void }) {
+export function ChildIssues({ issue, onOpen, onAdd, onAddSubtask }: { issue: IssueDetail; onOpen: (key: string) => void; onAdd: () => void; onAddSubtask?: () => void }) {
   const kids = issue.children
   const done = kids.filter((c) => c.statusCategory === 'done').length
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
         <h2 className="font-semibold">Child issues</h2>
-        <button type="button" className="jp-btn jp-btn-subtle ml-auto h-7 px-2" onClick={onAdd}>
+        {onAddSubtask && <button type="button" className="jp-btn jp-btn-subtle ml-auto h-7 px-2" onClick={onAddSubtask}><Plus /> Add subtask</button>}
+        <button type="button" className={cn("jp-btn jp-btn-subtle h-7 px-2", !onAddSubtask && "ml-auto")} onClick={onAdd}>
           <Plus /> Add child issue
         </button>
       </div>

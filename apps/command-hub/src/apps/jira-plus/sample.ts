@@ -18,7 +18,7 @@ const JIRA_STATUSES: { name: string; category: StatusCategory }[] = [
   { name: 'Code Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 const SITE = 'https://example-team.atlassian.net'
 
@@ -219,8 +219,8 @@ export function createSampleBackend(): JiraApi {
         timeTracking: { spentSeconds: spent(i), totalSeconds: total },
       })
     },
-    async getIssueTypes({ source }) {
-      return wait(source === 'local' ? TYPES : ['Task', 'Bug', 'Story'])
+    async getIssueTypes({ source, subtask }) {
+      return wait((source === 'local' ? TYPES : ['Task', 'Bug', 'Story', 'Epic', 'Sub-task']).filter((t) => (t === 'Sub-task') === !!subtask))
     },
     async createIssue(args) {
       if (!args.summary.trim()) throw new Error('A ticket needs a summary.')

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, NavLink, Navigate, useParams } from 'react-router-dom'
-import { ExternalLink, FolderGit2, KanbanSquare, List, Loader2, Search } from 'lucide-react'
+import { ExternalLink, FolderGit2, KanbanSquare, List, Loader2, Search, Zap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -28,12 +28,11 @@ export function ProjectView() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!issues || !q) return issues ?? []
-    return issues.filter((i) => i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q) || i.labels.some((l) => l.toLowerCase().includes(q)))
-  }, [issues, query])
+    return (issues ?? []).filter((i) => (view !== 'epics' || i.type.toLowerCase() === 'epic') && (!q || i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q) || i.labels.some((l) => l.toLowerCase().includes(q))))
+  }, [issues, query, view])
 
   if (overview && !project) return <Navigate to="/projects" replace />
-  if (view !== 'board' && view !== 'list') return <Navigate to={projectPath({ source, key })} replace />
+  if (view !== 'board' && view !== 'list' && view !== 'epics') return <Navigate to={projectPath({ source, key })} replace />
 
   async function move(issue: Issue, to: StatusCategory) {
     setBusyKey(issue.key)
@@ -82,6 +81,9 @@ export function ProjectView() {
           <NavLink to={projectPath({ source, key }, 'list')} className={navItem}>
             <List className="size-4" /> List
           </NavLink>
+          <NavLink to={projectPath({ source, key }, 'epics')} className={navItem}>
+            <Zap className="size-4" /> Epics
+          </NavLink>
         </nav>
         <div className="mx-3 my-4 h-px bg-(--jp-border)" />
         {local ? (
@@ -109,10 +111,10 @@ export function ProjectView() {
           <span>{project?.name ?? key}</span>
         </div>
         <div className="mt-2 flex items-center gap-3">
-          <h1 className="text-2xl font-medium">{view === 'board' ? `${key} board` : 'List'}</h1>
+          <h1 className="text-2xl font-medium">{view === 'board' ? `${key} board` : view === 'epics' ? 'Epics' : 'List'}</h1>
           {local && <LocalChip />}
-          <button type="button" className="jp-btn ml-auto" onClick={() => openDialog('create', project)} disabled={!project}>
-            Create issue
+          <button type="button" className="jp-btn ml-auto" onClick={() => openDialog(view === 'epics' ? 'create-epic' : 'create', project)} disabled={!project}>
+            {view === 'epics' ? 'Create epic' : 'Create issue'}
           </button>
         </div>
         <div className="mt-6 mb-4 flex items-center gap-3">
@@ -120,7 +122,7 @@ export function ProjectView() {
             <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-(--jp-subtlest)" />
             <input aria-label="Search this project" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="jp-field h-8 min-h-0 py-0 pl-8" />
           </div>
-          {issues && <span className="text-(--jp-subtle)">{filtered.length} issues</span>}
+          {issues && <span className="text-(--jp-subtle)">{filtered.length} {view === 'epics' ? (filtered.length === 1 ? 'epic' : 'epics') : (filtered.length === 1 ? 'issue' : 'issues')}</span>}
         </div>
         <ErrorNote error={error ?? moveError} />
         {!issues && !error && (
@@ -132,7 +134,7 @@ export function ProjectView() {
           (view === 'board' ? (
             <Board issues={filtered} busyKey={busyKey} onOpen={(i) => openIssue(i.source, i.key)} onMove={move} />
           ) : (
-            <IssueList issues={filtered} onOpen={(i) => openIssue(i.source, i.key)} />
+            <IssueList issues={filtered} empty={view === 'epics' ? (query ? 'No epics match your search.' : 'No epics yet. Create an epic to get started.') : undefined} onOpen={(i) => openIssue(i.source, i.key)} />
           ))}
       </main>
     </div>

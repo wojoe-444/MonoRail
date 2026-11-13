@@ -28,7 +28,7 @@ export interface JiraApi {
   getOverview(): Promise<Overview>
   listIssues(args: { source: Source | 'all'; projectKey?: string }): Promise<Issue[]>
   getIssue(args: { source: Source; key: string }): Promise<IssueDetail>
-  getIssueTypes(args: { source: Source; projectKey: string }): Promise<string[]>
+  getIssueTypes(args: { source: Source; projectKey: string; subtask?: boolean }): Promise<string[]>
   createIssue(args: NewIssue): Promise<Issue>
   updateIssue(args: { source: Source; key: string; fields: IssueFields }): Promise<Issue>
   transitionIssue(args: { source: Source; key: string; transitionId: string }): Promise<Issue>

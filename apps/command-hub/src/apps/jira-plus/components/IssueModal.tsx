@@ -125,7 +125,7 @@ export function IssueModal() {
                 <div className="flex min-w-0 flex-col gap-6">
                   <SummaryEditor value={issue.summary} disabled={!!busy} onSave={(summary) => update({ summary })} />
                   <DescriptionEditor value={issue.description} disabled={!!busy} onSave={(description) => update({ description })} />
-                  <ChildIssues issue={issue} onOpen={(key) => openIssue(issue.source, key)} onAdd={() => openDialog('create', project, issue.key)} />
+                  <ChildIssues issue={issue} onOpen={(key) => openIssue(issue.source, key)} onAdd={() => openDialog('create', project, issue.key)} onAddSubtask={project && !/^sub-?task$/i.test(issue.type) ? () => openDialog('create-subtask', project, issue.key) : undefined} />
                   <Activity
                     issue={issue}
                     me={overview?.connection.displayName}

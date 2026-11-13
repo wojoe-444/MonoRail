@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { errorText, jiraApi } from './api'
 import type { Overview, Project, Source } from './types'
 
-type DialogKind = 'create' | 'project' | 'connect'
+type DialogKind = 'create' | 'create-epic' | 'create-subtask' | 'project' | 'connect'
 
 interface JiraContextValue {
   overview?: Overview
@@ -85,6 +85,6 @@ export function useJira(): JiraContextValue {
 }
 
 /** Route segment for a project: /projects/local/ME or /projects/jira/PLAT. */
-export function projectPath(p: { source: Source; key: string }, view: 'board' | 'list' = 'board'): string {
+export function projectPath(p: { source: Source; key: string }, view: 'board' | 'list' | 'epics' = 'board'): string {
   return `/projects/${p.source}/${encodeURIComponent(p.key)}/${view}`
 }
