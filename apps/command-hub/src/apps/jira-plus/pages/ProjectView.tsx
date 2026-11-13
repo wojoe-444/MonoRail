@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, NavLink, Navigate, useParams } from 'react-router-dom'
-import { ExternalLink, FolderGit2, KanbanSquare, List, Loader2, Search, Zap } from 'lucide-react'
+import { ExternalLink, FolderGit2, KanbanSquare, List, Loader2, Repeat, Search, Zap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -28,11 +28,11 @@ export function ProjectView() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return (issues ?? []).filter((i) => (view !== 'epics' || i.type.toLowerCase() === 'epic') && (!q || i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q) || i.labels.some((l) => l.toLowerCase().includes(q))))
+    return (issues ?? []).filter((i) => (view === 'recurring' ? i.type === 'Recurring' : i.type !== 'Recurring' && (view !== 'epics' || i.type.toLowerCase() === 'epic')) && (!q || i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q) || i.labels.some((l) => l.toLowerCase().includes(q))))
   }, [issues, query, view])
 
   if (overview && !project) return <Navigate to="/projects" replace />
-  if (view !== 'board' && view !== 'list' && view !== 'epics') return <Navigate to={projectPath({ source, key })} replace />
+  if (view !== 'board' && view !== 'list' && view !== 'epics' && view !== 'recurring') return <Navigate to={projectPath({ source, key })} replace />
 
   async function move(issue: Issue, to: StatusCategory) {
     setBusyKey(issue.key)
@@ -84,6 +84,7 @@ export function ProjectView() {
           <NavLink to={projectPath({ source, key }, 'epics')} className={navItem}>
             <Zap className="size-4" /> Epics
           </NavLink>
+          <NavLink to={projectPath({ source, key }, 'recurring')} className={navItem}><Repeat className="size-4" /> Recurring</NavLink>
         </nav>
         <div className="mx-3 my-4 h-px bg-(--jp-border)" />
         {local ? (
@@ -111,18 +112,20 @@ export function ProjectView() {
           <span>{project?.name ?? key}</span>
         </div>
         <div className="mt-2 flex items-center gap-3">
-          <h1 className="text-2xl font-medium">{view === 'board' ? `${key} board` : view === 'epics' ? 'Epics' : 'List'}</h1>
+          <h1 className="text-2xl font-medium">{view === 'board' ? `${key} board` : view === 'epics' ? 'Epics' : view === 'recurring' ? 'Recurring' : 'List'}</h1>
           {local && <LocalChip />}
-          <button type="button" className="jp-btn ml-auto" onClick={() => openDialog(view === 'epics' ? 'create-epic' : 'create', project)} disabled={!project}>
-            {view === 'epics' ? 'Create epic' : 'Create issue'}
+          <button type="button" className="jp-btn ml-auto" onClick={() => openDialog(view === 'epics' ? 'create-epic' : view === 'recurring' ? 'create-recurring' : 'create', project)} disabled={!project || (view === 'recurring' && !local)}>
+            {view === 'epics' ? 'Create epic' : view === 'recurring' ? 'Create recurring item' : 'Create issue'}
           </button>
         </div>
+        {view === 'recurring' && local && <p className="mt-4 text-(--jp-subtle)">Complete an item to create its next occurrence. Its date advances from the previous expected end date.</p>}
+        {view === 'recurring' && !local && <p className="mt-4 text-(--jp-subtle)">Recurring items are available in private projects. Team Jira recurrence is managed in Jira.</p>}
         <div className="mt-6 mb-4 flex items-center gap-3">
           <div className="relative w-44">
             <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-(--jp-subtlest)" />
             <input aria-label="Search this project" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="jp-field h-8 min-h-0 py-0 pl-8" />
           </div>
-          {issues && <span className="text-(--jp-subtle)">{filtered.length} {view === 'epics' ? (filtered.length === 1 ? 'epic' : 'epics') : (filtered.length === 1 ? 'issue' : 'issues')}</span>}
+          {issues && <span className="text-(--jp-subtle)">{filtered.length} {view === 'recurring' ? (filtered.length === 1 ? 'recurring item' : 'recurring items') : view === 'epics' ? (filtered.length === 1 ? 'epic' : 'epics') : (filtered.length === 1 ? 'issue' : 'issues')}</span>}
         </div>
         <ErrorNote error={error ?? moveError} />
         {!issues && !error && (
@@ -134,7 +137,7 @@ export function ProjectView() {
           (view === 'board' ? (
             <Board issues={filtered} busyKey={busyKey} onOpen={(i) => openIssue(i.source, i.key)} onMove={move} />
           ) : (
-            <IssueList issues={filtered} empty={view === 'epics' ? (query ? 'No epics match your search.' : 'No epics yet. Create an epic to get started.') : undefined} onOpen={(i) => openIssue(i.source, i.key)} />
+            <IssueList issues={filtered} empty={view === 'recurring' ? (query ? 'No recurring items match your search.' : 'No recurring items yet.') : view === 'epics' ? (query ? 'No epics match your search.' : 'No epics yet. Create an epic to get started.') : undefined} onOpen={(i) => openIssue(i.source, i.key)} />
           ))}
       </main>
     </div>

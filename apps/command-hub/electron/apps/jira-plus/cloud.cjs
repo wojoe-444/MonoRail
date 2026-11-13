@@ -11,6 +11,7 @@
 const CATEGORY = { new: 'todo', indeterminate: 'in_progress', done: 'done' }
 const ISSUE_FIELDS = [
   'summary',
+  'duedate',
   'status',
   'issuetype',
   'priority',
@@ -176,6 +177,7 @@ function createJiraClient({ siteUrl, email, token }) {
       projectKey: f.project?.key ?? raw.key.split('-')[0],
       projectName: f.project?.name,
       summary: f.summary ?? '',
+      dueDate: f.duedate ?? undefined,
       type: f.issuetype?.name ?? 'Task',
       priority: f.priority?.name ?? 'Medium',
       status: f.status?.name ?? 'Unknown',
@@ -278,11 +280,12 @@ function createJiraClient({ siteUrl, email, token }) {
       return (data?.issueTypes ?? data?.values ?? []).filter((t) => !!t.subtask === subtask).map((t) => t.name)
     },
 
-    async createIssue({ projectKey, summary, description, type, labels, accountId, parent }) {
+    async createIssue({ projectKey, summary, description, type, labels, accountId, parent, dueDate }) {
       const fields = {
         project: { key: projectKey },
         ...(parent ? { parent: { key: parent } } : {}),
         summary,
+        ...(dueDate ? { duedate: dueDate } : {}),
         issuetype: { name: type || 'Task' },
         ...(description ? { description: textToAdf(description) } : {}),
         ...(labels?.length ? { labels } : {}),
@@ -301,6 +304,7 @@ function createJiraClient({ siteUrl, email, token }) {
       if (fields.description !== undefined) out.description = fields.description.trim() ? textToAdf(fields.description) : null
       if (fields.labels !== undefined) out.labels = fields.labels
       if (fields.priority !== undefined) out.priority = { name: fields.priority }
+      if (fields.dueDate !== undefined) out.duedate = fields.dueDate || null
       if (fields.type !== undefined) out.issuetype = { name: fields.type }
       if (Object.keys(out).length) await request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: out })
     },

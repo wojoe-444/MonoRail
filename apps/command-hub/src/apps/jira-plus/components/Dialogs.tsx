@@ -16,7 +16,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   const { dialog, closeDialog } = useJira()
   return (
     <>
-      <CreateIssueModal open={dialog?.kind === 'create' || dialog?.kind === 'create-epic' || dialog?.kind === 'create-subtask'} subtask={dialog?.kind === 'create-subtask'} defaultType={dialog?.kind === 'create-epic' ? 'Epic' : undefined} defaultProject={dialog?.project} defaultParent={dialog?.parent} onClose={closeDialog} />
+      <CreateIssueModal open={dialog?.kind === 'create' || dialog?.kind === 'create-epic' || dialog?.kind === 'create-subtask' || dialog?.kind === 'create-recurring'} recurring={dialog?.kind === 'create-recurring'} subtask={dialog?.kind === 'create-subtask'} defaultType={dialog?.kind === 'create-epic' ? 'Epic' : undefined} defaultProject={dialog?.project} defaultParent={dialog?.parent} onClose={closeDialog} />
       <Modal
         open={dialog?.kind === 'project'}
         onClose={closeDialog}
@@ -39,7 +39,7 @@ export function Dialogs({ onProjectCreated }: { onProjectCreated: (p: Project) =
   )
 }
 
-function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, subtask, onClose }: { open: boolean; subtask?: boolean; defaultProject?: Project; defaultParent?: string; defaultType?: string; onClose: () => void }) {
+function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, subtask, recurring, onClose }: { open: boolean; subtask?: boolean; recurring?: boolean; defaultProject?: Project; defaultParent?: string; defaultType?: string; onClose: () => void }) {
   const { projects, priorities, refresh, openIssue } = useJira()
   const [project, setProject] = useState('')
   const [types, setTypes] = useState<string[]>(['Task'])
@@ -49,6 +49,8 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
   const [description, setDescription] = useState('')
   const [labels, setLabels] = useState('')
   const [parent, setParent] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [recurrence, setRecurrence] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -62,6 +64,8 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
     setLabels('')
     setParent(defaultParent ?? '')
     setPriority('Medium')
+    setDueDate('')
+    setRecurrence('weekly')
     setError(undefined)
   }, [open, defaultProject, defaultParent, projects])
 
@@ -71,6 +75,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
 
   useEffect(() => {
     if (!open || !selSource || !selKey) return
+    if (recurring) { setTypes(['Recurring']); setType('Recurring'); return }
     let live = true
     setTypes([])
     setType('')
@@ -88,7 +93,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
     return () => {
       live = false
     }
-  }, [open, selSource, selKey, defaultType, subtask])
+  }, [open, selSource, selKey, defaultType, subtask, recurring])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -102,6 +107,8 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
         summary,
         description,
         type,
+        dueDate: dueDate || undefined,
+        recurrence: recurring ? recurrence : undefined,
         priority: selected.source === 'local' ? priority : undefined,
         parent: parent || undefined,
         labels: labels
@@ -126,14 +133,14 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
     <Modal
       open={open}
       onClose={onClose}
-      title={subtask ? 'Create subtask' : defaultType ? 'Create epic' : 'Create issue'}
+      title={recurring ? 'Create recurring item' : subtask ? 'Create subtask' : defaultType ? 'Create epic' : 'Create issue'}
       width={760}
       footer={
         <>
           <button type="button" className="jp-btn jp-btn-subtle" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="jp-create" className="jp-btn jp-btn-primary" disabled={busy || !summary.trim() || !selected || !type || (subtask && !parent)}>
+          <button type="submit" form="jp-create" className="jp-btn jp-btn-primary" disabled={busy || !summary.trim() || !selected || !type || (subtask && !parent) || (recurring && !dueDate)}>
             {busy && <Loader2 className="animate-spin" />} Create
           </button>
         </>
@@ -145,7 +152,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
         </p>
         <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <Field id="jp-c-project" label="Project" required>
-            <select id="jp-c-project" className="jp-field" value={project} disabled={subtask} onChange={(e) => (setProject(e.target.value), setParent(''))}>
+            <select id="jp-c-project" className="jp-field" value={project} disabled={subtask || recurring} onChange={(e) => (setProject(e.target.value), setParent(''))}>
               {locals.length > 0 && (
                 <optgroup label="Private (local repo)">
                   {locals.map((p) => (
@@ -167,7 +174,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
             </select>
           </Field>
           <Field id="jp-c-type" label="Issue type" required>
-            <select id="jp-c-type" className="jp-field" value={type} disabled={!!defaultType || (subtask && types.length <= 1)} onChange={(e) => setType(e.target.value)}>
+            <select id="jp-c-type" className="jp-field" value={type} disabled={!!defaultType || recurring || (subtask && types.length <= 1)} onChange={(e) => setType(e.target.value)}>
               {!type && <option value="">{error ? 'Issue types unavailable' : types.length ? 'Epic is not available in this project' : 'Loading issue types…'}</option>}
               {types.map((t) => (
                 <option key={t}>{t}</option>
@@ -190,6 +197,10 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
         <Field id="jp-c-summary" label="Summary" required>
           <input id="jp-c-summary" autoFocus className="jp-field" value={summary} onChange={(e) => setSummary(e.target.value)} />
         </Field>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <Field id="jp-c-due" label="Expected end date" required={recurring}><input id="jp-c-due" type="date" className="jp-field" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required={recurring} /></Field>
+          {recurring && <Field id="jp-c-repeat" label="Repeat" required><select id="jp-c-repeat" className="jp-field" value={recurrence} onChange={(e) => setRecurrence(e.target.value as typeof recurrence)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></Field>}
+        </div>
         <Field id="jp-c-desc" label="Description">
           <textarea id="jp-c-desc" rows={6} className="jp-field" value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>

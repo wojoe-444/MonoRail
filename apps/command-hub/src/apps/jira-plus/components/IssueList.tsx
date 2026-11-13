@@ -28,6 +28,7 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
             <th className="w-28 px-2 py-2">Key</th>
             <th className="px-2 py-2">Summary</th>
             {showProject && <th className="px-2 py-2">Project</th>}
+            <th className="px-2 py-2">Expected end</th>
             <th className="px-2 py-2">Status</th>
             <th className="w-12 px-2 py-2">P</th>
             {logged && <th className="w-20 px-2 py-2 text-right">Logged</th>}
@@ -65,6 +66,7 @@ export function IssueList({ issues, showProject, onOpen, empty = 'No issues matc
                   </span>
                 </td>
               )}
+              <td className="px-2 whitespace-nowrap">{i.dueDate || "—"}</td>
               <td className="px-2 whitespace-nowrap"><Lozenge status={i.status} category={i.statusCategory} /></td>
               <td className="px-2"><PriorityIcon priority={i.priority} /></td>
               {logged && (

@@ -1,4 +1,4 @@
-import { Bookmark, Bug, Check, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Equal, FlaskConical, Lock, Zap, type LucideIcon } from 'lucide-react'
+import { Bookmark, Bug, Check, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Equal, FlaskConical, Lock, Repeat, Zap, type LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -10,6 +10,7 @@ const TYPES: Record<string, [LucideIcon, string]> = {
   story: [Bookmark, 'var(--jp-type-story)'],
   spike: [FlaskConical, 'var(--jp-type-spike)'],
   epic: [Zap, 'var(--jp-type-epic)'],
+  recurring: [Repeat, 'var(--jp-type-epic)'],
   'sub-task': [Check, 'var(--jp-type-subtask)'],
   subtask: [Check, 'var(--jp-type-subtask)'],
 }

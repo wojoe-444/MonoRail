@@ -53,6 +53,26 @@ describe('local store', () => {
   })
 })
 
+describe('recurring maintenance', () => {
+  it('creates exactly one scheduled next occurrence and retains the completed item', async () => {
+    const s = createLocalStore(join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo'))
+    await s.createProject({ key: 'ME', name: 'Personal' })
+    await assert.rejects(s.createIssue({ projectKey: 'ME', summary: 'Maintenance', type: 'Recurring', recurrence: 'weekly' }), /expected end date/)
+    await assert.rejects(s.createIssue({ projectKey: 'ME', summary: 'Bad date', dueDate: '2026-02-30' }), /valid expected end date/)
+    const issue = await s.createIssue({ projectKey: 'ME', summary: 'Maintenance', type: 'Recurring', recurrence: 'monthly', dueDate: '2028-01-31' })
+    await s.transitionIssue({ key: issue.key, transitionId: 'Done' })
+    const done = await s.getIssue(issue.key)
+    const next = await s.getIssue(done.nextOccurrence)
+    assert.equal(next.dueDate, '2028-02-29')
+    assert.equal(next.type, 'Recurring')
+    assert.equal(next.status, 'To Do')
+    await s.transitionIssue({ key: issue.key, transitionId: 'To Do' })
+    await s.transitionIssue({ key: issue.key, transitionId: 'Done' })
+    assert.equal((await s.listIssues('ME')).length, 2)
+    await assert.rejects(s.updateIssue({ key: next.key, fields: { dueDate: '' } }), /need an expected end date/)
+  })
+})
+
 describe('parents and time logs', () => {
   it('creates sub-tasks under an issue and preserves them when their parent is deleted', async () => {
     const s = createLocalStore(join(mkdtempSync(join(tmpdir(), 'jira-plus-')), 'local-repo'))

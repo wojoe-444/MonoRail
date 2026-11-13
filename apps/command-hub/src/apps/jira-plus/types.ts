@@ -19,6 +19,9 @@ export interface Issue {
   projectKey: string
   projectName?: string
   summary: string
+  dueDate?: string
+  recurrence?: 'daily' | 'weekly' | 'monthly'
+  nextOccurrence?: string
   description?: string
   type: string
   priority: string
@@ -126,6 +129,8 @@ export interface Overview {
 }
 
 export interface IssueFields {
+  dueDate?: string
+  recurrence?: 'daily' | 'weekly' | 'monthly'
   summary?: string
   description?: string
   type?: string
