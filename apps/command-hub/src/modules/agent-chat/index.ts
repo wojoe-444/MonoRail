@@ -10,7 +10,7 @@ export const agentChatModule: ModuleDefinition = {
   icon: MessagesSquare,
   path: '/agents/chat',
   nav: { section: 'Workspace', parent: '/agents' },
-  layout: 'fill',
+  layout: 'full',
   component: lazy(() => import('./AgentChatPage')),
   dataMethods: ['listSessions', 'getSession'],
 }

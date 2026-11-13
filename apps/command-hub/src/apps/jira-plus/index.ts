@@ -1,17 +1,21 @@
 import { lazy } from 'react'
-import { SquareKanban } from 'lucide-react'
+import { ListTodo } from 'lucide-react'
 
 import type { AppDefinition } from '../types'
 
 export const jiraPlusApp: AppDefinition = {
   id: 'jira-plus',
-  title: 'Jira+',
-  description: 'Every task as a Jira ticket: your private local projects next to your team Jira. Local tickets never leave this machine.',
-  icon: SquareKanban,
+  title: 'Tasks',
+  description: "Your private tasks and your team's Jira on one page. Private tasks never leave this computer.",
+  icon: ListTodo,
   path: '/apps/jira-plus',
   placement: 'workspace',
-  component: lazy(() => import('./JiraPlusApp')),
+  component: lazy(() => import('./TasksApp')),
   dataMethods: [
+    'listTriggerTemplates',
+    'saveTriggerTemplate',
+    'deleteTriggerTemplate',
+    'calendarIssues',
     'getOverview',
     'listIssues',
     'getIssue',
@@ -20,6 +24,8 @@ export const jiraPlusApp: AppDefinition = {
     'updateIssue',
     'transitionIssue',
     'addComment',
+    'updateComment',
+    'deleteComment',
     'deleteIssue',
     'createLocalProject',
     'updateLocalProject',

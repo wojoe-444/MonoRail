@@ -53,6 +53,9 @@ function subscribe(l: () => void) {
   return () => listeners.delete(l)
 }
 
+/** Called whenever the installed list changes. Returns an unsubscribe. */
+export const subscribeExtensions = subscribe
+
 export function getExtensionList(): ExtensionList {
   return list
 }

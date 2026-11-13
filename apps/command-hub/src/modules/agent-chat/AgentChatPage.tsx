@@ -342,7 +342,7 @@ export default function AgentChatPage() {
   )
 
   return (
-    // Fills the page body below the top bar, edge to edge (module layout 'fill'), so only the panes scroll.
+    // Fills the page body below the top bar, edge to edge (module layout 'full'), so only the panes scroll.
     <div className="flex h-full min-h-[32rem] flex-col">
       <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 

@@ -39,6 +39,7 @@ import { isDesktop, useModuleQuery } from '@/modules/client'
 import { MochiCrewDialog } from './MochiCrewDialog'
 import { sampleDetail, sampleOverview } from './sample'
 import type { AgentDefinition, AgentsOverview, DefinitionDetail, RecentSession, SessionState } from './types'
+import { prefs } from '@/lib/prefs'
 
 type KindFilter = 'all' | 'subagent' | 'skill'
 
@@ -275,7 +276,7 @@ function QuickLaunchCard({ data }: { data?: AgentsOverview }) {
   const repos = data?.repos ?? []
   const [repoPick, setRepo] = useState<string>()
   const repo = repoPick ?? repos[0]?.path
-  const [sdk, setSdk] = useState<SessionSource>(() => (localStorage.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
+  const [sdk, setSdk] = useState<SessionSource>(() => (prefs.getItem('commandHub.agentChat.sdk') === 'pi' ? 'pi' : 'claude'))
   const [prompt, setPrompt] = useState('')
   const sdkInfo = data?.sdks.find((s) => s.id === sdk)
 
@@ -371,7 +372,7 @@ function DefinitionsCard({ data, loading, onOpen }: { data?: AgentsOverview; loa
     <Card className="gap-0 py-0">
       <CardHeader className="border-b px-6 py-5">
         <CardTitle>Agent definitions</CardTitle>
-        <CardDescription>Claude Code subagents and skills, and pi skills, from your home folder and your allowed repos</CardDescription>
+        <CardDescription>Claude Code subagents and skills, and pi subagents and skills, from your home folder and your allowed repos</CardDescription>
         <CardAction className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -459,7 +460,8 @@ function EmptyDefinitions() {
       <p className="max-w-md text-sm text-muted-foreground">
         Claude Code subagents live in <code className="font-mono text-xs">~/.claude/agents</code> or a repo's{' '}
         <code className="font-mono text-xs">.claude/agents</code>, skills in <code className="font-mono text-xs">.claude/skills</code>, and pi
-        skills in <code className="font-mono text-xs">~/.pi/agent/skills</code> or <code className="font-mono text-xs">.pi/skills</code>.
+        skills in <code className="font-mono text-xs">~/.pi/agent/skills</code> or <code className="font-mono text-xs">.pi/skills</code>, and pi
+        subagents in <code className="font-mono text-xs">~/.pi/agent/agents</code> or <code className="font-mono text-xs">.pi/agents</code>.
       </p>
     </div>
   )

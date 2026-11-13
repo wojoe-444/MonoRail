@@ -1,14 +1,15 @@
 // Repos that other MonoRail apps create, listed in GitHub+ without the user
 // having to open them first.
 //
-// So far that is one: Jira+'s private projects repo (<Jira+ data>\local-repo,
-// see electron/apps/jira-plus/local.cjs). It appears in GitHub+'s recent
+// So far: Tasks' private projects repo (<Tasks data>\local-repo, see
+// electron/apps/jira-plus/local.cjs) and Notes' repo (modules\notes\repo, see
+// electron/modules/notes-store.cjs). It appears in GitHub+'s recent
 // repositories as soon as it exists, without being written to recents.json
 // (opening it then records it there like any repo). It cannot be removed from
 // the list: it goes away when the repo does.
 //
-// Nothing here moves, copies or creates a folder. The Jira+ folder is found
-// the same way Jira+ finds it (resolveJiraDataDir, legacy module folder
+// Nothing here moves, copies or creates a folder. The Tasks folder is found
+// the same way Tasks finds it (resolveJiraDataDir, legacy module folder
 // included), from GitHub+'s own data folder: both are <userData>\apps\<id>.
 // No Electron, so tests run under plain Node.
 
@@ -21,9 +22,16 @@ const { resolveJiraDataDir } = require('../jira-plus/data-dir.cjs')
 const SOURCES = [
   {
     app: 'jira-plus',
-    label: 'Jira+',
-    name: 'Jira+ projects',
+    label: 'Tasks',
+    name: 'Tasks projects',
     dir: (ghpDataDir) => path.join(resolveJiraDataDir(path.resolve(ghpDataDir, '..', 'jira-plus')), 'local-repo'),
+  },
+  {
+    // Notes' repo (electron/modules/notes-store.cjs): <userData>\modules\notes\repo.
+    app: 'notes',
+    label: 'Notes',
+    name: 'Notes',
+    dir: (ghpDataDir) => path.resolve(ghpDataDir, '..', '..', 'modules', 'notes', 'repo'),
   },
 ]
 

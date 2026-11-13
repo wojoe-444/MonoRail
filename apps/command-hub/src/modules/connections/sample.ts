@@ -42,6 +42,21 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  'claude-playwright': {
+    state: 'ok',
+    summary: 'Claude Code can use your Google Chrome tabs.',
+    hint: 'Start claude in a terminal and ask it to use your browser. Chat inside MonoRail does not load this server.',
+    details: [
+      { label: 'Claude Code CLI', value: '2.0.0 (Claude Code)', ok: true },
+      { label: 'playwright-extension server', value: 'In Claude Code (user config)', ok: true },
+      { label: 'Google Chrome', value: 'Found', ok: true },
+      { label: 'Playwright Extension', value: 'Installed in Default', ok: true },
+      { label: 'Tab prompt', value: 'Google Chrome asks which tab to share' },
+    ],
+    actions: ['test-server'],
+    added: true,
+    checkedAt: at,
+  },
   openai: {
     state: 'ok',
     summary: 'API key works; Codex is signed in.',
@@ -95,6 +110,35 @@ export const sampleStatuses: Record<string, ConnectionStatus> = {
     added: true,
     checkedAt: at,
   },
+  docker: {
+    state: 'ok',
+    summary: 'Docker Desktop 4.37.1 is running (Engine 27.4.0). lazydocker 0.24.1 found.',
+    details: [
+      { label: 'docker CLI', value: '27.4.0' },
+      { label: 'Engine', value: '27.4.0, running', ok: true },
+      { label: 'Platform', value: 'Docker Desktop 4.37.1' },
+      { label: 'Context', value: 'desktop-linux' },
+      { label: 'Containers', value: '4 running, 3 stopped' },
+      { label: 'lazydocker', value: '0.24.1', ok: true },
+    ],
+    actions: ['open-lazydocker'],
+    added: true,
+    checkedAt: at,
+  },
+  metricflow: {
+    state: 'ok',
+    summary: 'dbt project lantern_coffee with 10 metrics. MetricFlow 0.208.1 found; queries are on.',
+    details: [
+      { label: 'dbt project', value: 'lantern_coffee (lantern-analytics)', ok: true },
+      { label: 'Semantic manifest', value: 'Parsed 42 minutes ago: 10 metrics, 5 semantic models', ok: true },
+      { label: 'mf', value: '0.208.1, in the project\u2019s .venv', ok: true },
+      { label: 'dbt', value: 'dbt-core 1.10.4, dbt-duckdb 1.10.0' },
+      { label: 'profiles.yml', value: 'Found (not read)' },
+      { label: 'Run queries', value: 'On' },
+    ],
+    added: true,
+    checkedAt: at,
+  },
 }
 
 const PI_DEFAULT_MODELS = 'anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5'
@@ -122,7 +166,7 @@ export const sampleList: ConnectionsList = {
     {
       kind: 'atlassian',
       title: 'Atlassian',
-      description: 'An Atlassian API token for Jira Cloud. Used by Jira+.',
+      description: 'An Atlassian API token for Jira Cloud. Used by Tasks.',
       icon: 'key',
       fields: [
         { key: 'siteUrl', label: 'Site', type: 'text', placeholder: 'your-team.atlassian.net' },
@@ -163,6 +207,33 @@ export const sampleList: ConnectionsList = {
         },
       ],
       actions: [{ id: 'sign-in', label: 'Sign in', description: 'Opens a terminal running claude auth login.', showWhen: ['expired', 'needs-setup', 'ok', 'error'] }],
+    },
+    {
+      kind: 'claude-playwright',
+      parent: 'claude',
+      title: 'Playwright browser',
+      description: 'Claude Code working in your own Chrome or Edge tabs (with your logins) through the Playwright Extension.',
+      icon: 'globe',
+      fields: [
+        {
+          key: 'browser',
+          label: 'Browser',
+          type: 'select',
+          defaultValue: 'chrome',
+          options: [
+            { value: 'chrome', label: 'Google Chrome' },
+            { value: 'msedge', label: 'Microsoft Edge' },
+          ],
+          help: 'The browser that has the Playwright Extension. Claude Code works in its open tabs.',
+        },
+        { key: 'profile', label: 'Browser profile folder (optional)', type: 'text', placeholder: 'Default, Profile 1, ...' },
+        { key: 'token', label: 'Extension token (optional)', type: 'secret', placeholder: 'Shown in the Playwright Extension', help: 'Skips the "which tab" prompt.' },
+      ],
+      actions: [
+        { id: 'register', label: 'Add to Claude Code', description: 'Runs claude mcp add to put the playwright-extension server in your Claude Code user settings.', showWhen: ['needs-setup', 'error'] },
+        { id: 'open-extension-page', label: 'Get the extension', description: 'Opens the Playwright Extension in the Chrome Web Store.', showWhen: ['needs-setup'] },
+        { id: 'test-server', label: 'Test connection', description: 'Asks Claude Code to start the server. It does not open a browser window.', showWhen: ['ok'] },
+      ],
     },
     {
       kind: 'openai',
@@ -269,6 +340,52 @@ export const sampleList: ConnectionsList = {
       actions: [],
     },
     {
+      kind: 'docker',
+      title: 'Docker',
+      description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Utilities reads from it. Optional: MonoRail never installs either.',
+      icon: 'container',
+      fields: [
+        {
+          key: 'lazydocker',
+          label: 'lazydocker',
+          type: 'select',
+          options: [
+            { value: 'yes', label: 'Use it when it is installed' },
+            { value: 'no', label: 'Do not look for it' },
+          ],
+          defaultValue: 'yes',
+          help: 'lazydocker is a terminal dashboard for Docker. When it is on your PATH, the Docker page can open it in a terminal.',
+        },
+      ],
+      actions: [
+        { id: 'start-desktop', label: 'Start Docker Desktop', description: 'Opens Docker Desktop, if it is installed.', showWhen: ['error'] },
+        { id: 'open-lazydocker', label: 'Open lazydocker', description: 'Opens lazydocker in a terminal window.', showWhen: ['ok'] },
+      ],
+    },
+    {
+      kind: 'metricflow',
+      title: 'MetricFlow',
+      description: 'Your dbt project\u2019s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
+      icon: 'database',
+      fields: [
+        { key: 'project', label: 'dbt project folder', type: 'text', placeholder: 'C:\\Users\\you\\Repos\\analytics', help: 'The folder with dbt_project.yml. MonoRail reads target/semantic_manifest.json from it.' },
+        {
+          key: 'run',
+          label: 'Run queries with MetricFlow',
+          type: 'select',
+          options: [
+            { value: 'off', label: 'Off: only browse the project' },
+            { value: 'on', label: 'On: run my mf command for queries' },
+          ],
+          defaultValue: 'off',
+          help: 'When on, the Semantic page runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
+        },
+      ],
+      actions: [
+        { id: 'validate', label: 'Validate project', description: 'Runs mf validate-configs in the project folder (only when queries are on).', showWhen: ['ok', 'error'] },
+      ],
+    },
+    {
       kind: 'github',
       title: 'GitHub',
       description: 'Your github.com account. GitHub+ lists your repositories (owned, shared with you, and your organizations\u2019) and can create an issue on GitHub when you ask it to.',
@@ -318,6 +435,14 @@ export const sampleList: ConnectionsList = {
       status: sampleStatuses.claude,
     },
     {
+      kind: 'claude-playwright',
+      values: { browser: 'chrome', profile: '' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses['claude-playwright'],
+    },
+    {
       kind: 'openai',
       values: { keySource: 'wincred', credentialTarget: 'openai-demo', codex: 'yes' },
       secretsSet: {},
@@ -348,6 +473,22 @@ export const sampleList: ConnectionsList = {
       addedAt: at,
       updatedAt: at,
       status: sampleStatuses.git,
+    },
+    {
+      kind: 'docker',
+      values: { lazydocker: 'yes' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.docker,
+    },
+    {
+      kind: 'metricflow',
+      values: { project: 'C:\\Users\\sam\\Repos\\lantern-analytics', run: 'on' },
+      secretsSet: {},
+      addedAt: at,
+      updatedAt: at,
+      status: sampleStatuses.metricflow,
     },
   ],
 }

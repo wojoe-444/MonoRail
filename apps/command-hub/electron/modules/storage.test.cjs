@@ -73,7 +73,10 @@ test('the backend only reads: no method writes, moves or deletes', () => {
   const src = fs.readFileSync(path.join(__dirname, 'storage.cjs'), 'utf8')
   const writes = src.match(/\b(?:fs|fsp)\.(?:rm|rmdir|unlink|rename|writeFile|appendFile|copyFile|cp|mkdir|open|truncate|symlink|link)\w*\(|trashItem/g)
   assert.equal(writes, null, `storage.cjs must not write: ${writes}`)
-  assert.deepEqual(Object.keys(storage.methods).sort(), ['getDrives', 'getHistory', 'getScan', 'openLocation', 'openStorageSettings', 'startScan'])
+  assert.deepEqual(Object.keys(storage.methods).sort(), ['getDrives', 'getHistory', 'getScan', 'openLocation', 'openStorageSettings', 'setGoal', 'startScan'])
+  // The goals file is the one other thing it writes, through the atomic writer only.
+  const goals = fs.readFileSync(path.join(__dirname, 'storage-goals.cjs'), 'utf8')
+  assert.equal(goals.match(/\b(?:fs|fsp)\.(?:rm|rmdir|unlink|rename|writeFile|appendFile|copyFile|cp|mkdir|open|truncate|symlink|link)\w*\(|trashItem/g), null)
 })
 
 test('listDrives finds at least the system volume', async () => {
@@ -116,4 +119,25 @@ test('history: change is measured against the scan before the one shown', () => 
   ]
   assert.deepEqual(previousSizes(scans, '2026-11-05T10:00:00.000Z'), { takenAt: '2026-11-01T10:00:00.000Z', sizes: { a: 100 } })
   assert.equal(previousSizes(scans, '2026-11-01T10:00:00.000Z'), undefined)
+})
+
+test('free-space goals: set, clear, validate, never overwrite a damaged file', async () => {
+  const goals = require('./storage-goals.cjs')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storage-goals-'))
+  const GB = 1024 ** 3
+  assert.deepEqual(await goals.readGoals(dir), {})
+  const now = new Date('2026-11-11T10:00:00Z')
+  assert.deepEqual(await goals.setGoal(dir, { drive: 'C:', freeBytes: 50 * GB }, ['C:', 'D:'], { now }), { 'C:': { freeBytes: 50 * GB, setAt: now.toISOString() } })
+  assert.equal((await goals.readGoals(dir))['C:'].freeBytes, 50 * GB)
+  await assert.rejects(goals.setGoal(dir, { drive: 'E:', freeBytes: GB }, ['C:', 'D:']), /not connected/)
+  await assert.rejects(goals.setGoal(dir, { drive: 'C:', freeBytes: -1 }, ['C:']), /how much free space/)
+  await assert.rejects(goals.setGoal(dir, { drive: 'C:', freeBytes: Number.NaN }, ['C:']), /how much free space/)
+  assert.deepEqual(await goals.setGoal(dir, { drive: 'C:', freeBytes: null }, ['C:']), {})
+
+  const file = path.join(dir, goals.GOALS_FILE)
+  fs.writeFileSync(file, '{ damaged')
+  assert.match((await goals.goalsView(dir)).goalsError, /damaged/)
+  await assert.rejects(goals.setGoal(dir, { drive: 'C:', freeBytes: GB }, ['C:']), /damaged/)
+  assert.equal(fs.readFileSync(file, 'utf8'), '{ damaged')
+  fs.rmSync(dir, { recursive: true, force: true })
 })

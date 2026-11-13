@@ -98,7 +98,7 @@ export default function BackupsPage() {
           {!globalOn && (
             <div className="form-hint muted small" style={{ margin: 0 }}>
               Tip: set a global backup folder in{' '}
-              <a href="#/settings" onClick={(e) => { e.preventDefault(); navigate('/settings') }}>Settings &gt; Backups</a>{' '}
+              <a href="#/settings/backups" onClick={(e) => { e.preventDefault(); navigate('/settings/backups') }}>Settings &gt; Backups</a>{' '}
               and every page's backups can share it, each in its own subfolder.
             </div>
           )}

@@ -19,6 +19,9 @@ export interface Issue {
   projectKey: string
   projectName?: string
   summary: string
+  dueDate?: string
+  recurrence?: 'daily' | 'weekly' | 'monthly'
+  nextOccurrence?: string
   description?: string
   type: string
   priority: string
@@ -30,8 +33,34 @@ export interface Issue {
   created: string
   updated: string
   commentCount: number
+  /** The issue this one sits under (an epic, story or task in the same project). */
+  parent?: ParentRef
+  /** Time logged on this issue itself, in seconds. */
+  timeSpentSeconds?: number
   /** Jira only: link to the issue in Jira. */
   url?: string
+}
+
+/** A parent or a parent candidate: enough to show it as a chip. */
+export interface ParentRef {
+  key: string
+  summary?: string
+  type?: string
+  status?: string
+  statusCategory?: StatusCategory
+  /** Local only: the parent's file is gone. */
+  missing?: boolean
+}
+
+/** One "Log time" entry. Local ones live in the ticket's file; team ones are Jira worklogs. */
+export interface Worklog {
+  id: string
+  author: string
+  /** When the work started (ISO). */
+  started: string
+  seconds: number
+  comment: string
+  created?: string
 }
 
 export interface Comment {
@@ -39,6 +68,10 @@ export interface Comment {
   author: string
   body: string
   created: string
+  /** Set when the comment was edited after it was posted. */
+  updated?: string
+  /** Yours, so you may edit or delete it (all local comments are). */
+  mine?: boolean
 }
 
 export interface HistoryEntry {
@@ -58,8 +91,19 @@ export interface Transition {
 export interface IssueDetail extends Issue {
   description: string
   comments: Comment[]
+  /** Team Jira only: how many older comments Jira left out of this page. */
+  commentsCut?: number
   history: HistoryEntry[]
   transitions: Transition[]
+  worklogs: Worklog[]
+  /** Issues directly under this one. */
+  children: Issue[]
+  timeTracking: {
+    /** Logged on this issue. */
+    spentSeconds: number
+    /** This issue plus everything under it. */
+    totalSeconds: number
+  }
 }
 
 export interface Connection {
@@ -85,6 +129,8 @@ export interface Overview {
 }
 
 export interface IssueFields {
+  dueDate?: string
+  recurrence?: 'daily' | 'weekly' | 'monthly'
   summary?: string
   description?: string
   type?: string
@@ -97,6 +143,7 @@ export interface NewIssue extends IssueFields {
   projectKey: string
   summary: string
   status?: string
+  parent?: string
 }
 
 /** Selected scope in the project list. */
@@ -116,3 +163,19 @@ export interface RepoLink {
   }
   linkedAt: string
 }
+
+/** A saved task template; its condition is descriptive until hooks are connected. */
+export interface TriggerTemplate {
+  id: string
+  source: Source
+  projectKey: string
+  summary: string
+  description: string
+  condition: string
+  priority: string
+  created: string
+  updated: string
+}
+export type TriggerTemplateDraft = Pick<TriggerTemplate, 'source' | 'projectKey' | 'summary' | 'description' | 'condition' | 'priority'> & { id?: string }
+
+export interface CalendarIssues { issues: Issue[]; warning?: string; teamConnected: boolean }

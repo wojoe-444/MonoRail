@@ -4,8 +4,9 @@
 // Read-only by design. Nothing here deletes, moves, renames or copies a file
 // or folder it measures. Drives are read on request (and sampled every few
 // hours while the app runs), the folder scan runs only when the user asks
-// (startScan), and the one thing written is the history snapshot in this
-// module's own data folder, through the shared cache primitive. The only
+// (startScan), and the only things written are the history snapshot in this
+// module's own data folder, through the shared cache primitive, and the
+// free-space goals the user sets (storage-goals.cjs). The only
 // actions open a folder in Explorer or the Windows storage settings, both by
 // location id, never by a path from the page.
 // Folder contents are never read, only names and sizes; links and junctions
@@ -272,6 +273,8 @@ async function listDrives({ platform = process.platform, env = process.env, home
 // location's largest children. Declared as the 'storage.history' cache.
 
 const cache = require('../cache/index.cjs')
+// Free-space goals live in their own file (storage-goals.cjs), so this file stays write-free.
+const { goalsView, setGoal } = require('./storage-goals.cjs')
 
 const HISTORY_ID = 'storage.history'
 /** A drives-only sample is due when the newest snapshot is this old. */
@@ -291,7 +294,7 @@ function savedLocation(l) {
 }
 
 async function saveScan(ctx, result) {
-  const drives = await listDrives({ rootDir: ctx.rootDir }).catch(() => [])
+  const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }).catch(() => [])
   await history(ctx).add({ kind: 'scan', tookMs: result.tookMs, drives: driveFacts(drives), locations: result.locations.map(savedLocation) })
 }
 
@@ -299,7 +302,7 @@ async function sampleDrives(ctx, { now = Date.now() } = {}) {
   const h = history(ctx)
   const latest = await h.latest()
   if (latest && now - Date.parse(latest.takenAt) < DRIVE_SAMPLE_MS) return false
-  const drives = await listDrives({ rootDir: ctx.rootDir })
+  const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir })
   if (!drives.length) return false
   await h.add({ kind: 'drives', drives: driveFacts(drives) })
   return true
@@ -375,7 +378,7 @@ async function runScan(locs) {
 function startScan(ctx) {
   if (scan.state === 'running') return
   restored = true
-  const locs = locations({ rootDir: ctx.rootDir, isPackaged: ctx.isPackaged })
+  const locs = locations({ rootDir: ctx.machineDir ?? ctx.rootDir, isPackaged: ctx.isPackaged })
   const previous = scan.state === 'done' ? scan : undefined
   scan = { state: 'running', startedAt: new Date().toISOString(), done: 0, total: locs.length, current: [] }
   // Keep showing the last result while the new one runs.
@@ -406,6 +409,9 @@ function scannedLocation(id) {
 
 module.exports = {
   id: 'storage',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['openLocation', 'openStorageSettings'],
   /** Drive samples while the app runs (cheap: one statfs per drive). Folder scans only run when asked. */
   start(ctx) {
     const tick = () => void sampleDrives(ctx).catch((e) => ctx.log('drive sample failed:', e && e.message))
@@ -414,7 +420,14 @@ module.exports = {
   },
   methods: {
     async getDrives(ctx) {
-      return { platform: process.platform, drives: await listDrives({ rootDir: ctx.rootDir }) }
+      const [drives, goals] = await Promise.all([listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir }), goalsView(ctx.dataDir)])
+      return { platform: process.platform, drives, ...goals }
+    },
+    /** Set or clear a drive's free-space goal: `{ drive: 'C:', freeBytes: number | null }`. */
+    async setGoal(ctx, args) {
+      const drives = await listDrives({ rootDir: ctx.machineDir ?? ctx.rootDir })
+      const goals = await setGoal(ctx.dataDir, { drive: args?.drive, freeBytes: args?.freeBytes ?? null }, drives.map((d) => d.id))
+      return { goals }
     },
     async getScan(ctx) {
       await restoreLastScan(ctx).catch(() => {})

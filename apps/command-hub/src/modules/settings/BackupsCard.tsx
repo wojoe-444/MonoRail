@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, HardDriveDownload, Loader2 } from 'lucide-react'
+import { FolderOpen, HardDriveDownload, Loader2, ShieldCheck } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,9 @@ import { formatBytes, formatIn, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 
-import type { BackupPageStatus, BackupStatus, BackupUnit, GlobalBackupSettings } from './types'
+import { refreshSettingsAlerts } from './alerts'
+
+import type { BackupPageStatus, BackupStatus, BackupUnit, BeforeUpdateResult, GlobalBackupSettings, GlobalItem } from './types'
 
 const MODULE_ID = 'backups'
 const UNITS: BackupUnit[] = ['hour', 'day', 'week']
@@ -20,16 +22,19 @@ const UNITS: BackupUnit[] = ['hour', 'day', 'week']
 /** Browser dev server: fictional, kept in memory. */
 const SAMPLE_FOLDER = 'C:\\Users\\sample\\OneDrive\\MonoRail backups'
 let sample: BackupStatus = {
-  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true } },
+  settings: { enabled: false, folder: '', times: 1, unit: 'day', keep: 14, items: { 'jira-plus': true, flashcards: true, notes: true, flows: true }, beforeUpdate: true },
   pages: [
     { id: 'github-plus', title: 'GitHub+', what: 'Repositories you set to use the global folder on their Backups tab.', folder: null, repos: 1 },
-    { id: 'jira-plus', title: 'Jira+', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'jira-plus', title: 'Tasks', what: 'Your private projects (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
     { id: 'flashcards', title: 'Flashcards', what: 'All decks, cards and study history, as one .json file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'notes', title: 'Notes', what: 'All notes with their history (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
+    { id: 'flows', title: 'Flows', what: 'All flows with their versions (the local git repo), as one .bundle file.', folder: null, included: true, lastResult: null, nextDueAt: null, files: 0 },
   ],
 }
 function sampleSave(s: GlobalBackupSettings): BackupStatus {
   const sep = s.folder.includes('/') ? '/' : '\\'
   sample = {
+    ...sample,
     settings: s,
     pages: sample.pages.map((p) => {
       const folder = s.enabled && s.folder ? `${s.folder.replace(/[\\/]+$/, '')}${sep}${p.id}` : null
@@ -54,7 +59,8 @@ const call = <T,>(method: string, args?: unknown): Promise<T> =>
 
 const same = (a: GlobalBackupSettings, b: GlobalBackupSettings) =>
   a.enabled === b.enabled && a.folder === b.folder && a.times === b.times && a.unit === b.unit && a.keep === b.keep &&
-  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards
+  a.items['jira-plus'] === b.items['jira-plus'] && a.items.flashcards === b.items.flashcards && a.items.notes === b.items.notes && a.items.flows === b.items.flows &&
+  a.beforeUpdate === b.beforeUpdate
 
 const clamp = (v: string, max: number) => Math.max(1, Math.min(max, Math.trunc(Number(v)) || 1))
 const joinPath = (folder: string, id: string) => `${folder.replace(/[\\/]+$/, '')}${folder.includes('/') && !folder.includes('\\') ? '/' : '\\'}${id}`
@@ -100,6 +106,7 @@ export function BackupsCard({ className }: { className?: string }) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
+      void refreshSettingsAlerts()
     }
   }
 
@@ -190,6 +197,8 @@ export function BackupsCard({ className }: { className?: string }) {
               ))}
             </div>
 
+            <BeforeUpdateRow form={form} last={status.lastBeforeUpdate ?? null} onChange={(v) => set('beforeUpdate', v)} />
+
             {error && <p className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">{error}</p>}
             {notice && !error && <p className="text-sm text-muted-foreground">{notice}</p>}
 
@@ -213,10 +222,38 @@ export function BackupsCard({ className }: { className?: string }) {
   )
 }
 
+/** "Back up before updating": on by default; only does something while the global folder is on. */
+function BeforeUpdateRow({ form, last, onChange }: { form: GlobalBackupSettings; last: BeforeUpdateResult | null; onChange: (v: boolean) => void }) {
+  const preview = form.folder ? joinPath(form.folder, 'before-update') : '[backup folder]\\before-update'
+  const active = form.enabled && !!form.folder && form.beforeUpdate
+  return (
+    <div id="settings-backup-before-update" className="flex scroll-mt-24 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg px-4 py-3 ring-1 ring-foreground/10">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <ShieldCheck className="size-4 text-muted-foreground" />
+          Back up before updating
+          {active && last && !last.skipped && (last.ok
+            ? <Badge variant="success">Last one {formatRelative(last.at)}</Badge>
+            : <Badge variant="destructive">Failed {formatRelative(last.at)}</Badge>)}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Before an update installs, Tasks, Notes and Flashcards are backed up here, whatever their own switches say. The newest 5 of each are
+          kept. If the backup fails, the update waits and asks you.
+        </div>
+        <div className="truncate font-mono text-xs text-muted-foreground" title={preview}>{preview}</div>
+        {!form.enabled && form.beforeUpdate && (
+          <div className="text-xs text-muted-foreground">Turn on the global backup folder above for this to run.</div>
+        )}
+      </div>
+      <Switch checked={form.beforeUpdate} onCheckedChange={onChange} aria-label="Back up before updating" />
+    </div>
+  )
+}
+
 function PageRow({ page, form, onInclude }: { page: BackupPageStatus; form: GlobalBackupSettings; onInclude: (v: boolean) => void }) {
   const preview = form.folder ? joinPath(form.folder, page.id) : `[backup folder]\\${page.id}`
   const githubPlus = page.id === 'github-plus'
-  const included = githubPlus || form.items[page.id as 'jira-plus' | 'flashcards']
+  const included = githubPlus || form.items[page.id as GlobalItem]
   const last = page.lastResult
   return (
     <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3', !included && 'opacity-60')}>

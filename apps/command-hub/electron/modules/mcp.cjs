@@ -19,7 +19,7 @@ const { SERVER } = require('../mcp/launch.cjs')
  */
 function launchCommand(ctx) {
   if (ctx.isPackaged) return { command: process.execPath, args: ['--mcp'], env: {} }
-  return { command: process.execPath, args: [SERVER, '--data-dir', ctx.rootDir], env: { ELECTRON_RUN_AS_NODE: '1' } }
+  return { command: process.execPath, args: [SERVER, '--data-dir', ctx.machineDir ?? ctx.rootDir], env: { ELECTRON_RUN_AS_NODE: '1' } }
 }
 
 const quote = (s) => (/[\s"]/.test(s) ? `"${s.replace(/"/g, '\\"')}"` : s)
@@ -36,7 +36,7 @@ function snippets({ command, args, env }) {
 
 function extensionToolsSafe(ctx) {
   try {
-    return describeExtensionTools(ctx.rootDir)
+    return describeExtensionTools(ctx.machineDir ?? ctx.rootDir)
   } catch (e) {
     ctx.log('could not read extension tools:', e.message)
     return []
@@ -46,7 +46,7 @@ function extensionToolsSafe(ctx) {
 /** Every tool that needs the user's OK: built-in writes and every extension tool. */
 function consentTools(ctx) {
   return [
-    ...writeTools({ rootDir: ctx.rootDir }).map((t) => ({ name: t.name, title: t.title })),
+    ...writeTools({ rootDir: ctx.layout ?? ctx.rootDir }).map((t) => ({ name: t.name, title: t.title })),
     ...extensionToolsSafe(ctx).map((e) => ({ name: e.name, title: e.title, extension: e.rec.manifest.name })),
   ]
 }
@@ -71,15 +71,15 @@ module.exports = {
         packaged: !!ctx.isPackaged,
         ...launch,
         serverFile: path.basename(SERVER),
-        dataDir: ctx.rootDir,
+        dataDir: ctx.machineDir ?? ctx.rootDir,
         snippets: snippets(launch),
         tools: [
-          ...[...readTools({ rootDir: ctx.rootDir }), ...coordinatorReadTools(), ...writeTools({ rootDir: ctx.rootDir })].map((t) => ({
+          ...[...readTools({ rootDir: ctx.layout ?? ctx.rootDir }), ...coordinatorReadTools(), ...writeTools({ rootDir: ctx.layout ?? ctx.rootDir })].map((t) => ({
             name: t.name,
             title: t.title,
             description: t.description,
             readOnly: !!t.annotations?.readOnlyHint,
-            needsConsent: !!t.write,
+            needsConsent: !!(t.consent ?? t.write),
           })),
           ...extensionToolsSafe(ctx).map((e) => ({ name: e.name, title: e.title, description: e.tool.description, readOnly: !e.tool.write, needsConsent: true, extension: e.rec.manifest.name })),
         ],

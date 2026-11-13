@@ -5,6 +5,11 @@
 //     projects/<KEY>/project.json        { key, name, description, nextNumber, created }
 //     projects/<KEY>/issues/<KEY>-<n>.json
 //
+// An issue may name a parent issue in the same project (`parent: "ME-3"`),
+// and keeps the time logged against it in `worklogs` (one entry per "Log
+// time": started, seconds, comment). Totals and child issues are worked out
+// when an issue is read; nothing derived is stored.
+//
 // Every change is a commit, so the history of a ticket is the git log of its
 // file. The repository never gets a remote: it is not pushed anywhere, and it
 // lives outside the MonoRail checkout, so it can never be committed there.
@@ -16,6 +21,7 @@ const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const path = require('node:path')
 const git = require('isomorphic-git')
+const { randomUUID } = require('node:crypto')
 
 const { sleep, tryLock } = require('../../cache/files.cjs')
 
@@ -28,7 +34,7 @@ const STATUSES = [
   { name: 'In Review', category: 'in_progress' },
   { name: 'Done', category: 'done' },
 ]
-const TYPES = ['Task', 'Bug', 'Story', 'Spike']
+const TYPES = ['Task', 'Bug', 'Story', 'Spike', 'Epic', 'Sub-task', 'Recurring']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
 
 const README = `# MonoRail local Jira
@@ -39,8 +45,27 @@ file per ticket and commits every change, so \`git log\` is each ticket's histor
 It lives in your local AppData and has no remote. Do not push it anywhere.
 `
 
+/** Longest single time log: a week of whole days. */
+const MAX_WORKLOG_SECONDS = 7 * 24 * 3600
+
 function categoryOf(status) {
   return STATUSES.find((s) => s.name === status)?.category ?? 'todo'
+}
+
+function nextDueDate(date, recurrence) {
+  const d = new Date(date + 'T00:00:00Z')
+  if (recurrence === 'monthly') {
+    const day = d.getUTCDate()
+    d.setUTCDate(1)
+    d.setUTCMonth(d.getUTCMonth() + 1)
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    d.setUTCDate(Math.min(day, last))
+  } else d.setUTCDate(d.getUTCDate() + (recurrence === 'weekly' ? 7 : 1))
+  return d.toISOString().slice(0, 10)
+}
+
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value
 }
 
 function validKey(key) {
@@ -112,6 +137,17 @@ function createLocalStore(repoDir) {
     await git.commit({ fs, dir: repoDir, message, author: AUTHOR })
   }
 
+  function templateRel(source, projectKey) {
+    if (!['local', 'jira'].includes(source) || !validKey(projectKey)) throw new Error('Invalid project.')
+    return `trigger-templates/${source}/${projectKey}.json`
+  }
+
+  async function listTriggerTemplates({ source, projectKey }) {
+    await ensureRepo()
+    const rel = templateRel(source, projectKey)
+    try { return await readJson(path.join(repoDir, rel)) } catch (e) { if (e.code === 'ENOENT') return []; throw e }
+  }
+
   async function listProjects() {
     await ensureRepo()
     const entries = await fsp.readdir(path.join(repoDir, 'projects'), { withFileTypes: true })
@@ -149,8 +185,51 @@ function createLocalStore(repoDir) {
   }
 
   function summarize(raw) {
-    const { comments = [], ...rest } = raw
-    return { ...rest, source: 'local', statusCategory: categoryOf(raw.status), commentCount: comments.length }
+    const { comments = [], worklogs = [], parent, ...rest } = raw
+    return {
+      ...rest,
+      ...(parent ? { parent: { key: parent } } : {}),
+      source: 'local',
+      statusCategory: categoryOf(raw.status),
+      commentCount: comments.length,
+      timeSpentSeconds: sumSeconds(worklogs),
+    }
+  }
+
+  /** Every issue in a project, raw (with worklogs), keyed by issue key. */
+  async function rawIssues(projectKey) {
+    const dir = path.join(projectDir(projectKey), 'issues')
+    let files = []
+    try {
+      files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.json'))
+    } catch {
+      return new Map()
+    }
+    const issues = await Promise.all(files.map((f) => readJson(path.join(dir, f)).catch(() => undefined)))
+    return new Map(issues.filter(Boolean).map((i) => [i.key, i]))
+  }
+
+  /** Keys of every issue below `key` (children, their children, ...). */
+  function descendantsOf(key, all) {
+    const out = new Set()
+    const walk = (k) => {
+      for (const i of all.values()) {
+        if (i.parent === k && !out.has(i.key)) {
+          out.add(i.key)
+          walk(i.key)
+        }
+      }
+    }
+    walk(key)
+    return out
+  }
+
+  /** Parent summary for one issue: key, summary, type and status. */
+  function parentRef(raw, all) {
+    const p = raw.parent && all.get(raw.parent)
+    if (!raw.parent) return undefined
+    if (!p) return { key: raw.parent, missing: true }
+    return { key: p.key, summary: p.summary, type: p.type, status: p.status, statusCategory: categoryOf(p.status) }
   }
 
   async function listIssues(projectKey) {
@@ -163,10 +242,13 @@ function createLocalStore(repoDir) {
       return []
     }
     const issues = await Promise.all(files.map((f) => readJson(path.join(dir, f)).catch(() => undefined)))
+    const all = new Map(issues.filter(Boolean).map((i) => [i.key, i]))
     const projectName = await projectNameOf(projectKey)
-    return issues
-      .filter(Boolean)
-      .map((raw) => ({ ...summarize(raw), projectName }))
+    return [...all.values()]
+      .map((raw) => {
+        const parent = parentRef(raw, all)
+        return { ...summarize(raw), ...(parent ? { parent } : {}), projectName }
+      })
       .sort((a, b) => b.updated.localeCompare(a.updated))
   }
 
@@ -188,10 +270,27 @@ function createLocalStore(repoDir) {
     await ensureRepo()
     const raw = await readIssue(key)
     const current = raw.status
+    const all = await rawIssues(raw.projectKey)
+    const below = descendantsOf(key, all)
+    const children = [...all.values()]
+      .filter((i) => i.parent === key)
+      .map(summarize)
+      .sort((a, b) => keyNumber(a.key) - keyNumber(b.key))
+    const parent = parentRef(raw, all)
+    const own = sumSeconds(raw.worklogs)
     return {
       ...summarize(raw),
+      ...(parent ? { parent } : {}),
       projectName: await projectNameOf(raw.projectKey),
-      comments: raw.comments ?? [],
+      comments: (raw.comments ?? []).map((c) => ({ ...c, mine: true })),
+      worklogs: [...(raw.worklogs ?? [])].sort((a, b) => b.started.localeCompare(a.started)),
+      children,
+      timeTracking: {
+        spentSeconds: own,
+        // This issue plus everything below it, at any depth.
+        totalSeconds: own + [...below].reduce((n, k) => n + sumSeconds(all.get(k)?.worklogs), 0),
+      },
+
       history: await history(key),
       transitions: STATUSES.filter((s) => s.name !== current).map((s) => ({
         id: s.name,
@@ -202,9 +301,53 @@ function createLocalStore(repoDir) {
     }
   }
 
+  /** Throws unless `parent` is an issue in `projectKey` that is not `key` or below it. */
+  async function checkParent(key, parent, projectKey) {
+    const all = await rawIssues(projectKey)
+    if (!all.has(parent)) throw new Error(`${parent} is not an issue in this project. A parent must be in the same project.`)
+    if (key && (parent === key || descendantsOf(key, all).has(parent))) {
+      throw new Error(`${parent} is ${parent === key ? 'this issue' : 'below this issue'}, so it can't be its parent.`)
+    }
+  }
+
+  /** Issues `key` may be put under (or, without a key, any issue in the project): not itself or below it. */
+  async function parentOptions({ projectKey, key }) {
+    await ensureRepo()
+    const all = await rawIssues(projectKey ?? String(key).split('-')[0])
+    const below = key ? descendantsOf(key, all) : new Set()
+    return [...all.values()]
+      .filter((i) => i.key !== key && !below.has(i.key))
+      .map((i) => ({ key: i.key, summary: i.summary, type: i.type, status: i.status, statusCategory: categoryOf(i.status) }))
+      .sort((a, b) => keyNumber(b.key) - keyNumber(a.key))
+  }
+
   return {
     meta: { statuses: STATUSES, types: TYPES, priorities: PRIORITIES, repoDir },
     listProjects,
+    parentOptions,
+    listTriggerTemplates,
+    saveTriggerTemplate: (args) => serial(async () => {
+      const { source, projectKey, id } = args
+      const rel = templateRel(source, projectKey)
+      const summary = String(args.summary ?? '').trim()
+      if (!summary) throw new Error('A template needs a task summary.')
+      const items = await listTriggerTemplates({ source, projectKey })
+      const index = id ? items.findIndex((t) => t.id === id) : -1
+      if (id && index < 0) throw new Error('That template no longer exists.')
+      const now = new Date().toISOString()
+      const template = { id: id || randomUUID(), source, projectKey, summary, description: String(args.description ?? '').trim(), condition: String(args.condition ?? '').trim(), priority: PRIORITIES.includes(args.priority) ? args.priority : 'Medium', created: index < 0 ? now : items[index].created, updated: now }
+      if (index < 0) items.push(template); else items[index] = template
+      await writeAndCommit([[rel, items]], `${projectKey}: ${index < 0 ? 'Create' : 'Update'} trigger template`)
+      return template
+    }),
+    deleteTriggerTemplate: (args) => serial(async () => {
+      const rel = templateRel(args.source, args.projectKey)
+      const items = await listTriggerTemplates(args)
+      const next = items.filter((t) => t.id !== args.id)
+      if (next.length === items.length) throw new Error('That template no longer exists.')
+      await writeAndCommit([[rel, next]], `${args.projectKey}: Delete trigger template`)
+      return { ok: true }
+    }),
     listIssues,
     getIssue,
 
@@ -231,12 +374,19 @@ function createLocalStore(repoDir) {
         return p
       }),
 
-    createIssue: ({ projectKey, summary, description, type, priority, labels, status }) =>
+    createIssue: ({ projectKey, summary, description, type, priority, labels, status, parent, dueDate, recurrence }) =>
       serial(async () => {
         await ensureRepo()
         summary = String(summary ?? '').trim()
         if (!summary) throw new Error('A ticket needs a summary.')
         const p = await readJson(projectFile(projectKey))
+        if (dueDate && !validDate(dueDate)) throw new Error('Enter a valid expected end date.')
+        if (type === 'Recurring' && (!dueDate || !['daily', 'weekly', 'monthly'].includes(recurrence))) throw new Error('Recurring items need an expected end date and schedule.')
+        if (type === 'Sub-task' && !parent) throw new Error('A sub-task needs a parent issue.')
+        if (parent) {
+          await checkParent(undefined, parent, p.key)
+          if (type === 'Sub-task' && (await readIssue(parent)).type === 'Sub-task') throw new Error('A sub-task cannot be the parent of another sub-task.')
+        }
         const key = `${p.key}-${p.nextNumber}`
         p.nextNumber += 1
         const now = new Date().toISOString()
@@ -251,6 +401,9 @@ function createLocalStore(repoDir) {
           assignee: 'You',
           reporter: 'You',
           labels: Array.isArray(labels) ? labels : [],
+          ...(dueDate ? { dueDate } : {}),
+          ...(type === 'Recurring' ? { recurrence } : {}),
+          ...(parent ? { parent } : {}),
           created: now,
           updated: now,
           comments: [],
@@ -260,7 +413,7 @@ function createLocalStore(repoDir) {
             [`projects/${p.key}/project.json`, p],
             [issueRel(key), issue],
           ],
-          `${key}: Created "${summary}"`,
+          `${key}: Created "${summary}"${parent ? ` under ${parent}` : ''}`,
         )
         return summarize(issue)
       }),
@@ -269,8 +422,11 @@ function createLocalStore(repoDir) {
       serial(async () => {
         await ensureRepo()
         const issue = await readIssue(key)
+        if (fields?.dueDate && !validDate(fields.dueDate)) throw new Error('Enter a valid expected end date.')
+        if (issue.type === 'Recurring' && fields?.dueDate === '') throw new Error('Recurring items need an expected end date.')
+        if (fields?.recurrence !== undefined && !['daily', 'weekly', 'monthly'].includes(fields.recurrence)) throw new Error('Choose a valid schedule.')
         const changed = []
-        for (const f of ['summary', 'description', 'type', 'priority', 'labels']) {
+        for (const f of ['summary', 'description', 'type', 'priority', 'labels', 'dueDate', 'recurrence']) {
           if (fields?.[f] === undefined) continue
           if (JSON.stringify(issue[f]) === JSON.stringify(fields[f])) continue
           if (f === 'summary' && !String(fields.summary).trim()) throw new Error('A ticket needs a summary.')
@@ -292,7 +448,17 @@ function createLocalStore(repoDir) {
         const from = issue.status
         issue.status = transitionId
         issue.updated = new Date().toISOString()
-        await writeAndCommit([[issueRel(key), issue]], `${key}: Status ${from} → ${transitionId}`)
+        const writes = [[issueRel(key), issue]]
+        if (issue.type === 'Recurring' && transitionId === 'Done' && !issue.nextOccurrence && validDate(issue.dueDate) && ['daily', 'weekly', 'monthly'].includes(issue.recurrence)) {
+          const project = await readJson(projectFile(issue.projectKey))
+          const nextKey = `${project.key}-${project.nextNumber}`
+          project.nextNumber += 1
+          issue.nextOccurrence = nextKey
+          const next = { ...issue, key: nextKey, status: 'To Do', dueDate: nextDueDate(issue.dueDate, issue.recurrence), created: issue.updated, updated: issue.updated, comments: [], worklogs: [] }
+          delete next.nextOccurrence
+          writes.push([`projects/${project.key}/project.json`, project], [issueRel(nextKey), next])
+        }
+        await writeAndCommit(writes, `${key}: Status ${from} → ${transitionId}${issue.nextOccurrence ? `; next occurrence ${issue.nextOccurrence}` : ''}`)
         return summarize(issue)
       }),
 
@@ -309,10 +475,94 @@ function createLocalStore(repoDir) {
         return comment
       }),
 
+    /** updateComment({ key, id, body }): local comments are all yours, so any may be edited. */
+    updateComment: ({ key, id, body }) =>
+      serial(async () => {
+        await ensureRepo()
+        body = String(body ?? '').trim()
+        if (!body) throw new Error('Write something first.')
+        const issue = await readIssue(key)
+        const comment = (issue.comments ?? []).find((c) => c.id === id)
+        if (!comment) throw new Error('That comment is gone.')
+        if (comment.body === body) return comment
+        comment.body = body
+        comment.updated = new Date().toISOString()
+        issue.updated = comment.updated
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Edited a comment`)
+        return comment
+      }),
+
+    /** deleteComment({ key, id }): the comment stays in the repo's git history. */
+    deleteComment: ({ key, id }) =>
+      serial(async () => {
+        await ensureRepo()
+        const issue = await readIssue(key)
+        const comments = issue.comments ?? []
+        if (!comments.some((c) => c.id === id)) throw new Error('That comment is gone.')
+        issue.comments = comments.filter((c) => c.id !== id)
+        issue.updated = new Date().toISOString()
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Deleted a comment`)
+        return { ok: true }
+      }),
+
+    /** setParent({ key, parent }): parent is an issue key in the same project, or null to remove it. */
+    setParent: ({ key, parent }) =>
+      serial(async () => {
+        await ensureRepo()
+        const issue = await readIssue(key)
+        parent = parent ? String(parent).trim().toUpperCase() : null
+        if (issue.type === 'Sub-task' && !parent) throw new Error('A sub-task needs a parent issue.')
+        if (issue.type === 'Sub-task' && parent && (await readIssue(parent)).type === 'Sub-task') throw new Error('A sub-task cannot be the parent of another sub-task.')
+        if ((issue.parent ?? null) === parent) return summarize(issue)
+        if (parent) await checkParent(key, parent, issue.projectKey)
+        const from = issue.parent
+        if (parent) issue.parent = parent
+        else delete issue.parent
+        issue.updated = new Date().toISOString()
+        const text = parent ? (from ? `Parent ${from} → ${parent}` : `Parent set to ${parent}`) : `Parent ${from} removed`
+        await writeAndCommit([[issueRel(key), issue]], `${key}: ${text}`)
+        return summarize(issue)
+      }),
+
+    /** logWork({ key, seconds, started?, comment? }): one time log entry. */
+    logWork: ({ key, seconds, started, comment }) =>
+      serial(async () => {
+        await ensureRepo()
+        const entry = worklogEntry({ seconds, started, comment })
+        const issue = await readIssue(key)
+        issue.worklogs = [...(issue.worklogs ?? []), entry]
+        issue.updated = entry.created
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Logged ${formatSeconds(entry.seconds)}`)
+        return entry
+      }),
+
+    deleteWorklog: ({ key, id }) =>
+      serial(async () => {
+        await ensureRepo()
+        const issue = await readIssue(key)
+        const entry = (issue.worklogs ?? []).find((w) => w.id === id)
+        if (!entry) throw new Error('That time log is already gone.')
+        issue.worklogs = issue.worklogs.filter((w) => w.id !== id)
+        issue.updated = new Date().toISOString()
+        await writeAndCommit([[issueRel(key), issue]], `${key}: Removed ${formatSeconds(entry.seconds)} time log`)
+        return { ok: true }
+      }),
+
+    /** Deletes a ticket. Its child issues stay, without a parent, in the same commit. */
     deleteIssue: ({ key }) =>
       serial(async () => {
         await ensureRepo()
         const rel = issueRel(key)
+        const all = await rawIssues(key.split('-')[0])
+        for (const child of all.values()) {
+          if (child.parent !== key) continue
+          delete child.parent
+          if (child.type === 'Sub-task') child.type = 'Task'
+          child.updated = new Date().toISOString()
+          const childRel = issueRel(child.key)
+          await fsp.writeFile(path.join(repoDir, childRel), JSON.stringify(child, null, 2) + '\n')
+          await git.add({ fs, dir: repoDir, filepath: childRel })
+        }
         await fsp.rm(path.join(repoDir, rel))
         await git.remove({ fs, dir: repoDir, filepath: rel })
         await git.commit({ fs, dir: repoDir, message: `${key}: Deleted`, author: AUTHOR })
@@ -321,4 +571,40 @@ function createLocalStore(repoDir) {
   }
 }
 
-module.exports = { createLocalStore, STATUSES, TYPES, PRIORITIES }
+function sumSeconds(worklogs) {
+  return (worklogs ?? []).reduce((n, w) => n + (Number(w.seconds) || 0), 0)
+}
+
+function keyNumber(key) {
+  return Number(String(key).split('-')[1]) || 0
+}
+
+/** "1d 2h 30m" with 8-hour days, as Jira writes time. */
+function formatSeconds(seconds) {
+  let m = Math.round(seconds / 60)
+  const d = Math.floor(m / 480)
+  m -= d * 480
+  const h = Math.floor(m / 60)
+  m -= h * 60
+  return [d && `${d}d`, h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ') || '0m'
+}
+
+/** A checked time log entry from what the page sent. */
+function worklogEntry({ seconds, started, comment }) {
+  seconds = Math.round(Number(seconds))
+  if (!Number.isFinite(seconds) || seconds < 60) throw new Error('Log at least one minute.')
+  if (seconds > MAX_WORKLOG_SECONDS) throw new Error('One time log can be at most a week. Split longer work into several logs.')
+  const at = started ? new Date(started) : new Date()
+  if (Number.isNaN(at.getTime())) throw new Error('Pick when the work started.')
+  const now = new Date()
+  return {
+    id: `w${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    author: 'You',
+    started: at.toISOString(),
+    seconds,
+    comment: String(comment ?? '').trim(),
+    created: now.toISOString(),
+  }
+}
+
+module.exports = { createLocalStore, formatSeconds, worklogEntry, STATUSES, TYPES, PRIORITIES, MAX_WORKLOG_SECONDS }

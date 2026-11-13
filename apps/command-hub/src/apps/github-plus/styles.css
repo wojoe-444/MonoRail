@@ -405,6 +405,7 @@
   .repo-item:hover { background: var(--bg2); }
   .repo-item .icon-btn { visibility: hidden; margin-right: 2px; }
   .repo-item:hover .icon-btn, .repo-item .icon-btn:focus-visible { visibility: visible; }
+  .repo-item .folder-btn { display: inline-flex; align-items: center; justify-content: center; }
   .repo-link { all: unset; flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; font-weight: 600; font-size: 14px; box-sizing: border-box; }
   .repo-link:focus-visible { outline: 2px solid var(--link); border-radius: 6px; }
   .repo-dot { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--bg3); color: var(--muted); flex: none; }
@@ -448,7 +449,7 @@
   .issue-row:hover { background: var(--bg2); }
   .issue-row > span:first-child { padding-top: 2px; }
   .issue-open { color: var(--green); } .issue-closed { color: var(--purple); }
-  /* Jira+ tasks linked to the repo */
+  /* Tasks linked to the repo */
   .task-todo { color: var(--muted); } .task-progress { color: var(--link); } .task-done { color: var(--green); }
   .task-error { color: var(--yellow); }
   .link-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 3px; }

@@ -1,4 +1,4 @@
-// Jira+ backend: one tracker for two kinds of projects.
+// Tasks backend: one tracker for two kinds of projects.
 //
 //   source "jira"   your team's Jira Cloud site, through the REST API (cloud.cjs)
 //   source "local"  personal projects kept in a git repository under AppData
@@ -7,10 +7,10 @@
 // Both return the same issue shape, so the app treats them alike.
 //
 // Private data rule: team Jira credentials come from the Atlassian connection
-// on the Connections page (see "connection" below); Jira+ keeps only its JQL
+// on the Connections page (see "connection" below); Tasks keeps only its JQL
 // setting in <dataDir>\settings.json. The local repo is <dataDir>\local-repo.
 //
-// <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Jira+ was an app it
+// <dataDir> is %APPDATA%\MonoRail\apps\jira-plus. Before Tasks was an app it
 // was the "jira" module, whose data lives in ...\modules\jira. If that folder
 // holds data and the new one doesn't, keep using the old one in place. It is
 // never moved or copied (see "names that must not change" in CLAUDE.md).
@@ -20,7 +20,7 @@ const path = require('node:path')
 const { BrowserWindow, dialog, safeStorage } = require('electron')
 
 const { createJiraClient } = require('./cloud.cjs')
-const { createLocalStore } = require('./local.cjs')
+const { createLocalStore, worklogEntry } = require('./local.cjs')
 const { resolveJiraDataDir, CONNECTION_FILE } = require('./data-dir.cjs')
 const { createRepoLinks } = require('./repo-links.cjs')
 const ghGit = require('../github-plus/git.cjs')
@@ -95,7 +95,7 @@ async function tasksForRepo(ctx, { path: p, github } = {}) {
     local.map((l) =>
       localStore(ctx)
         .getIssue(l.issue.key)
-        .then((i) => taskRow(l, i), () => taskRow(l, null, 'This ticket no longer exists in Jira+.')),
+        .then((i) => taskRow(l, i), () => taskRow(l, null, 'This ticket no longer exists in Tasks.')),
     ),
   )
 
@@ -129,7 +129,7 @@ async function tasksForRepo(ctx, { path: p, github } = {}) {
 // before Connections existed may still have their own connection.json here
 // (site, email, safeStorage-encrypted token); it is used only when no
 // Atlassian connection is set up, and "Forget" deletes it. Which issues to
-// show (scopeJql) is a Jira+ setting, kept in settings.json.
+// show (scopeJql) is a Tasks setting, kept in settings.json.
 
 const SETTINGS_FILE = 'settings.json'
 const NOT_SET_UP = /Add an Atlassian connection/i
@@ -229,6 +229,24 @@ function jqlString(s) {
 
 // ---------- helpers ----------
 
+/** Team comments carry the author's account id only so "mine" can be worked out here. */
+function markMine({ authorId, ...c }, me) {
+  return { ...c, mine: !!me && !!authorId && authorId === me.accountId }
+}
+
+function commentBody(args) {
+  const body = String(args?.body ?? '').trim()
+  if (!body) throw new Error('Write something first.')
+  if (body.length > 30_000) throw new Error('That comment is too long (30,000 characters at most).')
+  return body
+}
+
+function commentId(args) {
+  const id = String(args?.id ?? '')
+  if (!/^\d{1,20}$/.test(id)) throw new Error('Unknown comment.')
+  return id
+}
+
 function requireSource(args) {
   const source = args?.source
   if (source !== 'jira' && source !== 'local') throw new Error(`Unknown source: ${source}`)
@@ -237,6 +255,9 @@ function requireSource(args) {
 
 module.exports = {
   id: 'jira-plus',
+  // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
+  // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
+  desktopOnly: ['pickRepoFolder'],
   tasksForRepo,
   repoLinks,
   /** For tests: swap where Atlassian credentials come from. */
@@ -245,6 +266,9 @@ module.exports = {
     accounts.clear()
   },
   methods: {
+    async listTriggerTemplates(ctx, args) { return localStore(ctx).listTriggerTemplates(args) },
+    async saveTriggerTemplate(ctx, args) { return localStore(ctx).saveTriggerTemplate(args) },
+    async deleteTriggerTemplate(ctx, args) { return localStore(ctx).deleteTriggerTemplate(args) },
     /** Projects from both sources plus the Jira connection status. Jira errors don't hide local projects. */
     async getOverview(ctx) {
       const local = localStore(ctx)
@@ -285,6 +309,26 @@ module.exports = {
       }
     },
 
+    /** Dated local and scoped team issues for a calendar interval [start, end). */
+    async calendarIssues(ctx, { start, end } = {}) {
+      const valid = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v + 'T00:00:00Z')) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v
+      if (!valid(start) || !valid(end) || end <= start || Date.parse(end) - Date.parse(start) > 62 * 86400000) throw new Error('Choose a valid calendar date range.')
+      const local = localStore(ctx)
+      const projects = await local.listProjects()
+      const localIssues = (await Promise.all(projects.map((p) => local.listIssues(p.key)))).flat().filter((i) => i.dueDate && i.dueDate >= start && i.dueDate < end)
+      const conn = await resolveConnection(ctx)
+      let remote = [], warning
+      if (conn.error) warning = conn.error
+      else if (!conn.missing) {
+        try {
+          const { jira } = await client(ctx)
+          remote = await jira.search(`(${scopeClause(conn)}) AND due >= "${start}" AND due < "${end}" ORDER BY due ASC`, 2001)
+          if (remote.length > 2000) { remote = remote.slice(0, 2000); warning = 'Only the first 2,000 matching team Jira issues are shown.' }
+        } catch (e) { warning = e.message }
+      }
+      return { issues: [...localIssues, ...remote], warning, teamConnected: !conn.missing && !conn.error }
+    },
+
     /** listIssues({ source: 'local'|'jira'|'all', projectKey? }) */
     async listIssues(ctx, args) {
       const local = localStore(ctx)
@@ -310,15 +354,16 @@ module.exports = {
 
     async getIssue(ctx, args) {
       if (requireSource(args) === 'local') return localStore(ctx).getIssue(args.key)
-      const { jira } = await client(ctx)
-      return jira.getIssue(args.key)
+      const { conn, jira } = await client(ctx)
+      const [issue, me] = await Promise.all([jira.getIssue(args.key), myAccount(conn, jira).catch(() => null)])
+      return { ...issue, comments: issue.comments.map((c) => markMine(c, me)) }
     },
 
     /** Issue types offered when creating a ticket in a project. */
     async getIssueTypes(ctx, args) {
-      if (requireSource(args) === 'local') return localStore(ctx).meta.types
+      if (requireSource(args) === 'local') return localStore(ctx).meta.types.filter((t) => t !== 'Recurring' && (t === 'Sub-task') === !!args.subtask)
       const { jira } = await client(ctx)
-      return jira.issueTypes(args.projectKey)
+      return jira.issueTypes(args.projectKey, !!args.subtask)
     },
 
     async createIssue(ctx, args) {
@@ -345,10 +390,62 @@ module.exports = {
       return jira.getIssue(args.key)
     },
 
+    /** addComment({ source, key, body }): team tickets get a real Jira comment, visible to everyone who can see the ticket. */
     async addComment(ctx, args) {
       if (requireSource(args) === 'local') return localStore(ctx).addComment(args)
+      const body = commentBody(args)
+      const { conn, jira } = await client(ctx)
+      return markMine(await jira.addComment(args.key, body), await myAccount(conn, jira).catch(() => null))
+    },
+
+    /** updateComment({ source, key, id, body }): on team Jira, Jira decides who may edit (usually the author). */
+    async updateComment(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).updateComment(args)
+      const body = commentBody(args)
+      const { conn, jira } = await client(ctx)
+      return markMine(await jira.updateComment(args.key, commentId(args), body), await myAccount(conn, jira).catch(() => null))
+    },
+
+    /** deleteComment({ source, key, id }) */
+    async deleteComment(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).deleteComment(args)
       const { jira } = await client(ctx)
-      return jira.addComment(args.key, String(args.body ?? '').trim())
+      await jira.deleteComment(args.key, commentId(args))
+      return { ok: true }
+    },
+
+    /** setParent({ source, key, parent }): parent is an issue key in the same project, or null. */
+    async setParent(ctx, args) {
+      const parent = args?.parent ? String(args.parent).trim().toUpperCase() : null
+      if (parent && !/^[A-Z][A-Z0-9]+-\d+$/.test(parent)) throw new Error(`${parent} is not an issue key, like ME-12.`)
+      if (requireSource(args) === 'local') return localStore(ctx).setParent({ key: args.key, parent })
+      const { jira } = await client(ctx)
+      if (parent && parent.split('-')[0] !== String(args.key).split('-')[0]) throw new Error('A parent must be in the same project.')
+      await jira.setParent(args.key, parent)
+      return jira.getIssue(args.key)
+    },
+
+    /** Issues that can be the parent of `key` (or of a new issue in `projectKey`). */
+    async parentOptions(ctx, args) {
+      const projectKey = args?.projectKey ?? String(args?.key ?? '').split('-')[0]
+      if (requireSource(args) === 'local') return localStore(ctx).parentOptions({ projectKey, key: args?.key })
+      const { jira } = await client(ctx)
+      return jira.parentOptions(projectKey, args?.key)
+    },
+
+    /** logWork({ source, key, seconds, started?, comment? }): time spent on a ticket. Team tickets get a real Jira worklog. */
+    async logWork(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).logWork(args)
+      const entry = worklogEntry(args ?? {})
+      const { jira } = await client(ctx)
+      return jira.logWork(args.key, entry)
+    },
+
+    async deleteWorklog(ctx, args) {
+      if (requireSource(args) === 'local') return localStore(ctx).deleteWorklog(args)
+      const { jira } = await client(ctx)
+      await jira.deleteWorklog(args.key, String(args.id ?? ''))
+      return { ok: true }
     },
 
     /** Local tickets only: team Jira deletes stay in Jira itself. */
@@ -365,7 +462,7 @@ module.exports = {
     /**
      * linkRepo({ source, key, path }) links a local repo (checked with git,
      * stored by its root and github.com remote); linkRepo({ source, key,
-     * github: 'owner/name' }) links a repo on github.com. Stored in Jira+'s
+     * github: 'owner/name' }) links a repo on github.com. Stored in Tasks'
      * data folder only. Returns the task's links.
      */
     async linkRepo(ctx, args) {
@@ -413,7 +510,7 @@ module.exports = {
       return publicConnection({ ...conn, scopeJql })
     },
 
-    /** Deletes the token Jira+ saved itself before the Connections page existed. */
+    /** Deletes the token Tasks saved itself before the Connections page existed. */
     async forgetLegacyConnection(ctx) {
       await fs.rm(path.join(dataDir(ctx), CONNECTION_FILE), { force: true })
       return publicConnection(await resolveConnection(ctx))

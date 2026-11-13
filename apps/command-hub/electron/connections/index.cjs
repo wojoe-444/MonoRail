@@ -8,7 +8,8 @@
 //                 defaultValue?, placeholder?, help?, showIf? }]
 //              what the user fills in. 'secret' fields are encrypted with
 //              safeStorage and never sent back to the page.
-//   validate?  ({ values, secretsSet }) => void, throws a readable message
+//   validate?  ({ values, secretsSet, secrets }) => void, throws a readable
+//              message. secrets holds only what was typed in this save.
 //   status     (conn, deps) => { state, summary, hint?, details[] }
 //              state: ok | expired | needs-setup | error | unavailable.
 //              conn is undefined until the connection is added.
@@ -20,7 +21,8 @@
 //   afterRemove? (deps) => runs after the connection is removed (undo what
 //              afterSave wrote that only makes sense while it is set up).
 //   parent?    kind of another connector: this one is a subconnector, shown
-//              nested inside the parent's card (pi > Playwright browser).
+//              nested inside the parent's card (pi > Playwright browser,
+//              Claude > Playwright browser).
 //
 // A status may also carry actions: [ids], the actions that fit right now;
 // the page shows only those (on top of showWhen). A running job may set
@@ -46,11 +48,14 @@ const CONNECTORS = [
   require('./connectors/gcloud.cjs'),
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
+  require('./connectors/claude-playwright.cjs'),
   require('./connectors/openai.cjs'),
   require('./connectors/pi.cjs'),
   require('./connectors/pi-playwright.cjs'),
   require('./connectors/git.cjs'),
   require('./connectors/github.cjs'),
+  require('./connectors/docker.cjs'),
+  require('./connectors/metricflow.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
@@ -181,7 +186,7 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
       }
       const clean = {}
       for (const f of c.fields) if (f.type !== 'secret') clean[f.key] = typeof values[f.key] === 'string' ? values[f.key].trim() : (f.defaultValue ?? '')
-      c.validate?.({ values: clean, secretsSet })
+      c.validate?.({ values: clean, secretsSet, secrets })
       // Secrets of a field that is hidden by the current choice are dropped.
       const hidden = c.fields.filter((f) => f.type === 'secret' && f.showIf && Object.entries(f.showIf).some(([k, v]) => clean[k] !== v)).map((f) => f.key)
       await store.save(kind, c.fields, { values: clean, secrets, clearSecrets: [...clearSecrets, ...hidden] })
@@ -306,12 +311,12 @@ function createConnections({ dataDir, cipher, deps = {}, checks = cacheLib.keyed
 // ---------- the app's instance ----------
 
 let instance
-/** The Connections service over %APPDATA%\MonoRail\modules\connections. Main process only. */
+/** The Connections service over the active profile's modules\connections (electron/profiles). Main process only. */
 function connections() {
   if (instance) return instance
-  const { app, safeStorage } = require('electron')
+  const { safeStorage } = require('electron')
   instance = createConnections({
-    dataDir: path.join(app.getPath('userData'), 'modules', 'connections'),
+    dataDir: require('../profiles/index.cjs').appLayout().folder('modules/connections'),
     cipher: {
       isAvailable: () => safeStorage.isEncryptionAvailable(),
       encrypt: (plain) => safeStorage.encryptString(plain).toString('base64'),
@@ -322,7 +327,7 @@ function connections() {
 }
 
 /**
- * Credentials of a connection, for other backends. For example Jira+:
+ * Credentials of a connection, for other backends. For example Tasks:
  *   const { siteUrl, email, token } = await getCredentials('atlassian')
  */
 function getCredentials(kind) {

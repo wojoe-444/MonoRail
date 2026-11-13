@@ -8,7 +8,7 @@ module.exports = {
   methods: {
     /** { [summaryId]: { builtAt, ageMs, ttlMs, stale, summary } } for every summary that exists. */
     async getSummaries(ctx) {
-      return cache.readSummaries(ctx.rootDir)
+      return cache.readSummaries(ctx.layout ?? ctx.rootDir)
     },
   },
 }

@@ -1,4 +1,4 @@
-// Tests for linked.cjs: repos other MonoRail apps created (Jira+'s private
+// Tests for linked.cjs: repos other MonoRail apps created (Tasks' private
 // projects) show up in GitHub+ without being opened. Needs `git` on PATH.
 
 const { describe, it, beforeEach } = require('node:test')
@@ -24,19 +24,28 @@ const gitInit = (dir) => {
 describe('linked repos', () => {
   beforeEach(() => _resetForTests())
 
-  it('lists nothing when Jira+ has no repo yet, and creates nothing', async () => {
+  it('lists nothing when Tasks has no repo yet, and creates nothing', async () => {
     const { root, ghp } = userData()
     assert.deepEqual(await linkedRepos(ghp), [])
     assert.deepEqual(readdirSync(join(root, 'apps')), ['github-plus'])
   })
 
-  it("lists Jira+'s local repo with the path git reports", async () => {
+  it("lists Tasks' local repo with the path git reports", async () => {
     const { root, ghp } = userData()
     const repo = join(root, 'apps', 'jira-plus', 'local-repo')
     gitInit(repo)
     const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim()
     const list = await linkedRepos(ghp)
-    assert.deepEqual(list, [{ path: top, app: 'jira-plus', label: 'Jira+', name: 'Jira+ projects' }])
+    assert.deepEqual(list, [{ path: top, app: 'jira-plus', label: 'Tasks', name: 'Tasks projects' }])
+  })
+
+  it("lists Notes' repo after Tasks'", async () => {
+    const { root, ghp } = userData()
+    gitInit(join(root, 'apps', 'jira-plus', 'local-repo'))
+    gitInit(join(root, 'modules', 'notes', 'repo'))
+    const list = await linkedRepos(ghp)
+    assert.deepEqual(list.map((l) => [l.app, l.name]), [['jira-plus', 'Tasks projects'], ['notes', 'Notes']])
+    assert.ok(list[1].path.replace(/\\/g, '/').endsWith('modules/notes/repo'))
   })
 
   it('finds the repo in the legacy jira module folder, in place', async () => {

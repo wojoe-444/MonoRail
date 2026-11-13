@@ -11,6 +11,7 @@
 const CATEGORY = { new: 'todo', indeterminate: 'in_progress', done: 'done' }
 const ISSUE_FIELDS = [
   'summary',
+  'duedate',
   'status',
   'issuetype',
   'priority',
@@ -21,7 +22,17 @@ const ISSUE_FIELDS = [
   'updated',
   'project',
   'comment',
+  'parent',
+  'timespent',
+  'aggregatetimespent',
 ]
+
+/** Jira wants worklog times as 2026-11-12T09:30:00.000+0000. */
+function jiraTime(iso) {
+  const d = iso ? new Date(iso) : new Date()
+  if (Number.isNaN(d.getTime())) throw new Error('Pick when the work started.')
+  return d.toISOString().replace('Z', '+0000')
+}
 
 // ---------- ADF <-> plain text ----------
 
@@ -89,6 +100,22 @@ function textToAdf(text) {
   }
 }
 
+// ---------- comments ----------
+
+/** A Jira comment as the page sees it. authorId is only used to work out "mine". */
+function toComment(c) {
+  const created = c.created
+  const updated = c.updated && c.updated !== c.created ? c.updated : undefined
+  return {
+    id: String(c.id),
+    author: c.author?.displayName ?? 'Someone',
+    authorId: c.author?.accountId,
+    body: adfToText(c.body),
+    created,
+    ...(updated ? { updated } : {}),
+  }
+}
+
 // ---------- client ----------
 
 function normalizeSite(siteUrl) {
@@ -150,6 +177,7 @@ function createJiraClient({ siteUrl, email, token }) {
       projectKey: f.project?.key ?? raw.key.split('-')[0],
       projectName: f.project?.name,
       summary: f.summary ?? '',
+      dueDate: f.duedate ?? undefined,
       type: f.issuetype?.name ?? 'Task',
       priority: f.priority?.name ?? 'Medium',
       status: f.status?.name ?? 'Unknown',
@@ -160,8 +188,37 @@ function createJiraClient({ siteUrl, email, token }) {
       created: f.created,
       updated: f.updated,
       commentCount: f.comment?.total ?? 0,
+      ...(f.parent ? { parent: parentOf(f.parent) } : {}),
+      timeSpentSeconds: f.timespent ?? 0,
+      // Jira's own roll-up: this issue plus its sub-tasks.
+      aggregateSeconds: f.aggregatetimespent ?? f.timespent ?? 0,
       url: `${base}/browse/${raw.key}`,
     }
+  }
+
+  function parentOf(p) {
+    const status = p.fields?.status
+    return {
+      key: p.key,
+      summary: p.fields?.summary,
+      type: p.fields?.issuetype?.name,
+      status: status?.name,
+      statusCategory: CATEGORY[status?.statusCategory?.key] ?? 'todo',
+    }
+  }
+
+  async function worklogs(key) {
+    const data = await request('GET', `/rest/api/3/issue/${encodeURIComponent(key)}/worklog?maxResults=200`)
+    return (data?.worklogs ?? [])
+      .map((w) => ({
+        id: w.id,
+        author: w.author?.displayName ?? 'Someone',
+        started: new Date(w.started).toISOString(),
+        seconds: w.timeSpentSeconds ?? 0,
+        comment: adfToText(w.comment),
+        created: w.created,
+      }))
+      .sort((a, b) => b.started.localeCompare(a.started))
   }
 
   async function search(jql, max = 200) {
@@ -186,20 +243,28 @@ function createJiraClient({ siteUrl, email, token }) {
     search,
 
     async getIssue(key) {
-      const [raw, tr] = await Promise.all([
+      const [raw, tr, logs, children] = await Promise.all([
         request('GET', `/rest/api/3/issue/${encodeURIComponent(key)}?fields=${[...ISSUE_FIELDS, 'description'].join(',')}`),
         request('GET', `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`),
+        worklogs(key).catch(() => []),
+        search(`parent = "${String(key).replace(/["\\]/g, '')}" ORDER BY key ASC`, 100).catch(() => []),
       ])
-      const comments = (raw.fields?.comment?.comments ?? []).map((c) => ({
-        id: c.id,
-        author: c.author?.displayName ?? 'Someone',
-        body: adfToText(c.body),
-        created: c.created,
-      }))
+      const issue = toIssue(raw)
+      const comments = (raw.fields?.comment?.comments ?? []).map(toComment)
+      const commentTotal = raw.fields?.comment?.total ?? comments.length
       return {
-        ...toIssue(raw),
+        ...issue,
         description: adfToText(raw.fields?.description),
         comments,
+        // Jira returns a page of comments with the issue; say when some are left out.
+        ...(commentTotal > comments.length ? { commentsCut: commentTotal - comments.length } : {}),
+        worklogs: logs,
+        children,
+        timeTracking: {
+          spentSeconds: issue.timeSpentSeconds,
+          // Children's roll-ups include their sub-tasks, so epic > story > sub-task adds up.
+          totalSeconds: issue.timeSpentSeconds + children.reduce((n, c) => n + (c.aggregateSeconds ?? 0), 0),
+        },
         history: [],
         transitions: (tr?.transitions ?? []).map((t) => ({
           id: t.id,
@@ -210,15 +275,17 @@ function createJiraClient({ siteUrl, email, token }) {
       }
     },
 
-    async issueTypes(projectKey) {
+    async issueTypes(projectKey, subtask = false) {
       const data = await request('GET', `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`)
-      return (data?.issueTypes ?? data?.values ?? []).filter((t) => !t.subtask).map((t) => t.name)
+      return (data?.issueTypes ?? data?.values ?? []).filter((t) => !!t.subtask === subtask).map((t) => t.name)
     },
 
-    async createIssue({ projectKey, summary, description, type, labels, accountId }) {
+    async createIssue({ projectKey, summary, description, type, labels, accountId, parent, dueDate }) {
       const fields = {
         project: { key: projectKey },
+        ...(parent ? { parent: { key: parent } } : {}),
         summary,
+        ...(dueDate ? { duedate: dueDate } : {}),
         issuetype: { name: type || 'Task' },
         ...(description ? { description: textToAdf(description) } : {}),
         ...(labels?.length ? { labels } : {}),
@@ -237,18 +304,53 @@ function createJiraClient({ siteUrl, email, token }) {
       if (fields.description !== undefined) out.description = fields.description.trim() ? textToAdf(fields.description) : null
       if (fields.labels !== undefined) out.labels = fields.labels
       if (fields.priority !== undefined) out.priority = { name: fields.priority }
+      if (fields.dueDate !== undefined) out.duedate = fields.dueDate || null
       if (fields.type !== undefined) out.issuetype = { name: fields.type }
       if (Object.keys(out).length) await request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: out })
     },
+
+    /** parent: an issue key, or null to remove it. Jira decides which hierarchies it allows. */
+    setParent: (key, parent) =>
+      request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}`, { fields: { parent: parent ? { key: parent } : null } }),
+
+    /** Issues in the project that could be a parent: newest first, open ones only. */
+    parentOptions: (projectKey, key) =>
+      search(
+        `project = "${String(projectKey).replace(/["\\]/g, '')}"${key ? ` AND key != "${String(key).replace(/["\\]/g, '')}"` : ''} AND statusCategory != Done ORDER BY updated DESC`,
+        50,
+      ).then((list) =>
+        list.map((i) => ({ key: i.key, summary: i.summary, type: i.type, status: i.status, statusCategory: i.statusCategory })),
+      ),
+
+    async logWork(key, { seconds, started, comment }) {
+      const w = await request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/worklog`, {
+        timeSpentSeconds: Math.round(seconds),
+        started: jiraTime(started),
+        ...(comment ? { comment: textToAdf(comment) } : {}),
+      })
+      return { id: w.id, author: w.author?.displayName ?? 'You', started: new Date(w.started).toISOString(), seconds: w.timeSpentSeconds, comment: adfToText(w.comment), created: w.created }
+    },
+
+    deleteWorklog: (key, id) =>
+      request('DELETE', `/rest/api/3/issue/${encodeURIComponent(key)}/worklog/${encodeURIComponent(id)}`),
 
     transition: (key, transitionId) =>
       request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`, { transition: { id: transitionId } }),
 
     async addComment(key, body) {
       const c = await request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body: textToAdf(body) })
-      return { id: c.id, author: c.author?.displayName ?? 'You', body: adfToText(c.body), created: c.created }
+      return toComment(c)
     },
+
+    /** Jira itself decides who may edit or delete a comment (usually its author). */
+    async updateComment(key, id, body) {
+      const c = await request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}/comment/${encodeURIComponent(id)}`, { body: textToAdf(body) })
+      return toComment(c)
+    },
+
+    deleteComment: (key, id) =>
+      request('DELETE', `/rest/api/3/issue/${encodeURIComponent(key)}/comment/${encodeURIComponent(id)}`),
   }
 }
 
-module.exports = { createJiraClient, normalizeSite, adfToText, textToAdf }
+module.exports = { createJiraClient, normalizeSite, adfToText, textToAdf, jiraTime }
