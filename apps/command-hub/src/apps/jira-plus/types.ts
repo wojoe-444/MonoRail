@@ -177,3 +177,5 @@ export interface TriggerTemplate {
   updated: string
 }
 export type TriggerTemplateDraft = Pick<TriggerTemplate, 'source' | 'projectKey' | 'summary' | 'description' | 'condition' | 'priority'> & { id?: string }
+
+export interface CalendarIssues { issues: Issue[]; warning?: string; teamConnected: boolean }

@@ -309,6 +309,26 @@ module.exports = {
       }
     },
 
+    /** Dated local and scoped team issues for a calendar interval [start, end). */
+    async calendarIssues(ctx, { start, end } = {}) {
+      const valid = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v + 'T00:00:00Z')) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v
+      if (!valid(start) || !valid(end) || end <= start || Date.parse(end) - Date.parse(start) > 62 * 86400000) throw new Error('Choose a valid calendar date range.')
+      const local = localStore(ctx)
+      const projects = await local.listProjects()
+      const localIssues = (await Promise.all(projects.map((p) => local.listIssues(p.key)))).flat().filter((i) => i.dueDate && i.dueDate >= start && i.dueDate < end)
+      const conn = await resolveConnection(ctx)
+      let remote = [], warning
+      if (conn.error) warning = conn.error
+      else if (!conn.missing) {
+        try {
+          const { jira } = await client(ctx)
+          remote = await jira.search(`(${scopeClause(conn)}) AND due >= "${start}" AND due < "${end}" ORDER BY due ASC`, 2001)
+          if (remote.length > 2000) { remote = remote.slice(0, 2000); warning = 'Only the first 2,000 matching team Jira issues are shown.' }
+        } catch (e) { warning = e.message }
+      }
+      return { issues: [...localIssues, ...remote], warning, teamConnected: !conn.missing && !conn.error }
+    },
+
     /** listIssues({ source: 'local'|'jira'|'all', projectKey? }) */
     async listIssues(ctx, args) {
       const local = localStore(ctx)

@@ -15,6 +15,7 @@ export const jiraPlusApp: AppDefinition = {
     'listTriggerTemplates',
     'saveTriggerTemplate',
     'deleteTriggerTemplate',
+    'calendarIssues',
     'getOverview',
     'listIssues',
     'getIssue',
