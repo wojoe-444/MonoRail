@@ -1,7 +1,8 @@
-import { Check } from 'lucide-react'
+import { useId, useState } from 'react'
+import { Check, ChevronRight } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { PALETTE_GROUPS, PALETTES, tokens, type Palette } from '@/lib/palettes'
+import { groupPalettes, PALETTE_GROUPS, tokens, type Palette, type PaletteGroup } from '@/lib/palettes'
 import { usePalette, useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -18,11 +19,22 @@ export function Swatches({ p, dark, className }: { p: Palette; dark: boolean; cl
   )
 }
 
-/** Settings card: light / dark mode and every color scheme as a card with swatches. */
+/** Below Tailwind's `xl` the scheme grid drops to two columns and the list gets long. */
+const SMALL_SCREEN = '(max-width: 1279px)'
+
+function isSmallScreen(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.(SMALL_SCREEN).matches
+}
+
+/** Settings card: light / dark mode and the color schemes, in collapsible sets. */
 export function AppearanceCard({ className }: { className?: string }) {
   const [palette, setPalette] = usePalette()
   const [theme, toggle] = useTheme()
   const dark = theme === 'dark'
+  // Every set starts open on a wide window and collapsed on a smaller one. Kept per visit only.
+  const [open, setOpen] = useState<Set<string>>(() =>
+    isSmallScreen() ? new Set() : new Set(PALETTE_GROUPS.map((g) => g.id)),
+  )
   return (
     <Card className={className}>
       <CardHeader>
@@ -49,35 +61,108 @@ export function AppearanceCard({ className }: { className?: string }) {
             </button>
           ))}
         </div>
-        {PALETTE_GROUPS.map((g) => (
-          <div key={g.label} className="flex flex-col gap-3">
-            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{g.label}</h3>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {PALETTES.slice(g.from, g.to).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPalette(p.id)}
-                  aria-pressed={p.id === palette}
-                  className={cn(
-                    'flex flex-col gap-3 rounded-xl border p-4 text-left transition-all outline-none hover:-translate-y-0.5 hover:shadow-elevation-2 focus-visible:ring-[3px] focus-visible:ring-ring',
-                    p.id === palette && 'border-primary ring-2 ring-primary/30',
-                  )}
-                >
-                  <Swatches p={p} dark={dark} className="h-9" />
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="flex flex-col">
-                      <span className="text-sm font-semibold">{p.name}</span>
-                      <span className="text-xs text-muted-foreground">{p.blurb}</span>
-                    </span>
-                    {p.id === palette && <Check className="size-4 shrink-0 text-primary" />}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="flex flex-col divide-y rounded-xl border">
+          {PALETTE_GROUPS.map((g) => (
+            <PaletteSet
+              key={g.id}
+              group={g}
+              dark={dark}
+              active={palette}
+              onPick={setPalette}
+              open={open.has(g.id)}
+              onToggle={() =>
+                setOpen((s) => {
+                  const next = new Set(s)
+                  if (next.has(g.id)) next.delete(g.id)
+                  else next.add(g.id)
+                  return next
+                })
+              }
+            />
+          ))}
+        </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** One collapsible set: a header row (name, blurb, count, current scheme, swatch preview) over a grid of schemes. */
+function PaletteSet({
+  group,
+  dark,
+  active,
+  onPick,
+  open,
+  onToggle,
+}: {
+  group: PaletteGroup
+  dark: boolean
+  active: string
+  onPick: (id: string) => void
+  open: boolean
+  onToggle: () => void
+}) {
+  const panelId = useId()
+  const palettes = groupPalettes(group)
+  const current = palettes.find((p) => p.id === active)
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors outline-none first:rounded-t-xl hover:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        <ChevronRight
+          className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')}
+        />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold">{group.label}</span>
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">{palettes.length}</span>
+            {current && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary-soft-foreground">
+                <Check className="size-3" />
+                {current.name}
+              </span>
+            )}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">{group.blurb}</span>
+        </span>
+        {!open && (
+          <span className="hidden shrink-0 gap-1 sm:flex" aria-hidden>
+            {palettes.slice(0, 6).map((p) => (
+              <Swatches key={p.id} p={p} dark={dark} className="h-4 w-10" />
+            ))}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div id={panelId} className="grid gap-4 px-4 pt-1 pb-4 sm:grid-cols-2 xl:grid-cols-3">
+          {palettes.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onPick(p.id)}
+              aria-pressed={p.id === active}
+              className={cn(
+                'flex flex-col gap-3 rounded-xl border p-4 text-left transition-all outline-none hover:-translate-y-0.5 hover:shadow-elevation-2 focus-visible:ring-[3px] focus-visible:ring-ring',
+                p.id === active && 'border-primary ring-2 ring-primary/30',
+              )}
+            >
+              <Swatches p={p} dark={dark} className="h-9" />
+              <span className="flex items-center justify-between gap-2">
+                <span className="flex flex-col">
+                  <span className="text-sm font-semibold">{p.name}</span>
+                  <span className="text-xs text-muted-foreground">{p.blurb}</span>
+                </span>
+                {p.id === active && <Check className="size-4 shrink-0 text-primary" />}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

@@ -103,13 +103,58 @@ export const PALETTES: Palette[] = [
   },
 ]
 
-/** Display groups, in PALETTES order. */
-export const PALETTE_GROUPS: { label: string; from: number; to: number }[] = [
-  { label: 'Set 1', from: 0, to: 12 },
-  { label: 'Set 2', from: 12, to: 24 },
-  { label: 'Neutrals (no blue or purple cast)', from: 24, to: 28 },
-  { label: 'Nature', from: 28, to: 31 },
+export interface PaletteGroup {
+  id: string
+  label: string
+  /** One line under the set's name: what the schemes in it share. */
+  blurb: string
+  /** Palette ids, in display order. Every palette is in exactly one group. */
+  ids: string[]
+}
+
+/** Display sets for the picker in Settings > Appearance, grouped by character and hue family. */
+export const PALETTE_GROUPS: PaletteGroup[] = [
+  {
+    id: 'paper',
+    label: 'Paper',
+    blurb: 'Light drawers on calm, bright pages',
+    ids: ['sand-ink', 'paper-indigo', 'graphite-light', 'sky-day', 'mint-light', 'lavender-mist'],
+  },
+  {
+    id: 'nature',
+    label: 'Nature',
+    blurb: 'Greens and earth: botanicals, forests, moss and lime',
+    ids: ['botanical', 'botanical-linen', 'botanical-sand', 'sage', 'emerald-forest', 'forest-bold', 'grass-block', 'lime-circuit'],
+  },
+  {
+    id: 'ocean-night',
+    label: 'Ocean & Night',
+    blurb: 'Blues, teals and violets on deep chrome',
+    ids: ['indigo-ink', 'indigo-bold', 'ocean-teal', 'teal-bold', 'cobalt-sand', 'violet-dusk'],
+  },
+  {
+    id: 'warm',
+    label: 'Warm',
+    blurb: 'Reds, ambers, golds and pinks',
+    ids: ['redstone', 'crimson-bold', 'sunset-amber', 'copper', 'gold-rush', 'coral-reef', 'rose-quartz', 'magenta-pop'],
+  },
+  {
+    id: 'neutrals',
+    label: 'Neutrals',
+    blurb: 'Grays with almost no color',
+    ids: ['slate-mono', 'warm-stone', 'true-gray'],
+  },
 ]
+
+/** The palettes of a group, in its display order. */
+export function groupPalettes(g: PaletteGroup): Palette[] {
+  return g.ids.map((id) => PALETTES.find((p) => p.id === id)).filter((p): p is Palette => !!p)
+}
+
+/** The group a palette is shown in. */
+export function groupOf(id: string): PaletteGroup | undefined {
+  return PALETTE_GROUPS.find((g) => g.ids.includes(id))
+}
 
 export function findPalette(id: string | null | undefined): Palette {
   return PALETTES.find((p) => p.id === id) ?? PALETTES.find((p) => p.id === DEFAULT_PALETTE)!
