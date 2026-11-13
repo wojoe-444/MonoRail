@@ -237,6 +237,31 @@ describe('team Jira connection', () => {
     }
   }
 
+  it('loads calendar dates from private projects and the scoped team query', async () => {
+    const ctx = ctxFor()
+    backend._setCredentialSource(async () => ({ siteUrl: 'https://team.atlassian.net', email: 'c@example.invalid', token: 't1' }))
+    await backend.methods.createLocalProject(ctx, { key: 'ME', name: 'Personal' })
+    await backend.methods.createIssue(ctx, { source: 'local', projectKey: 'ME', summary: 'First', dueDate: '2026-11-01' })
+    await backend.methods.createIssue(ctx, { source: 'local', projectKey: 'ME', summary: 'Outside', dueDate: '2026-12-01' })
+    let jql = ''
+    global.fetch = async (_url, opts) => {
+      jql = JSON.parse(opts.body).jql
+      return { ok: true, status: 200, text: async () => JSON.stringify({ isLast: true, issues: [{ key: 'TEAM-1', fields: { summary: 'Team', duedate: '2026-11-15', project: { key: 'TEAM' } } }] }) }
+    }
+    try {
+      const result = await backend.methods.calendarIssues(ctx, { start: '2026-11-01', end: '2026-12-01' })
+      assert.deepEqual(result.issues.map((i) => i.key), ['ME-1', 'TEAM-1'])
+      assert.equal(result.issues[1].dueDate, '2026-11-15')
+      assert.match(jql, /assignee = currentUser/)
+      assert.match(jql, /due >= "2026-11-01" AND due < "2026-12-01"/)
+      await assert.rejects(backend.methods.calendarIssues(ctx, { start: '2026-02-30', end: '2026-12-01' }), /valid calendar/)
+      global.fetch = async () => { throw new Error('offline') }
+      const offline = await backend.methods.calendarIssues(ctx, { start: '2026-11-01', end: '2026-12-01' })
+      assert.equal(offline.issues.length, 1)
+      assert.match(offline.warning, /offline/)
+    } finally { global.fetch = realFetch }
+  })
+
   it('uses the Atlassian connection from the Connections page', async () => {
     stubFetch()
     backend._setCredentialSource(async () => ({ siteUrl: 'https://team.atlassian.net', email: 'c@example.invalid', token: 't1' }))

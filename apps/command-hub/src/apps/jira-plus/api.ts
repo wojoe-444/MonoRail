@@ -3,6 +3,7 @@ import { isDesktop } from '@/modules/client'
 
 import { createSampleBackend } from './sample'
 import type {
+  CalendarIssues,
   Comment,
   Connection,
   Issue,
@@ -30,6 +31,7 @@ export interface JiraApi {
   listTriggerTemplates(args: { source: Source; projectKey: string }): Promise<TriggerTemplate[]>
   saveTriggerTemplate(args: TriggerTemplateDraft): Promise<TriggerTemplate>
   deleteTriggerTemplate(args: { source: Source; projectKey: string; id: string }): Promise<{ ok: true }>
+  calendarIssues(args: { start: string; end: string }): Promise<CalendarIssues>
   getOverview(): Promise<Overview>
   listIssues(args: { source: Source | 'all'; projectKey?: string }): Promise<Issue[]>
   getIssue(args: { source: Source; key: string }): Promise<IssueDetail>
@@ -71,6 +73,7 @@ function desktopApi(): JiraApi {
     listTriggerTemplates: call('listTriggerTemplates'),
     saveTriggerTemplate: call('saveTriggerTemplate'),
     deleteTriggerTemplate: call('deleteTriggerTemplate'),
+    calendarIssues: call('calendarIssues'),
     getOverview: call('getOverview'),
     listIssues: call('listIssues'),
     getIssue: call('getIssue'),

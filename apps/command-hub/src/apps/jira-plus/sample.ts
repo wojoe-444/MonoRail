@@ -72,6 +72,7 @@ function seed(): { projects: Project[]; rows: Row[]; next: Record<string, number
         projectKey: project,
         projectName: projects.find((p) => p.key === project)?.name,
         summary,
+        dueDate: n % 3 === 0 ? new Date(Date.now() + (n % 7 - 2) * 86400000).toLocaleDateString('en-CA') : undefined,
         description:
           source === 'local'
             ? 'Personal ticket. Lives in the local repo only.\n\n- What done looks like\n- Links and notes'
@@ -192,6 +193,9 @@ export function createSampleBackend(): JiraApi {
       if (index < 0) throw new Error('That template no longer exists.')
       templates.splice(index, 1)
       return wait({ ok: true as const })
+    },
+    async calendarIssues({ start, end }) {
+      return wait({ issues: visible().filter((i) => i.dueDate && i.dueDate >= start && i.dueDate < end).map(summary), teamConnected: connected })
     },
     async getOverview() {
       const projects = db.projects
