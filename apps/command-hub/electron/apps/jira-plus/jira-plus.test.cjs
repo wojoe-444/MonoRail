@@ -111,6 +111,7 @@ describe('parents and time logs', () => {
 
     await s.logWork({ key: 'ME-1', seconds: 1800, comment: 'Plan' })
     await s.logWork({ key: 'ME-2', seconds: 3600 })
+    const beforeLogging = Date.now()
     const log = await s.logWork({ key: 'ME-3', seconds: 2 * 3600, started: '2026-11-10T09:00:00Z' })
     await assert.rejects(s.logWork({ key: 'ME-3', seconds: 10 }), /one minute/)
     await assert.rejects(s.logWork({ key: 'ME-3', seconds: 8 * 24 * 3600 }), /at most a week/)
@@ -123,6 +124,8 @@ describe('parents and time logs', () => {
     assert.equal(task.parent.key, 'ME-2')
     assert.equal(task.parent.summary, 'Story')
     assert.equal(task.worklogs[0].started, '2026-11-10T09:00:00.000Z')
+    assert.equal(task.worklogs[0].created, log.created)
+    assert.ok(Date.parse(log.created) >= beforeLogging && Date.parse(log.created) <= Date.now())
     assert.ok(task.history.some((h) => h.text === 'Logged 2h'))
     assert.ok(task.history.some((h) => h.text === 'Parent set to ME-2'))
 

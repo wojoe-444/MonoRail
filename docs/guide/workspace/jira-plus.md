@@ -47,7 +47,7 @@ decides which types can be parents.
 
 **Log time** in the issue's Details records how long you worked, when you
 started and what you did. The **Work log** tab lists every entry, and you can
-delete one there. Details shows the time logged on the issue and, for a
+delete one there. Choose when the work started, including a past date when catching up. Each entry shows both the work start and when it was logged, in your local time. Details shows the time logged on the issue and, for a
 parent, the total including all its child issues. Time is written the Jira
 way: `2h 30m`, `45m`, or `1d` for a day of 8 hours. In private projects the
 log is saved with the ticket, so its [history](#private-projects) records it;

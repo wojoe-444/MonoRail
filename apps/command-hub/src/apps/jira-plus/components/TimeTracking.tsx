@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Clock, Loader2, Plus, Trash2 } from 'lucide-react'
 
-import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { errorText, jiraApi } from '../api'
@@ -86,7 +85,7 @@ export function LogTimeDialog({ issue, open, onClose, onLogged }: { issue?: Issu
           <button type="button" className="jp-btn jp-btn-subtle" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="jp-log" className="jp-btn jp-btn-primary" disabled={busy || !seconds}>
+          <button type="submit" form="jp-log" className="jp-btn jp-btn-primary" disabled={busy || !seconds || !started}>
             {busy && <Loader2 className="animate-spin" />} Log {seconds ? formatDuration(seconds) : 'time'}
           </button>
         </>
@@ -97,8 +96,8 @@ export function LogTimeDialog({ issue, open, onClose, onLogged }: { issue?: Issu
           <Field id="jp-l-spent" label="Time spent" required hint={bad ? <span className="text-(--jp-danger)">Try 2h 30m, 45m or 1.5</span> : 'Like 2h 30m, 45m or 1d (8h)'}>
             <input id="jp-l-spent" autoFocus className="jp-field font-mono" placeholder="2h 30m" value={spent} onChange={(e) => setSpent(e.target.value)} />
           </Field>
-          <Field id="jp-l-started" label="Started" required>
-            <input id="jp-l-started" type="datetime-local" className="jp-field" value={started} onChange={(e) => setStarted(e.target.value)} />
+          <Field id="jp-l-started" label="When work started" required hint="Choose a past date and time when catching up.">
+            <input id="jp-l-started" type="datetime-local" required className="jp-field" value={started} onChange={(e) => setStarted(e.target.value)} />
           </Field>
         </div>
         <Field id="jp-l-comment" label="What did you work on?">
@@ -124,9 +123,7 @@ export function WorklogList({ issue, onDelete, busy }: { issue: IssueDetail; onD
               <span>
                 logged <span className="font-mono font-semibold tabular-nums">{formatDuration(w.seconds)}</span>
               </span>
-              <span className="text-xs text-(--jp-subtle)" title={new Date(w.started).toLocaleString()}>
-                {formatRelative(w.started)}
-              </span>
+
               <button
                 type="button"
                 disabled={busy}
@@ -137,6 +134,10 @@ export function WorklogList({ issue, onDelete, busy }: { issue: IssueDetail; onD
               >
                 <Trash2 />
               </button>
+            </div>
+            <div className="mt-1 text-xs text-(--jp-subtle)">
+              <div>Work started: <time dateTime={w.started}>{new Date(w.started).toLocaleString()}</time></div>
+              {w.created ? <div>Logged: <time dateTime={w.created}>{new Date(w.created).toLocaleString()}</time></div> : <div>Logged time unavailable</div>}
             </div>
             {w.comment && <p className="mt-1 leading-6 break-words whitespace-pre-wrap">{w.comment}</p>}
           </div>

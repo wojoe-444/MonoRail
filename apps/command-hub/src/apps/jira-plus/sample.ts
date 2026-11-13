@@ -348,6 +348,7 @@ export function createSampleBackend(): JiraApi {
         started: started ? new Date(started).toISOString() : new Date().toISOString(),
         seconds,
         comment: comment?.trim() ?? '',
+        created: new Date().toISOString(),
       }
       i.worklogs.push(w)
       touch(i, `Logged ${Math.round(seconds / 60)}m`)
