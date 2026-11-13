@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, Folder, FolderGit2, FolderOpen, Loader2, Plus, X } from 'lucide-react'
+import { AlertTriangle, FolderGit2, FolderOpen, Loader2, Plus, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,9 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { invokeModule, isDesktop } from '@/modules/client'
 
 import { sampleFolders } from './sample'
-import type { AllowedFolders, SessionList } from './types'
-
-type HiddenFolder = NonNullable<SessionList['limits']['hiddenFolders']>[number]
+import type { AllowedFolders } from './types'
 
 /**
  * Allowed folders: the Repos folder (every git repo directly inside it) plus
@@ -18,13 +16,10 @@ type HiddenFolder = NonNullable<SessionList['limits']['hiddenFolders']>[number]
  */
 export function FoldersDialog({
   open,
-  hidden,
   onOpenChange,
   onChanged,
 }: {
   open: boolean
-  /** Chats the list leaves out, and the folders they ran in (from listSessions). */
-  hidden?: { count: number; folders: HiddenFolder[] }
   onOpenChange: (open: boolean) => void
   onChanged: () => void
 }) {
@@ -87,50 +82,7 @@ export function FoldersDialog({
         )}
 
         {folders && (
-          <div className="flex max-h-[70vh] flex-col gap-6 overflow-y-auto">
-            {hidden && hidden.count > 0 && (
-              <section className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium">Folders with hidden chats</h3>
-                <p className="text-xs text-muted-foreground">
-                  {hidden.count} {hidden.count === 1 ? 'chat is' : 'chats are'} hidden because {hidden.count === 1 ? 'it ran' : 'they ran'} outside
-                  your allowed repos. Chat only lists, opens and runs chats in repos you allow, so an agent started here can never reach other
-                  folders. Allow a repo to list its chats.
-                </p>
-                <ul className="flex flex-col divide-y rounded-lg border">
-                  {hidden.folders.map((f) => (
-                    <li key={f.path} className="flex items-center gap-3 px-3 py-2">
-                      {f.gitRepo ? <FolderGit2 className="size-4 shrink-0 text-muted-foreground" /> : <Folder className="size-4 shrink-0 text-muted-foreground" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium" title={f.path}>
-                          {baseName(f.path)}
-                        </div>
-                        <div className="truncate font-mono text-xs text-muted-foreground" title={f.path}>
-                          {f.path}
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {f.count} {f.count === 1 ? 'chat' : 'chats'}
-                      </span>
-                      {f.gitRepo ? (
-                        <Button size="sm" className="shrink-0" disabled={busy || !desktop} onClick={() => void run('allowHiddenRepo', { path: f.path })}>
-                          <Check /> Allow
-                        </Button>
-                      ) : (
-                        <Badge variant="secondary" className="shrink-0" title="Only git repos can be allowed">
-                          not a repo
-                        </Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {hidden.folders.some((f) => !f.gitRepo) && (
-                  <p className="text-xs text-muted-foreground">
-                    Folders that are not inside a git repo (your home folder, for example) cannot be allowed. Start those chats inside a repo
-                    instead.
-                  </p>
-                )}
-              </section>
-            )}
+          <div className="flex flex-col gap-6">
             <section className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium">Repos folder</h3>
@@ -194,10 +146,6 @@ function RepoRow({ name, path, missing, disabled, onRemove }: { name: string; pa
       </Button>
     </li>
   )
-}
-
-function baseName(p: string) {
-  return p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
 }
 
 function samePath(a: string, b: string) {

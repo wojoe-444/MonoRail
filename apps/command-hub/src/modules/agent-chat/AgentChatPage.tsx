@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   FlaskConical,
+  Folder,
   FolderGit2,
   FolderPlus,
   GitBranch,
@@ -28,6 +29,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
@@ -325,61 +327,75 @@ export default function AgentChatPage() {
     return c
   }, [sessions])
 
-  const newChat = () => {
-    setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
-    setSendError(undefined)
-  }
-  const togglePanel = (kind: PanelKind) => setPanel((p) => (p === kind ? undefined : kind))
-  const paneTools = (
-    <>
-      <IconButton label="Changes" pressed={panel === 'changes'} onClick={() => togglePanel('changes')}>
-        <GitCompare />
-      </IconButton>
-      <IconButton label="Browser" pressed={panel === 'browser'} onClick={() => togglePanel('browser')}>
-        <Globe />
-      </IconButton>
-    </>
-  )
-
   return (
-    // Fills the page body below the top bar, edge to edge (module layout 'full'), so only the panes scroll.
-    <div className="flex h-full min-h-[32rem] flex-col">
+    // Fills the window below the 64px top bar and the main padding, so only the panes scroll.
+    <div className="flex h-[calc(100dvh-7rem)] min-h-[32rem] flex-col gap-6 lg:h-[calc(100dvh-8rem)]">
+      <PageHeader
+        eyebrow="Agents"
+        title="Chat"
+        description="Claude Code and pi sessions in your allowed repos, read from their local logs."
+        actions={
+          <>
+            {!desktop && (
+              <Badge variant="info">
+                <FlaskConical /> Sample data
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setFoldersOpen(true)}>
+              <Settings2 /> Folders
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPromptsOpen(true)}>
+              <ScrollText /> Prompts
+            </Button>
+            <Button
+              variant={panel === 'changes' ? 'secondary' : 'outline'}
+              size="sm"
+              aria-pressed={panel === 'changes'}
+              onClick={() => setPanel((p) => (p === 'changes' ? undefined : 'changes'))}
+            >
+              <GitCompare /> Changes
+            </Button>
+            <Button
+              variant={panel === 'browser' ? 'secondary' : 'outline'}
+              size="sm"
+              aria-pressed={panel === 'browser'}
+              onClick={() => setPanel((p) => (p === 'browser' ? undefined : 'browser'))}
+            >
+              <Globe /> Browser
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
+                setSendError(undefined)
+              }}
+            >
+              <Plus /> New chat
+            </Button>
+            {desktop && (
+              <Button variant="outline" size="sm" onClick={() => void list.refresh()} disabled={list.fetching}>
+                {list.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                Refresh
+              </Button>
+            )}
+          </>
+        }
+      />
+
       <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 
       <FoldersDialog
         open={foldersOpen}
-        hidden={data?.limits ? { count: data.limits.outsideAllowed, folders: data.limits.hiddenFolders ?? [] } : undefined}
         onOpenChange={setFoldersOpen}
         onChanged={() => {
           if (desktop) void list.refresh()
         }}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden bg-card text-card-foreground">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
         {/* Session list */}
         <aside className="flex w-80 shrink-0 flex-col border-r">
           <div className="flex flex-col gap-3 border-b p-4">
-            <div className="flex items-center gap-1">
-              <Button size="sm" className="mr-auto" onClick={newChat}>
-                <Plus /> New chat
-              </Button>
-              {!desktop && (
-                <Badge variant="info" title="The browser dev server has no backend, so this is fictional sample data.">
-                  <FlaskConical /> Sample
-                </Badge>
-              )}
-              <IconButton label="Allowed folders" onClick={() => setFoldersOpen(true)}>
-                <Settings2 />
-              </IconButton>
-              <IconButton label="System prompts" onClick={() => setPromptsOpen(true)}>
-                <ScrollText />
-              </IconButton>
-              {desktop && (
-                <IconButton label="Refresh" onClick={() => void list.refresh()} disabled={list.fetching}>
-                  {list.fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                </IconButton>
-              )}
-            </div>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -477,7 +493,6 @@ export default function AgentChatPage() {
                 turns={chatTurns}
                 composer={composer}
                 view={prefs.view}
-                tools={paneTools}
               />
             ) : selected ? (
               <Conversation
@@ -487,7 +502,6 @@ export default function AgentChatPage() {
                 turns={chatTurns}
                 composer={composer}
                 view={prefs.view}
-                tools={paneTools}
                 onAttach={(turnId) => attach(turnId, selected.id, selected.source)}
               />
             ) : (
@@ -739,19 +753,35 @@ function ListLimits({ limits, onOpenFolders }: { limits?: SessionList['limits'];
   const hidden = limits.outsideAllowed
   if (!notes.length && !hidden) return null
   return (
-    <div className="space-y-2 px-3 py-3 text-xs text-muted-foreground">
+    <div className="space-y-3 px-3 py-3 text-xs text-muted-foreground">
       {notes.length > 0 && <p>{notes.join(' ')}</p>}
-      {hidden > 0 && onOpenFolders && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 w-full text-xs"
-          onClick={onOpenFolders}
-          title={`${hidden} ${hidden === 1 ? 'chat ran' : 'chats ran'} outside your allowed repos`}
-        >
-          <FolderPlus /> Allow folders
-          <span className="ml-auto rounded-full bg-muted px-1.5 tabular-nums">{hidden} hidden</span>
-        </Button>
+      {hidden > 0 && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <p>
+            {hidden} {hidden === 1 ? 'chat is' : 'chats are'} hidden because {hidden === 1 ? 'it ran' : 'they ran'} outside your allowed repos. Chat
+            only lists, opens and runs chats in repos you allow, so an agent started here can never reach other folders.
+          </p>
+          {!!limits.hiddenFolders?.length && (
+            <ul className="space-y-1">
+              {limits.hiddenFolders.map((f) => (
+                <li key={f.path} className="flex items-center gap-2" title={f.path}>
+                  <Folder className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate font-mono">{f.path}</span>
+                  {f.gitRepo === false && <span className="shrink-0 rounded bg-muted px-1">not a repo</span>}
+                  <span className="shrink-0 tabular-nums">{f.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {limits.hiddenFolders?.some((f) => f.gitRepo === false) && (
+            <p>Folders that are not a git repo (your home folder, for example) cannot be allowed. Start those chats inside a repo instead.</p>
+          )}
+          {onOpenFolders && (
+            <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={onOpenFolders}>
+              <FolderPlus /> Allow folders…
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -784,7 +814,6 @@ function Conversation({
   turns,
   composer,
   view,
-  tools,
   onAttach,
 }: {
   /** Missing for a new chat that has not started yet. */
@@ -799,8 +828,6 @@ function Conversation({
   turns: LiveTurn[]
   composer: ReactNode
   view: ChatView
-  /** Pane toggles (Changes, Browser), shown at the right of the header. */
-  tools?: ReactNode
   onAttach?: (turnId: string) => void
 }) {
   const desktop = isDesktop()
@@ -873,7 +900,6 @@ function Conversation({
   if (!session && turns.length === 0) {
     return (
       <>
-        <DraftHeader repoName={draftRepoName} coordinator={coordinator} tools={tools} />
         <NewChatEmpty repoName={draftRepoName} sdk={sdk} coordinator={coordinator} />
         {composer}
       </>
@@ -882,11 +908,7 @@ function Conversation({
 
   return (
     <>
-      {session ? (
-        <ConversationHeader session={session} totals={totals} tools={tools} />
-      ) : (
-        <DraftHeader repoName={draftRepoName} coordinator={coordinator} tools={tools} />
-      )}
+      {session && <ConversationHeader session={session} totals={totals} />}
       <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-6">
           {error && (
@@ -939,15 +961,7 @@ function Conversation({
   )
 }
 
-function ConversationHeader({
-  session,
-  totals,
-  tools,
-}: {
-  session: SessionSummary
-  totals: ReturnType<typeof chatTotalView>
-  tools?: ReactNode
-}) {
+function ConversationHeader({ session, totals }: { session: SessionSummary; totals: ReturnType<typeof chatTotalView> }) {
   return (
     <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b px-6 py-3">
       <SourceAvatar source={session.source} className="size-9" />
@@ -973,60 +987,8 @@ function ConversationHeader({
             {session.model}
           </Badge>
         )}
-        {tools && <span className="mx-1 h-6 w-px bg-border" aria-hidden />}
-        {tools}
       </div>
     </div>
-  )
-}
-
-function DraftHeader({ repoName, coordinator, tools }: { repoName?: string; coordinator?: boolean; tools?: ReactNode }) {
-  return (
-    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b px-6 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold">{coordinator ? 'New coordinator chat' : 'New chat'}</div>
-        {repoName && !coordinator && (
-          <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <FolderGit2 className="size-3.5" /> {repoName}
-          </div>
-        )}
-      </div>
-      {!coordinator && <div className="flex shrink-0 items-center gap-1">{tools}</div>}
-    </div>
-  )
-}
-
-/** A compact icon button with a tooltip; `pressed` makes it a toggle. */
-function IconButton({
-  label,
-  pressed,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string
-  pressed?: boolean
-  onClick: () => void
-  disabled?: boolean
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant={pressed ? 'secondary' : 'ghost'}
-          size="icon"
-          className="size-8"
-          aria-label={label}
-          aria-pressed={pressed}
-          onClick={onClick}
-          disabled={disabled}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
   )
 }
 

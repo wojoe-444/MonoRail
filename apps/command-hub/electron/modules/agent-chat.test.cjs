@@ -115,12 +115,6 @@ test('lists only chats whose folder is in an allowed repo', async () => {
   assert.equal(sessions.find((s) => s.id === 'claude:abc').repo.name, 'demo-app')
   await assert.rejects(chat.getSession('claude:out', opts(home)), /not found/)
 
-  // Only an offered repo can be allowed with one click.
-  await assert.rejects(chat.allowHiddenRepo(opts(home).dataDir, path.join(home, 'Repos')), /not one of the repos/)
-  await chat.allowHiddenRepo(opts(home).dataDir, outside)
-  assert.ok((await chat.listSessions(opts(home))).sessions.some((s) => s.id === 'claude:out'))
-  await folders.removeRepo(opts(home).dataDir, outside)
-
   // Adding the repo in settings allows it.
   await folders.addRepo(opts(home).dataDir, outside)
   const again = await chat.listSessions(opts(home))
@@ -128,23 +122,6 @@ test('lists only chats whose folder is in an allowed repo', async () => {
   // Removing it again shuts the chat even though it is still in the cached index.
   await folders.removeRepo(opts(home).dataDir, outside)
   await assert.rejects(chat.getSession('claude:out', opts(home)), /not in an allowed folder/)
-})
-
-test('hidden chats in a subfolder are offered as their repo; the home folder never is', async () => {
-  const home = fixture()
-  const repo = path.join(home, 'work', 'tool')
-  fs.mkdirSync(path.join(repo, '.git'), { recursive: true })
-  fs.mkdirSync(path.join(repo, 'src'), { recursive: true })
-  fs.mkdirSync(path.join(home, '.git'), { recursive: true }) // a dotfiles repo
-  const dir = path.join(home, '.claude', 'projects', '-sub')
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, 'a.jsonl'), jsonl([{ type: 'user', timestamp: '2026-01-04T00:00:00Z', cwd: path.join(repo, 'src'), message: { content: 'A' } }]))
-  fs.writeFileSync(path.join(dir, 'b.jsonl'), jsonl([{ type: 'user', timestamp: '2026-01-04T00:00:01Z', cwd: repo, message: { content: 'B' } }]))
-  fs.writeFileSync(path.join(dir, 'c.jsonl'), jsonl([{ type: 'user', timestamp: '2026-01-04T00:00:02Z', cwd: home, message: { content: 'C' } }]))
-  const { limits } = await chat.listSessions(opts(home))
-  const real = fs.realpathSync(repo)
-  assert.deepEqual(limits.hiddenFolders, [{ path: real, count: 2, gitRepo: true }, { path: home, count: 1, gitRepo: false }])
-  await assert.rejects(chat.allowHiddenRepo(opts(home).dataDir, home), /not one of the repos/)
 })
 
 test('a history keeps the last 300 messages and says it was cut', async () => {
