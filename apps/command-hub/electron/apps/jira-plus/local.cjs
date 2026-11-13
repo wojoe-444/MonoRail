@@ -21,6 +21,7 @@ const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const path = require('node:path')
 const git = require('isomorphic-git')
+const { randomUUID } = require('node:crypto')
 
 const { sleep, tryLock } = require('../../cache/files.cjs')
 
@@ -134,6 +135,17 @@ function createLocalStore(repoDir) {
       await git.add({ fs, dir: repoDir, filepath: rel })
     }
     await git.commit({ fs, dir: repoDir, message, author: AUTHOR })
+  }
+
+  function templateRel(source, projectKey) {
+    if (!['local', 'jira'].includes(source) || !validKey(projectKey)) throw new Error('Invalid project.')
+    return `trigger-templates/${source}/${projectKey}.json`
+  }
+
+  async function listTriggerTemplates({ source, projectKey }) {
+    await ensureRepo()
+    const rel = templateRel(source, projectKey)
+    try { return await readJson(path.join(repoDir, rel)) } catch (e) { if (e.code === 'ENOENT') return []; throw e }
   }
 
   async function listProjects() {
@@ -313,6 +325,29 @@ function createLocalStore(repoDir) {
     meta: { statuses: STATUSES, types: TYPES, priorities: PRIORITIES, repoDir },
     listProjects,
     parentOptions,
+    listTriggerTemplates,
+    saveTriggerTemplate: (args) => serial(async () => {
+      const { source, projectKey, id } = args
+      const rel = templateRel(source, projectKey)
+      const summary = String(args.summary ?? '').trim()
+      if (!summary) throw new Error('A template needs a task summary.')
+      const items = await listTriggerTemplates({ source, projectKey })
+      const index = id ? items.findIndex((t) => t.id === id) : -1
+      if (id && index < 0) throw new Error('That template no longer exists.')
+      const now = new Date().toISOString()
+      const template = { id: id || randomUUID(), source, projectKey, summary, description: String(args.description ?? '').trim(), condition: String(args.condition ?? '').trim(), priority: PRIORITIES.includes(args.priority) ? args.priority : 'Medium', created: index < 0 ? now : items[index].created, updated: now }
+      if (index < 0) items.push(template); else items[index] = template
+      await writeAndCommit([[rel, items]], `${projectKey}: ${index < 0 ? 'Create' : 'Update'} trigger template`)
+      return template
+    }),
+    deleteTriggerTemplate: (args) => serial(async () => {
+      const rel = templateRel(args.source, args.projectKey)
+      const items = await listTriggerTemplates(args)
+      const next = items.filter((t) => t.id !== args.id)
+      if (next.length === items.length) throw new Error('That template no longer exists.')
+      await writeAndCommit([[rel, next]], `${args.projectKey}: Delete trigger template`)
+      return { ok: true }
+    }),
     listIssues,
     getIssue,
 

@@ -12,6 +12,9 @@ export const jiraPlusApp: AppDefinition = {
   placement: 'workspace',
   component: lazy(() => import('./JiraPlusApp')),
   dataMethods: [
+    'listTriggerTemplates',
+    'saveTriggerTemplate',
+    'deleteTriggerTemplate',
     'getOverview',
     'listIssues',
     'getIssue',

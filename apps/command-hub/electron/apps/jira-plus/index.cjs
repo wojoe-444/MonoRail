@@ -266,6 +266,9 @@ module.exports = {
     accounts.clear()
   },
   methods: {
+    async listTriggerTemplates(ctx, args) { return localStore(ctx).listTriggerTemplates(args) },
+    async saveTriggerTemplate(ctx, args) { return localStore(ctx).saveTriggerTemplate(args) },
+    async deleteTriggerTemplate(ctx, args) { return localStore(ctx).deleteTriggerTemplate(args) },
     /** Projects from both sources plus the Jira connection status. Jira errors don't hide local projects. */
     async getOverview(ctx) {
       const local = localStore(ctx)
