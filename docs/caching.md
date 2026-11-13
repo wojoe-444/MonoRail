@@ -1,9 +1,15 @@
+---
+audience: ai
+---
+
 # Caching in MonoRail
 
 Every cache in MonoRail goes through one shared primitive in
 `apps/command-hub/electron/cache/`, and every cache is declared in one place:
 `electron/cache/declared.cjs`. This page lists the rules and how to use the
 primitive. The rules are numbered so code and tests can point at them.
+
+For what this means for your data, read [private data stays local](guide/private-data.md).
 
 ## Rules for caches
 
@@ -26,7 +32,7 @@ say so. Sources that are deliberately not cached are in `NOT_CACHED`:
 | Source | Policy |
 | --- | --- |
 | Email | Mail is fetched on demand and never written to disk, by design. |
-| Chat | Logs are read in place and never copied or cached to disk. Nothing from a transcript (titles and previews included) is persisted; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived, started here). |
+| Chat | Logs are read in place and never copied or cached to disk. Nothing from a transcript (titles and previews included) is persisted; only running cost numbers per session (costs.json) and list flags per chat id (chat-state.json: last seen, unread, archived, started here), and, only while the spending limit is on, its settings and dollars spent per day (spending.json). |
 | Jira Cloud | Tickets are fetched on demand and not cached. |
 | Claude Stats | Derived only: token counts, costs, models, projects and session ids. Never prompt or reply text. |
 

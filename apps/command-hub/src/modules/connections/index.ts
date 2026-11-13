@@ -14,7 +14,7 @@ export const connectionsModule: ModuleDefinition = {
   description: 'Accounts MonoRail signs in with, and whether each one still works.',
   icon: KeyRound,
   path: '/connections',
-  nav: { section: 'Configure', order: 100 },
+  nav: { section: 'Settings', group: 'Accounts & access', order: 100 },
   component: lazy(() => import('./ConnectionsPage')),
   dataMethods: ['list', 'check', 'save', 'remove', 'runAction', 'getJob', 'cancelJob', 'listWindowsCredentials'],
 }

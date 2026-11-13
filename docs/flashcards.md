@@ -1,8 +1,14 @@
+---
+audience: human, ai
+---
+
 # Flashcards
 
 **Workspace > Flashcards** keeps spaced repetition decks: each card comes back
 just before you would forget it, so a few minutes a day is enough to remember
 it for years.
+
+Flashcards is one of the pages in [your workspace](guide/workspace/README.md); agents can add cards through [agent access](guide/agents/agent-access.md).
 
 ## Decks and cards
 
@@ -63,5 +69,5 @@ refuses to change it, so a backup copy of it can be put back.
 
 Agents connected to [MonoRail's MCP server](mcp.md) can read your decks
 (`list_flashcard_decks`, `list_flashcards`) and, once you allow it for that
-agent on **Configure > Agent access**, add cards with `add_flashcards`, for
+agent on **Settings > Agent access**, add cards with `add_flashcards`, for
 example "make flashcards from this chapter". Every call is in the Activity log.

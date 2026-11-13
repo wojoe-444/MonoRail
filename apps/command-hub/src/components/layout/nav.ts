@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bot, BookOpen, History, House, LayoutGrid } from 'lucide-react'
+import { Bot, History, House, LayoutGrid, Settings } from 'lucide-react'
 
 import { apps, fullscreenApps, isWorkspaceApp } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
@@ -21,6 +21,8 @@ export interface NavItem {
 
 export interface NavSection {
   heading?: string
+  /** Drawn at the bottom of the drawer instead of in the scrolling list (Settings). */
+  pinned?: boolean
   items: NavItem[]
 }
 
@@ -30,7 +32,7 @@ export interface NavSection {
  * through the same registries (src/extensions).
  */
 function coreSections(list: ExtensionList): NavSection[] {
-  // Workspace apps (GitHub+, Jira+, Email) are pages under the drawer; their
+  // Workspace apps (GitHub+, Tasks, Email) are pages under the drawer; their
   // own routes all belong to their one nav item.
   const workspaceApps: NavItem[] = apps
     .filter(isWorkspaceApp)
@@ -54,16 +56,9 @@ function coreSections(list: ExtensionList): NavSection[] {
           // Agent Chat (a module) joins these through nav.parent.
           children: [
             { path: '/agents/runs', label: 'Runs', icon: History },
-            { path: '/agents/library', label: 'Library', icon: BookOpen },
           ],
         },
         ...workspaceApps,
-      ],
-    },
-    {
-      heading: 'Configure',
-      items: [
-        // Connections, Extensions and Settings are modules and join this section from the registry.
       ],
     },
     {
@@ -74,11 +69,25 @@ function coreSections(list: ExtensionList): NavSection[] {
   ]
 }
 
-/** Merge module nav entries into sections. New module sections go before "Configure". */
+/** The section name that makes a module a Settings page. */
+export const SETTINGS_SECTION = 'Settings'
+/** The Settings home page: the one Settings button in the drawer opens it. */
+export const SETTINGS_PATH = '/settings'
+
+/**
+ * Merge module nav entries into sections. New module sections go before
+ * "Help". Settings pages (`nav.section: 'Settings'`) are not listed in the
+ * drawer: they become subpages of the one Settings item, which sits in its
+ * own pinned section at the bottom (no heading, so the breadcrumb reads
+ * "MonoRail > Settings > Connections").
+ */
 export function buildNavSections(list: ExtensionList): NavSection[] {
-  const sections = coreSections(list).filter((s) => s.items.length > 0 || s.heading === 'Configure' || s.heading === 'Help')
+  const sections = coreSections(list).filter((s) => s.items.length > 0 || s.heading === 'Help')
   const sorted = [...allModules(list)].sort((a, b) => (a.nav.order ?? 100) - (b.nav.order ?? 100))
+  const settingsPages = sorted.filter((m) => m.nav.section === SETTINGS_SECTION)
+  const home = settingsPages.find((m) => m.path === SETTINGS_PATH)
   for (const m of sorted) {
+    if (m.nav.section === SETTINGS_SECTION) continue
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
     const parent = m.nav.parent ? findNavItem(sections, m.nav.parent)?.item : undefined
     if (parent) {
@@ -88,12 +97,17 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
     let section = sections.find((s) => s.heading === m.nav.section)
     if (!section) {
       section = { heading: m.nav.section, items: [] }
-      const configureIdx = sections.findIndex((s) => s.heading === 'Configure')
-      sections.splice(configureIdx === -1 ? sections.length : configureIdx, 0, section)
+      const helpIdx = sections.findIndex((s) => s.heading === 'Help')
+      sections.splice(helpIdx === -1 ? sections.length : helpIdx, 0, section)
     }
     section.items.push(item)
   }
-  return sections.filter((s) => s.items.length > 0 || s.heading === 'Configure')
+  const out = sections.filter((s) => s.items.length > 0)
+  if (home) {
+    const children = settingsPages.filter((m) => m !== home).map((m) => ({ path: m.path, label: m.title, icon: m.icon }))
+    out.push({ pinned: true, items: [{ path: home.path, label: home.title, icon: Settings, children }] })
+  }
+  return out
 }
 
 /** Every item, subpages included, in drawer order. */

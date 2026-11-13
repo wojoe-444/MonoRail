@@ -9,6 +9,7 @@ import ThreadView from '../components/ThreadView'
 import { useMail } from '../MailContext'
 import type { Account, ThreadSummary } from '../types'
 import { accountLabel, listDate, nameOf } from '../util'
+import { prefs } from '@/lib/prefs'
 
 const SCOPE_KEY = 'monorail.email.searchAccounts'
 const DAY_OPTIONS = [0, 1, 7, 30, 90, 365]
@@ -27,9 +28,9 @@ export default function Mailbox() {
   const accounts = useMemo(() => state?.accounts ?? [], [state])
 
   // Which accounts a search covers (remembered); the current one by default.
-  const [scope, setScopeState] = useState<string[]>(() => JSON.parse(localStorage.getItem(SCOPE_KEY) ?? '[]') as string[])
+  const [scope, setScopeState] = useState<string[]>(() => JSON.parse(prefs.getItem(SCOPE_KEY) ?? '[]') as string[])
   const setScope = (ids: string[]) => {
-    localStorage.setItem(SCOPE_KEY, JSON.stringify(ids))
+    prefs.setItem(SCOPE_KEY, JSON.stringify(ids))
     setScopeState(ids)
   }
   const searchIds = useMemo(() => {

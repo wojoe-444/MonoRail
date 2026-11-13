@@ -1,3 +1,7 @@
+---
+audience: human, ai
+---
+
 # Concepts
 
 ## The three building blocks

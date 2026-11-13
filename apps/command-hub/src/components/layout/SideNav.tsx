@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,10 +11,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { BrandTile } from '@/components/layout/BrandMark'
-import { isDesktop } from '@/modules/client'
 import { cn } from '@/lib/utils'
 
+import { useSettingsAlerts } from '@/modules/settings/alerts'
+
 import { useNavSections, type NavItem } from './nav'
+import { prefs } from '@/lib/prefs'
 
 interface SideNavProps {
   current: string
@@ -38,6 +39,10 @@ interface SideNavProps {
  */
 export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
   const navSections = useNavSections()
+  const mainSections = navSections.filter((s) => !s.pinned)
+  const settings = navSections.find((s) => s.pinned)?.items[0]
+  const inSettings = !!settings && (current === settings.path || !!settings.children?.some((c) => c.path === current))
+  const { alerts } = useSettingsAlerts()
   return (
     <aside
       data-slot="sidebar"
@@ -63,7 +68,7 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label="Main">
-        {navSections.map((section, i) => (
+        {mainSections.map((section, i) => (
           <div key={section.heading ?? i} className={cn(i > 0 && 'mt-4')}>
             {section.heading && !collapsed && (
               <div className="flex h-8 items-center px-3 text-[11px] font-semibold tracking-wider text-sidebar-muted-foreground uppercase">
@@ -86,12 +91,19 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
         ))}
       </nav>
 
-      {!collapsed && (
-        <div className="flex items-center justify-between border-t border-sidebar-border p-4 text-xs text-sidebar-muted-foreground">
-          <span>Version {__APP_VERSION__}</span>
-          {isDesktop() ? <Badge variant="success">desktop</Badge> : <Badge variant="info">browser preview</Badge>}
+      {settings && (
+        // Settings: one button pinned at the bottom. Its pages (Connections,
+        // Agent access, Extensions, ...) have their own menu on the Settings page.
+        <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
+          <NavButton
+            item={{ ...settings, children: undefined, badge: alerts.length ? String(alerts.length) : undefined }}
+            current={inSettings ? settings.path : current}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
         </div>
       )}
+
     </aside>
   )
 }
@@ -115,7 +127,7 @@ function NavButton({
       onClick={() => onNavigate(item.path)}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        'relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         collapsed && 'justify-center px-0',
         active
           ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
@@ -123,6 +135,7 @@ function NavButton({
       )}
     >
       <Icon className="size-4 shrink-0" />
+      {collapsed && item.badge && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-warning" aria-label={`${item.badge} need attention`} />}
       {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
       {!collapsed && item.badge && (
         <span
@@ -149,7 +162,7 @@ const OPEN_KEY = 'commandHub.navOpen'
 
 function readOpenState(): Record<string, boolean> {
   try {
-    const v = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}')
+    const v = JSON.parse(prefs.getItem(OPEN_KEY) ?? '{}')
     return v && typeof v === 'object' ? v : {}
   } catch {
     return {}
@@ -162,7 +175,7 @@ function useGroupOpen(path: string): [boolean, (open: boolean) => void] {
   const setOpen = (next: boolean) => {
     setOpenState(next)
     try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpenState(), [path]: next }))
+      prefs.setItem(OPEN_KEY, JSON.stringify({ ...readOpenState(), [path]: next }))
     } catch {
       // Storage unavailable: the state just isn't remembered.
     }

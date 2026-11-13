@@ -63,7 +63,7 @@ before(async () => {
   fs.mkdirSync(ghDir, { recursive: true })
   fs.writeFileSync(path.join(ghDir, 'recents.json'), JSON.stringify([repo, path.join(root, 'gone')]))
 
-  // A Jira+ local project.
+  // A Private project.
   const jira = createLocalStore(path.join(root, 'apps', 'jira-plus', 'local-repo'))
   await jira.createProject({ key: 'ME', name: 'Me' })
   await jira.createIssue({ projectKey: 'ME', summary: 'Write docs', description: 'All of them.' })
@@ -176,6 +176,35 @@ describe('MonoRail read tools', () => {
     assert.equal(value.topModels30Days[0].model, 'claude-example')
   })
 
+  it('storage_scan returns the last saved scan, largest folders first, with the change since the scan before', async () => {
+    const dir = path.join(root, 'modules', 'storage')
+    fs.mkdirSync(dir, { recursive: true })
+    const h = cache.history({ dataDir: dir, log: () => {} }, 'storage.history')
+    const GB = 1024 ** 3
+    const drives = [{ id: 'C:', total: 500 * GB, free: 50 * GB }]
+    await h.add({ kind: 'scan', tookMs: 1, drives, locations: [{ id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', bytes: 2 * GB }] })
+    await h.add({
+      kind: 'scan',
+      tookMs: 1,
+      drives,
+      locations: [
+        { id: 'npm', label: 'npm cache', group: 'dev', path: '/x/npm', advice: 'safe', tip: 'npm cache clean --force', bytes: 3 * GB, children: [{ name: '_cacache', kind: 'dir', bytes: 3 * GB }] },
+        { id: 'downloads', label: 'Downloads', group: 'user', path: '/x/dl', advice: 'review', bytes: 9 * GB },
+      ],
+    })
+    let { value } = await call(server, 'storage_scan', {})
+    assert.equal(value.available, true)
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90 }])
+    fs.writeFileSync(path.join(dir, 'goals.json'), JSON.stringify({ version: 1, goals: { 'C:': { freeBytes: 80 * GB, setAt: '2026-11-11T00:00:00Z' } } }))
+    ;({ value } = await call(server, 'storage_scan', {}))
+    assert.deepEqual(value.drives, [{ drive: 'C:', totalGB: 500, freeGB: 50, usedPercent: 90, freeGoalGB: 80, stillToFreeGB: 30 }])
+    assert.deepEqual(value.locations.map((l) => l.id), ['downloads', 'npm'])
+    assert.equal(value.locations[1].changeSincePreviousScanGB, 1)
+    assert.equal(value.locations[1].largestChildren[0].name, '_cacache')
+    const empty = createServer({ rootDir: tmp('monorail-mcp-empty-') })
+    assert.equal((await call(empty, 'storage_scan', {})).value.available, false)
+  })
+
   it('usage_summary says when there is no report', async () => {
     const empty = createServer({ rootDir: tmp('monorail-mcp-empty-') })
     const { value } = await call(empty, 'usage_summary', {})
@@ -205,7 +234,7 @@ describe('MonoRail read tools', () => {
     assert.match(r.text, /not one of the repos opened in GitHub\+/)
   })
 
-  it('reads Jira+ local projects and issues', async () => {
+  it('reads Private Tasks projects and issues', async () => {
     const projects = (await call(server, 'list_jira_plus_projects', {})).value.projects
     assert.equal(projects[0].key, 'ME')
     assert.equal(projects[0].openCount, 1)
@@ -221,9 +250,9 @@ describe('MonoRail read tools', () => {
     assert.equal(issue.transitions, undefined)
   })
 
-  it('validates Jira+ keys and never creates the local repo', async () => {
+  it('validates Tasks keys and never creates the local repo', async () => {
     assert.match((await call(server, 'get_jira_plus_issue', { key: '../../x' })).text, /look like/)
-    assert.match((await call(server, 'get_jira_plus_issue', { key: 'ME-99' })).text, /no local Jira\+ issue/)
+    assert.match((await call(server, 'get_jira_plus_issue', { key: 'ME-99' })).text, /no private task/)
     const emptyRoot = tmp('monorail-mcp-empty-')
     const empty = createServer({ rootDir: emptyRoot })
     assert.deepEqual((await call(empty, 'list_jira_plus_projects', {})).value.projects, [])
@@ -295,14 +324,14 @@ describe('write tools and consent', () => {
     assert.equal((await call(server, 'create_github_plus_issue', { repo: 'demo-repo', title: 'Again' })).isError, true)
   })
 
-  it('writes Jira+ local issues and comments when allowed', async () => {
+  it('writes private tasks and comments when allowed', async () => {
     await access.setAllowed(root, 'test-agent', 'create_jira_plus_issue', true)
     await access.setAllowed(root, 'test-agent', 'comment_jira_plus_issue', true)
     const created = await call(server, 'create_jira_plus_issue', { project: 'ME', summary: 'Agent task', type: 'Bug' })
     assert.equal(created.value.key, 'ME-3')
     assert.equal((await call(server, 'comment_jira_plus_issue', { key: 'ME-3', body: 'Done soon.' })).isError, false)
-    assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no local Jira\+ project/)
-    assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no local Jira\+ issue/)
+    assert.match((await call(server, 'create_jira_plus_issue', { project: 'NOPE', summary: 'x' })).text, /no private Tasks project/)
+    assert.match((await call(server, 'comment_jira_plus_issue', { key: 'ME-99', body: 'x' })).text, /no private task/)
   })
 
   it('lists flashcard decks and adds cards only when allowed', async () => {

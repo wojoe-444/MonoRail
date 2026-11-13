@@ -1,3 +1,4 @@
+import { calendarApp } from './calendar'
 import { emailApp } from './email'
 import { gitHubPlusApp } from './github-plus'
 import { jiraPlusApp } from './jira-plus'
@@ -8,7 +9,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { AppDefinition } from './types'
 
 /** Every built-in app, in nav order. Add new apps here. */
-export const apps: AppDefinition[] = [gitHubPlusApp, jiraPlusApp, emailApp]
+export const apps: AppDefinition[] = [gitHubPlusApp, jiraPlusApp, calendarApp, emailApp]
 
 const ids = new Set<string>()
 for (const a of apps) {

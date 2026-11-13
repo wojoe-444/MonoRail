@@ -1,11 +1,12 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { DEFAULT_PALETTE, findPalette, tokens } from './palettes'
+import { prefs } from '@/lib/prefs'
 
 /**
  * Appearance for the whole app, apps included: a color scheme (palette, see
  * `palettes.ts`) plus light / dark mode. Light mode and "Sand & Ink" are the
- * defaults. Both are remembered in localStorage (inside the app's AppData
+ * defaults. Both are remembered per profile (`prefs`, in localStorage inside the app's AppData
  * folder in Electron). Mode is applied as the `dark` class on <html>, which
  * the Tailwind tokens and app stylesheets key off; the palette is applied by
  * writing its tokens as CSS variables on <html>.
@@ -18,7 +19,7 @@ const listeners = new Set<() => void>()
 
 function readItem(key: string): string | null {
   try {
-    return localStorage.getItem(key)
+    return prefs.getItem(key)
   } catch {
     return null
   }
@@ -26,7 +27,7 @@ function readItem(key: string): string | null {
 
 function writeItem(key: string, value: string) {
   try {
-    localStorage.setItem(key, value)
+    prefs.setItem(key, value)
   } catch {
     /* storage unavailable: keep it for this session */
   }

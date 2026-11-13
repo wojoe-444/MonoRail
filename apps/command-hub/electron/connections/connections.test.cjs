@@ -546,6 +546,168 @@ test('pi playwright: test attaches with the extension and detaches, passing the 
   assert.equal(calls.length, 2, 'detaches even after a failure')
 })
 
+// ---------- Claude > Playwright browser ----------
+
+const cpw = require('./connectors/claude-playwright.cjs')._internal
+const { quoteArg, checkArgs } = require('./run.cjs')
+
+test('run: quoteArg allows a space only when asked, and quotes it for cmd.exe', () => {
+  assert.deepEqual(checkArgs(['-e', quoteArg('X=Profile 1')], { win: true }), ['-e', '"X=Profile 1"'])
+  assert.deepEqual(checkArgs(['-e', quoteArg('X=Profile 1')], { win: false }), ['-e', 'X=Profile 1'])
+  assert.throws(() => checkArgs(['Profile 1']), /unsafe/)
+  for (const bad of ['a"b', 'a&b', 'a%b', 'a|b', 'a^b', 'a!b', 'a<b']) assert.throws(() => quoteArg(bad), /unsafe/)
+})
+
+/**
+ * A fake `claude` that keeps mcpServers in a real config file, the way
+ * `claude mcp add/remove/get --scope user` does. Records every call.
+ */
+function fakeClaude(configFile, { getStatus = '√ Connected' } = {}) {
+  const calls = []
+  const read = () => (fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {})
+  const write = (c) => fs.writeFileSync(configFile, JSON.stringify(c))
+  const runTool = async (cmd, rawArgs) => {
+    const args = checkArgs(rawArgs, { win: false })
+    calls.push(args)
+    assert.equal(cmd, 'claude')
+    if (args[0] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' }
+    const c = read()
+    c.mcpServers ??= {}
+    const [, verb, name] = args
+    if (verb === 'add') {
+      if (c.mcpServers[name]) return { code: 1, stdout: '', stderr: `MCP server ${name} already exists in user config\n` }
+      const dash = args.indexOf('--')
+      const env = {}
+      for (let i = 3; i < dash; i++) if (args[i] === '-e') env[args[i + 1].split('=')[0]] = args[i + 1].slice(args[i + 1].indexOf('=') + 1)
+      c.mcpServers[name] = { type: 'stdio', command: args[dash + 1], args: args.slice(dash + 2), env }
+      write(c)
+      return { code: 0, stdout: 'Added\n', stderr: '' }
+    }
+    if (verb === 'remove') {
+      if (!c.mcpServers[name]) return { code: 1, stdout: '', stderr: 'No MCP server\n' }
+      delete c.mcpServers[name]
+      write(c)
+      return { code: 0, stdout: 'Removed\n', stderr: '' }
+    }
+    if (verb === 'get') {
+      const e = c.mcpServers[name]
+      const envLines = Object.entries(e.env).map(([k, v]) => `    ${k}=${v}`).join('\n')
+      return { code: 0, stdout: `${name}:\n  Status: ${getStatus}\n  Environment:\n${envLines}\n`, stderr: '' }
+    }
+    return { code: 1, stdout: '', stderr: 'unknown' }
+  }
+  return { calls, runTool, read }
+}
+
+test('claude playwright: is a subconnector of Claude', async () => {
+  const { connectors } = await createConnections({ dataDir: tmp(), cipher: cipher() }).list()
+  const c = connectors.find((x) => x.kind === 'claude-playwright')
+  assert.equal(c.parent, 'claude')
+  assert.ok(connectors.findIndex((x) => x.kind === 'claude') < connectors.indexOf(c))
+})
+
+test('claude playwright: the server entry, with cmd /c on Windows', () => {
+  const conn = { values: { browser: 'msedge', profile: 'Profile 1' }, secrets: { token: 'tok_abc12345' } }
+  const linux = cpw.desiredEntry(conn, { platform: 'linux' })
+  assert.equal(linux.command, 'npx')
+  assert.deepEqual(linux.args, ['-y', '@playwright/mcp@latest', '--extension', '--browser', 'msedge'])
+  assert.deepEqual(linux.env, { MONORAIL_MANAGED: '1', PLAYWRIGHT_MCP_PROFILE_DIR_NAME: 'Profile 1', PLAYWRIGHT_MCP_EXTENSION_TOKEN: 'tok_abc12345' })
+  const win = cpw.desiredEntry({ values: { browser: 'chrome' } }, { platform: 'win32' })
+  assert.equal(win.command, 'cmd')
+  assert.deepEqual(win.args, ['/c', 'npx', '-y', '@playwright/mcp@latest', '--extension'])
+  assert.deepEqual(win.env, { MONORAIL_MANAGED: '1' })
+  // Every argument passes the shell check on Windows.
+  const a = checkArgs(cpw.addArgs(cpw.desiredEntry(conn, { platform: 'win32' })), { win: true })
+  assert.ok(a.includes('"PLAYWRIGHT_MCP_PROFILE_DIR_NAME=Profile 1"'))
+  assert.equal(a[a.indexOf('--') + 1], 'cmd')
+})
+
+test('claude playwright: save adds the entry, edit refreshes it, remove takes it away; the token never shows', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  fs.writeFileSync(configFile, JSON.stringify({ oauthAccount: { emailAddress: 'sam@example.com' }, mcpServers: { other: { command: 'x', args: [] } } }))
+  const browser = fakeBrowser({ ext: ['Default'] })
+  const claude = fakeClaude(configFile)
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => browser }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+
+  const s = await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'tok_secret_12345' } })
+  assert.equal(s.state, 'ok', s.summary)
+  assert.deepEqual(s.actions, ['test-server'])
+  const entry = claude.read().mcpServers[cpw.SERVER]
+  assert.equal(entry.env.MONORAIL_MANAGED, '1')
+  assert.equal(entry.env.PLAYWRIGHT_MCP_EXTENSION_TOKEN, 'tok_secret_12345')
+  assert.ok(claude.read().mcpServers.other, 'other servers are left alone')
+  assert.equal(claude.read().oauthAccount.emailAddress, 'sam@example.com')
+  assert.ok(!JSON.stringify(s).includes('tok_secret_12345'))
+
+  // Saving again unchanged runs no add or remove.
+  claude.calls.length = 0
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } })
+  assert.ok(!claude.calls.some((c) => c[1] === 'add' || c[1] === 'remove'))
+
+  // A changed profile replaces MonoRail's own entry.
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome', profile: 'Profile 1' } })
+  assert.equal(claude.read().mcpServers[cpw.SERVER].env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME, 'Profile 1')
+  assert.equal(claude.read().mcpServers[cpw.SERVER].env.PLAYWRIGHT_MCP_EXTENSION_TOKEN, 'tok_secret_12345', 'token kept')
+
+  // Test connection keeps only the status line: never the env values Claude Code prints.
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } })
+  await svc.runAction({ kind: 'claude-playwright', action: 'test-server' })
+  await new Promise((r) => setTimeout(r, 50))
+  const job = svc.getJob({ kind: 'claude-playwright' })
+  assert.equal(job.state, 'done', job.error)
+  assert.ok(!JSON.stringify(job).includes('tok_secret_12345'))
+
+  await svc.remove({ kind: 'claude-playwright' })
+  assert.equal(claude.read().mcpServers[cpw.SERVER], undefined)
+  assert.ok(claude.read().mcpServers.other)
+})
+
+test('claude playwright: never replaces or removes an entry MonoRail did not add', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  const mine = { command: 'npx', args: ['@playwright/mcp@latest', '--extension'], env: {} }
+  fs.writeFileSync(configFile, JSON.stringify({ mcpServers: { [cpw.SERVER]: mine } }))
+  const claude = fakeClaude(configFile)
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => fakeBrowser({ ext: ['Default'] }) }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' } }), /claude mcp remove playwright-extension --scope user/)
+  const s = await svc.check('claude-playwright', { force: true })
+  assert.equal(s.state, 'error')
+  await svc.remove({ kind: 'claude-playwright' })
+  assert.deepEqual(claude.read().mcpServers[cpw.SERVER], mine)
+  assert.ok(!claude.calls.some((c) => c[1] === 'add' || c[1] === 'remove'))
+})
+
+test('claude playwright: checks the token before storing it, and hides it in errors', async () => {
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { runTool: async () => ({ code: 0, stdout: '', stderr: '' }), env: {} } })
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'bad token"&' } }), /does not look like the token/)
+  assert.equal((await svc.list()).connections.length, 0, 'nothing saved')
+  await assert.rejects(svc.save({ kind: 'claude-playwright', values: { profile: 'x"; rm -rf' } }), /profile folder/)
+  assert.equal(cpw.redact('failed PLAYWRIGHT_MCP_EXTENSION_TOKEN=abc and abc', ['abc']), 'failed PLAYWRIGHT_MCP_EXTENSION_TOKEN=(hidden) and (hidden)')
+})
+
+test('claude playwright: a failed server start is reported from the status line only', async () => {
+  const configFile = path.join(tmp(), '.claude.json')
+  const claude = fakeClaude(configFile, { getStatus: '✗ Failed to connect' })
+  const deps = { runTool: claude.runTool, claudeConfigFile: configFile, platform: 'linux', env: {}, browserDataDir: () => fakeBrowser({ ext: ['Default'] }) }
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps })
+  await svc.save({ kind: 'claude-playwright', values: { browser: 'chrome' }, secrets: { token: 'tok_secret_12345' } })
+  await svc.runAction({ kind: 'claude-playwright', action: 'test-server' })
+  await new Promise((r) => setTimeout(r, 50))
+  const job = svc.getJob({ kind: 'claude-playwright' })
+  assert.equal(job.state, 'failed')
+  assert.match(job.error, /could not start the server: Failed to connect/)
+  assert.ok(!JSON.stringify(job).includes('tok_secret_12345'))
+})
+
+test('claude playwright: nothing runs until it is added', async () => {
+  let ran = false
+  const svc = createConnections({ dataDir: tmp(), cipher: cipher(), deps: { runTool: async () => ((ran = true), { code: 0, stdout: '', stderr: '' }) } })
+  assert.equal((await svc.check('claude-playwright')).added, false)
+  await assert.rejects(svc.runAction({ kind: 'claude-playwright', action: 'test-server' }), /Set up/)
+  assert.equal(ran, false)
+})
+
 // ---------- OpenAI ----------
 
 const openai = require('./connectors/openai.cjs')._internal

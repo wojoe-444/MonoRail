@@ -11,9 +11,9 @@ import { timeAgo } from '../util'
 const STATE_CLASS: Record<string, string> = { todo: 'task-todo', in_progress: 'task-progress', done: 'task-done' }
 
 /**
- * Jira+ tasks linked to this repo, by its folder or its github.com remote.
- * Jira+ keeps the links (in its own data folder); nothing is written to the
- * repo, to Jira or to GitHub. A task opens in Jira+.
+ * tasks linked to this repo, by its folder or its github.com remote.
+ * Tasks keeps the links (in its own data folder); nothing is written to the
+ * repo, to Jira or to GitHub. A task opens in Tasks.
  */
 export default function TasksPage() {
   const { repo } = useRepo()
@@ -45,7 +45,7 @@ export default function TasksPage() {
   return (
     <div>
       <div className="toolbar">
-        <span className="muted">Jira+ tasks linked to <strong>{repo!.name}</strong>. Links are kept in MonoRail on this computer; nothing is written to the repo, Jira or GitHub.</span>
+        <span className="muted">tasks linked to <strong>{repo!.name}</strong>. Links are kept in MonoRail on this computer; nothing is written to the repo, Jira or GitHub.</span>
         <span className="spacer" />
         {!picking && <button className="btn primary" onClick={() => setPicking(true)}>Link a task</button>}
       </div>
@@ -55,20 +55,20 @@ export default function TasksPage() {
         <div className="box-head"><TaskIcon /> <strong>{tasks ? `${tasks.length} linked task${tasks.length === 1 ? '' : 's'}` : 'Linked tasks'}</strong></div>
         {tasks === null && !error && <div className="pad muted">Loading…</div>}
         {tasks?.length === 0 && (
-          <div className="pad muted center">No tasks are linked to this repository yet. Link one here, or from a task&apos;s Repositories in Jira+.</div>
+          <div className="pad muted center">No tasks are linked to this repository yet. Link one here, or from a task&apos;s Repositories in Tasks.</div>
         )}
         {tasks?.map((t) => (
           <div key={`${t.source}:${t.key}`} className="issue-row">
             <span className={STATE_CLASS[t.statusCategory ?? ''] ?? 'muted'}><TaskIcon /></span>
             <div className="grow-input">
-              <button className="link-btn issue-title" onClick={() => openInJiraPlus(t.source, t.key)} title="Open in Jira+">
+              <button className="link-btn issue-title" onClick={() => openInJiraPlus(t.source, t.key)} title="Open in Tasks">
                 {t.summary ?? t.key}
               </button>
               <div className="muted small">
                 <span className="mono">{t.key}</span>
                 {t.status && <> · {t.status}</>}
                 {t.projectName && <> · {t.projectName}</>}
-                <span className="badge">{t.source === 'local' ? 'Jira+ local' : 'Team Jira'}</span>
+                <span className="badge">{t.source === 'local' ? 'Private' : 'Team Jira'}</span>
                 <span> · linked {timeAgo(t.linkedAt)}</span>
                 {t.error && <span className="task-error"> · {t.error}</span>}
               </div>
@@ -81,7 +81,7 @@ export default function TasksPage() {
   )
 }
 
-/** Pick a Jira+ task to link: your local tickets and the team Jira tickets Jira+ shows. */
+/** Pick a task to link: your local tickets and the team Jira tickets Tasks shows. */
 function TaskPicker({ busy, linked, onPick, onCancel }: { busy: boolean; linked: LinkedTask[]; onPick: (t: JiraIssue) => void; onCancel: () => void }) {
   const all = useAsync(() => jiraApi().listIssues({ source: 'all' }), [])
   const [q, setQ] = useState('')
@@ -108,16 +108,16 @@ function TaskPicker({ busy, linked, onPick, onCancel }: { busy: boolean; linked:
         />
         <button className="btn" onClick={onCancel}>Cancel</button>
       </div>
-      {all.loading && <div className="pad muted">Loading tasks from Jira+…</div>}
+      {all.loading && <div className="pad muted">Loading tasks from Tasks…</div>}
       {all.error && <div className="flash error">{all.error}</div>}
-      {!all.loading && rows.length === 0 && <div className="pad muted">{q ? `No task matches "${q}".` : 'No tasks to link. Create one in Jira+ first.'}</div>}
+      {!all.loading && rows.length === 0 && <div className="pad muted">{q ? `No task matches "${q}".` : 'No tasks to link. Create one in Tasks first.'}</div>}
       <div className="task-pick-list">
         {rows.map((i) => (
           <button key={`${i.source}:${i.key}`} className="task-pick" disabled={busy} onClick={() => onPick(i)}>
             <span className="mono muted">{i.key}</span>
             <span className="ellipsis grow-input">{i.summary}</span>
             <span className="muted small">{i.status}</span>
-            <span className="badge">{i.source === 'local' ? 'Jira+ local' : 'Team Jira'}</span>
+            <span className="badge">{i.source === 'local' ? 'Private' : 'Team Jira'}</span>
           </button>
         ))}
       </div>

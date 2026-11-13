@@ -56,6 +56,38 @@ anything copied from the user's machine.
   If a new kind of private file appears, add a rule for it.
 - Before committing, check `git status` and the diff for anything personal.
 
+## Profiles: whose data a backend reads
+
+A **profile** is one person's settings and data (docs: `docs/profiles.md`,
+code: `electron/profiles/index.cjs`). No passwords, no sign-in, not a security
+boundary. Today there is one, the **default profile**, and its folder IS the
+data folder above: existing data is read in place and nothing is moved,
+renamed or copied to make it so. Every folder has a scope in `SCOPES`
+(`profile`: appearance, connections, backups, Flashcards, Jira+, GitHub+,
+Email, Chat state, Agent access; `machine`: updates, installed extensions,
+Claude Stats' report of this computer's logs, Storage, Remote access,
+`profiles.json`); a
+test fails when a backend or declared data folder has none. Later profiles
+live in `<data folder>\profiles\<id>\`. Backends reach other folders with
+`ctx.layout.folder('<folder>')` (main-process singletons: `appLayout()`),
+never `app.getPath('userData')`; pages keep per-person preferences with
+`prefs` (`src/lib/prefs.ts`) instead of `localStorage`, which keeps the old
+keys for the default profile. `profiles.json` is written only when the user
+changes a profile (Settings > Profile), never over a damaged file. Copying data
+into a new profile must be user-started and per item, never automatic.
+
+**Developer Mode** (Settings card `src/components/dev/DeveloperModeCard.tsx`,
+self-contained so it can move; guide `docs/guide/setup/developer-mode.md`):
+off by default, kept in the machine-wide `commandHub.devMode` key (not
+`prefs`, so it survives the test profile). It adds the element inspector
+(`components/dev/Inspector.tsx`, `inspect.ts`: names the React components
+above a hovered element from its fiber; production builds keep names via
+rolldown `output.keepNames` in `vite.config.ts`), F12 for Chromium DevTools
+(`electron/modules/developer.cjs`) and the hidden **New User** profile
+(`new-user`): switching restarts the app and `resetBlankProfile()` wipes only
+`profiles\new-user` at that start (docs/profiles.md). A top-bar chip with the
+way back shows whenever New User is open.
+
 ## Commands
 
 Run from `apps/command-hub/`:
@@ -63,7 +95,7 @@ Run from `apps/command-hub/`:
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server in the browser |
-| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. Extension UIs (`monorail-ext://`) don't load in the browser. |
+| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. The HTTP server and codec are shared in `electron/bridge/` (`server.cjs`: token check, origin check, JSON only, server-sent events). Extension UIs (`monorail-ext://`) don't load in the browser. |
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
 | `npm run lint` | oxlint |
@@ -77,6 +109,26 @@ installer on a Windows runner as a downloadable artifact. On every push to
 GitHub release; the Settings page (`modules/settings`, backed by
 `electron-updater`) checks those releases and installs updates in place. Bump
 major/minor in `package.json` by hand; never publish from a local machine.
+The settings backend also checks on its own (`start()`: 30 s after startup,
+then every 4 hours), and `src/modules/settings/UpdateToast.tsx` shows a
+lower-right pop-up when an update is available: "Download and Restart",
+"Ignore for six hours" (kept in `commandHub.updateSnoozeUntil`) and X (hidden
+until the next check). It is self-contained, so it moves with Settings.
+
+**Release notes.** Each release's body is its "What's new" list, written by
+`scripts/release-notes.cjs` in the publish step from the PRs merged since the
+previous release (format and parser: `electron/release-notes.cjs`). Every PR
+description therefore gets a `## What's new` section (see
+`.github/pull_request_template.md`): one bullet per user-visible change,
+`- **Short title**: one plain sentence`, written for people using the app, not
+developers (no file names, no internals); without it the PR title is used.
+Release notes are public: no personal paths, names or test-user details (the
+script also strips home-folder paths and emails). When an update is
+available, the settings backend reads the public release list once
+(api.github.com) and keeps every release between the installed and the latest
+version (`changes`); `src/modules/settings/WhatsNew.tsx` shows them in Settings
+and, briefly, in the pop-up. The "Release notes" workflow (manual) rewrites
+older releases' notes.
 
 ## Code layout (`apps/command-hub/src`)
 
@@ -115,7 +167,15 @@ To add a module:
 3. If it needs local data, write `electron/modules/<id>.cjs` exporting
    `{ id, methods: { name: async (ctx, args) => result } }` and add it to
    `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
-   (`%APPDATA%\MonoRail\modules\<id>`); keep caches and settings there.
+   (`%APPDATA%\MonoRail\modules\<id>` for the default profile); keep caches
+   and settings there. Give the folder a scope in `SCOPES`
+   (`electron/profiles/index.cjs`). A method that needs this PC's screen (a
+   system dialog, Explorer, a terminal, DevTools, a restart, a link opened in
+   the PC's browser) goes in the backend's `desktopOnly: ['method']` list
+   (`electron/bridge/desktop-only.cjs`; a test fails when a method calls
+   `dialog`/`shell`/`BrowserWindow`/`autoUpdater` without it). The optional
+   Remote access mode (phone, off by default, see below) never runs those; in
+   the page, `hasLocalScreen()` says whether to offer them.
 4. In the page, call it with `useModuleQuery(id, method)` or
    `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
    browser dev server there is no backend (`isDesktop()` is false), so ship
@@ -199,6 +259,20 @@ settings overlay disables bypass mode; never weaken either. A continued chat
 runs only in its own folder, re-checked against the allowed folders. The
 running cost total per session is kept in `costs.json` in the module's data
 folder (numbers only) so a resumed turn's own cost can be worked out.
+**Spending limit** (Settings > General card `src/components/spending/SpendingCard.tsx`,
+self-contained so it can move; Chat's meter and banner in
+`SpendingNotice.tsx`; backend `agent-chat-spending.cjs`; guide
+`docs/guide/setup/spending-limit.md`): off by default. When on, a daily and/or
+monthly USD limit for turns MonoRail runs (Chat, coordinator and its child
+turns, `ask_coordinator`), a warning at 50/80/90%, and at the limit either
+stop new turns (default; `checkBeforeTurn` in `startTurn`, so every caller is
+covered, and "Allow one more turn" lets one through) or only warn. A running
+turn is never cut off. Each finished turn's own cost is booked from its
+`onFinish` (Claude: the delta against `costs.json`, skipped when unknown; pi:
+the logged cost). `spending.json` in Chat's data folder holds settings and
+one total per day (numbers only), is written only while the limit is on,
+synchronous with a lock file (the coordinator worker and MCP server book
+turns too), and a damaged file pauses turns until the user resets it.
 **pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
 agent SDK, found behind the `pi` command (`findPiSdk`: PATH plus the usual
 npm/pnpm/bun/Volta/scoop folders, reading the command's shim to find the
@@ -286,11 +360,30 @@ files: it reuses Agent Chat's session list, composer info and running turns
 in process, reads the Claude Stats summary (never builds a report), and lists
 agent definitions (`agents-definitions.cjs`: Claude Code subagents in
 `.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
-`~/.pi/agent/skills` / `.pi/skills`, from the home folder and each allowed
+`~/.pi/agent/skills` / `.pi/skills`, pi subagents in `~/.pi/agent/agents` /
+`.pi/agents`, from the home folder and each allowed
 repo; frontmatter only, bodies on demand by id, never a path). Archived chats
 are left out. Quick launch and "Open" hand over to Chat with
 `openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
 handed-over prompt is prefilled in the composer, never sent by itself.
+
+**Agent Catalog** (`agent-catalog`, Agents > Catalog, docs:
+`docs/agent-catalog.md`): Claude Code subagents (`~/.claude/agents`,
+`<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
+`<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
+folder and Chat's allowed repos, plus the built-in coordinator (read-only,
+"Make my own copy"), and built-ins from `agent-catalog-builtins.cjs` (Storage
+Detective: look-only tools plus the MCP `storage_scan` read tool, a prompt that
+never deletes or moves; "Add to Claude Code" copies it to `~/.claude/agents`;
+the browser sample must carry the same text, a test checks). A plain-language explainer per subagent
+(`src/modules/agent-catalog/explain.ts`: tools in words, strength, "It
+cannot") and create / edit / duplicate / delete
+(`electron/modules/agent-catalog.cjs`). The page names subagents by id and a
+save place as `user` or an allowed repo's name, never a path; the agents
+folder must resolve inside its base; edits refuse a file changed on disk since
+it was opened and never touch a linked file; unknown header fields are kept.
+Every edit or delete first copies the file to `backups/` in the module's data
+folder (newest 200). Nothing is cached.
 
 **Mochi crew** (`src/components/mochi/`, docs: `docs/mochi-crew.md`): agent
 characters in the K1 Mochi app-icon family (dough body, dot eyes, never a
@@ -306,7 +399,7 @@ markup, so only repo-authored strings may go into it, never agent or user text.
 Shown on Agents definitions, Chat's Agent/Task tool rows and the Coordinator
 entry; Agents > Characters is the gallery.
 
-`connections` (**Connections**, under Configure) is the one place for the
+`connections` (**Connections**, a Settings page) is the one place for the
 accounts MonoRail signs in with. Connectors live in `electron/connections/`
 (contract at the top of `index.cjs`): fields, a `status()` returning
 `ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
@@ -358,7 +451,7 @@ the login mode and ChatGPT plan claim; a keyring login is reported, not read.
 The one request, `GET /v1/models`, is the user's "Test API key" action (result
 kept in memory, keyed by a hash of the key). Connectors must not probe for
 accounts the user has not added. Connectors may be **subconnectors**
-(`parent: '<kind>'`), drawn inside the parent's card under "Add-ons". The
+(`parent: '<kind>'`), drawn as indented rows under the parent's row ("Add-on"). The
 first is **pi > Playwright browser** (`connectors/pi-playwright.cjs`): pi's
 `pi-playwright` skill package drives the user's own Chrome or Edge tabs via
 `@playwright/cli attach --extension`, which opens the Playwright Extension's
@@ -371,7 +464,20 @@ profile folder, and "Teach pi", which writes a MonoRail-marked
 `use-my-browser` skill to pi's skills folder (never overwrites a foreign one;
 removed when off or on removal). Actions: install in pi (terminal), get the
 extension (store page in the chosen browser), and Test connection (attach then
-detach, run with MonoRail's executable as Node, no shell). **github** is the github.com account GitHub+ uses
+detach, run with MonoRail's executable as Node, no shell). The second is
+**Claude > Playwright browser** (`connectors/claude-playwright.cjs`): saving
+runs `claude mcp add playwright-extension --scope user` (never edits
+`~/.claude.json`; only reads that one entry) for `npx -y @playwright/mcp@latest
+--extension` (`cmd /c npx` on Windows; `--browser msedge` for Edge), with
+`MONORAIL_MANAGED=1`, the profile folder and the optional extension token as
+`-e` values (`quoteArg()` in `run.cjs` lets a value keep its space). It only
+replaces or removes an entry carrying that mark and refuses a foreign one.
+The token is a secret field, checked in `validate()` (which receives the
+secrets typed in that save) and redacted from every status, error and job
+note, since `claude mcp get` prints env values. Test connection runs `claude
+mcp get` (Claude Code starts the server; no browser window) and keeps only
+its Status line. Chat does not load user MCP servers, so it only affects
+`claude` in a terminal. **github** is the github.com account GitHub+ uses
 (`connectors/github.cjs`, client `electron/connections/github-api.cjs`): the
 user's own GitHub CLI login (default; MonoRail runs `gh api` with fixed
 arguments, request bodies on stdin, and never reads the token), a pasted token
@@ -380,10 +486,11 @@ returns `{ via: 'gh' }` or `{ via: 'token', token }`; only api.github.com is
 called. `hasConnection(kind)` in `index.cjs` says whether a connection is
 added without running anything. `git` stores nothing and
 reports the version, global `user.name` / `user.email` and the credential
-helper's name; it never runs `git credential`. Command-line tools only get
+helper's name; it never runs `git credential`. `docker` (optional) checks
+the user's own Docker and lazydocker for the Docker page (see below). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
-`mcp` (**Agent access**, under Configure) shows how to connect agents to
+`mcp` (**Agent access**, a Settings page) shows how to connect agents to
 MonoRail's **MCP server** (`electron/mcp`, docs: `docs/mcp.md`). Agents start
 it as `MonoRail.exe --mcp`: `main.cjs` then opens no window and runs
 `electron/mcp/server.cjs` in `ELECTRON_RUN_AS_NODE` mode with stdio inherited
@@ -393,7 +500,8 @@ messages only (logs go to stderr, metadata only). The protocol layer
 (`protocol.cjs`, no SDK dependency) and tools (`tools.cjs`) run outside
 Electron, so tools read MonoRail's data folder from disk and never `require`
 Electron: summary files (`claude-stats.summary`, `connections.summary`, the
-latter written after every connection check), Chat's `listSessions` (allowed
+latter written after every connection check), Storage's saved scans
+(`storage_scan`), Chat's `listSessions` (allowed
 folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
 repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
 legacy folder). No tool returns secrets or tokens. **Write tools** (`write:
@@ -418,6 +526,31 @@ until the app has recorded the extension's current data version, so
 in its `.git` so the app and the server never commit at once. Tests:
 `electron/mcp/mcp.test.cjs` (includes a real stdio run).
 
+`remote` (**Remote access**, a Settings page under "Accounts & access";
+docs: `docs/remote-access.md`, guide `docs/guide/setup/remote-access.md`)
+lets the user's own phone use MonoRail over the PC's private Tailscale
+address. **Fully optional, off by default:** while off there is no server, no
+port, no Tailscale command, no single-instance lock and closing the window
+quits as before; never change that. `electron/remote/`: `service.cjs` (one per
+process; `readEnabledSync` for `main.cjs`), `server.cjs` (127.0.0.1 only,
+default port 5170; Host must be the tailnet name or loopback; the
+`Tailscale-User-Login` header must be in `allowedLogins`; every path but
+`/__remote/pair` needs a paired device's HttpOnly cookie, stored as sha-256;
+pairing codes are single use, 2 minutes; serves `dist/` with
+`/__bridge/client.js` injected (`remote: true`) and the shared bridge handler),
+`policy.cjs` (`REMOTE_DENY`: settings that stay on the PC, plus every
+`desktopOnly` method and extension backends; a test checks every name
+exists), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
+machine-scope `modules/remote`; metadata only, damaged files never
+overwritten) and `tailscale.cjs` (status checks every 5 minutes while on; the
+one write is the user's "Set it up": `tailscale serve --bg`; a Funnel on the
+address stops the server). Phone turns get `remoteLimits.askOnly` from the
+server unless "Agent mode from the phone" is on (`startTurn` refuses Agent
+mode and the coordinator otherwise). While on, closing the window keeps
+MonoRail in the tray; turning it off revokes every device. A new backend
+method that changes accounts, secrets, permissions or MonoRail itself goes in
+`REMOTE_DENY`. Tests: `electron/remote/remote.test.cjs`.
+
 `storage` (**Storage**, under the **Utilities** section) is the Storage
 Manager (docs: `docs/storage.md`): free/used space per drive (`fs.statfs`,
 read on open) and the size of known folders (MonoRail's data, older data
@@ -428,11 +561,48 @@ only when the user presses Scan (45 s per folder, links and junctions never
 followed). Each finished scan, and a drives-only sample every 6 hours while the
 app runs (`start(ctx)`), is saved to the `storage.history` cache
 (`history.json`, newest 500) for the "Over time" card and the per-folder change
-since the previous scan; after a restart the last saved scan is shown. It
+since the previous scan; after a restart the last saved scan is shown. A
+**free-space goal** per drive (`storage-goals.cjs`, `goals.json`, machine scope
+like the drives; never written over a damaged file) shows as progress on the
+drive card and a dashed line on the chart. It
 never deletes, moves, renames or copies anything it measures (a test greps the
-backend for write calls; history goes through the cache primitive); actions only open a folder in Explorer by location id or the Windows
+backend for write calls; history goes through the cache primitive, goals live
+in their own file); actions only open a folder in Explorer by location id or the Windows
 storage settings. Any future cleanup must be explicit, confirmed per item, and
 limited to caches marked safe.
+
+`docker` (**Docker**, under **Utilities**; docs: `docs/docker.md`, guide
+`docs/guide/setup/docker.md`) is a lazydocker-style, read-only look at the
+user's own Docker: engine strip, KPI tiles, containers grouped by compose
+project with Logs (last 500, Follow re-reads every 3 s), Stats (one
+`docker stats --no-stream` every 5 s while open, in memory only) and Info
+(env variable names only, values dropped in the backend), plus Images,
+Volumes and Networks. Docker is **optional**: every method checks
+`hasConnection('docker')` first and runs nothing until the user adds the
+**Docker** connector (`connectors/docker.cjs`: docker CLI and engine version,
+lazydocker on PATH, actions Start Docker Desktop and Open lazydocker in a
+terminal). MonoRail never downloads or installs Docker or lazydocker. All
+docker calls go through `electron/modules/docker-cli.cjs` (no shell, fixed
+read-only arguments, container ids checked as hex; a test fails on write
+verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
+
+`semantic` (**Semantic**, under **Insights**; docs: `docs/semantic.md`, guide
+`docs/guide/setup/semantic.md`) is a dbt project's semantic layer, powered by
+the user's own MetricFlow (`mf`): Query (metrics x time grain x group-bys,
+filters, dates, sort, limit; chart plus table, SQL via `--explain`, copyable
+`mf query` command), Metrics (definition, lineage, dimensions), Semantic models
+and Saved queries. **Opt-in twice:** nothing runs until the user adds the
+**MetricFlow** connector (`connectors/metricflow.cjs`: project folder, and
+"Run queries with MetricFlow", off by default); browsing reads only
+`dbt_project.yml` and `target/semantic_manifest.json`, and `query`/`explain`
+refuse unless running is on. All of it is in `electron/modules/semantic-mf.cjs`
+(no Electron; the MCP server's `list_semantic_metrics` and consent-gated
+`query_semantic_metrics` use it): mf is found by file (project `.venv` first,
+PATH; only `mf.exe` on Windows), started without a shell with arguments checked
+against the manifest, versions come from dist-info folder names, and
+`profiles.yml` is never opened. Results come back through a CSV in a temp
+folder deleted at once; nothing is cached or kept, and the page never gets the
+project's full path. MonoRail never installs Python, dbt or MetricFlow.
 
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
@@ -447,6 +617,38 @@ cards per day (default 20); the page shows each rating's next interval from
 `study`. Undo keeps the last answer per deck in memory only. Do not call it or
 style it after any other product. MCP: `list_flashcard_decks`,
 `list_flashcards` (read) and `add_flashcards` (write, consent per agent).
+
+`notes` (**Notes**, a subpage of Home; docs: `docs/notes.md`) is an
+unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
+line = title) in a local git repo in its data folder (`repo/`), via
+isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
+writes the file; commits are batched (a minute of quiet, leaving the note, or
+the next start), a blank new note is never committed, and a note's file
+follows its title only until its first commit. The repo never gets a remote.
+GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
+item (`notes`, bundle).
+
+**Settings** is a group of pages behind one button pinned to the bottom of
+the drawer (above the version footer; amber count = alerts). Every module
+with `nav.section: 'Settings'` is a Settings page: it is not listed in the
+drawer, `nav.group` names its heading in the Settings menu ("App": General
+`/settings/general` (the `settings` module, updates, about, profile,
+Developer Mode), Appearance, Backups; "Accounts & access": Connections,
+Agent access, Extensions), and `App.tsx` wraps it in
+`src/modules/settings/SettingsLayout.tsx` (menu plus search). `/settings` is
+the Settings **Home** (`SettingsHomePage.tsx`): only alerts, usually "Nothing
+needs you". Alerts (`alerts.ts`, one shared store) are read from what
+MonoRail already knows and never start a check: the `connections.summary`
+file (so connectors that are not set up are never looked at), the update
+state, global backups' last results and extensions waiting for approval or
+broken; read on start, on focus (at most once a minute), every 5 minutes and
+on `refreshSettingsAlerts()`. Search (`search.ts`) finds every Settings page
+by title and description plus the entries in `SEARCH_ENTRIES` (cards and
+options, with an element id to scroll to); add one when you add a card or an
+option to a Settings page. Ctrl+K focuses it. Connections is a table (one row
+per connector, subconnectors indented under their parent; columns drop out
+as the card narrows via container queries) whose rows open to show the
+check's details, actions and running sign-ins.
 
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
@@ -469,7 +671,7 @@ one page in the hub's own style, an app may look and feel like its own
 product: its own colors, fonts, layout and in-app routing. The contract is
 `AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
-**Workspace apps** (`placement: 'workspace'`: GitHub+, Jira+, Email) are
+**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Calendar, Email) are
 Workspace pages. The hub's drawer and top bar stay on screen (breadcrumb
 `Workspace > <app>`) and the app fills the page body below them, scrolling on
 its own (`AppBody` in `App.tsx`). Each gets a nav item under Workspace that
@@ -520,7 +722,7 @@ repo-configured textconv/external diff, and only serves repos the user opened.
 Recent repo paths are kept in its data folder, never in the repo. Repos other
 MonoRail apps create are listed with them automatically (`linked.cjs`): so
 far Jira+'s private projects repo (found with `resolveJiraDataDir`, shown as
-"Jira+ projects" with a Jira+ badge, not removable, never written to
+"Tasks projects" with a Tasks badge, not removable, never written to
 `recents.json` until opened). It is not added to Chat's allowed folders. It makes no
 network requests of its own (remote images in READMEs are blocked and external
 links do nothing) except through the GitHub connection below. Tests live in
@@ -542,6 +744,11 @@ remote, and it is off on every new issue. When on, the backend creates the
 issue on the repo's own remote (never a repo named by the page), then saves
 the local issue with a `github` link (`{ repo, number, url }`); later edits
 and comments stay local. The MCP server's GitHub+ tools never publish.
+
+GitHub+ can show a repo's folder in File Explorer (repo header button and
+the home page's repo list, `openInExplorer`): only for a repo opened this
+session, on its recents list or linked, only a directory (`shell.openPath` would run a
+file).
 
 GitHub+ speed: starting a git process is the costly part (on Windows most of
 all, and Node starts each one on the main process), so every page uses as few
@@ -573,7 +780,13 @@ frequency (`useGlobalFrequency`), read when each backup runs; a repo's own
 folder or frequency wins when its flag is off, and a schedule that follows a
 global folder that was turned off pauses with a reason. Jira+'s private
 projects repo (bundle) and Flashcards' `decks.json` (copy, refused when
-damaged) run on the global schedule (`service.cjs`, one switch each). Changing
+damaged) run on the global schedule (`service.cjs`, one switch each). **Back up
+before updating** (`beforeUpdate`, on by default): while the global folder is
+on, the settings backend backs up every global item into
+`<folder>/before-update/` (newest 5 each) after the download and before the
+installer runs (`runBeforeUpdate`); a failure holds the update
+(`backup-failed`: Try again / Update without a backup), and with no folder the
+update is never held up, only hinted. Changing
 the folder only affects future backups: never move, copy or delete backups in
 an earlier folder; pruning touches only MonoRail's own files in the folder it
 writes to. New pages with backups add an entry to `PAGES` in `global.cjs`.
@@ -587,10 +800,21 @@ working tree and index are never touched, every change is a commit, backups
 carry them and a normal push does not. Keep that ref out of commit feeds
 (`--exclude=refs/local-issues --all`).
 
-`jira-plus` (**Jira+**) applies the GitHub+ idea to Jira: a Jira-style
-tracker (own look under `.jp`, Your work / Projects / board / list / issue
-dialog) where a private local repo is a first-class project next to the
-team's real Jira projects. Team issues go through the Jira Cloud REST API
+`jira-plus` (**Tasks**, formerly Jira+; guide `docs/guide/workspace/tasks.md`)
+applies the GitHub+ idea to Jira: a task tracker where a private local repo is
+a first-class project next to the team's real Jira projects. It is a
+Workspace app that looks like a native hub page (`TasksApp.tsx`: `PageHeader`,
+Overview / List / Board / Calendar views in a `Segmented`, project chips,
+`StatTile`s, cards; routes in `scope.ts`) and a task panel that slides in from
+the right (`IssueModal.tsx`, `?selectedIssue=`). Its `.jp` variables in
+`styles.css` map onto the hub's design tokens, so palettes and dark mode apply;
+never give it its own palette again. The Calendar page shares its calendar
+(`src/apps/calendar/TaskCalendar.tsx`). **Names that must not change**: the
+app id, route `/apps/jira-plus`, backend `electron/apps/jira-plus`, its data
+folder `apps\jira-plus`, the backup id `jira-plus` and the MCP tool names
+`*_jira_plus_*` (agents' consent is stored by tool name): renaming any of
+them strands the user's tasks or permissions. Only user-facing text says
+Tasks. Team issues go through the Jira Cloud REST API
 (`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
 Connections (`getCredentials('atlassian')`); only shown when one is set up.
 Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token
@@ -598,7 +822,18 @@ saved by older versions is still used when Connections has no Atlassian
 account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
 (`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
 change, the issue's git log is its History). That repo never gets a remote;
-do not add push or sync to it. Jira+ started as the `jira` module, so if
+do not add push or sync to it. **Parents and time**: an issue may have a
+`parent` in the same project (no loops; deleting a parent clears its
+children's field in the same commit) and `worklogs` (started, seconds,
+comment; 1 minute to 1 week each); child lists and roll-up totals are worked
+out on read, never stored. Team Jira uses its own `parent` field, `parent =`
+JQL for children and real worklogs (`aggregatetimespent` for sub-tasks).
+**Comments**: add, edit and delete. Local comments are all `mine` (one commit
+each); team tickets post, `PUT` and `DELETE` real Jira comments, `mine` is
+worked out from the account id (`myAccount`), and Jira enforces who may edit.
+The composer always says who will read it (team: visible to everyone on the
+ticket, may email watchers).
+Jira+ started as the `jira` module, so if
 `%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
 the backend keeps using the old folder in place. Tests live in
 `jira-plus.test.cjs`.
@@ -782,10 +1017,49 @@ code does today: update them in the same PR as any change to the manifest,
 `wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
 is bundled at build time (`import.meta.glob` `?raw` in
 `src/modules/wiki/content.ts`, so it is offline and matches the installed
-version). Links between docs open in the wiki, other repo paths open on
-GitHub. Page order per folder is `ORDER` in `content.ts`; add new docs files
-there. Open a page from elsewhere with `openWiki(id, anchor)` from
-`modules/wiki/store.ts`.
+version). Open a page from elsewhere with `openWiki(id, anchor)` from
+`modules/wiki/store.ts` (a test checks every `openWiki('<id>')` exists).
+
+### The wiki is a linked notebook (Obsidian-style): write docs that way
+
+The owner wants the wiki read by **hopping between linked pages**, not by
+hunting in the page list: if a reader has to use the nav panel, the docs have
+failed. Treat every doc as a node in a web of knowledge:
+
+- **Link heavily, inline.** Every time a page mentions an idea another page
+  explains (a feature, a term from `docs/guide/glossary.md`, a rule, a
+  setting), link it, to the heading if there is one (`page.md#heading`).
+  Use normal relative Markdown links so they also work on GitHub; the wiki
+  turns them into in-app links with a hover preview. Link both ways: when you
+  add a page, also add links *to* it from the pages that mention its topic.
+- **No orphans, no dead ends.** `electron/docs.test.cjs` fails when a doc has
+  no audience tag, a link points at a missing file or heading, a doc is
+  linked from nowhere, or a guide links to fewer than four other pages.
+- **Folders nest to any depth.** The page list is a collapsible tree built
+  from the folders under `docs/` (open state in `commandHub.wiki.open`; the
+  folders around the open page always open). A folder's `README.md` is its
+  index page: it introduces the section and links each page in it; the wiki
+  adds an "In this section" grid below it. Give it front matter `folder:
+  <short name>` for the tree. Order inside a folder is `ORDER` in
+  `content.ts` (optional; unlisted pages follow by title). Prefer a new
+  subfolder over a long flat folder.
+- **Every page shows its neighbours**: clickable breadcrumbs (folder index
+  pages), "Linked from" (backlinks) and "Links on this page", plus
+  previous/next in reading order. Keep pages short and focused so they link
+  rather than repeat.
+
+**Audience tags.** Every doc starts with front matter
+`---\naudience: human, ai\n---` (one or both; optional `summary:` for cards
+and previews, `folder:` on a README). `human` pages are plain-language guides
+anyone can follow without code; `ai` pages are dense reference for agents and
+developers (exact files, contracts, rules). The wiki filters on it (People /
+Agents / All, `commandHub.wiki.audience`, default People) and badges each
+page. `docs/guide/` holds the human guides, in subfolders (`agents/`,
+`workspace/`, `setup/`), shown as "Start here" cards (icons in `ICONS` in
+`WikiPage.tsx`); Home's "Get started" cards open them. A user-facing feature
+should get a guide page (or a section in one) in the same PR, linked from its
+folder index and from the pages that mention it. Guides must not contain
+personal paths, names or test-user details.
 
 ## Design guidance
 

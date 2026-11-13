@@ -35,7 +35,20 @@ export interface ModuleDefinition {
     badge?: string
     /** Path of a nav item to nest under as a subpage (e.g. "/agents"). Falls back to the section if missing. */
     parent?: string
+    /**
+     * Settings pages only (`section: 'Settings'`): the heading they are listed
+     * under in the Settings menu, e.g. "App" or "Accounts & access". Settings
+     * pages are not drawn in the drawer; the one Settings button at its bottom
+     * opens them (src/modules/settings/SettingsLayout.tsx).
+     */
+    group?: string
   }
+  /**
+   * `full`: the page fills the body under the top bar edge to edge, with no
+   * container or gutters (canvas pages such as Flows). Defaults to the
+   * centered 1536px container.
+   */
+  layout?: 'full'
   /** The page. Use `lazy(() => import(...))` so modules load on demand. */
   component: LazyExoticComponent<ComponentType> | ComponentType
   /**
@@ -54,6 +67,14 @@ export interface CommandHubBridge {
   isFullScreen?(): Promise<boolean>
   /** Push channels from the main process: 'extension:event', 'extension:changed' and 'window:fullscreen' (boolean). Returns an unsubscribe. */
   on?(channel: 'extension:event' | 'extension:changed' | 'window:fullscreen', cb: (payload: unknown) => void): () => void
+  /** Set by the browser dev bridge (`npm run dev:browser`): HTTP to backends on this same PC. */
+  devBridge?: boolean
+  /**
+   * Set when the page runs on another device (the optional Remote access mode,
+   * e.g. a phone): backends are real, but this PC's screen is not in front of
+   * the user, so dialogs, Explorer and terminals are not offered.
+   */
+  remote?: boolean
 }
 
 declare global {

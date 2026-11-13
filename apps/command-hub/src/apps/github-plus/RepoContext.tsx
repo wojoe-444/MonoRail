@@ -16,7 +16,7 @@ interface Ctx {
   refs: RefInfo[]
   /** Recently opened repo paths (kept in AppData by the backend), newest first. */
   recents: string[]
-  /** Repos other MonoRail apps created (Jira+'s private projects); listed after the recents, never removed. */
+  /** Repos other MonoRail apps created (Tasks' private projects); listed after the recents, never removed. */
   linked: LinkedRepo[]
   /** True while the last-opened repo is being restored on startup. */
   restoring: boolean
@@ -109,7 +109,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
     let live = true
     api.getSettings().then((s) => live && setSettings(s), () => undefined)
     api.getLinked().then((l) => live && setLinked(l), () => undefined)
-    // Another app (Jira+) asked to open a repo: open that one instead of the last one.
+    // Another app (Tasks) asked to open a repo: open that one instead of the last one.
     const handoff = takeGitHubPlusHandoff()
     api.getRecents().then(
       async (list) => {

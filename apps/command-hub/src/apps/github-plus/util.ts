@@ -42,3 +42,6 @@ export function languageFor(path: string): string | undefined {
   if (name === 'makefile') return 'makefile'
   return EXT_LANG[name.split('.').pop() ?? '']
 }
+
+/** What the system file manager is called: "Finder" on a Mac, "File Explorer" elsewhere (MonoRail ships for Windows). */
+export const fileManagerName = /Mac/i.test(navigator.userAgent) ? 'Finder' : 'File Explorer'

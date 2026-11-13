@@ -156,7 +156,6 @@ export default function ExtensionsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Settings"
         title="Extensions"
         description="Modules and apps built outside MonoRail. Each one runs in its own sandbox and only gets the access you approve."
         actions={

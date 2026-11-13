@@ -1,7 +1,9 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
-import { RepoIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon, TaskIcon } from '../components/Icons'
+import { RepoIcon, FolderIcon, CodeIcon, CommitIcon, BranchIcon, CompareIcon, BackupIcon, IssueOpenIcon, TaskIcon } from '../components/Icons'
+import { fileManagerName } from '../util'
+import { hasLocalScreen } from '@/modules/client'
 import { backupsLink, commitsLink, compareLink, issuesLink, tasksLink, treeLink } from '../links'
 
 export default function RepoLayout() {
@@ -19,6 +21,7 @@ export default function RepoLayout() {
       <header className="topbar">
         <Link to="/" className="brand" title="GitHub+ home: open a repository">GitHub<span className="brand-plus">+</span></Link>
         <span className="spacer" />
+        {hasLocalScreen() && <button className="btn" onClick={() => api.openInExplorer(repo.path).catch((e) => window.alert(e instanceof Error ? e.message : String(e)))} title={`Open ${repo.path} in ${fileManagerName}`}><FolderIcon /> Open in {fileManagerName}</button>}
         <button className="btn" onClick={() => refresh()} title="Re-read branches from disk">Refresh</button>
         <button className="btn" onClick={() => pick().then((ok) => ok && nav('/repo/tree'))}>Open…</button>
       </header>
@@ -29,7 +32,7 @@ export default function RepoLayout() {
           <NavLink to={treeLink(ref, '')} className={({ isActive }) => (isActive ? 'active' : '')} end={false}><CodeIcon /> Code</NavLink>
           <NavLink to={commitsLink(ref)}><CommitIcon /> Commits</NavLink>
           <NavLink to={issuesLink()}><IssueOpenIcon /> Issues{counts.data?.open ? <span className="counter">{counts.data.open}</span> : null}</NavLink>
-          <NavLink to={tasksLink()} title="Jira+ tasks linked to this repository"><TaskIcon /> Tasks{taskCount.data ? <span className="counter">{taskCount.data}</span> : null}</NavLink>
+          <NavLink to={tasksLink()} title="Tasks linked to this repository"><TaskIcon /> Tasks{taskCount.data ? <span className="counter">{taskCount.data}</span> : null}</NavLink>
           <NavLink to="/repo/branches"><BranchIcon /> Branches</NavLink>
           <NavLink to={compareLink()}><CompareIcon /> Compare</NavLink>
           <NavLink to={backupsLink()}><BackupIcon /> Backups</NavLink>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Dialog as D } from 'radix-ui'
-import { ChevronDown, ExternalLink, GitCommitHorizontal, Loader2, Trash2, X } from 'lucide-react'
+import { ChevronDown, Clock, ExternalLink, GitCommitHorizontal, Loader2, Trash2, X } from 'lucide-react'
 
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -8,14 +8,18 @@ import { cn } from '@/lib/utils'
 import { errorText, jiraApi } from '../api'
 import { Avatar, LocalChip, Lozenge, PriorityIcon, ProjectAvatar, TypeIcon } from '../bits'
 import { useJira } from '../JiraContext'
-import type { IssueDetail, IssueFields } from '../types'
+import type { Comment, IssueDetail, IssueFields, Worklog } from '../types'
+import { Comments } from './Comments'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from './Menu'
 import { ErrorNote } from './Modal'
+import { ParentPicker } from './Parent'
 import { RepoLinks } from './RepoLinks'
+import { ChildIssues, LogTimeDialog, TimeSummary, WorklogList } from './TimeTracking'
 
-/** The issue view: Jira's large modal with the ticket on the left and Details on the right. */
+/** The task panel: slides in from the right over the page, the ticket on top and its details below. */
 export function IssueModal() {
-  const { selected, closeIssue, refresh, priorities, projects } = useJira()
+  const { selected, closeIssue, refresh, priorities, projects, openIssue, openDialog, overview } = useJira()
+  const [logOpen, setLogOpen] = useState(false)
   const [issue, setIssue] = useState<IssueDetail>()
   const [types, setTypes] = useState<string[]>([])
   const [error, setError] = useState<string>()
@@ -68,16 +72,30 @@ export function IssueModal() {
   return (
     <D.Root open={!!selected} onOpenChange={(o) => !o && closeIssue()}>
       <D.Portal>
-        <D.Overlay className="jp fixed inset-0 z-50 bg-(--jp-blanket) data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <D.Content className="jp fixed top-[60px] left-1/2 z-50 flex max-h-[calc(100vh-100px)] w-[calc(100%-48px)] max-w-[1100px] -translate-x-1/2 flex-col rounded-[3px] bg-(--jp-raised) shadow-(--jp-shadow-overlay) outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0">
+        <D.Overlay className="jp fixed inset-0 z-50 bg-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <D.Content className="jp fixed inset-y-0 right-0 z-50 flex w-full max-w-[600px] flex-col border-l bg-(--jp-raised) shadow-elevation-3 outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right-4 data-[state=open]:fade-in-0">
           <D.Title className="sr-only">{issue ? `${issue.key} ${issue.summary}` : (selected?.key ?? 'Issue')}</D.Title>
           <D.Description className="sr-only">Issue details</D.Description>
 
           {/* Breadcrumb + actions */}
-          <div className="flex h-14 shrink-0 items-center gap-2 px-6">
+          <div className="flex h-16 shrink-0 items-center gap-2 border-b px-6">
             <ProjectAvatar projectKey={projectKey} size={16} />
             <span className="truncate text-(--jp-subtle)">{project?.name ?? projectKey}</span>
             <span className="text-(--jp-subtlest)">/</span>
+            {issue?.parent && (
+              <>
+                <button
+                  type="button"
+                  className="jp-focusable flex min-w-0 items-center gap-1.5 rounded-md text-(--jp-subtle) outline-none hover:underline"
+                  title={issue.parent.summary ? `${issue.parent.key} ${issue.parent.summary}` : issue.parent.key}
+                  onClick={() => openIssue(issue.source, issue.parent!.key)}
+                >
+                  <TypeIcon type={issue.parent.type ?? 'Epic'} />
+                  {issue.parent.key}
+                </button>
+                <span className="text-(--jp-subtlest)">/</span>
+              </>
+            )}
             {issue && <TypeIcon type={issue.type} />}
             <span className="text-(--jp-subtle)">{selected?.key}</span>
             {selected?.source === 'local' && <LocalChip className="ml-1" />}
@@ -95,7 +113,7 @@ export function IssueModal() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-8">
             <ErrorNote error={error} />
             {!issue && !error && (
               <div className="flex items-center gap-2 py-8 text-(--jp-subtle)">
@@ -103,26 +121,33 @@ export function IssueModal() {
               </div>
             )}
             {issue && (
-              <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="flex min-w-0 flex-col gap-6">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
                   <SummaryEditor value={issue.summary} disabled={!!busy} onSave={(summary) => update({ summary })} />
-                  <DescriptionEditor value={issue.description} disabled={!!busy} onSave={(description) => update({ description })} />
-                  <Activity
-                    issue={issue}
-                    busy={busy === 'comment'}
-                    onComment={(body) => run('comment', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusButton
+                      issue={issue}
+                      disabled={!!busy}
+                      onPick={(transitionId) => void run('status', () => jiraApi().transitionIssue({ source: issue.source, key: issue.key, transitionId }))}
+                    />
+                    <button type="button" className="jp-btn" disabled={!!busy} onClick={() => setLogOpen(true)}>
+                      <Clock /> Log time
+                    </button>
+                  </div>
                 </div>
-
-                <aside className="flex flex-col gap-4">
-                  <StatusButton
-                    issue={issue}
-                    disabled={!!busy}
-                    onPick={(transitionId) => void run('status', () => jiraApi().transitionIssue({ source: issue.source, key: issue.key, transitionId }))}
-                  />
-                  <div className="rounded-[3px] border border-(--jp-border)">
-                    <div className="border-b border-(--jp-border) px-4 py-3 font-semibold">Details</div>
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-xl ring-1 ring-foreground/10">
+                    <div className="border-b border-(--jp-border) px-4 py-3 text-sm font-semibold">Details</div>
                     <dl className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-4 gap-y-3 p-4">
+                      <DetailRow label="Parent">
+                        <ParentPicker
+                          source={issue.source}
+                          issueKey={issue.key}
+                          value={issue.parent}
+                          disabled={!!busy}
+                          onChange={(parent) => void run('parent', () => jiraApi().setParent({ source: issue.source, key: issue.key, parent }))}
+                        />
+                      </DetailRow>
                       <DetailRow label="Assignee">
                         <Person name={issue.assignee} />
                       </DetailRow>
@@ -143,21 +168,41 @@ export function IssueModal() {
                           />
                         </div>
                       </DetailRow>
-                      <DetailRow label="Issue type">
+                      <DetailRow label="Expected end"><input aria-label="Expected end date" type="date" className="jp-field" value={issue.dueDate ?? ''} disabled={!!busy} onChange={(e) => update({ dueDate: e.target.value })} /></DetailRow>
+                      {issue.type === 'Recurring' && <DetailRow label="Repeat"><select aria-label="Repeat schedule" className="jp-field" value={issue.recurrence ?? 'weekly'} disabled={!!busy} onChange={(e) => update({ recurrence: e.target.value as 'daily' | 'weekly' | 'monthly' })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></DetailRow>}
+                      {issue.nextOccurrence && <DetailRow label="Next occurrence"><button type="button" className="jp-link" onClick={() => openIssue(issue.source, issue.nextOccurrence!)}>{issue.nextOccurrence}</button></DetailRow>}
+                      <DetailRow label="Type">
                         <div className="flex items-center gap-1">
                           <TypeIcon type={issue.type} />
                           <InlineSelect
                             value={issue.type}
                             options={types.includes(issue.type) ? types : [issue.type, ...types]}
-                            disabled={!!busy}
+                            disabled={!!busy || issue.type === 'Recurring'}
                             onChange={(type) => update({ type })}
                           />
                         </div>
                       </DetailRow>
+                      <DetailRow label="Time tracking" top>
+                        <TimeSummary issue={issue} disabled={!!busy} onLog={() => setLogOpen(true)} />
+                      </DetailRow>
                     </dl>
                   </div>
-                  <div className="rounded-[3px] border border-(--jp-border)">
-                    <div className="border-b border-(--jp-border) px-4 py-3 font-semibold">Repositories</div>
+                </div>
+                <div className="flex min-w-0 flex-col gap-6">
+                  <DescriptionEditor value={issue.description} disabled={!!busy} onSave={(description) => update({ description })} />
+                  <ChildIssues issue={issue} onOpen={(key) => openIssue(issue.source, key)} onAdd={() => openDialog('create', project, issue.key)} onAddSubtask={project && !/^sub-?task$/i.test(issue.type) ? () => openDialog('create-subtask', project, issue.key) : undefined} />
+                  <Activity
+                    issue={issue}
+                    me={overview?.connection.displayName}
+                    busy={busy}
+                    onComment={(body) => run('add', () => jiraApi().addComment({ source: issue.source, key: issue.key, body }))}
+                    onEditComment={(c, body) => run(`edit:${c.id}`, () => jiraApi().updateComment({ source: issue.source, key: issue.key, id: c.id, body }))}
+                    onDeleteComment={(c) => run(`delete:${c.id}`, () => jiraApi().deleteComment({ source: issue.source, key: issue.key, id: c.id }))}
+                    worklogBusy={!!busy}
+                    onDeleteWorklog={(w) => void run('worklog', () => jiraApi().deleteWorklog({ source: issue.source, key: issue.key, id: w.id }))}
+                  />
+                  <div className="rounded-xl ring-1 ring-foreground/10">
+                    <div className="border-b border-(--jp-border) px-4 py-3 text-sm font-semibold">Repositories</div>
                     <div className="p-4 pt-3">
                       <RepoLinks key={`${issue.source}:${issue.key}`} source={issue.source} issueKey={issue.key} />
                     </div>
@@ -165,22 +210,23 @@ export function IssueModal() {
                   <div className="px-1 text-xs leading-5 text-(--jp-subtlest)">
                     <div>Created {formatRelative(issue.created)}</div>
                     <div>Updated {formatRelative(issue.updated)}</div>
-                    <div>{issue.source === 'local' ? 'Stored in your private local repo' : 'Synced with your team Jira'}</div>
+                    <div>{issue.source === 'local' ? 'Private: stored in a git repo on this computer' : 'Team task: changes go to your team Jira'}</div>
                   </div>
-                </aside>
+                </div>
               </div>
             )}
           </div>
+          <LogTimeDialog issue={issue} open={logOpen} onClose={() => setLogOpen(false)} onLogged={() => void run('log', async () => {})} />
         </D.Content>
       </D.Portal>
     </D.Root>
   )
 }
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+function DetailRow({ label, top, children }: { label: string; top?: boolean; children: React.ReactNode }) {
   return (
     <>
-      <dt className="text-sm font-semibold text-(--jp-subtle)">{label}</dt>
+      <dt className={cn('text-sm text-(--jp-subtle)', top && 'self-start pt-1.5')}>{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </>
   )
@@ -201,7 +247,7 @@ function InlineSelect({ value, options, disabled, onChange }: { value: string; o
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="jp-focusable -ml-1 h-8 min-w-0 flex-1 cursor-pointer rounded-[3px] bg-transparent px-1 text-(--jp-text) outline-none hover:bg-(--jp-hover)"
+      className="jp-focusable -ml-1 h-8 min-w-0 flex-1 cursor-pointer rounded-md bg-transparent px-1 text-(--jp-text) outline-none hover:bg-(--jp-hover)"
     >
       {options.map((o) => (
         <option key={o}>{o}</option>
@@ -242,7 +288,7 @@ function SummaryEditor({ value, disabled, onSave }: { value: string; disabled: b
   if (draft === undefined) {
     return (
       <h1
-        className="-mx-1.5 cursor-text rounded-[3px] px-1.5 py-1 text-2xl leading-8 font-medium hover:bg-(--jp-hover)"
+        className="-mx-1.5 cursor-text rounded-md px-1.5 py-1 text-2xl leading-8 font-medium hover:bg-(--jp-hover)"
         onClick={() => !disabled && setDraft(value)}
       >
         {value}
@@ -268,7 +314,7 @@ function SummaryEditor({ value, disabled, onSave }: { value: string; disabled: b
           setDraft(undefined)
         }
       }}
-      className="jp-field text-2xl leading-8 font-medium"
+      className="jp-field text-xl leading-7 font-semibold"
     />
   )
 }
@@ -277,12 +323,12 @@ function DescriptionEditor({ value, disabled, onSave }: { value: string; disable
   const [draft, setDraft] = useState<string>()
   return (
     <div>
-      <h2 className="mb-2 font-semibold">Description</h2>
+      <h2 className="mb-2 text-xs font-semibold tracking-wide text-(--jp-subtle) uppercase">Description</h2>
       {draft === undefined ? (
         <div
           onClick={() => !disabled && setDraft(value)}
           className={cn(
-            '-mx-1.5 min-h-12 cursor-text rounded-[3px] px-1.5 py-1 leading-6 break-words whitespace-pre-wrap hover:bg-(--jp-hover)',
+            '-mx-1.5 min-h-12 cursor-text rounded-md px-1.5 py-1 leading-6 break-words whitespace-pre-wrap hover:bg-(--jp-hover)',
             !value && 'text-(--jp-subtlest)',
           )}
         >
@@ -333,11 +379,11 @@ function LabelsEditor({ value, disabled, onSave }: { value: string[]; disabled: 
         type="button"
         disabled={disabled}
         onClick={() => setDraft(value.join(', '))}
-        className="jp-focusable -ml-1 flex min-h-8 w-full flex-wrap items-center gap-1 rounded-[3px] px-1 text-left outline-none hover:bg-(--jp-hover)"
+        className="jp-focusable -ml-1 flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md px-1 text-left outline-none hover:bg-(--jp-hover)"
       >
         {value.length ? (
           value.map((l) => (
-            <span key={l} className="rounded-[3px] bg-(--jp-hover) px-1.5 text-xs leading-5">
+            <span key={l} className="rounded-md bg-(--jp-hover) px-1.5 text-xs leading-5">
               {l}
             </span>
           ))
@@ -373,19 +419,37 @@ function LabelsEditor({ value, disabled, onSave }: { value: string[]; disabled: 
   )
 }
 
-function Activity({ issue, busy, onComment }: { issue: IssueDetail; busy: boolean; onComment: (body: string) => Promise<boolean> }) {
-  const [tab, setTab] = useState<'comments' | 'history'>('comments')
-  const [body, setBody] = useState('')
-  const [focused, setFocused] = useState(false)
-  const submit = () => void onComment(body.trim()).then((ok) => ok && (setBody(''), setFocused(false)))
+function Activity({
+  issue,
+  me,
+  busy,
+  onComment,
+  onEditComment,
+  onDeleteComment,
+  worklogBusy,
+  onDeleteWorklog,
+}: {
+  issue: IssueDetail
+  me?: string
+  busy?: string
+  onComment: (body: string) => Promise<boolean>
+  onEditComment: (c: Comment, body: string) => Promise<boolean>
+  onDeleteComment: (c: Comment) => Promise<boolean>
+  worklogBusy: boolean
+  onDeleteWorklog: (w: Worklog) => void
+}) {
+  const [tab, setTab] = useState<'comments' | 'worklog' | 'history'>('comments')
 
   return (
     <div>
-      <h2 className="mb-2 font-semibold">Activity</h2>
+      <h2 className="mb-2 text-xs font-semibold tracking-wide text-(--jp-subtle) uppercase">Activity</h2>
       <div className="mb-4 flex items-center gap-1">
         <span className="mr-1 text-(--jp-subtle)">Show:</span>
         <button type="button" className={cn('jp-btn h-7 px-2', tab === 'comments' && 'jp-btn-selected')} onClick={() => setTab('comments')}>
-          Comments
+          Comments{issue.comments.length > 0 && ` (${issue.comments.length + (issue.commentsCut ?? 0)})`}
+        </button>
+        <button type="button" className={cn('jp-btn h-7 px-2', tab === 'worklog' && 'jp-btn-selected')} onClick={() => setTab('worklog')}>
+          Work log{issue.worklogs.length > 0 && ` (${issue.worklogs.length})`}
         </button>
         {issue.source === 'local' && (
           <button type="button" className={cn('jp-btn h-7 px-2', tab === 'history' && 'jp-btn-selected')} onClick={() => setTab('history')}>
@@ -395,48 +459,10 @@ function Activity({ issue, busy, onComment }: { issue: IssueDetail; busy: boolea
       </div>
 
       {tab === 'comments' && (
-        <div className="flex flex-col gap-5">
-          <div className="flex gap-3">
-            <Avatar name="You" size={32} />
-            <div className="flex-1">
-              <textarea
-                rows={focused || body ? 4 : 1}
-                placeholder="Add a comment…"
-                aria-label="Add a comment"
-                value={body}
-                onFocus={() => setFocused(true)}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && body.trim()) submit()
-                }}
-                className="jp-field"
-              />
-              {(focused || body) && (
-                <div className="mt-2 flex gap-2">
-                  <button type="button" className="jp-btn jp-btn-primary" disabled={busy || !body.trim()} onClick={submit}>
-                    {busy && <Loader2 className="animate-spin" />} Save
-                  </button>
-                  <button type="button" className="jp-btn jp-btn-subtle" onClick={() => (setBody(''), setFocused(false))}>
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {[...issue.comments].reverse().map((c) => (
-            <div key={c.id} className="flex gap-3">
-              <Avatar name={c.author} size={32} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-semibold">{c.author}</span>
-                  <span className="text-xs text-(--jp-subtle)">{formatRelative(c.created)}</span>
-                </div>
-                <p className="mt-1 leading-6 break-words whitespace-pre-wrap">{c.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Comments issue={issue} me={me} busy={busy} onAdd={onComment} onEdit={onEditComment} onDelete={onDeleteComment} />
       )}
+
+      {tab === 'worklog' && <WorklogList issue={issue} busy={worklogBusy} onDelete={onDeleteWorklog} />}
 
       {tab === 'history' && (
         <ol className="flex flex-col">
@@ -460,7 +486,7 @@ function DeleteButton({ issue, onDeleted, onError }: { issue: IssueDetail; onDel
   const [confirm, setConfirm] = useState(false)
   if (!confirm) {
     return (
-      <button type="button" className="jp-btn jp-btn-subtle size-8 px-0" aria-label="Delete issue" title="Delete issue" onClick={() => setConfirm(true)}>
+      <button type="button" className="jp-btn jp-btn-subtle size-8 px-0" aria-label="Delete task" title="Delete task" onClick={() => setConfirm(true)}>
         <Trash2 />
       </button>
     )

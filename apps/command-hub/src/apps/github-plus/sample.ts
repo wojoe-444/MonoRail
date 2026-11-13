@@ -5,7 +5,7 @@ import { jiraApi } from '../jira-plus/api'
 import { sampleRepoLinks } from '../jira-plus/sampleRepoLinks'
 import type { LinkedTask } from './types'
 
-/** Linked tasks from the shared sample links, with summaries from the Jira+ sample tickets. */
+/** Linked tasks from the shared sample links, with summaries from the Tasks sample tickets. */
 async function sampleTasks(repo: { path?: string; github?: string | null }): Promise<LinkedTask[]> {
   const all = await jiraApi().listIssues({ source: 'all' })
   return sampleRepoLinks.forRepo(repo).map(({ issue, link }) => {
@@ -13,7 +13,7 @@ async function sampleTasks(repo: { path?: string; github?: string | null }): Pro
     const base = { linkId: link.id, source: issue.source, key: issue.key, linkedAt: link.linkedAt }
     return i
       ? { ...base, summary: i.summary, status: i.status, statusCategory: i.statusCategory, type: i.type, projectName: i.projectName, url: i.url }
-      : { ...base, error: 'This ticket no longer exists in Jira+.' }
+      : { ...base, error: 'This ticket no longer exists in Tasks.' }
   })
 }
 const sampleGitHubOf = (repo: string) => (repo.endsWith('/orbit-notes') ? 'sample-dev/orbit-notes' : null)
@@ -246,8 +246,8 @@ const OTHER_REPOS: RepoActivity[] = [
   },
 ]
 
-// Jira+'s private projects repo, listed without being opened (linked.cjs on the desktop).
-const JIRA_REPO: LinkedRepo = { path: 'C:/Users/sample/AppData/Roaming/MonoRail/apps/jira-plus/local-repo', name: 'Jira+ projects', app: 'jira-plus', label: 'Jira+' }
+// Tasks' private projects repo, listed without being opened (linked.cjs on the desktop).
+const JIRA_REPO: LinkedRepo = { path: 'C:/Users/sample/AppData/Roaming/MonoRail/apps/jira-plus/local-repo', name: 'Tasks projects', app: 'jira-plus', label: 'Tasks' }
 const JIRA_ACTIVITY: RepoActivity = {
   path: JIRA_REPO.path,
   name: JIRA_REPO.name,
@@ -364,6 +364,8 @@ export const sampleApi: RepoApi = {
     return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
   },
   removeRecent: () => wait([]),
+  // No file manager in the browser dev server.
+  openInExplorer: () => wait(null),
   listRefs: () => wait(REFS),
   async listTree(_repo, ref, dir) {
     const files = filesAt(ref)
