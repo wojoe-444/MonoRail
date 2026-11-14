@@ -1,0 +1,20 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const os = require('node:os')
+const path = require('node:path')
+const { methods } = require('./prompt-templates.cjs')
+
+test('prompt revisions persist and stale edits cannot overwrite history', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'prompts-'))
+  t.after(() => fs.rm(dir, { recursive: true, force: true }))
+  const ctx = { dataDir: dir }
+  const first = await methods.save(ctx, { name: 'Greeting', text: 'Hello {name}' })
+  const second = await methods.save(ctx, { id: first.id, baseVersion: 1, name: 'Greeting', text: 'Hi {name}' })
+  assert.deepEqual(second.versions.map((v) => v.text), ['Hello {name}', 'Hi {name}'])
+  await assert.rejects(methods.save(ctx, { id: first.id, baseVersion: 1, name: 'Stale', text: 'Lost' }), /changed/)
+  assert.deepEqual(await methods.list(ctx), [second])
+  await fs.writeFile(path.join(dir, 'prompts.json'), 'broken')
+  await assert.rejects(methods.save(ctx, { name: 'Another', text: 'text' }))
+  assert.equal(await fs.readFile(path.join(dir, 'prompts.json'), 'utf8'), 'broken')
+})

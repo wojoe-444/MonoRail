@@ -18,15 +18,17 @@ import { SettingsLayout } from '@/modules/settings/SettingsLayout'
 import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
 import { PrReviewer } from '@/modules/agent-catalog/PrReviewer'
-import { CatalogLayout, CATALOG_PATH, SUBAGENTS_PATH } from '@/modules/agent-catalog/CatalogLayout'
+import { CatalogLayout, CATALOG_PATH, SUBAGENTS_PATH, PROMPTS_PATH } from '@/modules/agent-catalog/CatalogLayout'
 
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 
+const PromptsPage = lazy(() => import('@/modules/agent-catalog/PromptsPage'))
 const CatalogPage = lazy(() => import('@/modules/agent-catalog/CatalogPage'))
 
 function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem[]; onOpen: (path: string) => void }) {
+  if (path === PROMPTS_PATH) return <Suspense fallback={null}><PromptsPage /></Suspense>
   if (path === SUBAGENTS_PATH) return <Suspense fallback={null}><CatalogPage /></Suspense>
   const mod = findModuleByPath(path)
   if (mod) {
@@ -124,7 +126,7 @@ export default function App() {
                 <SettingsLayout path={path}>
                   <RouteView path={path} navItems={navItems} onOpen={openPath} />
                 </SettingsLayout>
-              ) : (path === CATALOG_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
+              ) : (path === CATALOG_PATH || path === PROMPTS_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
                 <CatalogLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></CatalogLayout>
               ) : (
                 <RouteView path={path} navItems={navItems} onOpen={openPath} />
