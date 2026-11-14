@@ -92,6 +92,13 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
     // The chat module is the Bots landing page, already represented above.
     if (m.id === 'agent-chat') continue
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
+    if (m.nav.section === '') {
+      // Keep top-level modules after Home and before the optional Apps entry.
+      const top = sections[0].items
+      const appsIndex = top.findIndex((entry) => entry.path === '/apps')
+      top.splice(appsIndex < 0 ? top.length : appsIndex, 0, item)
+      continue
+    }
     const parent = m.nav.parent ? findNavItem(sections, m.nav.parent)?.item : undefined
     if (parent) {
       parent.children = [...(parent.children ?? []), item]
