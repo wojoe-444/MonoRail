@@ -12,6 +12,7 @@ import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { GoalDialog } from './GoalDialog'
 import { HistoryCard } from './HistoryCard'
+import { StorageInsights } from './StorageInsights'
 import { sampleDrives, sampleHistory, sampleScan } from './sample'
 import type { Advice, Drive, DriveGoal, DrivesResult, LocationGroup, ScanState, StorageHistory, StorageLocation } from './types'
 
@@ -133,11 +134,13 @@ export default function StoragePage() {
         )}
       </section>
 
-      <HistoryCard history={history} error={historyQuery.error} goals={goals} />
+      <StorageInsights scan={scan} history={history} desktop={desktop} onOpen={(id) => act(() => invokeModule('storage', 'openLocation', { id }))} />
 
       {goalFor && <GoalDialog drive={goalFor} goal={goals[goalFor.id]} onClose={() => setGoalFor(undefined)} onSaved={() => void reloadDrives()} />}
 
       <FoldersCard scan={scan} error={scanQuery.error} desktop={desktop} onScan={startScan} onOpen={(id) => act(() => invokeModule('storage', 'openLocation', { id }))} />
+
+      <HistoryCard history={history} error={historyQuery.error} goals={goals} />
     </div>
   )
 }
