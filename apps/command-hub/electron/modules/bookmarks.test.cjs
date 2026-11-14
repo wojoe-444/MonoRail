@@ -43,3 +43,20 @@ test('opening resolves the saved target through the system shell and reports err
   await assert.rejects(backend.methods.open(ctx, { id: missing.id }), /File not found/)
   assert.deepEqual(backend.desktopOnly, ['open'])
 })
+
+test('folders support nesting, moves, validation and recursive removal', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bookmarks-'))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const ctx = { dataDir: dir }
+  const root = await backend.methods.save(ctx, { kind: 'folder', name: 'Root', color: '#123456' })
+  const child = await backend.methods.save(ctx, { kind: 'folder', name: 'Child', parentId: root.id })
+  const link = await backend.methods.save(ctx, { name: 'Link', target: 'https://example.com', parentId: child.id })
+  assert.equal((await backend.methods.list(ctx))[0].color, '#123456')
+  await assert.rejects(backend.methods.save(ctx, { ...root, parentId: child.id }), /inside itself/)
+  await assert.rejects(backend.methods.save(ctx, { ...child, parentId: link.id }), /Parent must be a folder/)
+  await assert.rejects(backend.methods.save(ctx, { ...child, color: 'red' }), /color/)
+  await assert.rejects(backend.methods.open(ctx, { id: root.id }), /cannot be opened/)
+  await backend.methods.save(ctx, { ...link, parentId: null })
+  await backend.methods.remove(ctx, { id: root.id })
+  assert.deepEqual((await backend.methods.list(ctx)).map((x) => x.id), [link.id])
+})

@@ -23,14 +23,17 @@ function fields(args) {
   const name = typeof args?.name === 'string' ? args.name.trim() : ''
   const description = typeof args?.description === 'string' ? args.description.trim() : ''
   const target = typeof args?.target === 'string' ? args.target.trim() : ''
-  if (!name || !target) throw new Error('A name and destination are required.')
+  const kind = args?.kind === 'folder' ? 'folder' : 'bookmark'
+  const color = args?.color || ''
+  if (!name || (kind === 'bookmark' && !target)) throw new Error('A name and destination are required.')
   if (name.length > 120 || description.length > 500 || target.length > 4096) throw new Error('A field is too long.')
-  if (!path.isAbsolute(target)) {
+  if (color && (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) throw new Error('Invalid color.')
+  if (kind === 'bookmark' && !path.isAbsolute(target)) {
     let url
     try { url = new URL(target) } catch { throw new Error('Enter an absolute local path or an http(s) URL.') }
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http(s) URLs are supported.')
   }
-  return { name, description, target }
+  return { name, description, target: kind === 'folder' ? '' : target, kind, parentId: args?.parentId || null, color }
 }
 function find(items, id) {
   const index = items.findIndex((item) => item.id === id)
@@ -45,20 +48,42 @@ module.exports = {
     async save(ctx, args) {
       const values = fields(args)
       const items = read(ctx)
-      const item = { id: args?.id || randomUUID(), ...values }
-      if (args?.id) items[find(items, args.id)] = item
+      const id = args?.id || randomUUID()
+      if (args?.id) {
+        const previous = items[find(items, id)]
+        if ((previous.kind === 'folder') !== (values.kind === 'folder')) throw new Error('Cannot change the item type.')
+      }
+      let parentId = values.parentId
+      const visited = new Set([id])
+      while (parentId) {
+        if (visited.has(parentId)) throw new Error('A folder cannot be placed inside itself.')
+        visited.add(parentId)
+        const parent = items[find(items, parentId)]
+        if (parent.kind !== 'folder') throw new Error('Parent must be a folder.')
+        parentId = parent.parentId
+      }
+      const item = { id, ...values }
+      if (args?.id) items[find(items, id)] = item
       else items.push(item)
       write(ctx, items)
       return item
     },
     async remove(ctx, args) {
       const items = read(ctx)
-      items.splice(find(items, args?.id), 1)
-      write(ctx, items)
+      find(items, args?.id)
+      const removed = new Set([args.id])
+      let count
+      do {
+        count = removed.size
+        for (const item of items) if (removed.has(item.parentId)) removed.add(item.id)
+      } while (removed.size !== count)
+      write(ctx, items.filter((item) => !removed.has(item.id)))
     },
     async open(ctx, args) {
       const items = read(ctx)
-      const target = items[find(items, args?.id)].target
+      const item = items[find(items, args?.id)]
+      if (item.kind === 'folder') throw new Error('Folders cannot be opened as destinations.')
+      const target = item.target
       fields({ name: 'Bookmark', target })
       const { shell } = require('electron')
       if (path.isAbsolute(target)) {
