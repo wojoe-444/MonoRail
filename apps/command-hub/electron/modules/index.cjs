@@ -46,6 +46,7 @@ const moduleBackends = [
   require('./remote.cjs'),
   require('./settings.cjs'),
   require('./storage.cjs'),
+  require('./scheduled.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')
 const { setupExtensions, invokeExtension, onBroadcast } = require('../extensions/index.cjs')
