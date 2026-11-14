@@ -45,6 +45,7 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Git', detail: 'Connections: version, commit identity, credential helper', path: '/connections', anchor: 'connection-git', keywords: 'git user.name user.email' },
   { label: 'Docker', detail: 'Connections: your own Docker and lazydocker (optional)', path: '/connections', anchor: 'connection-docker', keywords: 'docker lazydocker containers compose' },
   { label: 'GitHub', detail: 'Connections: your github.com account for GitHub+', path: '/connections', anchor: 'connection-github', keywords: 'github gh token cli' },
+  { label: 'SQLite', detail: 'Connections: local SQLite database', path: '/connections', anchor: 'connection-sqlite', keywords: 'sqlite database local file' },
   // Agent access
   { label: 'Connect an agent', detail: 'Agent access: add MonoRail to Claude Code and others', path: '/mcp', keywords: 'mcp server claude code setup' },
   { label: 'Write tools per agent', detail: 'Agent access: what each agent may change', path: '/mcp', keywords: 'consent permission allow write tools' },

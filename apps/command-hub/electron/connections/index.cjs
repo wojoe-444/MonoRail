@@ -56,6 +56,7 @@ const CONNECTORS = [
   require('./connectors/github.cjs'),
   require('./connectors/docker.cjs'),
   require('./connectors/metricflow.cjs'),
+  require('./connectors/sqlite.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 
