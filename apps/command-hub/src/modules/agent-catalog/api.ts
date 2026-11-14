@@ -16,7 +16,7 @@ const samples = () => (sample ??= sampleDetails())
 
 function sampleData(): CatalogData {
   const base = sampleCatalog()
-  return { ...base, subagents: samples().map(({ prompt: _p, ...s }) => s) }
+  return { ...base, subagents: samples().map(({ prompt: _p, source: _source, sourceName: _name, ...s }) => s) }
 }
 
 function sampleWrite(tool: SubagentTool, draft: SubagentDraft, id?: string): string {
@@ -65,8 +65,17 @@ export async function createSubagent(tool: SubagentTool, draft: SubagentDraft): 
 }
 
 export async function updateSubagent(s: SubagentDetail, draft: SubagentDraft): Promise<string> {
+  if (!isDesktop() && s.scope === 'builtin') {
+    sample = samples().map((item) => item.id === s.id ? { ...item, ...draft, tools: draft.tools ?? undefined, customized: true, updatedAt: Date.now() } : item)
+    return s.id
+  }
   if (!isDesktop()) return sampleWrite(s.tool, draft, s.id)
   return (await invokeModule<{ id: string }>(ID, 'update', { id: s.id, draft, updatedAt: s.updatedAt })).id
+}
+
+export async function resetSubagent(s: SubagentDetail): Promise<void> {
+  if (!isDesktop()) { const original = sampleDetails().find((item) => item.id === s.id); if (original) sample = samples().map((item) => item.id === s.id ? original : item); return }
+  await invokeModule(ID, 'reset', { id: s.id, updatedAt: s.updatedAt })
 }
 
 export async function removeSubagent(id: string): Promise<void> {

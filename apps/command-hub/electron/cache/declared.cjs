@@ -128,7 +128,8 @@ const CACHES = Object.freeze([
 /** Non-cache files per data folder. Directories end with '/'. */
 const DATA_FILES = Object.freeze({
   'modules/agent-catalog': ['backups/'],
-  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'spending.json', 'spending.json.lock', 'coordinator/', 'turn-locks/'],
+  'modules/pr-review': ['reviewer.json'],
+  'modules/agent-chat': ['folders.json', 'costs.json', 'chat-state.json', 'system-prompts.json', 'spending.json', 'spending.json.lock', 'coordinator/', 'turn-locks/', 'template-overrides/'],
   'modules/connections': ['connections.json'],
   'modules/mcp': ['access.json', 'audit.jsonl'],
   'modules/flashcards': ['decks.json', 'decks.json.lock'],

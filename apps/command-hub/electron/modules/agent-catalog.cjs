@@ -29,6 +29,7 @@ const { builtins } = require('./agent-catalog-builtins.cjs')
 const { parseFrontmatter } = require('./agents-definitions.cjs')
 const { writeAtomic } = require('../cache/files.cjs')
 const { folderOf } = require('../profiles/index.cjs')
+const templateStore = require('./builtin-template-store.cjs')
 
 const BACKUPS_DIR = 'backups'
 const MAX_BACKUPS = 200
@@ -150,10 +151,12 @@ async function readEntry(place, file) {
       ...(place.tool === 'pi' && (!data.name || !data.description) ? { problem: 'pi skips this file: it needs a name and a description.' } : {}),
     },
     body,
+    source: text,
   }
 }
 
-function builtinSummary(b) {
+function builtinSummary(b, override) {
+  b = override ? { ...b, ...override.value } : b
   return {
     id: `builtin:${b.name}`,
     tool: 'claude',
@@ -163,7 +166,8 @@ function builtinSummary(b) {
     model: b.model,
     tools: b.tools ? [...b.tools] : undefined,
     location: 'Built in to MonoRail',
-    updatedAt: 0,
+    updatedAt: override?.updatedAt ?? 0,
+    customized: !!override,
     extraFields: [],
     note: b.note,
   }
@@ -214,7 +218,7 @@ async function listSubagents({ chatDir, env = process.env, home = os.homedir() }
   subagents.sort((a, b) => a.name.localeCompare(b.name) || a.tool.localeCompare(b.tool))
   // A built-in is shown only while the user has no Claude Code subagent of that name.
   for (const b of builtins()) {
-    if (!subagents.some((s) => s.tool === 'claude' && s.scope === 'user' && s.name === b.name)) subagents.push(builtinSummary(b))
+    if (!subagents.some((s) => s.tool === 'claude' && s.scope === 'user' && s.name === b.name)) subagents.push(builtinSummary(b, templateStore.read(chatDir, b.name)))
   }
   return {
     generatedAt: Date.now(),
@@ -225,15 +229,19 @@ async function listSubagents({ chatDir, env = process.env, home = os.homedir() }
   }
 }
 
-async function getSubagent(id) {
+async function getSubagent(id, chatDir) {
   const b = typeof id === 'string' && id.startsWith('builtin:') ? builtins().find((x) => `builtin:${x.name}` === id) : undefined
-  if (b) return { ...builtinSummary(b), prompt: b.prompt }
+  if (b) {
+    const override = chatDir ? templateStore.read(chatDir, b.name) : undefined
+    const file = b.name === 'coordinator' ? 'agent-chat-options.cjs' : 'agent-catalog-builtins.cjs'
+    return { ...builtinSummary(b, override), prompt: override?.value.prompt ?? b.prompt, source: override?.raw ?? await fs.promises.readFile(path.join(__dirname, file), 'utf8'), sourceName: override ? `Your edited ${b.name} template` : `electron/modules/${file}` }
+  }
   const entry = typeof id === 'string' ? known.get(id) : undefined
   if (!entry) throw new Error('Subagent not found. Refresh the page and try again.')
   const r = await readEntry({ tool: entry.tool, scope: entry.scope, repo: entry.repo, display: displayFor(entry) }, entry.file).catch(() => undefined)
   if (!r) throw new Error('This subagent file can no longer be read.')
   known.set(id, r.entry)
-  return { ...r.summary, id, prompt: r.body }
+  return { ...r.summary, id, prompt: r.body, source: r.source, sourceName: r.summary.location }
 }
 
 function displayFor(entry) {
@@ -350,6 +358,14 @@ async function createSubagent(opts, args) {
 }
 
 async function updateSubagent(opts, args) {
+  if (typeof args?.id === 'string' && args.id.startsWith('builtin:')) {
+    const name = args.id.slice('builtin:'.length)
+    if (!builtins().some((b) => b.name === name)) throw new Error('Unknown built-in template.')
+    const draft = validateDraft(args.draft, 'claude')
+    if (draft.name !== name) throw new Error('The built-in template name cannot be changed.')
+    await templateStore.write(opts.chatDir, name, draft, args.updatedAt)
+    return { id: args.id }
+  }
   const entry = known.get(args?.id)
   if (!entry) throw new Error('Subagent not found. Refresh the page and try again.')
   const d = validateDraft(args?.draft, entry.tool)
@@ -399,9 +415,15 @@ module.exports = {
   desktopOnly: ['openBackups'],
   methods: {
     list: async (ctx) => listSubagents(opts(ctx)),
-    get: async (_ctx, args) => getSubagent(args?.id),
+    get: async (ctx, args) => getSubagent(args?.id, opts(ctx).chatDir),
     create: async (ctx, args) => createSubagent(opts(ctx), args),
     update: async (ctx, args) => updateSubagent(opts(ctx), args),
+    reset: async (ctx, args) => {
+      const name = typeof args?.id === 'string' && args.id.startsWith('builtin:') ? args.id.slice(8) : ''
+      if (!builtins().some((b) => b.name === name)) throw new Error('Unknown built-in template.')
+      await templateStore.reset(opts(ctx).chatDir, name, args?.updatedAt)
+      return { id: args.id }
+    },
     remove: async (ctx, args) => removeSubagent(opts(ctx), args),
     openBackups: async (ctx) => {
       const dir = path.join(ctx.dataDir, BACKUPS_DIR)

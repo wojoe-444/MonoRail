@@ -74,8 +74,8 @@ export function AgentsPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         eyebrow="Workspace"
-        title="Agents"
-        description="Your agent definitions, who is working right now, and the latest Claude Code and pi sessions in your repos."
+        title="Dashboard"
+        description="Your templates and skills, current activity, and the latest Claude Code and pi sessions in your repos."
         actions={
           <>
             {!desktop && (
@@ -184,7 +184,7 @@ function RecentCard({ data, loading, className }: { data?: AgentsOverview; loadi
         <CardTitle>Recent sessions</CardTitle>
         <CardDescription>Claude Code and pi, newest first, in your allowed repos</CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/agents/chat')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/agents')}>
             Open Chat
             <ArrowRight />
           </Button>

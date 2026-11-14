@@ -107,8 +107,9 @@ async function main() {
 
   // No coordinator.md of the user's own: run MonoRail's built-in coordinator.
   const builtinCoordinator = job.coordinator && !findCoordinator()
+  const coordinatorDefinition = builtinCoordinator && payload.dataDir ? require('./builtin-template-store.cjs').read(payload.dataDir, 'coordinator')?.value : undefined
 
-  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer, builtinCoordinator })
+  const options = buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer, builtinCoordinator, coordinatorDefinition })
   options.stderr = () => {} // hook and debug output stays out of the page and the logs
 
   // Streaming input: the prompt goes to Claude Code over its stdin, never argv.

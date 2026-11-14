@@ -1,4 +1,4 @@
-// Subagents that ship with MonoRail, shown read-only in the Agent Catalog.
+// Default subagent definitions that ship with MonoRail.
 // "Add to Claude Code" copies one to ~/.claude/agents/<name>.md, where the user
 // owns it (and Claude Code uses it). A built-in is listed only while the user
 // has no Claude Code subagent of the same name in their home folder.
@@ -53,10 +53,9 @@ function builtins() {
   return [
     {
       name: 'coordinator',
-      description: `${BUILTIN_COORDINATOR.description} Used when you have no coordinator subagent of your own.`,
+      description: BUILTIN_COORDINATOR.description,
       tools: [...BUILTIN_COORDINATOR.tools],
       prompt: BUILTIN_COORDINATOR.prompt,
-      note: 'The Coordinator entry on the Chat page runs it. Add your own copy to change it; the Coordinator then uses yours.',
     },
     { ...STORAGE_DETECTIVE },
   ]

@@ -8,8 +8,9 @@ export const agentChatModule: ModuleDefinition = {
   title: 'Chat',
   description: 'Every local Claude Code and pi session, read from their logs on this machine.',
   icon: MessagesSquare,
-  path: '/agents/chat',
-  nav: { section: 'Workspace', parent: '/agents' },
+  path: '/agents',
+  nav: { section: 'Workspace' },
+  layout: 'full',
   component: lazy(() => import('./AgentChatPage')),
   dataMethods: ['listSessions', 'getSession'],
 }

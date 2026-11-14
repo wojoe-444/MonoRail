@@ -22,6 +22,7 @@ export interface Subagent {
   /** Display location, relative to ~ or the repo (e.g. ".claude/agents/reviewer.md"). */
   location: string
   updatedAt: number
+  customized?: boolean
   /** Header fields MonoRail does not edit; kept as they are on save. */
   extraFields: string[]
   /** Built-ins only: what it needs or how it is used. */
@@ -33,6 +34,9 @@ export interface Subagent {
 export interface SubagentDetail extends Subagent {
   /** The instructions: everything after the header. */
   prompt: string
+  /** Actual source text and its display name, available on desktop. */
+  source?: string
+  sourceName?: string
 }
 
 /** What the editor sends to create or update a subagent. */

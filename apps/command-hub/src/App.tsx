@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect } from 'react'
 
 import { AppBody, AppFrame } from '@/apps/AppFrame'
 import { findAppByPath, isWorkspaceApp } from '@/apps/registry'
@@ -7,16 +7,17 @@ import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
+import { HeaderRevealProvider, HeaderRevealTrigger, RevealableHeader } from '@/components/layout/HeaderReveal'
 import { Inspector } from '@/components/dev/Inspector'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
 import { currentPath, useRoute } from '@/lib/router'
-import { cn } from '@/lib/utils'
 import { findModuleByPath } from '@/modules/registry'
 import { SettingsLayout } from '@/modules/settings/SettingsLayout'
 import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
+import { PrReviewer } from '@/modules/agent-catalog/PrReviewer'
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -33,7 +34,8 @@ function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem
   }
   if (path === '/') return <HomePage />
   if (path === '/apps') return <AppsPage onOpen={onOpen} />
-  if (path === '/agents') return <AgentsPage />
+  if (path === '/agents/dashboard') return <AgentsPage />
+  if (path === '/agents/pr-review') return <PrReviewer onBack={() => onOpen('/agents/catalog')} />
   // Extension pages are known once the installed list has loaded.
   if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
   const item = navItems.find((i) => i.path === path)
@@ -46,7 +48,6 @@ export default function App() {
   const navSections = useNavSections()
   const navItems = flattenNav(navSections)
   const activeApp = findAppByPath(path, extensionList)
-  const [collapsed, setCollapsed] = useState(false)
 
   const workspaceApp = activeApp && isWorkspaceApp(activeApp) ? activeApp : undefined
 
@@ -90,17 +91,17 @@ export default function App() {
         <SideNav
           current={current?.path ?? path}
           onNavigate={openPath}
-          collapsed={collapsed}
         />
-        <div className={cn('flex min-w-0 flex-1 flex-col', workspaceApp || findModuleByPath(path, extensionList)?.layout === 'full' ? 'overflow-hidden' : 'overflow-y-auto')}>
+        <HeaderRevealProvider><div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          <HeaderRevealTrigger />
+          <RevealableHeader>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
             onNavigate={openPath}
             title={current?.label ?? 'Not found'}
-            collapsed={collapsed}
-            onToggleCollapsed={() => setCollapsed((c) => !c)}
           />
+          </RevealableHeader>
           {workspaceApp ? (
             // A workspace app owns the whole page body, with its own look and scrolling.
             <main className="min-h-0 flex-1 overflow-auto">
@@ -113,7 +114,7 @@ export default function App() {
             </main>
           ) : (
             // Content container: max 1536px with 24/32px gutters
-            <main className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
+            <main className="mx-auto min-h-0 w-full max-w-[96rem] flex-1 overflow-y-auto p-6 lg:p-8">
               {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
                 <SettingsLayout path={path}>
                   <RouteView path={path} navItems={navItems} onOpen={openPath} />
@@ -123,7 +124,7 @@ export default function App() {
               )}
             </main>
           )}
-        </div>
+        </div></HeaderRevealProvider>
       </div>
       <UpdateToast />
       <Inspector />

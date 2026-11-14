@@ -17,14 +17,16 @@ import { cn } from '@/lib/utils'
 import { isDesktop } from '@/modules/client'
 import { ChatMarkdown } from '@/modules/agent-chat/ChatMarkdown'
 import { openInChat } from '@/modules/agent-chat/handoff'
+import { PrReviewer } from './PrReviewer'
+import { SourceViewer, TemplateTabs } from './TemplateCode'
 
-import { createSubagent, getSubagent, openBackups, removeSubagent, updateSubagent, useCatalog } from './api'
+import { createSubagent, getSubagent, openBackups, removeSubagent, resetSubagent, updateSubagent, useCatalog } from './api'
 import { EDITOR_TOOLS, MODEL_OPTIONS, NAME_RE, POWER_LABEL, TOOL_LABEL, TOOL_PRESETS, cannotDo, humanName, modelInfo, powerOf, toolInfo } from './explain'
 import type { CatalogData, Subagent, SubagentDetail, SubagentDraft, SubagentTool } from './types'
 
-type View = { kind: 'list' } | { kind: 'detail'; id: string } | { kind: 'edit'; id?: string; copyOf?: string }
+type View = { kind: 'list' } | { kind: 'reviewer' } | { kind: 'detail'; id: string } | { kind: 'edit'; id?: string; copyOf?: string }
 type ScopeFilter = 'all' | 'user' | 'project' | 'builtin'
-type ToolFilter = 'all' | SubagentTool
+type ToolFilter = 'all' | SubagentTool | 'openai'
 
 function ago(ms: number): string {
   const d = Math.round((Date.now() - ms) / 86_400_000)
@@ -75,6 +77,15 @@ export default function CatalogPage() {
     await catalog.refresh()
   }
 
+  async function reset(detail: SubagentDetail) {
+    try {
+      await resetSubagent(detail)
+      await catalog.refresh()
+      setVersion((v) => v + 1)
+      setNotice(`${humanName(detail.name)} was reset to its default.`)
+    } catch (e) { setNotice(e instanceof Error ? e.message : String(e)) }
+  }
+
   const waiting = openId && !detail && (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       {error ? (
@@ -94,6 +105,7 @@ export default function CatalogPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {notice && view.kind !== 'list' && <div role="status" className="rounded-xl bg-muted px-4 py-3 text-sm">{notice}</div>}
       {view.kind === 'list' && (
         <CatalogList
           data={data}
@@ -108,8 +120,10 @@ export default function CatalogPage() {
             setView({ kind: 'detail', id })
           }}
           onNew={() => setView({ kind: 'edit' })}
+          onReviewer={() => setView({ kind: 'reviewer' })}
         />
       )}
+      {view.kind === 'reviewer' && <PrReviewer onBack={() => setView({ kind: 'list' })} />}
       {view.kind !== 'list' && waiting}
       {view.kind === 'detail' && detail && (
         <Explainer
@@ -119,6 +133,7 @@ export default function CatalogPage() {
           onEdit={() => setView({ kind: 'edit', id: detail.id })}
           onCopy={() => setView({ kind: 'edit', copyOf: detail.id })}
           onDelete={() => setDeleting(detail)}
+          onReset={() => void reset(detail)}
         />
       )}
       {view.kind === 'edit' && (!openId || detail) && (
@@ -150,6 +165,7 @@ function CatalogList({
   onRefresh,
   onOpen,
   onNew,
+  onReviewer,
 }: {
   data?: CatalogData
   loading: boolean
@@ -160,13 +176,15 @@ function CatalogList({
   onRefresh: () => void
   onOpen: (id: string) => void
   onNew: () => void
+  onReviewer: () => void
 }) {
   const [q, setQ] = useState('')
   const [scope, setScope] = useState<ScopeFilter>('all')
   const [tool, setTool] = useState<ToolFilter>('all')
   const items = useMemo(() => data?.subagents ?? [], [data])
   const byTool = useMemo(() => items.filter((s) => tool === 'all' || s.tool === tool), [items, tool])
-  const count = (sc: ScopeFilter) => byTool.filter((s) => sc === 'all' || s.scope === sc).length
+  const hasReviewer = tool === 'all' || tool === 'openai'
+  const count = (sc: ScopeFilter) => byTool.filter((s) => sc === 'all' || s.scope === sc).length + (hasReviewer && (sc === 'all' || sc === 'builtin') ? 1 : 0)
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return byTool
@@ -174,13 +192,14 @@ function CatalogList({
       .sort((a, b) => (a.scope === 'builtin' ? 1 : 0) - (b.scope === 'builtin' ? 1 : 0) || a.name.localeCompare(b.name))
   }, [byTool, q, scope])
   const hasPi = items.some((s) => s.tool === 'pi')
+  const showReviewer = hasReviewer && (scope === 'all' || scope === 'builtin') && (!q.trim() || 'pr reviewer pull request code review github openai'.includes(q.trim().toLowerCase()))
 
   return (
     <>
       <PageHeader
-        eyebrow="Agents"
-        title="Agent Catalog"
-        description="Every Claude Code and pi subagent on this computer: yours, your repos', and MonoRail's built-in ones. Open one to see what it does."
+        eyebrow="Bots"
+        title="Template Catalog"
+        description="Reusable subagent templates for Claude Code, pi and OpenAI: yours, your repos', and MonoRail's built-in templates. A template defines a subagent; it is not a running instance."
         actions={
           <>
             {isDesktop() && (
@@ -189,7 +208,7 @@ function CatalogList({
               </Button>
             )}
             <Button onClick={onNew}>
-              <Plus /> New subagent
+              <Plus /> New template
             </Button>
           </>
         }
@@ -212,16 +231,17 @@ function CatalogList({
         <CardHeader className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search subagents" aria-label="Search subagents" className="w-64 pl-9" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates" aria-label="Search templates" className="w-64 pl-9" />
           </div>
           <Segmented<ToolFilter>
             aria-label="Agent"
             value={tool}
             onChange={setTool}
             options={[
-              { value: 'all', label: 'All agents' },
+              { value: 'all', label: 'All templates' },
               { value: 'claude', label: 'Claude Code' },
               { value: 'pi', label: 'pi' },
+              { value: 'openai', label: 'OpenAI' },
             ]}
           />
           <Segmented<ScopeFilter>
@@ -239,23 +259,28 @@ function CatalogList({
         <CardContent className="px-6 py-6">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Looking for subagents…
+              <Loader2 className="size-4 animate-spin" /> Looking for templates…
             </div>
           ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
-          ) : visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{items.length === 0 ? 'No subagents yet. Create one with New subagent.' : 'Nothing matches that filter.'}</p>
+          ) : visible.length === 0 && !showReviewer ? (
+            <p className="text-sm text-muted-foreground">{items.length === 0 ? 'No templates yet. Create one with New template.' : 'Nothing matches that filter.'}</p>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              {showReviewer && <button type="button" onClick={onReviewer} className="flex min-w-0 flex-col gap-3 rounded-xl border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <div className="flex w-full items-start gap-3"><AgentMochi name="pr-reviewer" description="Reviews pull requests" size={52} /><div className="min-w-0 flex-1"><div className="font-semibold">PR reviewer</div><div className="font-mono text-xs text-muted-foreground">pr-reviewer</div></div><div className="flex flex-col items-end gap-1"><Badge variant="secondary">Built in</Badge><Badge variant="outline">OpenAI</Badge></div></div>
+                <p className="text-sm text-muted-foreground">Reviews newly opened pull requests using repository guidance and posts findings to GitHub.</p>
+                <span className="text-xs text-muted-foreground">Configure a reviewer from this template</span>
+              </button>}
               {visible.map((s) => (
                 <SubagentTile key={s.id} s={s} onOpen={() => onOpen(s.id)} />
               ))}
             </div>
           )}
-          {data?.truncated && <p className="mt-4 text-xs text-muted-foreground">Showing the first 300 subagents.</p>}
+          {data?.truncated && <p className="mt-4 text-xs text-muted-foreground">Showing the first 300 templates.</p>}
           <p className="mt-6 text-xs text-muted-foreground">
             Looks in <code className="font-mono">~/.claude/agents</code> and <code className="font-mono">~/.pi/agent/agents</code>, and in{' '}
-            <code className="font-mono">.claude/agents</code> and <code className="font-mono">.pi/agents</code> of the repos you allowed on the Chat page.
+            <code className="font-mono">.claude/agents</code> and <code className="font-mono">.pi/agents</code> of the repos you allowed in Bots → Folders.
           </p>
         </CardContent>
       </Card>
@@ -332,7 +357,8 @@ function SubagentTile({ s, onOpen }: { s: Subagent; onOpen: () => void }) {
 // ---------------------------------------------------------------------------
 // Explainer
 
-function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentDetail; data?: CatalogData; onBack: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
+function Explainer({ s, data, onBack, onEdit, onCopy, onDelete, onReset }: { s: SubagentDetail; data?: CatalogData; onBack: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void; onReset: () => void }) {
+  const [tab, setTab] = useState<'overview' | 'code'>('overview')
   const role = mochiRoleFor(s.name, s.description)
   const power = powerOf(s.tools, s.tool)
   const model = modelInfo(s.model)
@@ -351,7 +377,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
     <>
       <div>
         <Button variant="ghost" size="sm" className="-ml-2" onClick={onBack}>
-          <ArrowLeft /> Agent Catalog
+          <ArrowLeft /> Template Catalog
         </Button>
       </div>
 
@@ -377,15 +403,9 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
                 <MessageSquarePlus /> Use in a new chat
               </Button>
             )}
-            {builtin ? (
-              <Button onClick={onCopy}>
-                <Plus /> {coordinator ? 'Make my own copy' : 'Add to Claude Code'}
-              </Button>
-            ) : (
-              <Button onClick={onEdit}>
-                <Pencil /> Edit
-              </Button>
-            )}
+            {builtin && <Button variant="outline" onClick={onReset} disabled={!s.customized}><RefreshCw /> Reset to default</Button>}
+            {builtin && !coordinator && <Button variant="outline" onClick={onCopy}><Plus /> Add to Claude Code</Button>}
+            <Button onClick={onEdit}><Pencil /> Edit</Button>
             {!builtin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -408,11 +428,12 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
         </CardContent>
       </Card>
 
-      {builtin && s.note && (
+      <TemplateTabs value={tab} onChange={setTab} />
+      {tab === 'code' ? <div role="tabpanel" id="template-panel-code" aria-labelledby="template-tab-code"><SourceViewer files={s.source === undefined ? [] : [{ name: s.sourceName ?? s.location, text: s.source }]} focusText={builtin && !s.customized ? (coordinator ? 'const BUILTIN_COORDINATOR' : 'const STORAGE_DETECTIVE') : undefined} description={s.customized ? 'Your saved template definition.' : builtin ? 'The MonoRail source file that defines this built-in template. Other code in the same file is shown for context.' : 'The complete template file as it exists on disk, including its header and instructions.'} /></div> : <div role="tabpanel" id="template-panel-overview" aria-labelledby="template-tab-overview" className="space-y-6">
+      {builtin && !coordinator && s.note && (
         <div className="flex items-start gap-3 rounded-xl bg-info-soft px-4 py-3 text-sm text-info-soft-foreground">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <span>
-            {coordinator ? '' : 'This subagent ships with MonoRail. Add it to Claude Code to use it in your chats; you can change it before saving. '}
             {s.note}
           </span>
         </div>
@@ -501,7 +522,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
               <CardTitle>Its instructions</CardTitle>
-              <CardDescription>What it is told every time it starts, written by {builtin ? 'MonoRail' : 'you'}</CardDescription>
+              <CardDescription>What it is told every time it starts, written by {builtin && !s.customized ? 'MonoRail' : 'you'}</CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-5 text-sm">
               {s.prompt.trim() ? <ChatMarkdown text={s.prompt} /> : <span className="text-muted-foreground">No instructions below the header.</span>}
@@ -521,11 +542,11 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
                 <Fact
                   label="Who gets it"
                   value={s.scope === 'user' ? 'Only you, in every repo' : s.scope === 'project' ? `Everyone working in ${s.repo}` : coordinator ? 'MonoRail’s Coordinator' : 'Nobody yet'}
-                  hint={s.scope === 'project' ? 'It lives in the repo, so it is shared when the repo is pushed.' : s.scope === 'user' ? 'It lives in your home folder.' : coordinator ? 'Used only when you have no coordinator of your own.' : 'Add it to Claude Code to use it in every repo.'}
+                  hint={s.scope === 'project' ? 'It lives in the repo, so it is shared when the repo is pushed.' : s.scope === 'user' ? 'It lives in your home folder.' : coordinator ? 'The Coordinator uses this template in MonoRail.' : 'Add it to Claude Code to use it in every repo.'}
                   icon={s.scope === 'project' ? Users : User}
                 />
                 <Fact label="Where it lives" value={<span className="font-mono text-xs">{s.location}</span>} />
-                <Fact label="Last edited" value={builtin ? 'Ships with MonoRail' : ago(s.updatedAt)} />
+                <Fact label="Last edited" value={builtin && !s.customized ? 'Ships with MonoRail' : ago(s.updatedAt)} />
                 {s.extraFields.length > 0 && <Fact label="Other settings in the file" value={<span className="font-mono text-xs">{s.extraFields.join(', ')}</span>} hint="Kept as they are when you edit here." />}
               </dl>
             </CardContent>
@@ -545,6 +566,7 @@ function Explainer({ s, data, onBack, onEdit, onCopy, onDelete }: { s: SubagentD
           </Card>
         </div>
       </div>
+      </div>}
     </>
   )
 }
@@ -586,6 +608,7 @@ function Editor({
   onSave: (tool: SubagentTool, d: SubagentDraft) => Promise<void>
 }) {
   const builtinCopy = isCopy && base?.scope === 'builtin'
+  const editingBuiltin = !isCopy && base?.scope === 'builtin'
   const [tool, setTool] = useState<SubagentTool>(base?.tool ?? 'claude')
   const [draft, setDraft] = useState<SubagentDraft>(() => ({
     name: base ? (isCopy && !builtinCopy ? `${base.name}-copy` : base.name) : '',
@@ -632,18 +655,18 @@ function Editor({
     <>
       <div>
         <Button variant="ghost" size="sm" className="-ml-2" onClick={onCancel}>
-          <ArrowLeft /> {base && !builtinCopy ? humanName(base.name) : 'Agent Catalog'}
+          <ArrowLeft /> {base && !builtinCopy ? humanName(base.name) : 'Template Catalog'}
         </Button>
       </div>
       <PageHeader
-        eyebrow="Agent Catalog"
-        title={editing ? `Edit ${humanName(base.name)}` : builtinCopy ? (base.name === 'coordinator' ? 'Your own coordinator' : `Add ${humanName(base.name)} to Claude Code`) : isCopy && base ? `Copy of ${humanName(base.name)}` : 'New subagent'}
+        eyebrow="Template Catalog"
+        title={editing ? `Edit ${humanName(base.name)}` : builtinCopy ? (base.name === 'coordinator' ? 'Your own coordinator' : `Add ${humanName(base.name)} to Claude Code`) : isCopy && base ? `Copy of ${humanName(base.name)}` : 'New template'}
         description={
           builtinCopy
             ? base.name === 'coordinator'
               ? 'Saved as ~/.claude/agents/coordinator.md. Once it exists, the Coordinator uses yours instead of the built-in one.'
               : `Saved as ~/.claude/agents/${base.name}.md, where it is yours: change anything before saving, or later.`
-            : 'Saved as a Markdown file the agent reads. Before an existing file is changed or deleted, MonoRail keeps a backup copy in its data folder.'
+            : editingBuiltin ? 'Changes are saved in your MonoRail profile. You can restore the shipped default at any time.' : 'Saved as a Markdown file the agent reads. Before an existing file is changed or deleted, MonoRail keeps a backup copy in its data folder.'
         }
         actions={
           <>
@@ -651,7 +674,7 @@ function Editor({
               Cancel
             </Button>
             <Button disabled={!ok || busy} onClick={() => void submit()}>
-              {busy ? <Loader2 className="animate-spin" /> : <Check />} {editing ? 'Save changes' : builtinCopy ? 'Add subagent' : 'Create subagent'}
+              {busy ? <Loader2 className="animate-spin" /> : <Check />} {editing ? 'Save changes' : builtinCopy ? 'Add template' : 'Create template'}
             </Button>
           </>
         }
@@ -681,15 +704,16 @@ function Editor({
                     ]}
                   />
                   {tool === 'pi' && <p className="text-xs text-muted-foreground">pi runs subagents through its subagent extension.</p>}
+                  <p className="text-xs text-muted-foreground">This creates a subagent definition. It does not automatically run when a pull request is opened. OpenAI Agents SDK subagents are not supported here yet.</p>
                 </div>
               )}
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="sa-name">Name</Label>
                   <Input id="sa-name" value={draft.name} onChange={(e) => set({ name: e.target.value.toLowerCase() })} placeholder="code-reviewer" className="font-mono" disabled={editing || builtinCopy} />
-                  <p className={cn('text-xs', nameError ? 'text-destructive' : 'text-muted-foreground')}>{nameError ?? (editing ? 'Duplicate it to use another name.' : 'Lowercase, with hyphens. Also the file name.')}</p>
+                  <p className={cn('text-xs', nameError ? 'text-destructive' : 'text-muted-foreground')}>{nameError ?? (editingBuiltin ? 'The built-in template name stays the same.' : editing ? 'Duplicate it to use another name.' : 'Lowercase, with hyphens. Also the file name.')}</p>
                 </div>
-                <div className="flex flex-col gap-2">
+                {!editingBuiltin && <div className="flex flex-col gap-2">
                   <Label htmlFor="sa-where">Save to</Label>
                   <NativeSelect id="sa-where" value={draft.saveTo} onChange={(e) => set({ saveTo: e.target.value })} disabled={editing || builtinCopy}>
                     <option value="user">Just me, every repo ({dir('user')})</option>
@@ -700,7 +724,7 @@ function Editor({
                     ))}
                   </NativeSelect>
                   <p className="text-xs text-muted-foreground">A repo’s subagents are shared with everyone who works in it.</p>
-                </div>
+                </div>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="sa-desc">{tool === 'pi' ? 'When should pi use it?' : 'When should Claude use it?'}</Label>
@@ -730,6 +754,7 @@ function Editor({
           <Card className="gap-0 py-0">
             <CardHeader className="border-b px-6 py-5">
               <CardTitle>What it may do</CardTitle>
+              {editingBuiltin && base?.name === 'coordinator' && <CardDescription>MonoRail limits the Coordinator to its delegation and chat tools, even if other tools are listed here.</CardDescription>}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 px-6 py-5">
               {TOOL_PRESETS[tool].map((p) => (

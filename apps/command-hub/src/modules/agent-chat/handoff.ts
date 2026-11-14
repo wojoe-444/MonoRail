@@ -13,7 +13,7 @@ let pending: ChatHandoff | undefined
 
 export function openInChat(handoff: ChatHandoff) {
   pending = handoff
-  navigate('/agents/chat')
+  navigate('/agents')
 }
 
 /**
