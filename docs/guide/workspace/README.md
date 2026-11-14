@@ -11,7 +11,7 @@ lives. Each one keeps its data on your computer, as [private data stays
 local](../private-data.md) promises, and they are linked to each other where
 it helps.
 
-- **Explore.** Browse fields from subagents, note summaries, flashcards and the connected [semantic project](../setup/semantic.md). Select a source, entity type, instance or field in Browse estate, search the resulting fields, and select a card to see its value. Other sources are not yet included; warnings identify unavailable or truncated sources.
+- **Explore**, directly below Home in the menu, lets you browse fields from subagents, note summaries, flashcards and the connected [semantic project](../setup/semantic.md). Select a source, entity type, instance or field in Browse estate, search the resulting fields, and select a card to see its value. Other sources are not yet included; warnings identify unavailable or truncated sources.
 - **Code.** [Browse your repos](browse-repos.md) with GitHub+: code, history,
   branches and comparisons for the git [repositories](../glossary.md#repository)
   on your computer, plus your repositories on github.com once you

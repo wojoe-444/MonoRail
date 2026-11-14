@@ -28,7 +28,7 @@ export interface ModuleDefinition {
   /** Route path, e.g. "/claude-stats". Must be unique across the app. */
   path: string
   nav: {
-    /** Nav section heading. Sections are created on demand, in registry order. */
+    /** Nav section heading. An empty string places the module directly below Home. */
     section: string
     /** Lower sorts first within the section. Defaults to 100. */
     order?: number
