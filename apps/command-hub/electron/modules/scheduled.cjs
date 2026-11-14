@@ -2,6 +2,7 @@ const { execFile, spawn } = require('node:child_process')
 const { readFile } = require('node:fs/promises')
 const path = require('node:path')
 const { promisify } = require('node:util')
+const inApp = require('../scheduled/in-app.cjs')
 const exec = promisify(execFile)
 
 async function call(args) {
@@ -20,6 +21,13 @@ module.exports = {
   methods: {
     list: () => call({ action: 'list' }),
     change: (_ctx, args) => call({ action: args?.action, name: args?.name, path: args?.path }),
+    /** Jobs MonoRail runs on a timer while it is open (electron/scheduled/in-app.cjs). Reads state only. */
+    inApp: () => inApp.list(),
+    /** "Run now" for one of those jobs, by the id `inApp` returned. */
+    runInApp: async (_ctx, args) => {
+      await inApp.run(args?.id)
+      return inApp.list()
+    },
     openScheduler: async () => {
       if (process.platform !== 'win32') throw new Error('Windows Task Scheduler is available on Windows only.')
       const child = spawn(path.join(process.env.SystemRoot, 'System32', 'mmc.exe'), [path.join(process.env.SystemRoot, 'System32', 'taskschd.msc')], { detached: true, stdio: 'ignore' })

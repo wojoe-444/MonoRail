@@ -23,6 +23,7 @@
 
 const { app, net } = require('electron')
 const { changesSince } = require('../release-notes.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 
 // The repo of the "publish" block in electron-builder.json.
 const RELEASES_API = 'https://api.github.com/repos/wojoe-444/MonoRail/releases'
@@ -178,6 +179,9 @@ async function snapshot() {
 const FIRST_CHECK_MS = 30 * 1000
 const CHECK_EVERY_MS = 4 * 60 * 60 * 1000
 
+/** When the next background check fires (ms), for Scheduled > In-App. */
+let nextCheckAt
+
 let checking
 async function checkForUpdates() {
   if (!updateSupport().supported) return snapshot()
@@ -204,10 +208,40 @@ module.exports = {
   // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
   desktopOnly: ['installAndRestart', 'installWithoutBackup'],
   start() {
+    inApp.registerProvider({
+      id: 'updates',
+      title: 'Updates',
+      async list() {
+        const support = updateSupport()
+        return [
+          {
+            id: 'check',
+            title: 'Check for updates',
+            description: 'Looks for a newer MonoRail release on GitHub. Nothing is downloaded until you choose to.',
+            group: 'Updates',
+            schedule: `${inApp.every(CHECK_EVERY_MS)}, and shortly after the app starts`,
+            state: !support.supported ? 'Disabled' : status.state === 'checking' ? 'Running' : 'Ready',
+            lastRun: status.lastChecked,
+            nextRun: nextCheckAt ? new Date(nextCheckAt).toISOString() : undefined,
+            result: status.state === 'error' ? 'failed' : status.lastChecked ? 'ok' : null,
+            note: !support.supported ? support.reason : status.state === 'error' ? status.error : '',
+            where: { label: 'Settings', path: '/settings/general' },
+          },
+        ]
+      },
+      run: () => checkForUpdates(),
+    })
     if (!updateSupport().supported) return
-    const run = () => checkForUpdates().catch(() => {})
-    setTimeout(run, FIRST_CHECK_MS).unref?.()
-    setInterval(run, CHECK_EVERY_MS).unref?.()
+    const started = Date.now()
+    nextCheckAt = started + FIRST_CHECK_MS
+    setTimeout(() => {
+      nextCheckAt = started + CHECK_EVERY_MS
+      checkForUpdates().catch(() => {})
+    }, FIRST_CHECK_MS).unref?.()
+    setInterval(() => {
+      nextCheckAt = Date.now() + CHECK_EVERY_MS
+      checkForUpdates().catch(() => {})
+    }, CHECK_EVERY_MS).unref?.()
   },
   methods: {
     async getStatus() {

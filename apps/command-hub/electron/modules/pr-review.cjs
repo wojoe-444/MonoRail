@@ -7,6 +7,7 @@ const github = require('../connections/github-api.cjs')
 const { getCredentials } = require('../connections/index.cjs')
 const { collect } = require('./pr-review-context.cjs')
 const agent = require('./pr-review-agent.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 const { folderOf } = require('../profiles/index.cjs')
 const templates = require('./builtin-template-store.cjs')
 const templateDir = (ctx) => ctx.layout || ctx.rootDir ? folderOf(ctx.layout ?? ctx.rootDir, 'modules/agent-chat') : undefined
@@ -88,6 +89,30 @@ module.exports = {
   id: 'pr-review',
   start(ctx) {
     sessions.set(ctx.dataDir, Date.now())
+    inApp.registerProvider({
+      id: 'pr-review',
+      title: 'PR reviewer',
+      async list() {
+        const state = await read(ctx)
+        const last = state.lastCheckedAt ? new Date(state.lastCheckedAt).toISOString() : undefined
+        return [
+          {
+            id: 'watch',
+            title: 'Watch for new pull requests',
+            description: state.repository ? `Reviews newly opened pull requests in ${state.repository} once and posts the review as a comment.` : 'Reviews newly opened pull requests in one GitHub repository once and posts the review as a comment.',
+            group: 'Agents',
+            schedule: inApp.every(INTERVAL),
+            state: state.enabled ? 'Ready' : 'Disabled',
+            lastRun: last,
+            nextRun: new Date(Math.max(Date.now(), (state.lastCheckedAt ?? 0) + INTERVAL)).toISOString(),
+            result: state.error ? 'failed' : last ? 'ok' : null,
+            note: state.enabled ? (state.error ?? '') : 'Turned off. Set it up in Agents > Catalog.',
+            where: { label: 'PR reviewer', path: '/agents/catalog' },
+            runnable: false,
+          },
+        ]
+      },
+    })
     const tick = () => void poll(ctx).catch((e) => ctx.log('PR review watcher failed', errorText(e)))
     setTimeout(tick, 10_000).unref?.()
     setInterval(tick, INTERVAL).unref?.()

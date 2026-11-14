@@ -121,6 +121,8 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
       await check().catch((e) => log('check failed:', e.message))
     },
     isOn: () => settings.enabled === true,
+    /** For Scheduled > In-App: the background Tailscale check (only while Remote access is on). */
+    scheduleInfo: () => ({ on: settings.enabled === true, everyMs: CHECK_EVERY_MS, checkedAt: checkedAt ? new Date(checkedAt).toISOString() : undefined }),
     /** fn(enabled) after the person turns it on or off. */
     onChange(fn) {
       changeListeners.add(fn)
