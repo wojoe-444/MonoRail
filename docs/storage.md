@@ -26,6 +26,7 @@ touches your folders without you.
 
 - **Drives**: free and used space for every drive, read when the page opens.
   The system drive gets a warning when it has less than 5 GB (or 5%) free.
+- **Scan insights**: compare measured locations with an earlier saved scan and see the largest measured locations. Timed-out measurements are excluded from growth comparisons. These are selected locations, not a complete drive inventory; some may overlap.
 - **What takes up space**: measured when you press **Scan folders**, because
   walking big folders takes a while. Each folder may take 45 seconds; a size
   shown as "≥" stopped there, so the real size is larger. Each row shows how
