@@ -628,6 +628,20 @@ follows its title only until its first commit. The repo never gets a remote.
 GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
 item (`notes`, bundle).
 
+`scheduled` (**Scheduled**, under Workspace) has two subpages: Windows Task
+Scheduler (`scheduled.ps1`) and **In-App**, the timers MonoRail runs itself
+while it is open. In-App reads a registry (`electron/scheduled/in-app.cjs`, no
+Electron): a backend that owns a background job calls `registerProvider({ id,
+list, run? })` from its `start(ctx)`, where `list()` returns rows (title,
+schedule, state Ready/Running/Disabled, last/next run, result, owning page)
+read from state the job already keeps, and never starts work. Registered so
+far: Claude usage report, global backups, GitHub+ repo backups, update checks,
+drive samples, the PR reviewer watcher and Remote access's Tailscale check. A
+new timer (`setInterval`, `cache.schedule`, a scheduler `tick`) must register a
+provider so it shows there; `run` ("Run now") only for jobs that are safe to
+start by hand, and `runInApp` stays in `REMOTE_DENY`. The registry keeps no
+files.
+
 **Settings** is a group of pages behind one button pinned to the bottom of
 the drawer (above the version footer; amber count = alerts). Every module
 with `nav.section: 'Settings'` is a Settings page: it is not listed in the

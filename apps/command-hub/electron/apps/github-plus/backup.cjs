@@ -158,7 +158,39 @@ function createBackupService(getDataDir, log = () => {}, getUserData = () => pat
     }
   }
 
+  /**
+   * One row per repo that has a schedule, for Scheduled > In-App (see
+   * electron/scheduled/in-app.cjs). The row id is the repo's folder; the title
+   * shows only its name.
+   */
+  async function jobRows() {
+    const { repos } = await readAll()
+    const g = await readGlobal()
+    const rows = []
+    for (const [repo, entry] of Object.entries(repos)) {
+      const s = entry?.schedule
+      if (!s) continue
+      const eff = effective(s, g)
+      const frequency = eff && !eff.problem ? eff : s
+      rows.push({
+        id: repo,
+        title: `Back up ${safeName(repo)}`,
+        description: 'Writes a git bundle of the repository (every branch, full history) into the backup folder.',
+        group: 'Backups',
+        schedule: `${frequency.times === 1 ? 'Once' : `${frequency.times} times`} per ${frequency.unit}`,
+        state: running.has(repo) ? 'Running' : s.enabled && !eff?.problem ? 'Ready' : 'Disabled',
+        lastRun: entry.lastResult?.at,
+        nextRun: nextDue(entry, g),
+        result: entry.lastResult ? (entry.lastResult.ok ? 'ok' : 'failed') : null,
+        note: entry.lastResult?.ok === false ? entry.lastResult.error : (eff?.problem ?? (s.enabled ? '' : 'This schedule is turned off.')),
+        where: { label: 'GitHub+ Backups', path: '/apps/github-plus' },
+      })
+    }
+    return rows
+  }
+
   return {
+    jobRows,
     async get(repo) {
       const entry = (await readAll()).repos[repo]
       const g = await readGlobal()

@@ -7,6 +7,7 @@
 const { BrowserWindow, dialog, shell } = require('electron')
 
 const { createGlobalBackups } = require('../backups/service.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 const { readGlobal } = require('../backups/global.cjs')
 const { appLayout } = require('../profiles/index.cjs')
 
@@ -32,6 +33,32 @@ module.exports = {
   desktopOnly: ['pickFolder', 'openFolder'],
   start() {
     get().start()
+    inApp.registerProvider({
+      id: 'backups',
+      title: 'Global backups',
+      async list() {
+        const { settings: g, pages } = await get().status()
+        return pages
+          .filter((p) => p.id !== 'github-plus')
+          .map((p) => {
+            const on = g.enabled && p.included
+            return {
+              id: p.id,
+              title: `Back up ${p.title}`,
+              description: p.what,
+              group: 'Backups',
+              schedule: inApp.timesPer(g),
+              state: p.running ? 'Running' : on ? 'Ready' : 'Disabled',
+              lastRun: p.lastResult?.at,
+              nextRun: p.nextDueAt,
+              result: p.lastResult ? (p.lastResult.ok ? 'ok' : 'failed') : null,
+              note: p.lastResult?.ok === false ? p.lastResult.error : !g.enabled ? 'The global backup folder is off.' : !p.included ? 'Not included in the global backup.' : '',
+              where: { label: 'Backups', path: '/settings/backups' },
+            }
+          })
+      },
+      run: (id) => get().run(id),
+    })
   },
   methods: {
     getStatus: () => get().status(),

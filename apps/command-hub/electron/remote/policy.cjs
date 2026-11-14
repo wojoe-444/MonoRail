@@ -6,7 +6,7 @@
 
 /** moduleId -> methods refused remotely. '*' refuses the whole backend. */
 const REMOTE_DENY = Object.freeze({
-  scheduled: ['change'],
+  scheduled: ['change', 'runInApp'],
   storage: ['setGoal'],
   remote: ['*'], // pairing, devices, settings: only from the PC's own window
   developer: ['*'],

@@ -22,6 +22,14 @@ it helps.
   next to your team's real Jira, and links tasks to repositories.
 - **Calendar.** Calendar shows your tasks on their expected end dates. Select a date to see its tasks, then open one in Tasks. Team issues follow the Team Jira filter in Tasks.
 - **Scheduled.** Windows Task Scheduler shows schedules, recent results and the next run for this PC's tasks. You can run, stop, enable, disable or delete tasks that run as your Windows account. Other tasks are read-only; Microsoft system tasks are omitted. Open Task Scheduler from the page to create or edit tasks. Hide removes a task from the list until you unhide it; it does not change the task.
+  Its **In-App** page lists the jobs MonoRail runs by itself while it is open:
+  [backups](../setup/backups-and-updates.md), the Claude usage report, update
+  checks, drive space samples, the PR reviewer and the
+  [Remote access](../setup/remote-access.md) check. Each shows its schedule, next
+  and last run and whether the last run worked. **Run now** starts a backup, the
+  usage report or an update check right away; to change a job's schedule or turn
+  it off, open the page that owns it. These jobs stop when MonoRail is closed, and
+  one that came due meanwhile runs when it opens again.
 - **Mail.** [Email](email.md) reads Gmail or the classic Outlook on your PC.
 - **Learning.** [Flashcards](../../flashcards.md) keeps spaced repetition
   decks; agents can add cards if you [let them](../agents/agent-access.md).

@@ -5,6 +5,7 @@
 // so only the PC's own window can pair, revoke or change anything.
 
 const { remoteService } = require('../remote/service.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 
 module.exports = {
   id: 'remote',
@@ -48,6 +49,29 @@ module.exports = {
   /** Opens the store; starts the server again only if the person left it on. */
   start(ctx) {
     const service = remoteService()
+    inApp.registerProvider({
+      id: 'remote',
+      title: 'Remote access',
+      async list() {
+        const { on, everyMs, checkedAt } = service.scheduleInfo()
+        return [
+          {
+            id: 'tailscale',
+            title: 'Check the Tailscale address',
+            description: 'Confirms the private address your phone uses is still private. If it turns public, Remote access stops until it is private again.',
+            group: 'Connections',
+            schedule: inApp.every(everyMs),
+            state: on ? 'Ready' : 'Disabled',
+            lastRun: checkedAt,
+            nextRun: checkedAt ? new Date(Date.parse(checkedAt) + everyMs).toISOString() : new Date().toISOString(),
+            result: checkedAt ? 'ok' : null,
+            note: on ? '' : 'Remote access is off.',
+            where: { label: 'Remote access', path: '/settings/remote' },
+            runnable: false,
+          },
+        ]
+      },
+    })
     void service
       .init(ctx.dataDir)
       .then(() => service.resume())

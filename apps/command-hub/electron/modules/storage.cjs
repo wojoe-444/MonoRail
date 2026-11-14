@@ -273,6 +273,7 @@ async function listDrives({ platform = process.platform, env = process.env, home
 // location's largest children. Declared as the 'storage.history' cache.
 
 const cache = require('../cache/index.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 // Free-space goals live in their own file (storage-goals.cjs), so this file stays write-free.
 const { goalsView, setGoal } = require('./storage-goals.cjs')
 
@@ -415,6 +416,29 @@ module.exports = {
   /** Drive samples while the app runs (cheap: one statfs per drive). Folder scans only run when asked. */
   start(ctx) {
     const tick = () => void sampleDrives(ctx).catch((e) => ctx.log('drive sample failed:', e && e.message))
+    inApp.registerProvider({
+      id: 'storage',
+      title: 'Storage',
+      async list() {
+        const latest = await history(ctx).latest()
+        const last = latest ? Date.parse(latest.takenAt) : undefined
+        return [
+          {
+            id: 'drives',
+            title: 'Sample drive free space',
+            description: 'Records free and used space per drive for the Over time chart. Folder scans only run when you start one.',
+            group: 'Data',
+            schedule: inApp.every(DRIVE_SAMPLE_MS),
+            state: 'Ready',
+            lastRun: latest?.takenAt,
+            nextRun: new Date(Math.max(Date.now(), (last ?? 0) + DRIVE_SAMPLE_MS)).toISOString(),
+            result: latest ? 'ok' : null,
+            where: { label: 'Storage', path: '/storage' },
+            runnable: false,
+          },
+        ]
+      },
+    })
     setTimeout(tick, 60 * 1000).unref?.()
     setInterval(tick, SAMPLE_CHECK_MS).unref?.()
   },

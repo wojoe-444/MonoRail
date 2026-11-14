@@ -13,6 +13,7 @@ const { execFile } = require('node:child_process')
 const path = require('node:path')
 
 const cache = require('../cache/index.cjs')
+const inApp = require('../scheduled/in-app.cjs')
 const { IDLE_GAP_MS } = require('./claude-stats-phases.cjs')
 const { findPrice, normalizeModelId, rowCost } = require('./claude-stats-prices.cjs')
 const { scanAll } = require('./claude-stats-scan.cjs')
@@ -189,6 +190,32 @@ module.exports = {
   /** Background rebuilds while the app runs (C4). */
   start(ctx) {
     cache.schedule(usageCache(ctx))
+    inApp.registerProvider({
+      id: 'claude-stats',
+      title: 'Claude Stats',
+      async list() {
+        const { status: s } = await usageCache(ctx).read()
+        const scheduleMs = s.scheduleMs
+        const due = s.builtAt ? Date.parse(s.builtAt) + scheduleMs : Date.now()
+        const next = Math.max(due, s.nextRetryAt ? Date.parse(s.nextRetryAt) : 0)
+        return [
+          {
+            id: 'usage',
+            title: 'Claude usage report',
+            description: 'Rebuilds the usage and cost report from the local agent logs that Claude Stats and Home read.',
+            group: 'Reports',
+            schedule: inApp.every(scheduleMs),
+            state: s.building ? 'Running' : 'Ready',
+            lastRun: s.lastAttemptAt ?? s.builtAt,
+            nextRun: new Date(next).toISOString(),
+            result: s.lastError ? 'failed' : s.builtAt ? 'ok' : null,
+            note: s.lastError ? s.lastError.split('\n')[0] : '',
+            where: { label: 'Claude Stats', path: '/claude-stats' },
+          },
+        ]
+      },
+      run: () => usageCache(ctx).refresh({ force: true, waitMs: 0 }),
+    })
   },
   methods: {
     /**

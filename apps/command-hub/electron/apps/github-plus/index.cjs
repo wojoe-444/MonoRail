@@ -21,6 +21,7 @@ const { BrowserWindow, dialog, shell } = require('electron')
 
 const git = require('./git.cjs')
 const { createBackupService } = require('./backup.cjs')
+const inApp = require('../../scheduled/in-app.cjs')
 const folderInit = require('./init.cjs')
 const issues = require('./issues.cjs')
 const { linkedRepos, mergeRecents } = require('./linked.cjs')
@@ -142,6 +143,12 @@ module.exports = {
   start(ctx) {
     dataDir = ctx.dataDir
     backups.start()
+    inApp.registerProvider({
+      id: 'github-plus',
+      title: 'GitHub+ backups',
+      list: () => backups.jobRows(),
+      run: (repo) => backups.run(repo),
+    })
   },
   methods: {
     async pickRepoFolder() {
