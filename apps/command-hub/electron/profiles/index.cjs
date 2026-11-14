@@ -70,6 +70,7 @@ const SCOPES = Object.freeze({
   'modules/home': 'profile', // keeps no files
   'modules/jira': 'profile', // Jira+'s legacy folder (read in place)
   'modules/mcp': 'profile', // per-agent consent and the activity log
+  'modules/bookmarks': 'profile', // saved links and local paths
   'modules/notes': 'profile', // the Notes page's local git repo
   'modules/profiles': 'machine', // keeps no files; profiles.json is at the root
   'modules/settings': 'machine', // app version and updates; keeps no files
