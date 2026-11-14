@@ -158,12 +158,14 @@ function DriveCard({ drive: d, goal, canSetGoal, onSetGoal }: { drive: Drive; go
   const tone = usedShare >= 0.95 || isLow(d) ? 'bg-destructive' : usedShare >= 0.85 ? 'bg-warning' : 'bg-primary'
   return (
     <Card className="gap-4 px-6 py-6">
-      <div className="flex items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-foreground">
-          <HardDrive className="size-4" />
-        </span>
-        <span className="font-mono text-sm font-semibold">{d.id}</span>
-        <div className="ml-auto flex gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-foreground">
+            <HardDrive className="size-4" />
+          </span>
+          <span className="break-all font-mono text-sm font-semibold">{d.id}</span>
+        </div>
+        <div className="ml-auto flex max-w-full flex-wrap gap-1">
           {d.system && <Badge variant="secondary">System</Badge>}
           {d.holdsData && <Badge variant="primary">MonoRail data</Badge>}
         </div>
