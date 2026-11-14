@@ -254,3 +254,21 @@ html:is([data-texture="leaf"], [data-texture="leaf-ink"]) [data-slot="sidebar"] 
 .settings-flash {
   animation: settings-flash 1.6s ease-out;
 }
+
+/* VS Code-style syntax colors on both light and dark app surfaces. */
+.syntax-code .hljs-keyword, .syntax-code .hljs-selector-tag, .syntax-code .hljs-literal { color: #0000ff; }
+.syntax-code .hljs-string, .syntax-code .hljs-regexp { color: #a31515; }
+.syntax-code .hljs-comment, .syntax-code .hljs-quote { color: #008000; }
+.syntax-code .hljs-number { color: #098658; }
+.syntax-code .hljs-title, .syntax-code .hljs-section { color: #795e26; }
+.syntax-code .hljs-type, .syntax-code .hljs-built_in, .syntax-code .hljs-class .hljs-title { color: #267f99; }
+.syntax-code .hljs-attr, .syntax-code .hljs-attribute, .syntax-code .hljs-property, .syntax-code .hljs-variable { color: #001080; }
+.syntax-code .hljs-name, .syntax-code .hljs-meta { color: #800000; }
+.dark .syntax-code .hljs-keyword, .dark .syntax-code .hljs-selector-tag, .dark .syntax-code .hljs-literal { color: #569cd6; }
+.dark .syntax-code .hljs-string, .dark .syntax-code .hljs-regexp { color: #ce9178; }
+.dark .syntax-code .hljs-comment, .dark .syntax-code .hljs-quote { color: #6a9955; }
+.dark .syntax-code .hljs-number { color: #b5cea8; }
+.dark .syntax-code .hljs-title, .dark .syntax-code .hljs-section { color: #dcdcaa; }
+.dark .syntax-code .hljs-type, .dark .syntax-code .hljs-built_in, .dark .syntax-code .hljs-class .hljs-title { color: #4ec9b0; }
+.dark .syntax-code .hljs-attr, .dark .syntax-code .hljs-attribute, .dark .syntax-code .hljs-property, .dark .syntax-code .hljs-variable { color: #9cdcfe; }
+.dark .syntax-code .hljs-name, .dark .syntax-code .hljs-meta { color: #569cd6; }

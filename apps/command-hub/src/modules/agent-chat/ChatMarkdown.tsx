@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 
 import './chat.css'
 
@@ -10,9 +11,10 @@ import './chat.css'
  */
 export function ChatMarkdown({ text }: { text: string }) {
   return (
-    <div className="chat-md">
+    <div className="chat-md syntax-code">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         components={{
           a: ({ href, children }) => (
             <span className="chat-md-link" title={href}>

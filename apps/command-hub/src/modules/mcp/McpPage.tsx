@@ -1,3 +1,4 @@
+import { highlightLines } from '@/lib/highlight'
 import { useState, type ReactNode } from 'react'
 import { BookOpen, Check, Copy, Loader2, Lock, Network, ShieldCheck, Terminal } from 'lucide-react'
 
@@ -57,7 +58,7 @@ export default function McpPage() {
               </div>
             ) : (
               <>
-                <CodeBlock text={setup.snippets[client]} />
+                <CodeBlock text={setup.snippets[client]} language={client === 'json' ? 'config.json' : 'setup.sh'} />
                 {!setup.packaged && (
                   <p className="text-sm text-muted-foreground">
                     This is a development build, so the command runs the server file directly and serves this build's data folder. The installed app uses{' '}
@@ -142,11 +143,11 @@ function Point({ icon: Icon, title, children }: { icon: typeof Lock; title: stri
   )
 }
 
-function CodeBlock({ text }: { text: string }) {
+function CodeBlock({ text, language }: { text: string; language: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-lg bg-muted p-4 pr-24 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">{text}</pre>
+      <pre className="overflow-x-auto rounded-lg bg-muted p-4 pr-24 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all"><code className="syntax-code" dangerouslySetInnerHTML={{ __html: highlightLines(text, language).join("\n") }} /></pre>
       <Button
         size="sm"
         variant="outline"

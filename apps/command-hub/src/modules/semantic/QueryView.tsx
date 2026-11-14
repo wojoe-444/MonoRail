@@ -1,3 +1,4 @@
+import { highlightLines } from '@/lib/highlight'
 import { useMemo, useState } from 'react'
 import { Check, Code2, Copy, Loader2, Play, Plus, Sigma, Table2, X } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -286,7 +287,7 @@ function SqlPanel({ sql, onClose }: { sql: string; onClose: () => void }) {
           </Button>
         </div>
       </div>
-      <pre className="max-h-64 overflow-auto px-4 pb-4 font-mono text-xs leading-relaxed">{sql}</pre>
+      <pre className="max-h-64 overflow-auto px-4 pb-4 font-mono text-xs leading-relaxed"><code className="syntax-code" dangerouslySetInnerHTML={{ __html: highlightLines(sql, "query.sql").join("\n") }} /></pre>
     </div>
   )
 }
