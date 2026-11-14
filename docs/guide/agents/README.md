@@ -32,3 +32,17 @@ needs your OK first. [Private data stays local](../private-data.md) explains
 why.
 
 New to all this? Start with [your first ten minutes](../first-ten-minutes.md).
+
+## Reusable prompts
+
+In **Bots > Catalog > Templates > Prompts**, create a prompt with fields such as
+`{audience}` and `{material}`. Field names start with a letter and can contain
+letters, numbers and underscores. Each distinct name becomes a free-text field;
+repeated names use the same answer. Select a saved prompt, fill in its fields,
+and copy the completed text into [Chat](chat.md) or another tool.
+
+Each save creates a new version. Select an earlier version to use it, or edit it
+and save a new version without changing the old one. Prompts are stored in your
+[profile](../../profiles.md) on this computer. [Flows](flows.md) also have
+prompt steps with their own inputs; catalog prompts are filled in on the Prompts
+page.
