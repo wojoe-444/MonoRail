@@ -57,6 +57,37 @@ test('the built-in coordinator is hidden when the user has their own', async () 
   await assert.rejects(cat.getSubagent('builtin:nope'), /not found/)
 })
 
+test('detail returns the original file text or the built-in implementation source', async () => {
+  const { home, o } = fixture()
+  const listing = await cat.listSubagents(o)
+  const reviewer = listing.subagents.find((s) => s.name === 'code-reviewer')
+  const detail = await cat.getSubagent(reviewer.id)
+  assert.equal(detail.source, fs.readFileSync(path.join(home, '.claude', 'agents', 'code-reviewer.md'), 'utf8'))
+  assert.match(detail.source, /color: blue/)
+  const coordinator = await cat.getSubagent('builtin:coordinator')
+  assert.equal(coordinator.sourceName, 'electron/modules/agent-chat-options.cjs')
+  assert.match(coordinator.source, /const BUILTIN_COORDINATOR/)
+})
+
+test('editing and resetting a shipped template preserves the default and uses the override in the coordinator', async () => {
+  const { o } = fixture()
+  const original = await cat.getSubagent('builtin:coordinator', o.chatDir)
+  const draft = { name: original.name, description: original.description, model: 'inherit', tools: original.tools, prompt: 'Customized coordinator instructions.' }
+  await cat.updateSubagent(o, { id: original.id, draft, updatedAt: original.updatedAt })
+  const edited = await cat.getSubagent(original.id, o.chatDir)
+  assert.equal(edited.prompt, draft.prompt)
+  assert.equal(edited.customized, true)
+  const store = require('./builtin-template-store.cjs')
+  const opts = require('./agent-chat-options.cjs')
+  const job = opts.validateJob({ sdk: 'claude', mode: 'ask', model: 'default', effort: 'default', prompt: 'hello', coordinator: true })
+  const options = opts.buildClaudeOptions({ job, cwd: '/demo', executable: '/demo/claude', builtinCoordinator: true, coordinatorDefinition: store.read(o.chatDir, 'coordinator').value })
+  assert.equal(options.agents.coordinator.prompt, draft.prompt)
+  await assert.rejects(store.reset(o.chatDir, 'coordinator', 0), /changed since/)
+  await store.reset(o.chatDir, 'coordinator', edited.updatedAt)
+  assert.equal((await cat.getSubagent(original.id, o.chatDir)).prompt, original.prompt)
+  assert.ok(fs.existsSync(path.join(o.chatDir, 'template-overrides', 'coordinator.json.backup')))
+})
+
 test('Storage Detective ships look-only and says it never deletes or moves', async () => {
   const d = await cat.getSubagent('builtin:storage-detective')
   assert.deepEqual(d.tools, ['Read', 'Grep', 'Glob', 'mcp__monorail__storage_scan'])

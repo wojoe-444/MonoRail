@@ -2,10 +2,11 @@
 audience: human, ai
 ---
 
-# Agent Catalog
+# Template Catalog
 
-**Agents > Catalog** lists every subagent on this computer, explains each one
-in plain language, and lets you create, edit, duplicate and delete them.
+**Bots > Catalog** lists the reusable subagent templates on this computer,
+explains each one in plain language, and lets you create, edit, duplicate and
+delete them. A template is a definition, not a running subagent instance.
 For what a subagent is and how to write one by hand, see
 [Create an agent](guide/agents/create-an-agent.md). A [flow](flows.md) can use
 any listed subagent as a step.
@@ -19,9 +20,9 @@ any listed subagent as a step.
 
 Repos are the ones allowed on the Chat page (folders under the Repos folder,
 plus repos added in its Folders dialog). MonoRail's built-in coordinator is
-listed too, read-only, while you have no `coordinator` subagent of your own;
-**Make my own copy** saves an editable copy to `~/.claude/agents/coordinator.md`,
-which the Coordinator then uses instead.
+listed while you have no `coordinator` subagent of your own. Edit changes the
+template in the active MonoRail profile; Reset to default restores the shipped
+definition. An existing user-level `coordinator.md` still takes precedence.
 
 MonoRail also ships **Storage Detective** (`storage-detective`): it reads the
 [Storage](storage.md) page's last scan through the MCP tool `storage_scan`
@@ -41,6 +42,11 @@ such files as skipped.
 ## The explainer page
 
 Clicking a subagent opens a page that reads the file's header for you:
+
+The **Code** tab shows the complete original Markdown file, including its
+header. For built-in templates it shows the MonoRail source file containing
+the definition; the PR reviewer also offers its context and watcher files.
+The source view is read-only. Use Edit to change a template.
 
 - **When Claude (or pi) uses it**: the description, and how to ask for it by name.
 - **What it can do**: each tool in plain words, coloured by strength (look only,
@@ -64,3 +70,25 @@ Clicking a subagent opens a page that reads the file's header for you:
   kept as they are. Renaming is done by duplicating.
 
 Nothing from the files is cached: they are read in place on every visit.
+Edits to built-in templates are saved under the profile's
+`modules/agent-chat/template-overrides/`, with a backup on edit or reset.
+
+## Pull request reviewer
+
+The **PR reviewer** template sets up one opt-in OpenAI Agents SDK reviewer
+for a GitHub repository. It needs a GitHub connection that can read the repo and
+submit reviews, plus an OpenAI API key in Connections. Enabling it starts a
+new watch window; existing PRs are skipped. While MonoRail is running it checks
+open PRs every minute and submits a GitHub `COMMENT` review for each newly
+opened one. It never approves or requests changes. PRs opened while MonoRail
+is closed are not picked up on the next start.
+
+The reviewer receives the PR's textual patch and root and ancestor `AGENTS.md`
+and `CLAUDE.md` files from the base commit. It has no file or command tools;
+other repository files and guidance linked from those files are not included.
+Incomplete, unsupported or oversized patches fail visibly instead of being
+silently reviewed in part. A changed head or a closed PR prevents submission.
+The page shows outcomes and allows failed or interrupted reviews to be retried.
+The settings and recent run metadata live in the active profile under
+`modules/pr-review`; the generated review is posted to GitHub. The patch and
+guidance are sent to OpenAI, where API usage charges apply.

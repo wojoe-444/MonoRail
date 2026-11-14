@@ -108,7 +108,7 @@ function validateJob(job) {
  * SDK options for one turn. `job` is validated; `cwd` and `resume` were
  * resolved by the main process, never taken from the page.
  */
-function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer, builtinCoordinator = false }) {
+function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordinatorServer, builtinCoordinator = false, coordinatorDefinition }) {
   const options = {
     cwd,
     pathToClaudeCodeExecutable: executable,
@@ -131,7 +131,7 @@ function buildClaudeOptions({ job, cwd, resume, executable, canUseTool, coordina
     // MCP servers, and nothing that needs approval.
     options.agent = 'coordinator'
     // Without ~/.claude/agents/coordinator.md, MonoRail's own definition.
-    if (builtinCoordinator) options.agents = { coordinator: BUILTIN_COORDINATOR }
+    if (builtinCoordinator) options.agents = { coordinator: coordinatorDefinition ?? BUILTIN_COORDINATOR }
     options.permissionMode = 'dontAsk'
     options.tools = COORDINATOR_TOOLS
     options.allowedTools = coordinatorServer ? [...COORDINATOR_TOOLS, ...COORDINATOR_MCP_TOOLS] : COORDINATOR_TOOLS

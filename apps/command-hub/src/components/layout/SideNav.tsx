@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import {
@@ -21,15 +21,14 @@ import { prefs } from '@/lib/prefs'
 interface SideNavProps {
   current: string
   onNavigate: (path: string) => void
-  collapsed: boolean
 }
 
 /**
  * Permanent navigation drawer, styled after the Bot Dashboard in
  * wojoe-444/MC-Player: a 64px brand header aligned with the app bar, grouped
  * sections with overline labels, 40px items on soft pills, and the active
- * item filled with the drawer's primary color. Collapses to a 72px icon rail.
- * The toggle lives in the top bar.
+ * item filled with the drawer's primary color. The 72px rail expands on
+ * hover or keyboard focus.
  *
  * Items with subpages are collapsible groups drawn as a tree: the subpages
  * are plain text rows on a thin guide line under the parent's icon, the
@@ -37,7 +36,12 @@ interface SideNavProps {
  * a closed group that holds the current page shows a dot. On the icon rail a
  * group's icon opens a menu with its pages.
  */
-export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
+export function SideNav({ current, onNavigate }: SideNavProps) {
+  const [hovered, setHovered] = useState(false)
+  const [keyboardFocus, setKeyboardFocus] = useState(false)
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(collapseTimer.current), [])
+  const collapsed = !hovered && !keyboardFocus
   const navSections = useNavSections()
   const mainSections = navSections.filter((s) => !s.pinned)
   const settings = navSections.find((s) => s.pinned)?.items[0]
@@ -46,9 +50,15 @@ export function SideNav({ current, onNavigate, collapsed }: SideNavProps) {
   return (
     <aside
       data-slot="sidebar"
+      tabIndex={0}
+      aria-label="Navigation"
+      onMouseEnter={() => { clearTimeout(collapseTimer.current); setHovered(true) }}
+      onMouseLeave={() => { clearTimeout(collapseTimer.current); collapseTimer.current = setTimeout(() => setHovered(false), 250) }}
+      onFocusCapture={(event) => { if (event.target.matches(':focus-visible')) setKeyboardFocus(true) }}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardFocus(false) }}
       className={cn(
-        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
-        collapsed ? 'w-[72px]' : 'w-[256px]',
+        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring transition-[width]',
+        collapsed ? 'w-[72px] duration-500' : 'w-[256px] duration-200',
       )}
     >
       {/* Brand header: height matches the 64px top bar */}
@@ -125,6 +135,7 @@ function NavButton({
     <button
       type="button"
       onClick={() => onNavigate(item.path)}
+      aria-label={collapsed ? item.label : undefined}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
@@ -317,7 +328,7 @@ function RailGroup({ item, current, onNavigate }: { item: NavItem; current: stri
         <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onNavigate(item.path)} className={cn(active && 'font-semibold')}>
           <Icon />
-          Overview
+          {item.path === '/agents' ? 'Sessions' : 'Overview'}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {children.map((child) => {

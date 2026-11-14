@@ -12,7 +12,7 @@ export function sampleCatalog(now = Date.now()): CatalogData {
     truncated: false,
     piExtension: true,
     repos: ['demo-app', 'garden-planner', 'notes'].map((name) => ({ name, path: `/sample/${name}` })),
-    subagents: sampleDetails(now).map(({ prompt: _prompt, ...s }) => s),
+    subagents: sampleDetails(now).map(({ prompt: _prompt, source: _source, sourceName: _name, ...s }) => s),
   }
 }
 
@@ -129,7 +129,6 @@ export function sampleDetails(now = Date.now()): SubagentDetail[] {
       scope: 'builtin',
       name: 'coordinator',
       description: "Coordinates your other agent chats from MonoRail. Used when you have no coordinator of your own.",
-      note: 'The Coordinator entry on the Chat page runs it. Add your own copy to change it; the Coordinator then uses yours.',
       tools: ['Agent', 'Workflow', 'mcp__monorail__list_chats', 'mcp__monorail__read_chat', 'mcp__monorail__send_to_chat', 'mcp__monorail__start_chat', 'mcp__monorail__wait_for_reply'],
       location: 'Built in to MonoRail',
       updatedAt: now - 2 * DAY,

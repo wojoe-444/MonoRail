@@ -29,10 +29,10 @@ import {
   X,
 } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
+import { RevealableHeader } from '@/components/layout/HeaderReveal'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -328,14 +328,9 @@ export default function AgentChatPage() {
   }, [sessions])
 
   return (
-    // Fills the window below the 64px top bar and the main padding, so only the panes scroll.
-    <div className="flex h-[calc(100dvh-7rem)] min-h-[32rem] flex-col gap-6 lg:h-[calc(100dvh-8rem)]">
-      <PageHeader
-        eyebrow="Agents"
-        title="Chat"
-        description="Claude Code and pi sessions in your allowed repos, read from their local logs."
-        actions={
-          <>
+    <div className="flex h-full min-h-0 flex-col bg-card">
+      <RevealableHeader><div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3">
+        <div className="mr-auto min-w-0 pr-3"><h1 className="text-sm font-semibold">Sessions</h1><p className="text-xs text-muted-foreground">Claude Code and pi chats in your allowed repos</p></div>
             {!desktop && (
               <Badge variant="info">
                 <FlaskConical /> Sample data
@@ -378,9 +373,7 @@ export default function AgentChatPage() {
                 Refresh
               </Button>
             )}
-          </>
-        }
-      />
+      </div></RevealableHeader>
 
       <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 
@@ -392,7 +385,7 @@ export default function AgentChatPage() {
         }}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-card text-card-foreground">
         {/* Session list */}
         <aside className="flex w-80 shrink-0 flex-col border-r">
           <div className="flex flex-col gap-3 border-b p-4">

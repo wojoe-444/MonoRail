@@ -16,5 +16,5 @@ export const agentCatalogModule: ModuleDefinition = {
   path: '/agents/catalog',
   nav: { section: 'Workspace', parent: '/agents' },
   component: lazy(() => import('./CatalogPage')),
-  dataMethods: ['list', 'get', 'create', 'update', 'remove'],
+  dataMethods: ['list', 'get', 'create', 'update', 'reset', 'remove'],
 }

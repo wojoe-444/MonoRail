@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bot, History, House, LayoutGrid, Settings } from 'lucide-react'
+import { Bot, History, House, LayoutDashboard, LayoutGrid, Settings } from 'lucide-react'
 
 import { apps, fullscreenApps, isWorkspaceApp } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
@@ -51,10 +51,11 @@ function coreSections(list: ExtensionList): NavSection[] {
       items: [
         {
           path: '/agents',
-          label: 'Agents',
+          label: 'Bots',
           icon: Bot,
           // Agent Chat (a module) joins these through nav.parent.
           children: [
+            { path: '/agents/dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { path: '/agents/runs', label: 'Runs', icon: History },
           ],
         },
@@ -88,6 +89,8 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
   const home = settingsPages.find((m) => m.path === SETTINGS_PATH)
   for (const m of sorted) {
     if (m.nav.section === SETTINGS_SECTION) continue
+    // The chat module is the Bots landing page, already represented above.
+    if (m.id === 'agent-chat') continue
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
     const parent = m.nav.parent ? findNavItem(sections, m.nav.parent)?.item : undefined
     if (parent) {
@@ -120,6 +123,8 @@ export function findNavItem(
   sections: NavSection[],
   path: string,
 ): { item: NavItem; section: NavSection; parent?: NavItem } | undefined {
+  // Keep older chat links working while highlighting the Bots landing page.
+  if (path === '/agents/chat') path = '/agents'
   for (const section of sections) {
     for (const item of section.items) {
       if (item.path === path) return { item, section }

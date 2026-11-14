@@ -1,4 +1,4 @@
-import { ChevronRight, Maximize, Minimize, PanelLeft } from 'lucide-react'
+import { ChevronRight, Maximize, Minimize } from 'lucide-react'
 
 import { DevTopBarItems } from '@/components/dev/TestProfileBar'
 import { Button } from '@/components/ui/button'
@@ -11,32 +11,18 @@ interface TopBarProps {
   parent?: { label: string; path: string }
   onNavigate?: (path: string) => void
   title: string
-  collapsed: boolean
-  onToggleCollapsed: () => void
 }
 
 /**
- * 64px app bar, laid out like the Bot Dashboard's: drawer toggle, a
- * section > page breadcrumb, and the full screen toggle on the right (with
+ * 64px app bar: a section > page breadcrumb and the full screen toggle on the right (with
  * Developer Mode's inspect button and test-profile chip before it). The
  * color scheme and light / dark mode live in Settings > Appearance only.
  */
-export function TopBar({ section, parent, onNavigate, title, collapsed, onToggleCollapsed }: TopBarProps) {
+export function TopBar({ section, parent, onNavigate, title }: TopBarProps) {
   const { fullScreen, toggle } = useFullScreen()
   const fsLabel = fullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)'
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/85 px-6 backdrop-blur">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="-ml-2 size-8"
-        onClick={onToggleCollapsed}
-        aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-        title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-      >
-        <PanelLeft />
-      </Button>
-      <span className="h-6 w-px bg-border" aria-hidden />
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
         <span className="shrink-0 text-muted-foreground">{section ?? 'MonoRail'}</span>
         <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
