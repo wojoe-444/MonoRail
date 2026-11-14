@@ -125,6 +125,7 @@ export function findNavItem(
 ): { item: NavItem; section: NavSection; parent?: NavItem } | undefined {
   // Keep older chat links working while highlighting the Bots landing page.
   if (path === '/agents/chat') path = '/agents'
+  if (path === '/agents/catalog/subagents' || path === '/agents/pr-review') path = '/agents/catalog'
   for (const section of sections) {
     for (const item of section.items) {
       if (item.path === path) return { item, section }

@@ -1,7 +1,7 @@
-import { lazy } from 'react'
 import { BookOpen } from 'lucide-react'
 
 import type { ModuleDefinition } from '../types'
+import TemplatesPage from './CatalogLayout'
 
 /**
  * Agent Catalog: Claude Code subagents on this computer (~/.claude/agents and
@@ -15,6 +15,6 @@ export const agentCatalogModule: ModuleDefinition = {
   icon: BookOpen,
   path: '/agents/catalog',
   nav: { section: 'Workspace', parent: '/agents' },
-  component: lazy(() => import('./CatalogPage')),
+  component: TemplatesPage,
   dataMethods: ['list', 'get', 'create', 'update', 'reset', 'remove'],
 }

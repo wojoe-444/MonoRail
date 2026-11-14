@@ -197,8 +197,8 @@ function CatalogList({
   return (
     <>
       <PageHeader
-        eyebrow="Bots"
-        title="Template Catalog"
+        eyebrow="Templates"
+        title="Subagents"
         description="Reusable subagent templates for Claude Code, pi and OpenAI: yours, your repos', and MonoRail's built-in templates. A template defines a subagent; it is not a running instance."
         actions={
           <>
