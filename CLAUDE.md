@@ -1075,6 +1075,15 @@ should get a guide page (or a section in one) in the same PR, linked from its
 folder index and from the pages that mention it. Guides must not contain
 personal paths, names or test-user details.
 
+## Diagrams
+
+Process and decision diagrams follow the MonoRail diagrams standard (BPMN 2.0 and DMN),
+repository `wojoe-444/MonoRail-Diagrams` (private; usually checked out at `~/Repos/MonoRail-Diagrams`).
+Before drawing or changing one, read its `AGENTS.md`. Diagrams live in `docs/diagrams/<process>/`.
+If an agent cannot reach that repository it says so and asks; it does not draw from memory. Files
+placed under `docs/` are bundled by the wiki, so each `.md` there needs an `audience:` tag and a link
+from a folder index (see [Audience tags](#the-wiki-is-a-linked-notebook-obsidian-style-write-docs-that-way)).
+
 ## Design guidance
 
 The visual direction is **the Bot Dashboard from `wojoe-444/MC-Player`**
