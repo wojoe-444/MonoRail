@@ -231,7 +231,7 @@ function ServiceList({ overview, server, serverLoading, onOpen, onRetryServer }:
       </div>
 
       <section className="flex flex-col gap-3">
-        <SectionHeading icon={<Database className="size-4" />} title="On this PC" note="MonoRail runs these pipelines itself while it is open." />
+        <SectionHeading icon={<Database className="size-4" />} title="On this PC" note="MonoRail runs these pipelines itself while it is open, into its local database." />
         {added.length ? (
           <Card className="gap-0 overflow-x-auto py-0">
             <table className="w-full text-sm">
@@ -412,8 +412,8 @@ function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onVie
             <h2 className="text-xl font-semibold">{s.displayName || s.name}</h2>
             {local && (target.service as LocalService).catalog && (
               <p className="text-sm text-muted-foreground">
-                {(target.service as LocalService).catalog!.tables} tables in {(target.service as LocalService).catalog!.schemas} schemas in the local catalog
-                {(target.service as LocalService).catalog!.updatedAt ? `, updated ${when((target.service as LocalService).catalog!.updatedAt)}` : ''}. Browse them on Explore.
+                {(target.service as LocalService).catalog!.tables} tables in {(target.service as LocalService).catalog!.schemas} schemas in the local database
+                {(target.service as LocalService).catalog!.updatedAt ? `, updated ${when((target.service as LocalService).catalog!.updatedAt)}` : ''}. Browse them on the OpenMetadata page or Explore.
               </p>
             )}
             {!local && (target.service as ServerService).description && <p className="line-clamp-2 max-w-3xl text-sm text-muted-foreground">{(target.service as ServerService).description}</p>}

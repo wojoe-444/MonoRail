@@ -1,11 +1,16 @@
-// OpenMetadata page backend: browse every entity type of an OpenMetadata
-// 2.0.x server through its REST API, the way OpenMetadata stores them.
+// OpenMetadata page backend: browse every entity type, the way OpenMetadata
+// stores them, from one of two sources (createService at the bottom):
 //
-// Opt-in: nothing runs until the user adds the OpenMetadata connection
-// (hasConnection only reads the saved list); until then every method answers
-// { block: 'not-set-up' } or refuses. There is no start(): nothing runs while
-// the page is closed. Nothing is written to the data folder. Requests go only
-// to the server in the connection, with its token; the page never sees it.
+//   local    MonoRail's local database (electron/localdb): entities kept on
+//            this PC in OpenMetadata's JSON shape. The default until an
+//            OpenMetadata server is connected, and always available.
+//   server   an OpenMetadata 2.0 or 2.1 server through its REST API.
+//
+// Opt-in for the server: no request is made until the user adds the
+// OpenMetadata connection (hasConnection only reads the saved list); asking
+// for the server before that answers { block: 'not-set-up' } or refuses.
+// There is no start(): nothing runs while the page is closed. Requests go
+// only to the server in the connection, with its token; the page never sees it.
 //
 // The page names an entity type (from TYPES below), never a URL or path: the
 // backend builds every request itself. Reads only, except one write: a new
@@ -254,7 +259,7 @@ async function isSetUp(deps) {
 
 const NOT_SET_UP = { block: 'not-set-up' }
 
-function createService(deps = {}) {
+function createServerService(deps = {}) {
   let client
   const om = () => (client ??= createClient(deps))
 
@@ -348,13 +353,105 @@ function createService(deps = {}) {
   }
 }
 
+/**
+ * The same methods over MonoRail's local database (electron/localdb), which
+ * keeps entities in OpenMetadata's JSON shape. deps.local is for tests.
+ */
+function createLocalService(deps = {}) {
+  const db = () => (deps.local ? deps.local() : require('../localdb/index.cjs').localDb())
+  const withProfile = (type, e) => {
+    if (!e || type !== 'table') return e
+    const [profile] = db().records('tableProfile', e.id, 1)
+    return profile ? { ...e, profile } : e
+  }
+  return {
+    async status() {
+      try {
+        db()
+        return { source: 'local', url: 'MonoRail local database (this PC)', version: undefined, user: undefined }
+      } catch (e) {
+        return { source: 'local', block: 'local-error', error: e.message }
+      }
+    },
+    async counts({ types } = {}) {
+      const c = db().counts()
+      const wanted = Array.isArray(types) ? types.filter((t) => Object.hasOwn(TYPES, t)) : Object.keys(TYPES)
+      return Object.fromEntries(wanted.map((t) => [t, c[t] ?? 0]))
+    },
+    async list({ type, after, deleted = false, limit = 50 } = {}) {
+      collectionOf(type)
+      const cursor = after === undefined || after === null || after === '' ? undefined : text(after, 'page cursor', 2000)
+      return db().list(type, { after: cursor, deleted, limit })
+    },
+    async get({ type, fqn } = {}) {
+      collectionOf(type)
+      const name = text(fqn, 'name')
+      const e = db().get(type, name)
+      if (!e) throw new Error(`There is no ${type} named ${name} in the local database.`)
+      return withProfile(type, e)
+    },
+    async versions({ type, id } = {}) {
+      collectionOf(type)
+      if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give an entity id.')
+      return db().versions(id)
+    },
+    async recent({ size = 30 } = {}) {
+      return db().recent(Math.max(1, Math.min(50, Number(size) || 30))).filter((e) => Object.hasOwn(TYPES, e.entityType))
+    },
+    async setDescription({ type, id, description } = {}) {
+      collectionOf(type)
+      if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give an entity id.')
+      if (typeof description !== 'string' || description.length > 100_000) throw new Error('Give the new description.')
+      const store = db()
+      const e = store.byId(id)
+      if (!e || store.get(type, e.fullyQualifiedName)?.id !== id) throw new Error('That entity is not in the local database.')
+      return store.put(type, { ...e, description })
+    },
+  }
+}
+
+/**
+ * The page's backend: the local database or the OpenMetadata server, per
+ * call. `source: 'local' | 'server'` picks one; without it the server is used
+ * once its connection is set up, the local database until then.
+ */
+function createService(deps = {}) {
+  const server = createServerService(deps)
+  const local = createLocalService(deps)
+  async function pick(args) {
+    const setUp = await isSetUp(deps)
+    if (args?.source === 'server') return { impl: setUp ? server : undefined, setUp }
+    if (args?.source === 'local') return { impl: local, setUp }
+    return { impl: setUp ? server : local, setUp }
+  }
+  const route = (method) => async (args = {}) => {
+    const { impl } = await pick(args)
+    if (!impl) throw new Error('Set up OpenMetadata on the Connections page first.')
+    return impl[method](args)
+  }
+  return {
+    async status(args = {}) {
+      const { impl, setUp } = await pick(args)
+      if (!impl) return { ...NOT_SET_UP, source: 'server', serverSetUp: false }
+      const s = await impl.status(args)
+      return { source: impl === local ? 'local' : 'server', ...s, serverSetUp: setUp }
+    },
+    counts: route('counts'),
+    list: route('list'),
+    get: route('get'),
+    versions: route('versions'),
+    recent: route('recent'),
+    setDescription: route('setDescription'),
+  }
+}
+
 let service
 const svc = () => (service ??= createService())
 
 module.exports = {
   id: 'openmetadata',
   methods: {
-    status: () => svc().status(),
+    status: (_ctx, args) => svc().status(args),
     counts: (_ctx, args) => svc().counts(args),
     list: (_ctx, args) => svc().list(args),
     get: (_ctx, args) => svc().get(args),
@@ -363,5 +460,5 @@ module.exports = {
     setDescription: (_ctx, args) => svc().setDescription(args),
   },
   TYPES,
-  _internal: { createService, createClient, collectionOf },
+  _internal: { createService, createServerService, createLocalService, createClient, collectionOf },
 }

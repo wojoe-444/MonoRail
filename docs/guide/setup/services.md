@@ -82,10 +82,12 @@ was closed runs once when it opens, and they are listed under
 
 ## Where things are kept
 
-Pipelines on this PC, their last 30 runs and what they read stay in
-MonoRail's data folder on your PC (see
-[private data stays local](../private-data.md)). Server pipelines and their
-runs stay on your server and are read when you open the page.
+Pipelines on this PC, their last 30 runs and what they read go into
+MonoRail's [local database](../../local-database.md), a SQLite file in its data
+folder on your PC (see [private data stays local](../private-data.md)). The
+[OpenMetadata page](../openmetadata.md) shows all of it, as **This PC**, even
+without a server. Server pipelines and their runs stay on your server and are
+read when you open the page.
 
 ## Related
 

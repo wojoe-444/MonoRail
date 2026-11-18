@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { BookOpen, Cable, Loader2, PlugZap, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react'
+import { BookOpen, Cable, Database, Loader2, PlugZap, RefreshCw, ShieldAlert, WifiOff, Workflow } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Segmented } from '@/components/ui/segmented'
 import { prefs } from '@/lib/prefs'
 import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { openWiki } from '@/modules/wiki/store'
 
-import { useCall } from './api'
+import { setSource, useCall, type Source } from './api'
 import { typeInfo } from './catalog'
 import { EntityList } from './EntityList'
 import { EntityView } from './EntityView'
@@ -19,17 +20,31 @@ import { TypeNav } from './TypeNav'
 import type { OmCounts, OmStatus } from './types'
 
 const TYPE_KEY = 'monorail.openmetadata.type'
+const SOURCE_KEY = 'monorail.openmetadata.source'
+const savedSource = (): Source | undefined => {
+  const v = prefs.getItem(SOURCE_KEY)
+  return v === 'local' || v === 'server' ? v : undefined
+}
 
 /**
- * OpenMetadata: every entity type in an OpenMetadata server, on one page.
- * The overview, one type's entities, or one entity with everything
- * OpenMetadata holds about it. Reads through electron/modules/openmetadata.cjs;
- * nothing runs until the OpenMetadata connection is set up.
+ * OpenMetadata: every entity type on one page, from MonoRail's local
+ * database (the default) or a connected OpenMetadata server. The overview,
+ * one type's entities, or one entity with everything held about it. Reads
+ * through electron/modules/openmetadata.cjs; no server is contacted until
+ * the OpenMetadata connection is set up.
  */
 export default function OpenMetadataPage() {
-  const status = useCall<OmStatus>('status', {})
+  const [chosen, setChosen] = useState<Source | undefined>(savedSource)
+  const status = useCall<OmStatus>('status', chosen ? { source: chosen } : {})
+  // Every call below names the catalog that answered status, and the content remounts when it changes.
+  const source = status.data?.source
+  setSource(source)
   const ready = !!status.data && !status.data.block
-  const counts = useCall<OmCounts>('counts', ready ? {} : null)
+  const counts = useCall<OmCounts>('counts', ready ? { source } : null)
+  const choose = (s: Source) => {
+    setChosen(s)
+    prefs.setItem(SOURCE_KEY, s)
+  }
   const [view, setViewState] = useState<View>(() => {
     const type = prefs.getItem(TYPE_KEY) ?? undefined
     return typeInfo(type) ? { type } : {}
@@ -44,9 +59,24 @@ export default function OpenMetadataPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="OpenMetadata"
-        description="Every entity type in your OpenMetadata server, the way OpenMetadata stores it: browse any of them and see every field, relationship and version."
+        description={
+          source === 'local'
+            ? "Every entity type in MonoRail's local database on this PC, the way OpenMetadata stores it: browse any of them and see every field, relationship and version."
+            : 'Every entity type in your OpenMetadata server, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
+        }
         actions={
           <>
+            {status.data?.serverSetUp && (
+              <Segmented
+                aria-label="Catalog"
+                value={source ?? 'server'}
+                onChange={choose}
+                options={[
+                  { value: 'local', label: 'This PC' },
+                  { value: 'server', label: 'Server' },
+                ]}
+              />
+            )}
             <Button variant="ghost" onClick={() => openWiki('guide/openmetadata')}>
               <BookOpen /> Guide
             </Button>
@@ -66,11 +96,13 @@ export default function OpenMetadataPage() {
 
       {!status.data ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {status.error ? status.error : <><Loader2 className="size-4 animate-spin" /> Connecting to OpenMetadata…</>}
+          {status.error ? status.error : <><Loader2 className="size-4 animate-spin" /> Opening the catalog…</>}
         </div>
       ) : status.data.block ? (
         <BlockedCard status={status.data} onRetry={status.reload} />
       ) : (
+        <div key={source ?? 'default'} className="flex flex-col gap-6">
+        {source === 'local' && <LocalNote serverSetUp={!!status.data.serverSetUp} empty={!!counts.data && Object.values(counts.data).every((n) => n === 0)} />}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
           <TypeNav current={view.type} counts={counts.data} onChoose={(type) => setView(type ? { type } : {})} />
           <div className="min-w-0">
@@ -83,8 +115,34 @@ export default function OpenMetadataPage() {
             )}
           </div>
         </div>
+        </div>
       )}
     </div>
+  )
+}
+
+/** What the local catalog is, where it is filled from, and how to add a server. */
+function LocalNote({ serverSetUp, empty }: { serverSetUp: boolean; empty: boolean }) {
+  return (
+    <Card className="flex-row flex-wrap items-center gap-4 px-6 py-4">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+        <Database className="size-4" />
+      </span>
+      <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+        {empty ? 'Nothing here yet. ' : ''}This is MonoRail's local database: it stays on this PC and needs no server. Ingestion pipelines on this PC fill it with your SQLite and dbt sources.
+        {serverSetUp ? ' Switch to Server above to browse your OpenMetadata server.' : ' To browse an OpenMetadata server as well, add it on Connections.'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={() => navigate('/services')}>
+          <Workflow /> Services
+        </Button>
+        {!serverSetUp && (
+          <Button variant="ghost" size="sm" onClick={() => navigate('/connections')}>
+            <Cable /> Add a server
+          </Button>
+        )}
+      </div>
+    </Card>
   )
 }
 
@@ -99,6 +157,12 @@ const BLOCKS = {
     title: 'OpenMetadata rejected the sign-in',
     body: 'The bot token may have expired or been revoked, or the password changed. Update it on Connections.',
     icon: ShieldAlert,
+    warn: true,
+  },
+  'local-error': {
+    title: "MonoRail's local database could not be opened",
+    body: 'The message below says why. MonoRail leaves the file as it is and never overwrites it.',
+    icon: Database,
     warn: true,
   },
   unreachable: {

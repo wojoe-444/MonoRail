@@ -37,10 +37,10 @@ export function Overview({ status, counts, countsError, onOpen }: { status: OmSt
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div>
-              <Badge variant="success">Connected</Badge>
+              <Badge variant="success">{status.source === 'local' ? 'On this PC' : 'Connected'}</Badge>
             </div>
             <dl className="flex flex-col gap-2">
-              {([['Server', status.url], ['Version', status.version ? `OpenMetadata ${status.version}` : undefined], ['Signed in as', status.user]] as const).map(([k, v]) => (
+              {(status.source === 'local' ? ([['Catalog', status.url], ['Stored as', 'OpenMetadata entities in SQLite']] as const) : ([['Server', status.url], ['Version', status.version ? `OpenMetadata ${status.version}` : undefined], ['Signed in as', status.user]] as const)).map(([k, v]) => (
                 <div key={k} className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{k}</dt>
                   <dd className="truncate text-sm" title={v}>

@@ -98,6 +98,13 @@ inside a repository and tasks in [Tasks](workspace/tasks.md).
 An account MonoRail is signed in to. See [connect your accounts](setup/connections.md).
 Connections that are data sources are also [services](#service).
 
+## Local database
+
+MonoRail's own SQLite file in your [data folder](#data-folder), where it keeps
+catalog data the way OpenMetadata does. The
+[OpenMetadata page](openmetadata.md) shows it when no server is connected. See
+[the local database](../local-database.md).
+
 ## Service
 
 A data source, such as a SQLite database, a dbt project or a warehouse on
