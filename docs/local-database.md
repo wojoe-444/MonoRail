@@ -78,6 +78,11 @@ A schema change adds a step to `MIGRATIONS` and bumps `SCHEMA_VERSION`.
   `database`, `databaseSchema` and `table` entities with
   `extension.monorail.catalog = true`. Older versions' `pipelines.json`,
   `runs.json` and `catalog.json` are copied in once and left in place.
+- **Tracker** (`electron/apps/tracker`, [reference](tracker.md)): teams and
+  members as `team` and `user` entities with `extension.tracker`, and its own
+  types (issues, workflow states, labels, projects, milestones, updates,
+  cycles, initiatives, views, comments). Issue history is read from the
+  entity versions.
 
 Other modules keep their own files for now (Notes and Tasks in git repos,
 Flashcards in `decks.json`, ...). Moving one in is a separate change per

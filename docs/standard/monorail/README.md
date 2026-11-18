@@ -19,6 +19,7 @@ follow the same style and never reuse an OpenMetadata type name (see the
 | [Workspace](workspace.md) | Notes, bookmarks and scheduled tasks. | Note, Bookmark, Bookmark folder, Scheduled task |
 | [Learning](learning.md) | Flashcard decks and cards. | Flashcard deck, Flashcard |
 | [Semantic](semantic.md) | A dbt project's semantic layer: semantic models, metrics and saved queries. | Semantic model, Metric, Saved query |
+| [Tracker](tracker.md) | Issues, workflow states, labels, projects, milestones, updates, cycles, initiatives, views and comments. | Issue, Workflow state, Issue label, Project, Project milestone, Project update, Cycle, Initiative, Custom view, Comment |
 
 <!-- /standard -->
 

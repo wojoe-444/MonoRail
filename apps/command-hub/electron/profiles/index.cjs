@@ -85,6 +85,7 @@ const SCOPES = Object.freeze({
   'apps/email': 'profile', // accounts and encrypted tokens
   'apps/github-plus': 'profile', // recents and backup schedules
   'apps/jira-plus': 'profile', // private projects repo, links, JQL
+  'apps/tracker': 'profile', // nothing yet: Tracker's entities live in the local database
   // Root-level folders (not backends)
   databases: 'profile', // MonoRail's local database (local.sqlite3): OpenMetadata entities, pipelines, runs
   extensions: 'machine', // installed extension files and state.json
