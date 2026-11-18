@@ -34,6 +34,9 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Backup frequency', detail: 'Times per hour, day or week, and how many to keep', path: '/settings/backups', keywords: 'schedule how often keep prune' },
   { label: 'Back up before updating', detail: 'Back up Tasks, Notes and Flashcards before an update installs', path: '/settings/backups', anchor: 'settings-backup-before-update', keywords: 'update upgrade safety backup install before' },
   { label: 'Back up now', detail: 'Run every included backup', path: '/settings/backups', keywords: 'run backup' },
+  // Services
+  { label: 'Ingestion pipelines', detail: 'Services: read data sources into the catalog on a schedule', path: '/services', keywords: 'openmetadata ingestion pipeline metadata profiler dbt usage lineage schedule cron deploy' },
+  { label: 'OpenMetadata server pipelines', detail: 'Services: run, deploy and pause the server’s ingestion pipelines', path: '/services', keywords: 'openmetadata airflow server pipeline run deploy logs' },
   // Connections (connector names; their rows have ids `connection-<kind>`)
   { label: 'Google Cloud', detail: 'Connections: gcloud login and Application Default Credentials', path: '/connections', anchor: 'connection-gcloud', keywords: 'gcloud gcp adc sign in' },
   { label: 'Atlassian', detail: 'Connections: Jira Cloud site, email and API token', path: '/connections', anchor: 'connection-atlassian', keywords: 'jira token api credential manager' },

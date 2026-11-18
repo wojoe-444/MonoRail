@@ -96,6 +96,13 @@ inside a repository and tasks in [Tasks](workspace/tasks.md).
 ## Connection
 
 An account MonoRail is signed in to. See [connect your accounts](setup/connections.md).
+Connections that are data sources are also [services](#service).
+
+## Service
+
+A data source, such as a SQLite database, a dbt project or a warehouse on
+your OpenMetadata server. Its **ingestion pipelines** read it into a catalog
+on a schedule. See [services and ingestion pipelines](setup/services.md).
 
 ## Extension
 

@@ -27,6 +27,8 @@ async function status(conn) {
 
 module.exports = {
   kind: 'sqlite', title: 'SQLite', icon: 'database',
+  // A data source: an OpenMetadata databaseService on the Services page, with local ingestion pipelines.
+  service: { category: 'databaseService', serviceType: 'SQLite' },
   description: 'Connect an existing local SQLite database and check that MonoRail can read it.',
   fields: [{ key: 'file', label: 'Database file', type: 'text', placeholder: 'C:\\Users\\you\\Documents\\data.sqlite3', help: 'Full path to an existing SQLite database. Checks open it read-only.' }],
   actions: [], validate, status,

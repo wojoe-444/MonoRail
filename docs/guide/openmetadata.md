@@ -65,6 +65,8 @@ open. It keeps nothing on your computer. See
 ## Related
 
 - [Explore](explore.md) lists what MonoRail itself knows, sorted the same way.
+- [Services and ingestion pipelines](setup/services.md) runs, deploys and adds
+  the server's ingestion pipelines, and runs pipelines on your PC too.
 - [The MonoRail standard](../standard/README.md) explains every kind, with all
   its fields; [Databases](../standard/data-assets/databases/README.md) is the
   one MonoRail fills itself too.

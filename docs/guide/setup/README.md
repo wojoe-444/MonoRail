@@ -26,6 +26,9 @@ to them:
   until you turn it on.
 - [Docker](docker.md): if you use Docker, see your containers, logs and
   images under **Utilities > Docker**, and open lazydocker in one click.
+- [Services and ingestion pipelines](services.md): read SQLite databases,
+  dbt projects and your OpenMetadata server's sources into a catalog on a
+  schedule, under **Settings > Services**.
 - [Semantic (MetricFlow)](semantic.md): browse your dbt project's metrics
   and chart them with MetricFlow under **Insights > Semantic**.
 

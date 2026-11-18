@@ -240,6 +240,8 @@ function createClient(deps = {}) {
 
   return {
     get: (apiPath) => request('GET', apiPath),
+    /** Used by the Services page's server pipelines (electron/modules/ingestion.cjs). */
+    post: (apiPath, body) => request('POST', apiPath, { body }),
     patch: (apiPath, ops) => request('PATCH', apiPath, { body: ops, contentType: 'application/json-patch+json' }),
     withFields,
   }

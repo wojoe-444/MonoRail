@@ -135,6 +135,8 @@ async function status(conn, deps = {}) {
 
 module.exports = {
   kind: 'openmetadata',
+  // Also where server-run ingestion pipelines live (Services page).
+  service: { category: 'metadataService', serviceType: 'OpenMetadata' },
   title: 'OpenMetadata',
   description: 'An OpenMetadata server and a way to sign in to it. Used by the OpenMetadata page.',
   icon: 'database',
