@@ -160,6 +160,7 @@ const NOT_CACHED = Object.freeze({
   'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
   'modules/flows': 'Flows are the user\'s own JSON files in a local git repo (repo/, no remote), read on every call and never cached. runs.json keeps metadata of the newest 200 runs (flow id, start time, duration, outcome, cost, step count), never a prompt, a reply or a step\'s output; outputs live only in memory while the app runs.',
   'modules/ingestion': 'Ingestion pipelines the user made to run on this PC (pipelines.json, OpenMetadata ingestionPipeline entities), the newest 30 run statuses per pipeline with step counts, failures and up to 200 log lines (runs.json), and what those pipelines read into the local catalog (catalog.json: database, schema, table and column names, types, dbt descriptions and lineage, row and null counts; never row data). Server pipelines are read from OpenMetadata on demand and not kept.',
+  'modules/files': 'Files reads folders and files in place on every call and keeps nothing: no listing, preview, thumbnail or search result is written to disk. Pins, tags, tabs and view choices are the person\'s page preferences.',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 

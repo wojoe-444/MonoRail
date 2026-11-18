@@ -673,6 +673,21 @@ follows its title only until its first commit. The repo never gets a remote.
 GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
 item (`notes`, bundle).
 
+`files` (**Files**, a subpage of Tools; docs: `docs/files.md`) is a file
+explorer for this PC: tabs and split panes (tabs, pins, color tags, recent
+folders and view options are prefs `monorail.files.*`, never backend files),
+Details / Grid (Windows shell thumbnails via
+`nativeImage.createThumbnailFromPath`, memory only) / Columns views, a preview
+panel (image, text, Markdown, folder size on request, git branch from
+`.git/HEAD` with "Open in GitHub+"), bounded recursive search and drag and
+drop between panes. Backend `electron/modules/files.cjs`: every path goes
+through `absPath`, typed names through `checkName`; walks never follow links.
+Writes only on the user's action: new folder/file (never overwrite), rename,
+copy/move (`uniqueTarget` "name (2)", never replaces), and `trash`
+(`shell.trashItem`; there is no permanent delete). `open`/`reveal`/`trash` are
+`desktopOnly`, and Remote access refuses the whole backend (`files: ['*']`).
+Keeps nothing on disk (`NOT_CACHED`).
+
 `scheduled` (**Scheduled**, under Workspace) has two subpages: Windows Task
 Scheduler (`scheduled.ps1`) and **In-App**, the timers MonoRail runs itself
 while it is open. In-App reads a registry (`electron/scheduled/in-app.cjs`, no
@@ -718,7 +733,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Calendar, Email, Bookmarks, Notes and Flashcards behind one rail button.
+Calendar, Email, Bookmarks, Files, Notes and Flashcards behind one rail button.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their
