@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Database, Loader2, MoreHorizontal, Play, Plus, RefreshCw, Server, Square } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -13,6 +13,7 @@ import { isDesktop } from '@/modules/client'
 import { openWiki } from '@/modules/wiki/store'
 
 import { CATEGORY_LABELS, STATE_INFO, TYPE_INFO, call, duration, errorText, when } from './api'
+import { takeAddIngestion } from './handoff'
 import { PipelineDialog } from './PipelineDialog'
 import { RunsDialog } from './RunsDialog'
 import type { LocalService, Overview, Pipeline, PipelineType, ServerOverview, ServerService, ServiceRef, TestResult } from './types'
@@ -28,10 +29,21 @@ export default function ServicesPage() {
   const [adding, setAdding] = useState<{ target: ServiceRef; types: PipelineType[]; existing?: Pipeline }>()
   const [viewing, setViewing] = useState<Pipeline>()
   const [deleting, setDeleting] = useState<Pipeline>()
+  // A service another page asked to add an ingestion to; used once, when the first overview arrives.
+  const wanted = useRef(takeAddIngestion())
 
   const load = useCallback(async () => {
     try {
-      setOverview(await call<Overview>('overview'))
+      const o = await call<Overview>('overview')
+      setOverview(o)
+      const kind = wanted.current
+      wanted.current = undefined
+      const s = kind ? o.services.find((x) => x.kind === kind && x.added) : undefined
+      if (s) {
+        const target: ServiceRef = { where: 'local', service: s }
+        setSelected(target)
+        if (s.localTypes.length) setAdding({ target, types: s.localTypes })
+      }
       setError('')
     } catch (e) {
       setError(errorText(e))

@@ -23,6 +23,14 @@ profiler run, a dbt project's models and lineage, and the pipelines
 themselves. You can edit descriptions there too; every edit is kept as a new
 version. Nothing in it leaves your PC.
 
+A new database starts empty, and connecting a SQLite database or a dbt
+project does not fill it by itself: you add an ingestion pipeline first
+([how](setup/services.md#add-a-pipeline)). While the page is empty, the note
+at the top says what is missing: no data source connected yet, a source with
+no pipeline (with an **Add ingestion** button that opens that dialog on
+[Services](setup/services.md)), a pipeline that has not run, or a run that
+failed.
+
 ## With your own OpenMetadata server
 
 Connecting a server is optional, and MonoRail contacts none until you add the
