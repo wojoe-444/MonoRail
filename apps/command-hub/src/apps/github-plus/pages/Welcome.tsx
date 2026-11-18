@@ -5,7 +5,7 @@ import { api } from '../api'
 import { AlertIcon, CloseIcon, CloudIcon, CodeIcon, CompareIcon, FolderIcon, PlusIcon, RefreshIcon, RepoIcon } from '../components/Icons'
 import { Avatar } from '../components/CommitList'
 import GitHubRepoList from '../components/GitHubRepoList'
-import { AheadBehind, CardHead, StateCell } from '../components/Dense'
+import { AheadBehind, CardHead, StateCell, TableScroll } from '../components/Dense'
 import { commitLink, compareLink, issueLink, treeLink } from '../links'
 import type { RepoActivity, WorkingState } from '../types'
 import { fileManagerName, fullDate, timeAgo } from '../util'
@@ -98,24 +98,26 @@ export default function Welcome() {
         {view === 'overview' && branches.length > limit && <button className="link-btn act" onClick={() => setView('activity')}>All branches</button>}
       </CardHead>
       {loading ? <div className="ghp-empty-row">Loading…</div> : branches.length === 0 ? <div className="ghp-empty-row">{f ? 'No branches match.' : 'No branches besides the checked-out ones yet.'}</div> : (
-        <table className="ghp-table">
-          <thead><tr><th>Branch</th><th>Repository</th><th>Behind | ahead</th><th aria-label="Author" /><th className="num">Updated</th><th aria-label="Actions" /></tr></thead>
-          <tbody>
-            {branches.slice(0, limit).map(({ repo, b }) => {
-              const go = () => openAt(repo.path, (r) => compareLink(r?.defaultRef ?? undefined, b.name))
-              return (
-                <tr key={repo.path + b.name}>
-                  <td className="fill mono strong"><button className="link-btn ghp-plain" title={`${b.name}: ${b.subject}`} onClick={go}>{b.name}</button></td>
-                  <td className="muted">{repo.name}</td>
-                  <td>{b.ahead !== undefined ? <AheadBehind ahead={b.ahead} behind={b.behind ?? 0} label={repo.defaultRef ?? undefined} /> : <span className="muted">—</span>}</td>
-                  <td title={b.author}><Avatar name={b.author} /></td>
-                  <td className="num muted" title={fullDate(b.date)}>{timeAgo(b.date)}</td>
-                  <td className="num"><button className="btn xs" title={`Compare with ${repo.defaultRef}`} onClick={go}><CompareIcon /> Compare</button></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <TableScroll label="Active branches">
+          <table className="ghp-table">
+            <thead><tr><th>Branch</th><th>Repository</th><th>Behind | ahead</th><th aria-label="Author" /><th className="num">Updated</th><th aria-label="Actions" /></tr></thead>
+            <tbody>
+              {branches.slice(0, limit).map(({ repo, b }) => {
+                const go = () => openAt(repo.path, (r) => compareLink(r?.defaultRef ?? undefined, b.name))
+                return (
+                  <tr key={repo.path + b.name}>
+                    <td className="fill mono strong"><button className="link-btn ghp-plain" title={`${b.name}: ${b.subject}`} onClick={go}>{b.name}</button></td>
+                    <td className="muted">{repo.name}</td>
+                    <td>{b.ahead !== undefined ? <AheadBehind ahead={b.ahead} behind={b.behind ?? 0} label={repo.defaultRef ?? undefined} /> : <span className="muted">—</span>}</td>
+                    <td title={b.author}><Avatar name={b.author} /></td>
+                    <td className="num muted" title={fullDate(b.date)}>{timeAgo(b.date)}</td>
+                    <td className="num"><button className="btn xs" title={`Compare with ${repo.defaultRef}`} onClick={go}><CompareIcon /> Compare</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </div>
   )
@@ -126,21 +128,23 @@ export default function Welcome() {
         {view === 'overview' && commits.length > limit && <button className="link-btn act" onClick={() => setView('activity')}>Activity</button>}
       </CardHead>
       {loading ? <div className="ghp-empty-row">Loading…</div> : commits.length === 0 ? <div className="ghp-empty-row">{f ? 'No commits match.' : 'No commits yet.'}</div> : (
-        <table className="ghp-table">
-          <thead><tr><th>Commit</th><th>Message</th><th>Repository</th><th>Author</th><th className="num">When</th><th aria-label="Browse" /></tr></thead>
-          <tbody>
-            {commits.slice(0, limit).map(({ repo, c }) => (
-              <tr key={repo.path + c.sha}>
-                <td className="mono muted">{c.shortSha}</td>
-                <td className="fill"><button className="link-btn ghp-plain" title={c.subject} onClick={() => openAt(repo.path, () => commitLink(c.sha))}>{c.subject}</button></td>
-                <td className="muted">{repo.name}</td>
-                <td><span className="who"><Avatar name={c.authorName} /><span className="muted">{c.authorName}</span></span></td>
-                <td className="num muted" title={fullDate(c.date)}>{timeAgo(c.date)}</td>
-                <td className="num"><button className="ghp-icon-btn" title="Browse the repository at this commit" aria-label="Browse the repository at this commit" onClick={() => openAt(repo.path, () => treeLink(c.sha, ''))}><CodeIcon /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableScroll label="Recent commits">
+          <table className="ghp-table">
+            <thead><tr><th>Commit</th><th>Message</th><th>Repository</th><th>Author</th><th className="num">When</th><th aria-label="Browse" /></tr></thead>
+            <tbody>
+              {commits.slice(0, limit).map(({ repo, c }) => (
+                <tr key={repo.path + c.sha}>
+                  <td className="mono muted">{c.shortSha}</td>
+                  <td className="fill"><button className="link-btn ghp-plain" title={c.subject} onClick={() => openAt(repo.path, () => commitLink(c.sha))}>{c.subject}</button></td>
+                  <td className="muted">{repo.name}</td>
+                  <td><span className="who"><Avatar name={c.authorName} /><span className="muted">{c.authorName}</span></span></td>
+                  <td className="num muted" title={fullDate(c.date)}>{timeAgo(c.date)}</td>
+                  <td className="num"><button className="ghp-icon-btn" title="Browse the repository at this commit" aria-label="Browse the repository at this commit" onClick={() => openAt(repo.path, () => treeLink(c.sha, ''))}><CodeIcon /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </div>
   )
@@ -172,48 +176,50 @@ export default function Welcome() {
         <button className="ghp-icon-btn" title="Open a repository" aria-label="Open a repository" onClick={openPicker}><PlusIcon /></button>
       </CardHead>
       {repoRows.length === 0 ? <div className="ghp-empty-row">{f ? 'No repositories match.' : 'Repositories you open show up here.'}</div> : (
-        <table className="ghp-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              {full && <th>Folder</th>}
-              <th>HEAD</th>
-              <th>State</th>
-              {full && <th className="num">Issues</th>}
-              {full && <th className="num">Tasks</th>}
-              <th>Backup</th>
-              {full && <th className="num">Last commit</th>}
-              {full && <th aria-label="Actions" />}
-            </tr>
-          </thead>
-          <tbody>
-            {repoRows.map((p) => {
-              const r = byPath.get(p)
-              const l = linkedBy.get(p)
-              const last = r?.commits[0]
-              return (
-                <tr key={p} className="clickable" title={p} onClick={() => openAt(p, () => '/repo/tree')}>
-                  <td className={full ? '' : 'fill'}>{repoName(p)}</td>
-                  {full && <td className="fill mono muted"><span>{p}</span></td>}
-                  <td className="mono muted">{r?.currentBranch ?? (r?.error ? '' : '—')}</td>
-                  <td><StateCell s={states[p]} loading={loadingStates} /></td>
-                  {full && <td className="num muted">{r?.openIssues || ''}</td>}
-                  {full && <td className="num muted">{taskCount(p) || ''}</td>}
-                  <td>{backupCell(r)}</td>
-                  {full && <td className="num muted">{last ? <span title={`${last.subject} (${fullDate(last.date)})`}>{timeAgo(last.date)}</span> : ''}</td>}
-                  {full && (
-                    <td className="num" onClick={(e) => e.stopPropagation()}>
-                      <span className="row-actions">
-                        {!r?.error && hasLocalScreen() && <button className="ghp-icon-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => showInExplorer(p)}><FolderIcon /></button>}
-                        {!l && <button className="ghp-icon-btn" title="Remove from this list (the folder is not touched)" aria-label={`Remove ${nameOf(p)} from the list`} onClick={() => forget(p)}><CloseIcon /></button>}
-                      </span>
-                    </td>
-                  )}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <TableScroll label="Repositories">
+          <table className="ghp-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                {full && <th>Folder</th>}
+                <th>HEAD</th>
+                <th>State</th>
+                {full && <th className="num">Issues</th>}
+                {full && <th className="num">Tasks</th>}
+                <th>Backup</th>
+                {full && <th className="num">Last commit</th>}
+                {full && <th aria-label="Actions" />}
+              </tr>
+            </thead>
+            <tbody>
+              {repoRows.map((p) => {
+                const r = byPath.get(p)
+                const l = linkedBy.get(p)
+                const last = r?.commits[0]
+                return (
+                  <tr key={p} className="clickable" title={p} onClick={() => openAt(p, () => '/repo/tree')}>
+                    <td className={full ? '' : 'fill'}>{repoName(p)}</td>
+                    {full && <td className="fill mono muted"><span>{p}</span></td>}
+                    <td className="mono muted">{r?.currentBranch ?? (r?.error ? '' : '—')}</td>
+                    <td><StateCell s={states[p]} loading={loadingStates} /></td>
+                    {full && <td className="num muted">{r?.openIssues || ''}</td>}
+                    {full && <td className="num muted">{taskCount(p) || ''}</td>}
+                    <td>{backupCell(r)}</td>
+                    {full && <td className="num muted">{last ? <span title={`${last.subject} (${fullDate(last.date)})`}>{timeAgo(last.date)}</span> : ''}</td>}
+                    {full && (
+                      <td className="num" onClick={(e) => e.stopPropagation()}>
+                        <span className="row-actions">
+                          {!r?.error && hasLocalScreen() && <button className="ghp-icon-btn" title={`Open in ${fileManagerName}`} aria-label={`Open ${nameOf(p)} in ${fileManagerName}`} onClick={() => showInExplorer(p)}><FolderIcon /></button>}
+                          {!l && <button className="ghp-icon-btn" title="Remove from this list (the folder is not touched)" aria-label={`Remove ${nameOf(p)} from the list`} onClick={() => forget(p)}><CloseIcon /></button>}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </div>
   )
@@ -313,19 +319,21 @@ export default function Welcome() {
         <div className="ghp-card">
           <CardHead title="Open issues" count={issueTotal} hint="local issues, kept inside each repository; the newest five per repository are listed" />
           {openIssues.length === 0 ? <div className="ghp-empty-row">{f ? 'No issues match.' : 'No open issues. Open a repository and use its Issues tab to note a bug, an idea or a to-do.'}</div> : (
-            <table className="ghp-table">
-              <thead><tr><th>Issue</th><th>Repository</th><th className="num">Comments</th><th className="num">Updated</th></tr></thead>
-              <tbody>
-                {openIssues.map(({ repo, i }) => (
-                  <tr key={repo.path + i.number} className="clickable" onClick={() => openAt(repo.path, () => issueLink(i.number))}>
-                    <td className="fill"><span><span className="muted mono">#{i.number}</span> {i.title}</span></td>
-                    <td className="muted">{repo.name}</td>
-                    <td className="num muted">{i.comments || ''}</td>
-                    <td className="num muted" title={fullDate(i.updatedAt)}>{timeAgo(i.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TableScroll label="Open issues">
+              <table className="ghp-table">
+                <thead><tr><th>Issue</th><th>Repository</th><th className="num">Comments</th><th className="num">Updated</th></tr></thead>
+                <tbody>
+                  {openIssues.map(({ repo, i }) => (
+                    <tr key={repo.path + i.number} className="clickable" onClick={() => openAt(repo.path, () => issueLink(i.number))}>
+                      <td className="fill"><span><span className="muted mono">#{i.number}</span> {i.title}</span></td>
+                      <td className="muted">{repo.name}</td>
+                      <td className="num muted">{i.comments || ''}</td>
+                      <td className="num muted" title={fullDate(i.updatedAt)}>{timeAgo(i.updatedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
         </div>
       )}
@@ -334,22 +342,24 @@ export default function Welcome() {
         <div className="ghp-card">
           <CardHead title="Backups" hint="each repository's schedule is set on its Backups tab" />
           {backedUp.length === 0 ? <div className="ghp-empty-row">No backups set up. Open a repository and use its Backups tab to copy it to another folder on a schedule.</div> : (
-            <table className="ghp-table">
-              <thead><tr><th>Repository</th><th>Schedule</th><th>Last backup</th><th className="num">Next</th></tr></thead>
-              <tbody>
-                {backedUp.map((r) => {
-                  const s = r.backup!.schedule!
-                  return (
-                    <tr key={r.path} className="clickable" onClick={() => openAt(r.path, () => '/repo/backups')}>
-                      <td className="fill strong"><span>{r.name}</span></td>
-                      <td className="muted">{s.enabled ? (s.times === 1 ? UNIT_LABEL[s.unit] : `${s.times}× per ${s.unit}`) : 'paused'}</td>
-                      <td>{backupCell(r)}</td>
-                      <td className="num muted">{s.enabled && r.backup!.nextDueAt ? <span title={fullDate(r.backup!.nextDueAt)}>{timeAgo(r.backup!.nextDueAt)}</span> : '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+            <TableScroll label="Backups">
+              <table className="ghp-table">
+                <thead><tr><th>Repository</th><th>Schedule</th><th>Last backup</th><th className="num">Next</th></tr></thead>
+                <tbody>
+                  {backedUp.map((r) => {
+                    const s = r.backup!.schedule!
+                    return (
+                      <tr key={r.path} className="clickable" onClick={() => openAt(r.path, () => '/repo/backups')}>
+                        <td className="fill strong"><span>{r.name}</span></td>
+                        <td className="muted">{s.enabled ? (s.times === 1 ? UNIT_LABEL[s.unit] : `${s.times}× per ${s.unit}`) : 'paused'}</td>
+                        <td>{backupCell(r)}</td>
+                        <td className="num muted">{s.enabled && r.backup!.nextDueAt ? <span title={fullDate(r.backup!.nextDueAt)}>{timeAgo(r.backup!.nextDueAt)}</span> : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
         </div>
       )}

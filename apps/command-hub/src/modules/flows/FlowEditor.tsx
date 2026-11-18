@@ -165,8 +165,8 @@ function Playground({ name, msgs, run, busy, onSend, onStop, onClose }: { name: 
     setText('')
   }
   return (
-    <aside className="flex w-[380px] shrink-0 flex-col border-l bg-card">
-      <div className="flex h-12 items-center gap-2 border-b px-4">
+    <aside className="flex min-h-0 w-[380px] shrink-0 flex-col border-l bg-card">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
         <PanelRight className="size-4 text-muted-foreground" />
         <div className="flex-1 text-sm font-semibold">Playground</div>
         <Button size="icon" variant="ghost" className="size-7" onClick={onClose} aria-label="Close the Playground"><X /></Button>
@@ -187,7 +187,7 @@ function Playground({ name, msgs, run, busy, onSend, onStop, onClose }: { name: 
           ),
         )}
       </div>
-      <div className="border-t p-3">
+      <div className="shrink-0 border-t p-3">
         <div className="flex items-end gap-2 rounded-lg border bg-background p-2">
           <textarea
             value={text}
@@ -607,7 +607,7 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
 
   return (
     <EditorContext.Provider value={ctx}>
-      <div className="flex h-full min-h-[36rem] flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         <div className="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
           <Button size="icon" variant="ghost" onClick={onBack} aria-label="Back to flows"><ArrowLeft /></Button>
           <AgentMochi name={agentName} size={32} />

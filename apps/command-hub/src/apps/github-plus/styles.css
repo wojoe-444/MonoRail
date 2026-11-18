@@ -369,8 +369,8 @@
   .status.added { color: var(--gh-green); } .status.deleted { color: var(--gh-red); } .status.renamed { color: var(--gh-yellow); }
   .diff-file { border: 1px solid var(--gh-border); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
   .diff-head { display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--gh-bg2); cursor: pointer; font-size: 13px; }
-  .diff-file > div:not(.diff-head), .diff-file > table { overflow-x: auto; display: block; }
-  table.diff { border-collapse: collapse; width: 100%; font-size: 12px; line-height: 20px; display: table !important; }
+  .diff-scroll { min-width: 0; overflow-x: auto; }
+  table.diff { border-collapse: collapse; width: 100%; font-size: 12px; line-height: 20px; }
   table.diff td.lc { white-space: pre; padding: 0 12px; width: 100%; }
   table.diff tr.add td.lc { background: var(--gh-addbg); } table.diff tr.add td.ln { background: var(--gh-addln); }
   table.diff tr.del td.lc { background: var(--gh-delbg); } table.diff tr.del td.ln { background: var(--gh-delln); }
@@ -403,8 +403,10 @@
   table.files td.name.mono { width: auto; font-size: 13px; }
   /* Make-a-repo dialog */
   .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: var(--gh-backdrop); display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .modal { width: 100%; max-width: 600px; margin: 0; box-shadow: var(--gh-shadow); text-align: left; }
-  .box-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--gh-border); background: var(--gh-bg2); }
+  .modal { display: flex; flex-direction: column; width: 100%; max-width: 600px; max-height: 100%; margin: 0; box-shadow: var(--gh-shadow); text-align: left; }
+  .modal > .box-head, .modal > .box-foot { flex-shrink: 0; }
+  .modal > .pad { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+  .box-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--gh-border); background: var(--gh-bg2); }
   .explain { list-style: disc; padding-left: 20px; margin: 0 0 16px; } .explain li + li { margin-top: 4px; }
   .file-names { list-style: none; margin: 4px 0 8px 24px; padding: 0; font-size: 12px; color: var(--gh-muted); }
   .flash .check-row { margin-top: 4px; }
@@ -603,6 +605,8 @@
   .ghp-collapse svg { transition: transform .15s; }
   .ghp-collapse[aria-expanded='false'] svg { transform: rotate(-90deg); }
 
+  .ghp-table-scroll { min-width: 0; overflow-x: auto; }
+  .ghp-table-scroll:focus-visible, .diff-scroll:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
   .ghp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .ghp-table th { text-align: left; font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); padding: 7px 10px; border-bottom: 1px solid var(--border); background: color-mix(in oklch, var(--muted) 45%, transparent); white-space: nowrap; }
   .ghp-table td { padding: 0 10px; height: 34px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
@@ -612,7 +616,7 @@
   .ghp-table th:first-child, .ghp-table td:first-child { padding-left: 16px; }
   .ghp-table th:last-child, .ghp-table td:last-child { padding-right: 12px; }
   .ghp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .ghp-table .fill { width: 100%; max-width: 0; }
+  .ghp-table .fill { width: 100%; min-width: 8rem; max-width: 0; }
   .ghp-table .fill > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ghp-table .mono { font-size: 12px; }
   .ghp-table .strong { font-weight: 600; }
