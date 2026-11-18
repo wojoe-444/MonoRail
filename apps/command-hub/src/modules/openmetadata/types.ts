@@ -63,8 +63,12 @@ export interface OmPage {
 export type OmCounts = Record<string, number | { error: string }>
 
 export interface OmStatus {
-  /** not-set-up: no connection yet. rejected: the token was refused. unreachable: no answer. */
-  block?: 'not-set-up' | 'rejected' | 'unreachable'
+  /** not-set-up: no connection yet. rejected: the token was refused. unreachable: no answer. local-error: the local database could not be opened. */
+  block?: 'not-set-up' | 'rejected' | 'unreachable' | 'local-error'
+  /** Which catalog answered: MonoRail's local database or the OpenMetadata server. */
+  source?: 'local' | 'server'
+  /** Whether an OpenMetadata server is connected (then the page offers both). */
+  serverSetUp?: boolean
   url?: string
   version?: string
   user?: string

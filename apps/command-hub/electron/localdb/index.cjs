@@ -1,0 +1,265 @@
+// MonoRail's local database: one SQLite file per profile
+// (<profile data folder>\databases\local.sqlite3), the home for in-app data
+// kept in OpenMetadata's shape. docs/local-database.md.
+//
+// It holds OpenMetadata entities (any type of the MonoRail standard, stored as
+// OpenMetadata JSON with OpenMetadata's id, fullyQualifiedName, version and
+// updatedAt), every version of each entity, and small records that are not
+// entities (pipeline run statuses). The OpenMetadata page reads it when no
+// OpenMetadata server is connected, and local ingestion pipelines write it.
+//
+// SQLite is the engine built into the Node runtime inside Electron
+// (`node:sqlite`), so nothing is bundled. The file is created on first use in
+// MonoRail's own data folder; it never leaves the PC. WAL mode lets the app and
+// other MonoRail processes read while one writes. A file that is not a
+// database, or one made by a newer MonoRail, is never overwritten: opening
+// throws and the page shows the error. No Electron here, so tests and the MCP
+// server can use it.
+
+const fs = require('node:fs')
+const path = require('node:path')
+const { randomUUID } = require('node:crypto')
+
+const DB_FILE = 'local.sqlite3'
+const FOLDER = 'databases'
+/** Bump with a new step in MIGRATIONS. */
+const SCHEMA_VERSION = 1
+
+const MIGRATIONS = [
+  // 1: entities, their versions, records
+  `CREATE TABLE entity (
+     id TEXT PRIMARY KEY,
+     type TEXT NOT NULL,
+     fqn TEXT NOT NULL,
+     name TEXT NOT NULL,
+     version REAL NOT NULL,
+     updated_at INTEGER NOT NULL,
+     deleted INTEGER NOT NULL DEFAULT 0,
+     json TEXT NOT NULL,
+     UNIQUE (type, fqn)
+   );
+   CREATE INDEX entity_updated ON entity (updated_at);
+   CREATE TABLE entity_version (
+     id TEXT NOT NULL,
+     version REAL NOT NULL,
+     json TEXT NOT NULL,
+     PRIMARY KEY (id, version)
+   );
+   CREATE TABLE record (
+     kind TEXT NOT NULL,
+     owner TEXT NOT NULL,
+     key TEXT NOT NULL,
+     at INTEGER NOT NULL,
+     json TEXT NOT NULL,
+     PRIMARY KEY (kind, owner, key)
+   );
+   CREATE INDEX record_at ON record (kind, owner, at);
+   CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+]
+
+/** OpenMetadata quotes a name that holds a dot inside a fully qualified name. */
+function fqnPart(name) {
+  const s = String(name)
+  return s.includes('.') ? `"${s.replace(/"/g, '')}"` : s
+}
+const fqnOf = (...parts) => parts.map(fqnPart).join('.')
+
+/** Open (and create or upgrade) the database in `dir`. Throws a readable message when it cannot be used. */
+function openDatabase(dir, { file = DB_FILE } = {}) {
+  const { DatabaseSync } = require('node:sqlite')
+  fs.mkdirSync(dir, { recursive: true })
+  const where = path.join(dir, file)
+  let db
+  try {
+    db = new DatabaseSync(where, { timeout: 5000 })
+    db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;')
+    const current = db.prepare('PRAGMA user_version').get().user_version
+    if (current > SCHEMA_VERSION) throw new Error(`MonoRail's local database was made by a newer version of MonoRail (schema ${current}). Update MonoRail to use it; it was left as it is.`)
+    for (let v = current; v < SCHEMA_VERSION; v++) {
+      db.exec('BEGIN')
+      try {
+        db.exec(MIGRATIONS[v])
+        db.exec(`PRAGMA user_version = ${v + 1}`)
+        db.exec('COMMIT')
+      } catch (e) {
+        db.exec('ROLLBACK')
+        throw e
+      }
+    }
+  } catch (e) {
+    try {
+      db?.close()
+    } catch {
+      // already closed
+    }
+    const msg = String(e?.message ?? e)
+    if (/not a database|malformed|file is encrypted/i.test(msg)) throw new Error("MonoRail's local database file is damaged, so it was left as it is. Move it out of the databases folder to start a new one.")
+    throw e
+  }
+  return createEntityStore(db)
+}
+
+const round1 = (n) => Math.round(n * 10) / 10
+
+/** JSON with object keys sorted and undefined dropped, so the same content always compares equal. */
+function stableStringify(value) {
+  return JSON.stringify(value, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => [k, v[k]])) : v))
+}
+
+/** What counts as a change: everything but the bookkeeping fields. */
+const comparable = (e) => {
+  const { version: _v, updatedAt: _u, updatedBy: _b, changeDescription: _c, href: _h, ...rest } = e
+  return stableStringify(rest)
+}
+
+function createEntityStore(db) {
+  const q = (sql) => db.prepare(sql)
+  const s = {
+    byId: q('SELECT json FROM entity WHERE id = ?'),
+    byFqn: q('SELECT json FROM entity WHERE type = ? AND fqn = ?'),
+    insert: q('INSERT INTO entity (id, type, fqn, name, version, updated_at, deleted, json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+    update: q('UPDATE entity SET type = ?, fqn = ?, name = ?, version = ?, updated_at = ?, deleted = ?, json = ? WHERE id = ?'),
+    version: q('INSERT OR REPLACE INTO entity_version (id, version, json) VALUES (?, ?, ?)'),
+    versions: q('SELECT json FROM entity_version WHERE id = ? ORDER BY version DESC'),
+    remove: q('DELETE FROM entity WHERE id = ?'),
+    removeVersions: q('DELETE FROM entity_version WHERE id = ?'),
+    counts: q('SELECT type, count(*) AS n FROM entity WHERE deleted = 0 GROUP BY type'),
+    recent: q('SELECT type, json FROM entity WHERE deleted = 0 ORDER BY updated_at DESC LIMIT ?'),
+    all: q('SELECT json FROM entity WHERE type = ? ORDER BY fqn'),
+    putRecord: q('INSERT OR REPLACE INTO record (kind, owner, key, at, json) VALUES (?, ?, ?, ?, ?)'),
+    records: q('SELECT json FROM record WHERE kind = ? AND owner = ? ORDER BY at DESC LIMIT ?'),
+    recordsOfKind: q('SELECT owner, json FROM record WHERE kind = ? ORDER BY owner, at DESC'),
+    deleteRecords: q('DELETE FROM record WHERE kind = ? AND owner = ?'),
+    prune: q('DELETE FROM record WHERE kind = ? AND owner = ? AND key NOT IN (SELECT key FROM record WHERE kind = ? AND owner = ? ORDER BY at DESC LIMIT ?)'),
+    getMeta: q('SELECT value FROM meta WHERE key = ?'),
+    setMeta: q('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)'),
+  }
+  const parse = (row) => (row ? JSON.parse(row.json) : undefined)
+  let depth = 0
+
+  const store = {
+    /** Run `fn` in one transaction (nested calls join the outer one). */
+    transaction(fn) {
+      if (depth > 0) return fn()
+      depth++
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const out = fn()
+        db.exec('COMMIT')
+        return out
+      } catch (e) {
+        db.exec('ROLLBACK')
+        throw e
+      } finally {
+        depth--
+      }
+    },
+
+    get: (type, fqn) => parse(s.byFqn.get(type, fqn)),
+    byId: (id) => parse(s.byId.get(id)),
+    /** Every entity of a type, by full name (small types only: pipelines, local catalog). */
+    all: (type) => s.all.all(type).map(parse),
+
+    /**
+     * Add or update an entity, as OpenMetadata does: matched by id, then by
+     * type and full name; the version goes up by 0.1 on a real change and the
+     * old JSON stays in the version history. Returns the stored entity.
+     */
+    put(type, entity, { by = 'monorail', now = Date.now() } = {}) {
+      if (!entity || typeof entity.name !== 'string' || !entity.name) throw new Error('An entity needs a name.')
+      const fqn = entity.fullyQualifiedName || fqnPart(entity.name)
+      return store.transaction(() => {
+        const prev = (entity.id && store.byId(entity.id)) || store.get(type, fqn)
+        if (prev) {
+          const next = { ...entity, id: prev.id, fullyQualifiedName: fqn }
+          if (comparable(next) === comparable({ ...prev, fullyQualifiedName: fqn })) return prev
+          const stored = { ...next, version: round1((prev.version ?? 0.1) + 0.1), updatedAt: now, updatedBy: by }
+          s.update.run(type, fqn, entity.name, stored.version, now, stored.deleted ? 1 : 0, JSON.stringify(stored), prev.id)
+          s.version.run(prev.id, stored.version, JSON.stringify(stored))
+          return stored
+        }
+        const stored = { ...entity, id: entity.id || randomUUID(), fullyQualifiedName: fqn, version: 0.1, updatedAt: now, updatedBy: by }
+        s.insert.run(stored.id, type, fqn, entity.name, stored.version, now, stored.deleted ? 1 : 0, JSON.stringify(stored))
+        s.version.run(stored.id, stored.version, JSON.stringify(stored))
+        return stored
+      })
+    },
+
+    /** Remove an entity and its history for good. */
+    remove(id) {
+      store.transaction(() => {
+        s.remove.run(id)
+        s.removeVersions.run(id)
+      })
+    },
+
+    /** One page of a type, OpenMetadata's list shape: { data, paging: { total, after } }. Paged by full name. */
+    list(type, { after, limit = 50, deleted = false } = {}) {
+      const n = Math.max(1, Math.min(100, Number(limit) || 50))
+      const where = `type = ?${deleted ? '' : ' AND deleted = 0'}`
+      const total = db.prepare(`SELECT count(*) AS n FROM entity WHERE ${where}`).get(type).n
+      const rows = after
+        ? db.prepare(`SELECT json, fqn FROM entity WHERE ${where} AND fqn > ? ORDER BY fqn LIMIT ?`).all(type, String(after), n + 1)
+        : db.prepare(`SELECT json, fqn FROM entity WHERE ${where} ORDER BY fqn LIMIT ?`).all(type, n + 1)
+      const page = rows.slice(0, n)
+      return { data: page.map(parse), paging: { total, after: rows.length > n ? page[page.length - 1].fqn : undefined } }
+    },
+
+    /** Entities per type (not deleted). */
+    counts: () => Object.fromEntries(s.counts.all().map((r) => [r.type, r.n])),
+    /** Every version of an entity, newest first. */
+    versions: (id) => s.versions.all(id).map(parse),
+    /** Latest changes across every type, with `entityType` as on OpenMetadata's search results. */
+    recent: (n = 30) => s.recent.all(Math.max(1, Math.min(100, n))).map((r) => ({ ...JSON.parse(r.json), entityType: r.type })),
+
+    // Records: small JSON documents that are not entities, newest first by `at`.
+    putRecord: (kind, owner, key, at, value) => void s.putRecord.run(kind, owner, key, at, JSON.stringify(value)),
+    records: (kind, owner, limit = 100) => s.records.all(kind, owner, limit).map(parse),
+    /** owner -> records, newest first. */
+    recordsByOwner(kind) {
+      const out = {}
+      for (const r of s.recordsOfKind.all(kind)) (out[r.owner] ??= []).push(JSON.parse(r.json))
+      return out
+    },
+    deleteRecords: (kind, owner) => void s.deleteRecords.run(kind, owner),
+    pruneRecords: (kind, owner, keep) => void s.prune.run(kind, owner, kind, owner, keep),
+
+    getMeta: (key) => s.getMeta.get(key)?.value,
+    setMeta: (key, value) => void s.setMeta.run(key, String(value)),
+
+    close: () => db.close(),
+  }
+  return store
+}
+
+// ---------------------------------------------------------------- the app's instance
+
+let instance
+let failure
+/**
+ * The active profile's local database (main process). Opened on first use;
+ * throws the same readable error on every call while it cannot be opened.
+ */
+function localDb() {
+  if (instance) return instance
+  if (failure) throw failure
+  try {
+    instance = openDatabase(require('../profiles/index.cjs').appLayout().folder(FOLDER))
+    return instance
+  } catch (e) {
+    failure = e
+    throw e
+  }
+}
+
+/** Whether the active profile's database file exists yet. Opens nothing, creates nothing. */
+function localDbExists() {
+  if (instance) return true
+  try {
+    return fs.existsSync(path.join(require('../profiles/index.cjs').appLayout().folder(FOLDER), DB_FILE))
+  } catch {
+    return false
+  }
+}
+
+module.exports = { openDatabase, localDb, localDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, FOLDER, SCHEMA_VERSION }

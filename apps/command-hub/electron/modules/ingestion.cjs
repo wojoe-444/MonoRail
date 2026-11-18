@@ -9,7 +9,7 @@
 //             In-App). Services are the data-source connections from
 //             Connections (SQLite, MetricFlow's dbt project). Pipelines, runs
 //             and the local catalog are files in this backend's data folder
-//             (ingestion-store.cjs). Secrets never leave the PC.
+//             (ingestion-st().cjs). Secrets never leave the PC.
 //   server    The pipeline lives on the user's OpenMetadata server and runs on
 //             its Airflow. MonoRail lists the server's own services and their
 //             pipelines and calls OpenMetadata's REST API to create, deploy,
@@ -27,8 +27,12 @@ const { randomUUID } = require('node:crypto')
 
 const cron = require('./ingestion-cron.cjs')
 const local = require('./ingestion-local.cjs')
-const { createStore } = require('./ingestion-store.cjs')
+const { createStore, PIPELINES_FILE } = require('./ingestion-store.cjs')
+const localdb = require('../localdb/index.cjs')
 const omLib = require('./openmetadata.cjs')
+
+/** Run fn on the next tick, so a throw (the local database cannot open) becomes a rejection. */
+const later = (fn) => Promise.resolve().then(fn)
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/
@@ -130,7 +134,11 @@ function cleanSchedule(raw = {}) {
 // ---------------------------------------------------------------- service
 
 function createIngestion({ dataDir, deps = {} }) {
-  const store = createStore(dataDir)
+  // The local database opens on first use (electron/localdb); pipelines.json from older versions is copied in then.
+  let store
+  const st = () => (store ??= createStore({ db: deps.db ?? localdb.localDb(), legacyDir: dataDir }))
+  /** Whether there can be pipelines at all, without creating the database: it exists, or an older version left pipelines.json. */
+  const mayHavePipelines = () => !!deps.db || !!store || localdb.localDbExists() || require('node:fs').existsSync(require('node:path').join(dataDir, PIPELINES_FILE))
   const connections = () => deps.connections ?? require('../connections/index.cjs')
   const om = () => (deps.omClient ??= omLib._internal.createClient(deps.omDeps))
   const isServerSetUp = () => connections().hasConnection('openmetadata')
@@ -207,13 +215,14 @@ function createIngestion({ dataDir, deps = {} }) {
   }
 
   async function listPipelines() {
-    const [pipelines, runsFile] = await Promise.all([store.pipelines(), store.runsFile()])
+    if (!mayHavePipelines()) return []
+    const [pipelines, runsFile] = await Promise.all([st().pipelines(), st().runsFile()])
     return pipelines.map((p) => withState(p, runsFile))
   }
 
   async function findPipeline(id) {
     if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give a pipeline id.')
-    const p = (await store.pipelines()).find((x) => x.id === id)
+    const p = (await st().pipelines()).find((x) => x.id === id)
     if (!p) throw new Error('That pipeline no longer exists.')
     return p
   }
@@ -233,7 +242,7 @@ function createIngestion({ dataDir, deps = {} }) {
     if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give a pipeline id.')
     if (running.has(id)) throw new Error('Wait for the running run to finish, or kill it, before editing this pipeline.')
     const at = now().toISOString()
-    return store.updatePipelines((list) => {
+    return st().updatePipelines((list) => {
       if (list.some((p) => p.name === name && p.id !== id)) throw new Error(`A pipeline named ${name} already exists.`)
       const prev = list.find((p) => p.id === id)
       if (raw.id !== undefined && !prev) throw new Error('That pipeline no longer exists.')
@@ -264,11 +273,11 @@ function createIngestion({ dataDir, deps = {} }) {
     await findPipeline(id)
     if (running.has(id)) throw new Error('Kill the running run before deleting this pipeline.')
     clearRetry(id)
-    await store.updatePipelines((list) => {
+    await st().updatePipelines((list) => {
       const i = list.findIndex((p) => p.id === id)
       if (i >= 0) list.splice(i, 1)
     })
-    await store.forgetRuns(id)
+    await st().forgetRuns(id)
     return { deleted: id }
   }
 
@@ -276,7 +285,7 @@ function createIngestion({ dataDir, deps = {} }) {
   async function setFlags({ id, deployed, enabled } = {}) {
     await findPipeline(id)
     const at = now().toISOString()
-    const p = await store.updatePipelines((list) => {
+    const p = await st().updatePipelines((list) => {
       const p = list.find((x) => x.id === id)
       if (typeof deployed === 'boolean' && deployed !== p.deployed) {
         p.deployed = deployed
@@ -287,7 +296,7 @@ function createIngestion({ dataDir, deps = {} }) {
     })
     if (!p.deployed || !p.enabled) clearRetry(id)
     // Deploying starts the schedule from now: no catch-up for times before the deploy.
-    if (deployed === true || enabled === true) await store.setScheduled(id, at)
+    if (deployed === true || enabled === true) await st().setScheduled(id, at)
     return p
   }
 
@@ -311,15 +320,15 @@ function createIngestion({ dataDir, deps = {} }) {
     running.set(p.id, entry)
     const addLog = (line, level = 'INFO') => log.push(`${stamp()} ${level.padEnd(5)} ${line}`)
     addLog(`Starting ${p.name} (${p.pipelineType}, ${trigger}${attempt ? `, retry ${attempt}` : ''})`)
-    await store.saveRun(p.id, { ...status, log: [...log] })
+    await st().saveRun(p.id, { ...status, log: [...log] })
     const finished = (async () => {
       try {
         const steps = await local.runLocal(p, {
           creds,
           log: (l) => addLog(l),
           control,
-          catalog: (change) => store.updateCatalog(change),
-          readCatalog: () => store.catalog(),
+          catalog: (change) => st().updateCatalog(change),
+          readCatalog: () => st().catalog(),
         })
         status.status = steps
         status.pipelineState = steps.some((s) => s.errors > 0 || s.warnings > 0) ? 'partialSuccess' : 'success'
@@ -333,7 +342,7 @@ function createIngestion({ dataDir, deps = {} }) {
       status.timestamp = status.endDate
       addLog(`Finished with status ${status.pipelineState}`)
       running.delete(p.id)
-      await store.saveRun(p.id, { ...status, log: [...log] }).catch((e) => console.error('[ingestion] could not save run', e))
+      await st().saveRun(p.id, { ...status, log: [...log] }).catch((e) => console.error('[ingestion] could not save run', e))
       // Scheduled runs retry as OpenMetadata's Airflow tasks do: retries times, retryDelay apart.
       const retries = p.airflowConfig?.retries ?? 0
       if (status.pipelineState === 'failed' && trigger !== 'manual' && !entry.killed && attempt < retries) {
@@ -368,7 +377,7 @@ function createIngestion({ dataDir, deps = {} }) {
 
   async function runs({ id } = {}) {
     const p = await findPipeline(id)
-    const saved = (await store.runsFile()).runs[p.id] ?? []
+    const saved = (await st().runsFile()).runs[p.id] ?? []
     const live = running.get(p.id)?.status
     return live ? [{ ...live, log: [...live.log] }, ...saved.filter((r) => r.runId !== live.runId)] : saved
   }
@@ -380,9 +389,10 @@ function createIngestion({ dataDir, deps = {} }) {
     if (ticking) return
     ticking = true
     try {
-      const pipelines = (await store.pipelines()).filter((p) => p.deployed && p.enabled && p.airflowConfig?.scheduleInterval)
+      if (!mayHavePipelines()) return
+      const pipelines = (await st().pipelines()).filter((p) => p.deployed && p.enabled && p.airflowConfig?.scheduleInterval)
       if (!pipelines.length) return
-      const { scheduled } = await store.runsFile()
+      const { scheduled } = await st().runsFile()
       const t = now()
       for (const p of pipelines) {
         if (running.has(p.id) || retryTimers.has(p.id)) continue
@@ -391,7 +401,7 @@ function createIngestion({ dataDir, deps = {} }) {
         const due = cron.next(p.airflowConfig.scheduleInterval, new Date(from))
         if (!due || due > t) continue
         // One run for any number of missed times (like backups after the app was closed).
-        await store.setScheduled(p.id, t.toISOString())
+        await st().setScheduled(p.id, t.toISOString())
         await startRun(p, { trigger: 'schedule' }).catch((e) => console.error(`[ingestion] ${p.name} could not start:`, e.message))
       }
     } catch (e) {
@@ -403,6 +413,7 @@ function createIngestion({ dataDir, deps = {} }) {
 
   /** Rows for Scheduled > In-App: deployed local pipelines. */
   async function inAppRows() {
+    if (!mayHavePipelines()) return []
     const list = await listPipelines()
     return list
       .filter((p) => p.deployed)
@@ -542,15 +553,15 @@ function createIngestion({ dataDir, deps = {} }) {
 
   // ---------- Explore
 
-  /** Local services, pipelines and the local catalog, for Explore. Reads files only. */
+  /** Local services, pipelines and the local catalog, for Explore. Reads only; creates no database. */
   async function explore() {
-    const [services, pipelines, catalog] = await Promise.all([localServices(), store.pipelines().catch(() => []), store.catalog().catch(() => ({ services: {} }))])
+    const [services, pipelines, catalog] = await Promise.all([localServices(), mayHavePipelines() ? later(() => st().pipelines()).catch(() => []) : [], mayHavePipelines() ? later(() => st().catalog()).catch(() => ({ services: {} })) : { services: {} }])
     return { services: services.filter((s) => s.added).map(({ status: _s, ...s }) => s), pipelines, catalog: catalog.services }
   }
 
   async function overview() {
     const [services, pipelines, server] = await Promise.all([localServices(), listPipelines(), isServerSetUp()])
-    const catalog = await store.catalog().catch((e) => ({ error: e.message, services: {} }))
+    const catalog = mayHavePipelines() ? await later(() => st().catalog()).catch((e) => ({ error: e.message, services: {} })) : { services: {} }
     return {
       services: services.map((s) => ({ ...s, pipelines: pipelines.filter((p) => p.extension?.monorail?.serviceKind === s.kind).length, catalog: catalogCounts(catalog.services[s.name]) })),
       pipelines,
@@ -578,6 +589,7 @@ function createIngestion({ dataDir, deps = {} }) {
     serverCreate,
     explore,
     _running: running,
+    _db: () => deps.db,
   }
 }
 

@@ -1,0 +1,95 @@
+---
+audience: ai
+summary: MonoRail's local SQLite database: OpenMetadata entities, versions and records per profile; what uses it, schema, rules.
+---
+
+# The local database
+
+People: the [OpenMetadata guide](guide/openmetadata.md#without-a-server-monorails-local-database)
+explains it in plain words.
+
+One SQLite file per [profile](profiles.md),
+`<profile data folder>\databases\local.sqlite3` (folder `databases`, profile
+scope in `SCOPES`; files declared in `electron/cache/declared.cjs`). It is the
+home for in-app data kept in the [MonoRail standard](standard/README.md)'s
+OpenMetadata shape, so the [OpenMetadata page](guide/openmetadata.md) can
+show MonoRail's own catalog with no server.
+
+## Engine and cost
+
+`node:sqlite` (`DatabaseSync`), the SQLite built into the Node runtime inside
+Electron (Electron 45: SQLite 3.53). Nothing is bundled, so it adds nothing
+to the installer. Synchronous calls in the main process; queries are small
+(a page of entities, one entity, counts). WAL mode, 5 s busy timeout.
+
+## Files
+
+| File | What it does |
+| --- | --- |
+| `electron/localdb/index.cjs` | `openDatabase(dir)`, `localDb()` (the active profile's, main process), `localDbExists()`, `fqnOf`, `stableStringify` |
+| `electron/localdb/localdb.test.cjs` | Tests: versions, paging, damaged and newer files, the OpenMetadata page on it, importing older ingestion files |
+
+## Schema (version 1, `PRAGMA user_version`)
+
+- `entity`: `id`, `type` (an entity type of the standard), `fqn`, `name`,
+  `version`, `updated_at`, `deleted`, `json` (the OpenMetadata entity);
+  unique by `(type, fqn)`.
+- `entity_version`: every version's JSON, keyed `(id, version)`.
+- `record`: JSON documents that are not entities, keyed `(kind, owner,
+  key)` with a time `at`: `pipelineStatus`, `pipelineSchedule`,
+  `tableProfile`.
+- `meta`: key/value (`import.ingestion`, `catalog.updatedAt.<service>`).
+
+A schema change adds a step to `MIGRATIONS` and bumps `SCHEMA_VERSION`.
+
+## Rules
+
+- **OpenMetadata's bookkeeping.** `put(type, entity)` matches by id, then by
+  type and full name; a new entity gets a UUID and version 0.1, and a real
+  change (compared without `version`, `updatedAt`, `updatedBy`,
+  `changeDescription`, `href`, key order ignored) adds 0.1 and keeps the old
+  JSON in `entity_version`. Full names quote parts that hold a dot, as
+  OpenMetadata does (`fqnOf`).
+- **Never overwritten.** A file that is not a database ("damaged") or has a
+  newer `user_version` is refused with a readable error and left as it is;
+  `localDb()` repeats the error until restart.
+- **Created on first use**, by the OpenMetadata page (local source), saving a
+  pipeline, or importing older ingestion files. The ingestion scheduler and
+  read-only views (Explore, Services, Scheduled) do not create it
+  (`localDbExists`).
+- **Never leaves the PC.** No sync, no remote. Secrets never go in it:
+  connections and their secrets stay in [Connections](guide/setup/connections.md).
+- **Profiles go in records, not versions.** Profiler results change every
+  run, so they are `tableProfile` records (newest 30 per table) and the page
+  attaches the latest to a table, as OpenMetadata keeps profiles apart from
+  entity versions.
+
+## Who uses it
+
+- **OpenMetadata page** (`electron/modules/openmetadata.cjs`,
+  `createLocalService`): the default source until the OpenMetadata
+  connection is set up; with a server, `source: 'local' | 'server'` picks
+  one per call and the page offers a This PC / Server switch (remembered in
+  the `monorail.openmetadata.source` pref). `setDescription` writes a new
+  version locally.
+- **Local ingestion pipelines** (`electron/modules/ingestion-store.cjs`,
+  [reference](ingestion.md)): `ingestionPipeline` entities (`this-pc`), run
+  statuses, schedule state, and the catalog as `databaseService`,
+  `database`, `databaseSchema` and `table` entities with
+  `extension.monorail.catalog = true`. Older versions' `pipelines.json`,
+  `runs.json` and `catalog.json` are copied in once and left in place.
+- **Tracker** (`electron/apps/tracker`, [reference](tracker.md)): teams and
+  members as `team` and `user` entities with `extension.tracker`, and its own
+  types (issues, workflow states, labels, projects, milestones, updates,
+  cycles, initiatives, views, comments). Issue history is read from the
+  entity versions.
+
+Other modules keep their own files for now (Notes and Tasks in git repos,
+Flashcards in `decks.json`, ...). Moving one in is a separate change per
+module, never automatic, and must leave the old data where it is.
+
+## Related
+
+- [Services and ingestion pipelines](ingestion.md)
+- [Caching rules](caching.md): declared files and the "not cached" policy.
+- [Profiles](profiles.md): why the folder is per profile.

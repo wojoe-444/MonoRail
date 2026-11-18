@@ -288,7 +288,7 @@ export function PipelineDialog({ target, types, existing, onClose, onSaved }: Pr
             </div>
             {local ? (
               <p className="text-sm text-muted-foreground">
-                Results go to the local catalog, which Explore shows. The connection’s details stay encrypted on this PC.
+                Results go to MonoRail’s local database on this PC, which the OpenMetadata page and Explore show. The connection’s details stay encrypted on this PC.
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">

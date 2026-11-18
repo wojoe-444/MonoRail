@@ -40,6 +40,7 @@ has one category per kind of service, as in OpenMetadata's API reference.
 | MonoRail | [Workspace](monorail/workspace.md) | Notes, bookmarks and scheduled tasks. | Note, Bookmark, Bookmark folder, Scheduled task | MonoRail |
 | MonoRail | [Learning](monorail/learning.md) | Flashcard decks and cards. | Flashcard deck, Flashcard | MonoRail |
 | MonoRail | [Semantic](monorail/semantic.md) | A dbt project's semantic layer: semantic models, metrics and saved queries. | Semantic model, Metric, Saved query | MonoRail |
+| MonoRail | [Tracker](monorail/tracker.md) | Issues, workflow states, labels, projects, milestones, updates, cycles, initiatives, views and comments. | Issue, Workflow state, Issue label, Project, Project milestone, Project update, Cycle, Initiative, Custom view, Comment | MonoRail |
 | Data assets | [Databases](data-assets/databases/README.md) | Database services, databases, schemas, tables, stored procedures and queries. | Database Service, Database, Database Schema, Table, Stored Procedure, Query | OpenMetadata 2.1.x |
 | Data assets | [Messaging](data-assets/messaging/README.md) | Messaging services such as Kafka, and their topics. | Messaging Service, Topic | OpenMetadata 2.1.x |
 | Data assets | [Dashboards](data-assets/dashboards/README.md) | Dashboard services, dashboards, charts, data models and reports. | Dashboard Service, Dashboard, Chart, Dashboard Data Model, Report | OpenMetadata 2.1.x |

@@ -636,10 +636,11 @@ disagrees, OpenMetadata's shape wins. A connector with `service: { category,
 serviceType }` is a **data source** (today `sqlite`, `metricflow`,
 `openmetadata`; Connections tags them "Data service" and still owns their
 fields and secrets); the rest are accounts. Pipelines are `ingestionPipeline`
-entities with `extension.monorail.runner`: **`this-pc`** pipelines live in
-`pipelines.json` (runs in `runs.json`, newest 30, results in `catalog.json`;
-all in `modules/ingestion`, profile scope, never overwritten when damaged)
-and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
+entities with `extension.monorail.runner`: **`this-pc`** pipelines live in the
+local database (below) as entities, with runs (`pipelineStatus` records,
+newest 30) and results as catalog entities (older versions' `pipelines.json`,
+`runs.json`, `catalog.json` in `modules/ingestion` are copied in once and left
+as they are) and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
 `ingestion-cron.cjs`) only after the user deploys them; SQLite metadata and
 profiler run read-only in a worker thread, dbt reads `target/manifest.json`
 (`ingestion-local.cjs`); deployed ones are In-App rows. **`server`**
@@ -648,6 +649,19 @@ UUID (trigger, deploy, kill, toggleIngestion, logs, create); MonoRail never
 sends the server a connection or password. No Auto Pilot: adding a service
 creates no pipelines. Explore shows local services, pipelines and catalog
 tables (full names start at the service).
+
+**Local database** (`electron/localdb`, docs `docs/local-database.md`): one
+SQLite file per profile, `databaseslocal.sqlite3` (folder `databases`,
+profile scope), through the `node:sqlite` built into Electron's Node (nothing
+bundled). The home for in-app data in the standard's OpenMetadata shape:
+`entity` (OpenMetadata JSON by type and full name; `put` assigns UUIDs and
+bumps `version` by 0.1 only on a real change, keeping every version),
+`record` (non-entity JSON: pipeline statuses, schedules, table profiles) and
+`meta`. Created on first use (OpenMetadata page, saving a pipeline); the
+scheduler and read-only views never create it (`localDbExists`). A damaged
+file or a newer schema is refused and never overwritten; secrets never go in
+it. Other modules keep their own stores; moving one in is a separate,
+never-automatic change that leaves old data in place.
 
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
@@ -733,7 +747,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Calendar, Email, Bookmarks, Browser, Files, Notes and Flashcards behind one rail button.
+Tracker, Calendar, Email, Bookmarks, Browser, Files, Notes and Flashcards behind one rail button.
 **Browser** (`browser`, guide `docs/guide/workspace/browser.md`) is a tabbed
 `<webview>` browser with its own sign-ins per profile (`persist:browser`,
 `persist:browser-<id>`, in memory for New User; Electron's `Partitions`
@@ -765,7 +779,7 @@ one page in the hub's own style, an app may look and feel like its own
 product: its own colors, fonts, layout and in-app routing. The contract is
 `AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
-**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Calendar, Email) are
+**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Tracker, Calendar, Email) are
 Tools subpages. The hub's drawer and top bar stay on screen (breadcrumb
 `Workspace > Tools > <app>`) and the app fills the page body below them, scrolling on
 its own (`AppBody` in `App.tsx`). Each gets a nav item under Tools that
@@ -967,6 +981,30 @@ GitHub+ reads them through Jira+'s exported `tasksForRepo` / `repoLinks`
 repo (link/unlink from that side too; tasks open in Jira+ via
 `openInJiraPlus`), task counts on Home, and the tasks of a GitHub-only repo
 in its "On GitHub" row. Deleting a local task drops its links.
+
+`tracker` (**Tracker**, a Workspace app under Tools; reference `docs/tracker.md`,
+guide `docs/guide/workspace/tracker.md`, types `docs/standard/monorail/tracker.md`)
+plans work on the model fast product teams use (Linear-style): teams with
+their own workflow (status types triage, backlog, unstarted, started,
+completed, canceled), issues (`<KEY>-<number>`, priority 0-4, estimates on
+the team's scale, labels with one-per-group label groups, sub-issues,
+blocks/related/duplicate relations, threaded comments, history), automatic
+cycles with rollover, projects with milestones and health updates, nested
+initiatives and saved views. Everything is an entity in the **local
+database** (never files of its own; `apps/tracker` stays empty): teams and
+members are OpenMetadata `team` / `user` with `extension.tracker` (only
+those belong to Tracker), the rest are MonoRail's own types carrying
+`entityType`. Rules live in `electron/apps/tracker/model.cjs` (no Electron;
+tests `tracker.test.cjs`): a child's full name starts with its parent's id so
+renames never cascade, a taken full name is refused before `put` (which
+would match and update it), issues are deleted softly (Undo restores),
+everything else is removed with its references cleared in one transaction,
+and an issue's history is diffed from its stored versions. The page
+(`src/apps/tracker`) reads one `snapshot`; every issue list is
+`IssueBrowser` (filters, list or board, grouping, ordering, drag and drop,
+bulk edit, save as view; per-page `prefs`), the open issue is `?issue=KEY-n`
+and C starts a new issue. It is separate from Tasks (Jira) and is never named
+or styled after another product in the UI.
 
 `email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
@@ -1180,9 +1218,11 @@ glossary term, ...) is an **entity type** in the MonoRail standard (wiki
 section `docs/standard/`, featured on the wiki home). The standard is **every
 entity type of [OpenMetadata 2.1](https://docs.open-metadata.org/v2.1.x-SNAPSHOT/api-reference)**
 (91, fields from the `2.1.0-rc2-release` JSON schemas) plus MonoRail's own
-types for things OpenMetadata has no word for (11: subagent, flow, note,
+types for things OpenMetadata has no word for (21: subagent, flow, note,
 bookmark, bookmarkFolder, scheduledTask, flashcardDeck, flashcard,
-semanticModel, semanticMetric, savedQuery). The one definition is
+semanticModel, semanticMetric, savedQuery, and Tracker's issue,
+workflowState, issueLabel, project, projectMilestone, projectUpdate, cycle,
+initiative, customView, comment). The one definition is
 `apps/command-hub/src/standard/standard.json` (sections > categories >
 entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
 `reference` and, for the 9 types new in 2.1, `since`), read through
@@ -1232,7 +1272,12 @@ entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
 
 **OpenMetadata** (`openmetadata` module, right under Home and Explore,
 `nav: { section: '', order: 2 }`; guide `docs/guide/openmetadata.md`) is that
-app's UI side: every OpenMetadata 2.1 entity type that has a REST collection
+app's UI side, reading **MonoRail's local database by default** and a connected
+server on request (`createLocalService` / `createServerService` behind
+`createService` in `openmetadata.cjs`; every method takes `source: 'local' |
+'server'`, default server once its connection is set up, local until then; the
+page shows a This PC / Server switch, pref `monorail.openmetadata.source`):
+every OpenMetadata 2.1 entity type that has a REST collection
 (90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
 rows take their wording from the standard) on one page, read live from the
 user's own OpenMetadata server (2.0 or 2.1; a type the server lacks answers

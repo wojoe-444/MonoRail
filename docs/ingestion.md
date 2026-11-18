@@ -22,7 +22,7 @@ OpenMetadata's shape wins, except for the rules under
 | --- | --- |
 | `electron/modules/ingestion.cjs` | Backend `ingestion`: services, local pipelines, scheduler, In-App rows, server (OpenMetadata) pipelines, Explore data |
 | `electron/modules/ingestion-local.cjs` | The This PC runner: SQLite metadata and profiler (worker thread), dbt manifest; filter rules; catalog merge |
-| `electron/modules/ingestion-store.cjs` | `pipelines.json`, `runs.json`, `catalog.json` in `modules/ingestion` (profile scope) |
+| `electron/modules/ingestion-store.cjs` | Pipelines, runs and the catalog in the [local database](local-database.md); copies older JSON files in once |
 | `electron/modules/ingestion-cron.cjs` | Cron parsing, next run, plain-language schedule |
 | `electron/modules/ingestion.test.cjs` | Tests, including a real SQLite run |
 | `src/modules/ingestion/` | The Services page (`/services`, Settings group "Data"), pipeline dialog, runs dialog, browser sample |
@@ -46,7 +46,7 @@ connection kind exists once per profile.
 
 `extension.monorail.runner` says where a pipeline runs.
 
-**`this-pc`.** Kept in `pipelines.json`; types per service in
+**`this-pc`.** Kept as `ingestionPipeline` entities in the [local database](local-database.md) (full name `<service>.<name>`); types per service in
 `LOCAL_TYPES`: SQLite `metadata` + `profiler`, MetricFlow `dbt`. Runs go
 through `runLocal`; SQLite work runs in an eval'd worker thread opened
 read-only (`node:sqlite` is synchronous), so Kill is `worker.terminate()`.
@@ -54,7 +54,7 @@ Only names, types and counts leave the worker. dbt reads
 `target/manifest.json` (64 MB limit): models, seeds, snapshots (not
 ephemeral) and sources, columns, descriptions (`dbtUpdateDescriptions`),
 tags (`includeTags`) and `depends_on` lineage. Results merge into
-`catalog.json` per service: `markDeletedTables` keeps vanished tables
+the local database as `databaseService`, `database`, `databaseSchema` and `table` entities (`extension.monorail.catalog = true`), so the [OpenMetadata page](guide/openmetadata.md) shows them: `markDeletedTables` keeps vanished tables
 marked `deleted`, profiles survive a metadata run. Filters follow
 OpenMetadata: regex anchored at the start, case-insensitive, includes then
 excludes.
@@ -79,13 +79,9 @@ from `SOURCE_TYPES`); dbt is left to OpenMetadata's UI because the server
 must reach the dbt files. MonoRail never sends a service connection or
 password to the server: server pipelines use what the server already keeps.
 
-## Files in the data folder
+## Where it is kept
 
-Declared in `electron/cache/declared.cjs` (`DATA_FILES`, `NOT_CACHED`).
-`pipelines.json` (entities), `runs.json` (newest 30 statuses per pipeline,
-up to 200 log lines each, last scheduled time), `catalog.json` (names,
-types, descriptions, lineage, counts; never row data). Writes are atomic and
-queued; a damaged or other-version file throws and is never overwritten.
+Everything is in the [local database](local-database.md): pipelines as entities, run statuses as `pipelineStatus` records (newest 30 per pipeline, up to 200 log lines each), the last scheduled time as `pipelineSchedule` records, the catalog as entities, profiler results as `tableProfile` records (newest 30 per table). Names, types, descriptions, lineage and counts; never row data. Older versions kept `pipelines.json`, `runs.json` and `catalog.json` in `modules/ingestion`; they are copied in once (meta `import.ingestion`) and left as they are, a damaged one skipped.
 
 ## Deliberate differences
 

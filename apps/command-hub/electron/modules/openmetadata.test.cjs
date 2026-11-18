@@ -38,9 +38,9 @@ describe('OpenMetadata backend', () => {
   test('opt-in: nothing is requested before the connection is set up', async () => {
     const fetch = fakeFetch({})
     const svc = service(fetch, { setUp: false })
-    assert.deepEqual(await svc.status(), { block: 'not-set-up' })
+    assert.deepEqual(await svc.status({ source: 'server' }), { block: 'not-set-up', source: 'server', serverSetUp: false })
     for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'setDescription']) {
-      await assert.rejects(svc[m]({ type: 'table', fqn: 'a', id: '00000000-0000-4000-8000-000000000001', description: 'x' }), /Set up OpenMetadata/)
+      await assert.rejects(svc[m]({ source: 'server', type: 'table', fqn: 'a', id: '00000000-0000-4000-8000-000000000001', description: 'x' }), /Set up OpenMetadata/)
     }
     assert.equal(fetch.calls.length, 0)
   })
@@ -50,7 +50,7 @@ describe('OpenMetadata backend', () => {
       'GET /system/version': () => [200, { version: '2.0.8' }],
       'GET /users/loggedInUser': () => [200, { name: 'ada.park', displayName: 'Ada Park' }],
     })
-    assert.deepEqual(await service(fetch).status(), { url: SERVER, version: '2.0.8', user: 'Ada Park' })
+    assert.deepEqual(await service(fetch).status(), { source: 'server', url: SERVER, version: '2.0.8', user: 'Ada Park', serverSetUp: true })
     assert.equal(fetch.calls[0].init.headers.Authorization, 'Bearer bot-jwt')
   })
 
