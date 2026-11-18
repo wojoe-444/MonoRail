@@ -54,6 +54,42 @@ describe('OpenMetadata backend', () => {
     assert.equal(fetch.calls[0].init.headers.Authorization, 'Bearer bot-jwt')
   })
 
+  test('requests use a replacement bot token as soon as it is saved', async () => {
+    const creds = { ...TOKEN_CREDS }
+    const fetch = fakeFetch({
+      'GET /tables?': (_rel, init) => init.headers.Authorization === `Bearer ${creds.token}`
+        ? [200, { data: [] }]
+        : [401, {}],
+    })
+    const svc = service(fetch, { creds })
+    await svc.list({ type: 'table' })
+    creds.token = 'replacement-jwt'
+    await svc.list({ type: 'table' })
+  })
+
+  test('parallel requests share login and renewal, and a saved password change triggers a new login', async () => {
+    const creds = { url: SERVER, auth: 'login', email: 'ada@example.com', password: 'first-password' }
+    let logins = 0
+    let expired = false
+    const fetch = fakeFetch({
+      'POST /users/login': () => [200, { accessToken: `t${++logins}` }],
+      'GET /tables?': (_rel, init) => expired && init.headers.Authorization === 'Bearer t1'
+        ? [401, {}]
+        : [200, { data: [] }],
+    })
+    const svc = service(fetch, { creds })
+    const list = () => svc.list({ type: 'table' })
+    await Promise.all([list(), list()])
+    assert.equal(logins, 1)
+    expired = true
+    await Promise.all([list(), list()])
+    assert.equal(logins, 2)
+    creds.password = 'replacement-password'
+    await list()
+    assert.equal(logins, 3)
+    assert.equal(fetch.calls.at(-1).init.headers.Authorization, 'Bearer t3')
+  })
+
   test('only known types; the backend builds every path', async () => {
     const svc = service(fakeFetch({}))
     await assert.rejects(svc.list({ type: '../bots' }), /no entity type/)
