@@ -17,20 +17,22 @@ function FileDiff({ file, id }: { file: DiffFile; id: string }) {
         file.binary ? <div className="pad muted">Binary file not shown</div>
         : file.hunks.length === 0 ? <div className="pad muted">No content changes</div>
         : (
-          <table className="diff">
-            <tbody>
-              {file.hunks.map((h, hi) => [
-                <tr key={`h${hi}`} className="hunk"><td className="ln" /><td className="ln" /><td className="lc">{h.header}</td></tr>,
-                ...h.lines.map((l, li) => (
-                  <tr key={`${hi}-${li}`} className={l.type}>
-                    <td className="ln">{l.oldNo ?? ''}</td>
-                    <td className="ln">{l.newNo ?? ''}</td>
-                    <td className="lc">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : l.type === 'context' ? ' ' : ''}{l.content}</td>
-                  </tr>
-                ))
-              ])}
-            </tbody>
-          </table>
+          <div className="diff-scroll" role="region" aria-label={`${name} diff`} tabIndex={0}>
+            <table className="diff">
+              <tbody>
+                {file.hunks.map((h, hi) => [
+                  <tr key={`h${hi}`} className="hunk"><td className="ln" /><td className="ln" /><td className="lc">{h.header}</td></tr>,
+                  ...h.lines.map((l, li) => (
+                    <tr key={`${hi}-${li}`} className={l.type}>
+                      <td className="ln">{l.oldNo ?? ''}</td>
+                      <td className="ln">{l.newNo ?? ''}</td>
+                      <td className="lc">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : l.type === 'context' ? ' ' : ''}{l.content}</td>
+                    </tr>
+                  ))
+                ])}
+              </tbody>
+            </table>
+          </div>
         )
       )}
     </div>

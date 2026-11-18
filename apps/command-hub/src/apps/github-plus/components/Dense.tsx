@@ -2,6 +2,11 @@ import type { ReactNode } from 'react'
 import type { WorkingState } from '../types'
 import { ChevronDown } from './Icons'
 
+/** Keep wide tables scrollable without moving the card's heading. */
+export function TableScroll({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="ghp-table-scroll" role="region" aria-label={label} tabIndex={0}>{children}</div>
+}
+
 /** Commits behind | ahead as a small two-sided bar (red left, green right) plus the numbers. */
 export function AheadBehind({ ahead, behind, max = 12, label }: { ahead: number; behind: number; max?: number; label?: string }) {
   const w = (n: number) => `${Math.round((Math.min(n, max) / max) * 40)}px`

@@ -3,7 +3,7 @@ import { useAsync, useRepo } from '../RepoContext'
 import Breadcrumb from '../components/Breadcrumb'
 import Markdown from '../components/Markdown'
 import FileTree from '../components/FileTree'
-import { CardHead } from '../components/Dense'
+import { CardHead, TableScroll } from '../components/Dense'
 import { useCollapsed } from '../components/collapsed'
 import { FileIcon, FolderIcon, HistoryIcon, SubmoduleIcon } from '../components/Icons'
 import { blobLink, commitLink, commitsLink, treeLink } from '../links'
@@ -43,33 +43,35 @@ export default function TreePage() {
             </Link>
           </CardHead>
           {!listClosed && (
-            <table className="ghp-table">
-              <thead><tr><th>Name</th><th>Last commit</th><th>Commit</th><th className="num">When</th></tr></thead>
-              <tbody>
-                {path && (
-                  <tr><td colSpan={4}><Link to={treeLink(ref, parent)} className="muted" title="Up one folder">..</Link></td></tr>
-                )}
-                {tree.loading && !tree.data && <tr><td colSpan={4} className="muted">Loading…</td></tr>}
-                {tree.data?.map((e) => {
-                  const lc = last?.[e.name]
-                  return (
-                    <tr key={e.path}>
-                      <td>
-                        <span className="name-cell">
-                          <span className={`tree-icon${e.type === 'dir' ? ' folder' : ''}`}>{e.type === 'dir' ? <FolderIcon /> : e.type === 'submodule' ? <SubmoduleIcon /> : <FileIcon />}</span>
-                          {e.type === 'dir' ? <Link to={treeLink(ref, e.path)}>{e.name}</Link>
-                            : e.type === 'submodule' ? <span title="Submodule">{e.name}</span>
-                            : <Link to={blobLink(ref, e.path)}>{e.name}</Link>}
-                        </span>
-                      </td>
-                      <td className="fill muted">{lc ? <Link className="muted" to={commitLink(lc.sha)} title={lc.subject}>{lc.subject}</Link> : <span />}</td>
-                      <td className="mono muted">{lc ? <Link className="muted" to={commitLink(lc.sha)}>{lc.sha.slice(0, 7)}</Link> : ''}</td>
-                      <td className="num muted">{lc ? <span title={fullDate(lc.date)}>{timeAgo(lc.date)}</span> : ''}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+            <TableScroll label="Folder listing">
+              <table className="ghp-table">
+                <thead><tr><th>Name</th><th>Last commit</th><th>Commit</th><th className="num">When</th></tr></thead>
+                <tbody>
+                  {path && (
+                    <tr><td colSpan={4}><Link to={treeLink(ref, parent)} className="muted" title="Up one folder">..</Link></td></tr>
+                  )}
+                  {tree.loading && !tree.data && <tr><td colSpan={4} className="muted">Loading…</td></tr>}
+                  {tree.data?.map((e) => {
+                    const lc = last?.[e.name]
+                    return (
+                      <tr key={e.path}>
+                        <td>
+                          <span className="name-cell">
+                            <span className={`tree-icon${e.type === 'dir' ? ' folder' : ''}`}>{e.type === 'dir' ? <FolderIcon /> : e.type === 'submodule' ? <SubmoduleIcon /> : <FileIcon />}</span>
+                            {e.type === 'dir' ? <Link to={treeLink(ref, e.path)}>{e.name}</Link>
+                              : e.type === 'submodule' ? <span title="Submodule">{e.name}</span>
+                              : <Link to={blobLink(ref, e.path)}>{e.name}</Link>}
+                          </span>
+                        </td>
+                        <td className="fill muted">{lc ? <Link className="muted" to={commitLink(lc.sha)} title={lc.subject}>{lc.subject}</Link> : <span />}</td>
+                        <td className="mono muted">{lc ? <Link className="muted" to={commitLink(lc.sha)}>{lc.sha.slice(0, 7)}</Link> : ''}</td>
+                        <td className="num muted">{lc ? <span title={fullDate(lc.date)}>{timeAgo(lc.date)}</span> : ''}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
         </div>
         {readme && readmeBlob.data?.kind === 'text' && (
