@@ -9,6 +9,16 @@ A tour of the handful of things worth doing on day one. None of them is
 required: MonoRail works without any setup and only does more once you ask
 it to, because [nothing runs until you ask](private-data.md#nothing-runs-until-you-ask).
 
+## Take the tour
+
+The first time you open MonoRail, a short tour lights up each part of the
+window in turn: the rail of icons on the left, Home, Bots, Tools, the
+[wiki](README.md), Settings and the bar along the top. Use **Next** and
+**Back** (or the arrow keys), or **Skip tour** if you would rather explore on
+your own. It only opens by itself once; take it again any time with **Take
+the tour** on Home or in **Settings > General**. Each
+[profile](glossary.md#profile) gets its own first-time tour.
+
 ## 1. Pick a look
 
 Open **Settings > Appearance** and choose a color scheme and light or dark

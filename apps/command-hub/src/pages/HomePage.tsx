@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bot,
+  Compass,
   FolderGit2,
   Plus,
   Play,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { Sparkline } from '@/components/charts/Sparkline'
+import { startTour } from '@/components/tour/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -172,9 +174,14 @@ export function HomePage() {
             <h2 className="text-lg font-semibold tracking-tight">Get started</h2>
             <p className="text-sm text-muted-foreground">Short guides from the wiki, in plain language.</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => openWiki()}>
-            All guides <ArrowRight />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={startTour}>
+              <Compass /> Take the tour
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => openWiki()}>
+              All guides <ArrowRight />
+            </Button>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <QuickLink

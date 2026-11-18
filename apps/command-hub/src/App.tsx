@@ -9,6 +9,7 @@ import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { HeaderRevealProvider, HeaderRevealTrigger, RevealableHeader } from '@/components/layout/HeaderReveal'
 import { Inspector } from '@/components/dev/Inspector'
+import { TourHost } from '@/components/tour/Tour'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
@@ -149,6 +150,7 @@ export default function App() {
         </div></HeaderRevealProvider>
       </div>
       <UpdateToast />
+      <TourHost />
       <Inspector />
     </TooltipProvider>
   )

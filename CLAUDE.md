@@ -76,6 +76,16 @@ keys for the default profile. `profiles.json` is written only when the user
 changes a profile (Settings > Profile), never over a damaged file. Copying data
 into a new profile must be user-started and per item, never automatic.
 
+**New user tour** (`src/components/tour/`, guide
+`docs/guide/first-ten-minutes.md#take-the-tour`): a spotlight overlay
+(`TourHost` in `App.tsx`) that walks through the rail, Home, Bots, Tools,
+Wiki, Settings, the breadcrumb and the full screen button. Steps are in
+`steps.ts` and point at elements marked `data-tour="<target>"` (rail buttons
+are `nav:<path>`; a missing target shows the card centered). It opens by
+itself once per profile (pref `commandHub.tour.seen`, set when it closes; not
+below 768px wide) and again from Home's "Take the tour" or the Settings >
+General card (`TourCard.tsx`). It reads and stores nothing else.
+
 **Developer Mode** (Settings card `src/components/dev/DeveloperModeCard.tsx`,
 self-contained so it can move; guide `docs/guide/setup/developer-mode.md`):
 off by default, kept in the machine-wide `commandHub.devMode` key (not
