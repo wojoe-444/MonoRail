@@ -51,8 +51,9 @@ each time.
   [Email](workspace/email.md).
 - **Your folders** are measured, browsed or backed up only when you ask.
   MonoRail never deletes, moves or renames them on its own. That is why
-  [Storage](../storage.md) only looks and [GitHub+](workspace/browse-repos.md)
-  only reads.
+  [Storage](../storage.md) only looks, [GitHub+](workspace/browse-repos.md)
+  only reads, and [Files](../files.md) changes a file only when you press the
+  button for it (and deletes only to the Recycle Bin).
 
 ## Nothing runs until you ask
 

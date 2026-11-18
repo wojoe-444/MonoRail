@@ -86,6 +86,6 @@ the connection. Every call is logged there.
 - [Connect your accounts](connections.md): every connection, and how they stay
   opt-in.
 - [What agents can do in MonoRail](../agents/agent-access.md).
-- [Agent spend](../agents/spend.md), the other page under Insights.
+- [Agent spend](../agents/spend.md): Claude Stats, a tab of Bots > Dashboard.
 - The rest of [setup](README.md).
 - For developers and agents: the [Semantic reference](../../semantic.md).
