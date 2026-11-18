@@ -39,5 +39,8 @@ with their databases and schemas. Until you
 the category is empty. [Databases in the standard](../standard/databases/README.md)
 explains each type.
 
+To see what is in an OpenMetadata server itself, every kind of entity it
+has, open the [OpenMetadata](openmetadata.md) page.
+
 Explore only reads. It never sends anything anywhere; see
 [private data stays local](private-data.md).

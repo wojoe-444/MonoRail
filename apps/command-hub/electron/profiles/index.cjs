@@ -72,6 +72,7 @@ const SCOPES = Object.freeze({
   'modules/mcp': 'profile', // per-agent consent and the activity log
   'modules/bookmarks': 'profile', // saved links and local paths
   'modules/notes': 'profile', // the Notes page's local git repo
+  'modules/openmetadata': 'profile', // OpenMetadata server (settings in Connections); keeps no files
   'modules/profiles': 'machine', // keeps no files; profiles.json is at the root
   'modules/settings': 'machine', // app version and updates; keeps no files
   'modules/storage': 'machine', // drive and folder sizes of this computer
