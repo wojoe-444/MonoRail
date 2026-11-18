@@ -14,7 +14,7 @@ export const dockerModule: ModuleDefinition = {
   description: 'Containers, their logs and load, images and volumes, from your own Docker.',
   icon: Container,
   path: '/docker',
-  nav: { section: 'Utilities' },
+  nav: { section: 'Workspace', parent: '/tools' },
   component: lazy(() => import('./DockerPage')),
   dataMethods: ['getOverview', 'getStats', 'getLogs', 'getContainer', 'openLazydocker', 'openLazydockerPage'],
 }

@@ -14,7 +14,7 @@
 //   connection_status        Connections' last check per account (no secrets)
 //   list_flashcard_decks     Flashcards' decks with what is due (decks.json)
 //   list_flashcards          cards of one deck, optionally searched
-//   list_semantic_metrics    the dbt project's metrics and dimensions (Semantic page; files only)
+//   list_semantic_metrics    the dbt project's metrics and dimensions (MetricFlow connection; files only)
 //
 // Write tools (writeTools below) are off for every agent until the user turns
 // them on per agent on the Agent access page (access.cjs), and every call is
@@ -113,7 +113,7 @@ async function storageScan(storageDir, { top = 40 } = {}) {
   if (!last) {
     return {
       available: false,
-      reason: 'No folder scan has been saved yet. Open Utilities > Storage in MonoRail and press Scan.',
+      reason: 'No folder scan has been saved yet. Open Tools > Storage in MonoRail and press Scan.',
       drives,
       drivesSampledAt: lastDrives ? new Date(lastDrives.takenAt).toISOString() : undefined,
     }
@@ -493,7 +493,7 @@ function readTools({ rootDir }) {
       name: 'list_semantic_metrics',
       title: 'Semantic layer metrics',
       description:
-        "The metrics, group-by dimensions and saved queries of the user's dbt project, from its MetricFlow semantic manifest (the Semantic page in MonoRail). Read from files only; nothing runs. Each metric lists the dimensions it can be grouped by (entity__dimension names; time dimensions take a grain suffix such as metric_time__month). canRunQueries says whether query_semantic_metrics may run.",
+        "The metrics, group-by dimensions and saved queries of the user's dbt project, from its MetricFlow semantic manifest (the MetricFlow connection in MonoRail). Read from files only; nothing runs. Each metric lists the dimensions it can be grouped by (entity__dimension names; time dimensions take a grain suffix such as metric_time__month). canRunQueries says whether query_semantic_metrics may run.",
       inputSchema: {
         type: 'object',
         properties: { search: { type: 'string', maxLength: 100, description: 'Only metrics whose name, label or description contains this.' } },
@@ -672,7 +672,7 @@ function writeTools({ rootDir }) {
       name: 'query_semantic_metrics',
       title: 'Query semantic layer metrics',
       description:
-        "Run a metrics query with the user's own MetricFlow (mf) against their warehouse, through their dbt project (the Semantic page in MonoRail). Call list_semantic_metrics first for names. groupBy takes dimension names, with a grain for time (metric_time__week); where takes MetricFlow filters such as {{ Dimension('customer__region') }} = 'North'. Returns at most `limit` rows (default 200). Also needs \"Run queries with MetricFlow\" on in the user's MetricFlow connection. Set explain to get the SQL without running it." +
+        "Run a metrics query with the user's own MetricFlow (mf) against their warehouse, through their dbt project (the MetricFlow connection in MonoRail). Call list_semantic_metrics first for names. groupBy takes dimension names, with a grain for time (metric_time__week); where takes MetricFlow filters such as {{ Dimension('customer__region') }} = 'North'. Returns at most `limit` rows (default 200). Also needs \"Run queries with MetricFlow\" on in the user's MetricFlow connection. Set explain to get the SQL without running it." +
         NOTE,
       inputSchema: {
         type: 'object',

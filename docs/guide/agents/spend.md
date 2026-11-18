@@ -64,4 +64,4 @@ Home shows a small summary of the same report. Agents can read it too,
 through [agent access](agent-access.md).
 
 For your dbt project's business metrics, charted with MetricFlow, see
-[Semantic](../setup/semantic.md) under Insights.
+[Semantic](../setup/semantic.md) (the MetricFlow connection).

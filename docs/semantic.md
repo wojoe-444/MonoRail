@@ -1,9 +1,15 @@
 ---
 audience: ai
-summary: Reference for the MetricFlow connector and the Semantic page: files, what it reads, what it runs, opt-in and privacy rules.
+summary: Reference for the MetricFlow connector and its backend: files, what it reads, what it runs, opt-in and privacy rules.
 ---
 
-# Semantic page and MetricFlow connector
+# MetricFlow connector and Semantic backend
+
+The Semantic page's content was removed: the `/semantic` route now shows the
+[OpenMetadata](guide/openmetadata.md) page, which holds the drawer's Insights
+slot. The backend and connector below stay: Explore, Services and the MCP
+server use them. `query` and `explain` on `semantic.cjs` no longer have a page
+caller.
 
 People: see the guide, [Semantic (MetricFlow)](guide/setup/semantic.md).
 
@@ -12,9 +18,9 @@ People: see the guide, [Semantic (MetricFlow)](guide/setup/semantic.md).
 | File | What it does |
 | --- | --- |
 | `electron/modules/semantic-mf.cjs` | All MetricFlow code, no Electron (the [MCP server](mcp.md) uses it). Reading: `readProject` (top-level `name`, `profile`, `target-path` of `dbt_project.yml`, plain text), `readManifest` / `parseManifest` (`<target>/semantic_manifest.json`, 64 MB cap), `manifestMeta` (first 8 KB of `manifest.json` for `dbt_version` and `generated_at`), `findProfiles` (looks for `profiles.yml`, never opens it), `findMf` (the project's `.venv`/`venv`/`env`, `VIRTUAL_ENV`, then PATH, by file), `packageVersions` (`*.dist-info` folder names next to mf). Running: `queryArgs`, `runQuery`, `explainQuery`, `validateConfigs`. |
-| `electron/modules/semantic.cjs` | Page backend: `getProject`, `query`, `explain`. No `start()`, keeps no files. At most 2 mf runs at a time. |
+| `electron/modules/semantic.cjs` | Backend: `getProject` (Explore), `query`, `explain`. No `start()`, keeps no files. At most 2 mf runs at a time. |
 | `electron/connections/connectors/metricflow.cjs` | Connector `metricflow` on [Connections](guide/setup/connections.md). Settings `project` (absolute folder) and `run` (`off` default / `on`). `credentials()` returns `{ project, run }`. Action `validate` (`mf validate-configs --skip-dw`, only while `run` is on). |
-| `src/modules/semantic/` | The page (`/semantic`, Insights): Query, Metrics, Semantic models, Saved queries. `sample.ts` is a fictional project for the browser dev server; `query.ts` builds filters and the copyable `mf query` command. |
+| `src/modules/semantic/` | No page. `types.ts` and `sample.ts` (a fictional project for the browser dev server) are the project shape Explore reads. |
 | `electron/modules/semantic.test.cjs` | Manifest parsing, opt-in, argument checks, CSV, connector states, MCP tools. |
 
 ## Rules

@@ -1,4 +1,4 @@
-// MetricFlow for the Semantic page, the MetricFlow connector and the MCP server.
+// MetricFlow for Explore, the MetricFlow connector and the MCP server.
 //
 // No Electron here: the MCP server (electron/mcp) uses it too.
 //

@@ -5,7 +5,7 @@ summary: See what Docker is running on your computer (containers, logs, load, im
 
 # Docker
 
-If you use [Docker](https://www.docker.com/), **Utilities > Docker** shows what
+If you use [Docker](https://www.docker.com/), **Tools > Docker** shows what
 it is running on this computer: your containers and their logs, how much CPU
 and memory they use right now, and the images and volumes taking up disk
 space. It is inspired by lazydocker, a popular terminal dashboard for Docker,

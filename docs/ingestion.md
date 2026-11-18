@@ -109,6 +109,6 @@ at the service (`local_sqlite.main.main.notes`); lineage goes in a table's
 
 - [Connections guide](guide/setup/connections.md) and the connector contract
   at the top of `electron/connections/index.cjs`.
-- [Semantic page reference](semantic.md): the same dbt project.
+- [MetricFlow reference](semantic.md): the same dbt project.
 - [Caching rules](caching.md) for declared files.
 - [The MonoRail standard](standard/README.md).

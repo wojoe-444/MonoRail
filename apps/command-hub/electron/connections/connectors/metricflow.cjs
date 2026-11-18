@@ -1,5 +1,5 @@
 // MetricFlow connector: a dbt project's semantic layer and the user's own
-// MetricFlow (`mf`), for the Semantic page (Insights > Semantic).
+// MetricFlow (`mf`), for Explore, Services and the MCP server (the Semantic page is empty).
 //
 // Optional, like every connector: nothing here runs until the user adds the
 // connection, and MonoRail never installs Python, dbt or MetricFlow. Two
@@ -94,7 +94,7 @@ module.exports = {
   // A data source: the dbt project, read by a local dbt ingestion pipeline on the Services page.
   service: { category: 'databaseService', serviceType: 'dbt' },
   title: 'MetricFlow',
-  description: 'Your dbt project’s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
+  description: 'Your dbt project’s semantic layer and your own MetricFlow (mf). Explore and your agents read it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
   icon: 'database',
   fields: [
     { key: 'project', label: 'dbt project folder', type: 'text', placeholder: 'C:\\Users\\you\\Repos\\analytics', help: 'The folder with dbt_project.yml. MonoRail reads target/semantic_manifest.json from it.' },
@@ -107,7 +107,7 @@ module.exports = {
         { value: 'on', label: 'On: run my mf command for queries' },
       ],
       defaultValue: 'off',
-      help: 'When on, the Semantic page runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
+      help: 'When on, MonoRail runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
     },
   ],
   validate,

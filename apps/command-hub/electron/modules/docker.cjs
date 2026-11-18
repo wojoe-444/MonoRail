@@ -1,4 +1,4 @@
-// Docker page backend (Utilities > Docker): a lazydocker-style look at what
+// Docker page backend (Tools > Docker): a lazydocker-style look at what
 // the user's own Docker runs.
 //
 // Read-only and opt-in. Every method first checks that the user has added the

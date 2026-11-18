@@ -342,7 +342,7 @@ export const sampleList: ConnectionsList = {
     {
       kind: 'docker',
       title: 'Docker',
-      description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Utilities reads from it. Optional: MonoRail never installs either.',
+      description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Tools reads from it. Optional: MonoRail never installs either.',
       icon: 'container',
       fields: [
         {
@@ -366,7 +366,7 @@ export const sampleList: ConnectionsList = {
       kind: 'metricflow',
       service: { category: 'databaseService', serviceType: 'dbt' },
       title: 'MetricFlow',
-      description: 'Your dbt project\u2019s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
+      description: 'Your dbt project\u2019s semantic layer and your own MetricFlow (mf). Explore and your agents read it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
       icon: 'database',
       fields: [
         { key: 'project', label: 'dbt project folder', type: 'text', placeholder: 'C:\\Users\\you\\Repos\\analytics', help: 'The folder with dbt_project.yml. MonoRail reads target/semantic_manifest.json from it.' },
@@ -379,7 +379,7 @@ export const sampleList: ConnectionsList = {
             { value: 'on', label: 'On: run my mf command for queries' },
           ],
           defaultValue: 'off',
-          help: 'When on, the Semantic page runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
+          help: 'When on, MonoRail runs your own mf (Python) in the project folder for each query you start. It connects to your warehouse with your dbt profile.',
         },
       ],
       actions: [
