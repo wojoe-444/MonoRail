@@ -18,6 +18,15 @@ the left:
 - **Dark drawer** schemes, like **Indigo Ink**, give the menu a deep color.
 - **Bold** schemes make the menu itself the main color.
 
+## Pictures
+
+The **Pictures** sets put a drawing behind the whole app (mountains, a
+lagoon, a rainy neon city, a nebula and more) with frosted glass on top, so
+the picture shows through the menu, the top bar and the cards. The
+**Moody** set uses clearer, heavier glass and looks best in dark mode. In
+dark mode the other pictures are dimmed, and a few switch to a night
+version.
+
 Green, amber and red always mean the same thing (good, needs a look,
 problem) whichever scheme you pick, and charts in
 [Claude Stats](../agents/spend.md) keep fixed colors so they read the same

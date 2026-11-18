@@ -25,7 +25,7 @@ export function AppFrame({ app }: { app: AppDefinition }) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
+    <div data-slot="app-frame" className="flex h-full flex-col overflow-hidden bg-background">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-3 text-sidebar-foreground">
         <button
           type="button"
