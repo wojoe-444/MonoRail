@@ -266,6 +266,11 @@ html:is([data-texture="leaf"], [data-texture="leaf-ink"]) [data-slot="sidebar"] 
  * behind it, under the piece's tint. Cards sit on a frosted piece already,
  * so they only need their translucent tint. Keep `backdrop-filter` out of
  * these rules.
+ *
+ * A gradient on a piece whose border is transparent needs
+ * `background-origin: border-box`: otherwise it is sized to the padding box
+ * and repeats into the border, drawing its first color as a 1px line along
+ * the right and bottom edges.
  */
 html[data-backdrop] {
   --backdrop-veil: linear-gradient(oklch(0.12 0.02 250 / var(--backdrop-dim)), oklch(0.12 0.02 250 / var(--backdrop-dim)));
@@ -279,6 +284,7 @@ html[data-backdrop] [data-slot="top-bar"] {
 html[data-backdrop="panel"] [data-slot="sidebar"] {
   border-color: transparent;
   background-image: linear-gradient(90deg, oklch(0 0 0 / 0.3), oklch(0 0 0 / 0));
+  background-origin: border-box;
   text-shadow: 0 1px 3px oklch(0 0 0 / 0.35);
 }
 html[data-backdrop="panel"] [data-slot="app-body"] {
@@ -332,9 +338,11 @@ html[data-backdrop="liquid"] :is([data-slot="sidebar"], [data-slot="top-bar"], [
 }
 html[data-backdrop="liquid"] [data-slot="sidebar"] {
   background: var(--liquid-sheen), var(--liquid-grain), linear-gradient(var(--sidebar), var(--sidebar)), var(--frost);
+  background-origin: border-box;
 }
 html[data-backdrop="liquid"] [data-slot="top-bar"] {
   background: var(--liquid-sheen), var(--liquid-grain), linear-gradient(var(--glass), var(--glass)), var(--frost);
+  background-origin: border-box;
 }
 html[data-backdrop="liquid"] [data-slot="card"] {
   background-image: var(--liquid-sheen), var(--liquid-grain);
