@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { refreshSettingsAlerts } from './alerts'
+import { SettingsAlerts } from './SettingsAlerts'
 import { ProfileCard } from './ProfileCard'
 import type { AppStatus } from './types'
 import { changeItems } from './changes'
@@ -72,6 +73,8 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="General" description="Your profile, app version and updates, spending limit and where MonoRail keeps its local data." />
+
+      <SettingsAlerts />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         <div id="settings-updates" className="scroll-mt-24 rounded-xl lg:col-span-2">

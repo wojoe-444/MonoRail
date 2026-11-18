@@ -23,20 +23,20 @@ export function useSettingsPages(): ModuleDefinition[] {
   )
 }
 
-function groupPages(pages: ModuleDefinition[]): { heading?: string; pages: ModuleDefinition[] }[] {
+function groupPages(pages: ModuleDefinition[]): { heading: string; pages: ModuleDefinition[] }[] {
   const groups = new Map<string, ModuleDefinition[]>()
   for (const p of pages) {
-    const g = p.path === SETTINGS_PATH ? '' : (p.nav.group ?? 'More')
+    const g = p.nav.group ?? 'More'
     groups.set(g, [...(groups.get(g) ?? []), p])
   }
-  const rank = (g: string) => (g === '' ? -1 : GROUP_ORDER.includes(g) ? GROUP_ORDER.indexOf(g) : GROUP_ORDER.length)
-  return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0])).map(([heading, pages]) => ({ heading: heading || undefined, pages }))
+  const rank = (g: string) => (GROUP_ORDER.includes(g) ? GROUP_ORDER.indexOf(g) : GROUP_ORDER.length)
+  return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0])).map(([heading, pages]) => ({ heading, pages }))
 }
 
 
 /**
  * The frame of every Settings page: a menu of the pages (grouped, with the
- * alert count on Home) and a search box above it, beside the page. Search
+ * alert count on General) and a search box above it, beside the page. Search
  * results replace the menu while there is a query; Ctrl+K focuses the box.
  */
 export function SettingsLayout({ path, children }: { path: string; children: ReactNode }) {
@@ -136,8 +136,8 @@ export function SettingsLayout({ path, children }: { path: string; children: Rea
         ) : (
           <nav aria-label="Settings" className="flex flex-wrap gap-x-6 gap-y-4 lg:flex-col lg:flex-nowrap lg:gap-6">
             {groupPages(pages).map((g) => (
-              <div key={g.heading ?? 'home'}>
-                {g.heading && <div className="mb-1 px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{g.heading}</div>}
+              <div key={g.heading}>
+                <div className="mb-1 px-3 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">{g.heading}</div>
                 <ul className="flex flex-wrap gap-0.5 lg:flex-col">
                   {g.pages.map((p) => {
                     const on = p.path === path
@@ -156,7 +156,7 @@ export function SettingsLayout({ path, children }: { path: string; children: Rea
                           )}
                         >
                           <Icon className="size-4 shrink-0" />
-                          <span className="flex-1 truncate">{p.path === SETTINGS_PATH ? 'Home' : p.title}</span>
+                          <span className="flex-1 truncate">{p.title}</span>
                           {count > 0 && (
                             <span className="min-w-5 rounded-full bg-warning px-1.5 text-center text-[11px] leading-5 font-semibold text-black">{count}</span>
                           )}
