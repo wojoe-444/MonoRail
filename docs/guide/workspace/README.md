@@ -7,7 +7,7 @@ summary: The pages for the work itself: your git repositories, issues, tasks, ma
 # Your workspace
 
 Open **Tools** in the menu for GitHub+, Tasks, Tracker, Calendar, Email, Bookmarks,
-Files, Notes and Flashcards. Its overview links to each page, and its flyout lets
+Browser, Files, Notes and Flashcards. Its overview links to each page, and its flyout lets
 you jump straight to one. Each keeps its data on your computer, as [private data stays
 local](../private-data.md) promises, and they are linked to each other where
 it helps.
