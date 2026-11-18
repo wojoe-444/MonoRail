@@ -20,13 +20,13 @@ export interface SearchEntry {
 
 export const SEARCH_ENTRIES: SearchEntry[] = [
   // General
-  { label: 'Updates', detail: 'Check for a newer version, download and restart', path: '/settings/general', anchor: 'settings-updates', keywords: 'update upgrade version release new install restart' },
-  { label: "What's new", detail: 'Changes in the next version', path: '/settings/general', anchor: 'settings-updates', keywords: 'release notes changelog' },
-  { label: 'About', detail: 'Version, Electron, local data folder', path: '/settings/general', anchor: 'settings-about', keywords: 'version electron appdata data folder location' },
-  { label: 'New user tour', detail: 'A one-minute walk around the app', path: '/settings/general', anchor: 'settings-tour', keywords: 'tour welcome intro onboarding help getting started walkthrough' },
-  { label: 'Profile', detail: 'Whose settings and data MonoRail uses', path: '/settings/general', anchor: 'settings-profile', keywords: 'user person account name' },
-  { label: 'Spending limit', detail: 'A daily or monthly cap on what Chat may spend', path: '/settings/general', anchor: 'settings-spending', keywords: 'budget cost money limit cap spend dollars' },
-  { label: 'Developer Mode', detail: 'Element inspector, F12 DevTools, New User profile', path: '/settings/general', anchor: 'settings-developer', keywords: 'devtools inspector debug f12 test new user' },
+  { label: 'Updates', detail: 'Check for a newer version, download and restart', path: '/settings', anchor: 'settings-updates', keywords: 'update upgrade version release new install restart' },
+  { label: "What's new", detail: 'Changes in the next version', path: '/settings', anchor: 'settings-updates', keywords: 'release notes changelog' },
+  { label: 'About', detail: 'Version, Electron, local data folder', path: '/settings', anchor: 'settings-about', keywords: 'version electron appdata data folder location' },
+  { label: 'New user tour', detail: 'A one-minute walk around the app', path: '/settings', anchor: 'settings-tour', keywords: 'tour welcome intro onboarding help getting started walkthrough' },
+  { label: 'Profile', detail: 'Whose settings and data MonoRail uses', path: '/settings', anchor: 'settings-profile', keywords: 'user person account name' },
+  { label: 'Spending limit', detail: 'A daily or monthly cap on what Chat may spend', path: '/settings', anchor: 'settings-spending', keywords: 'budget cost money limit cap spend dollars' },
+  { label: 'Developer Mode', detail: 'Element inspector, F12 DevTools, New User profile', path: '/settings', anchor: 'settings-developer', keywords: 'devtools inspector debug f12 test new user' },
   // Appearance
   { label: 'Color scheme', detail: 'Sand & Ink, Botanical, Indigo Ink and more', path: '/settings/appearance', keywords: 'palette theme colour color look' },
   { label: 'Light or dark mode', detail: 'Appearance', path: '/settings/appearance', keywords: 'dark mode light mode night theme' },

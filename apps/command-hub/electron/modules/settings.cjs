@@ -225,7 +225,7 @@ module.exports = {
             nextRun: nextCheckAt ? new Date(nextCheckAt).toISOString() : undefined,
             result: status.state === 'error' ? 'failed' : status.lastChecked ? 'ok' : null,
             note: !support.supported ? support.reason : status.state === 'error' ? status.error : '',
-            where: { label: 'Settings', path: '/settings/general' },
+            where: { label: 'Settings', path: '/settings' },
           },
         ]
       },

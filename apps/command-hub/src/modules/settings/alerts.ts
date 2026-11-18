@@ -7,7 +7,7 @@ import type { AppStatus, BackupStatus } from './types'
 
 /**
  * Settings alerts: the few things in the user's setup that need them now.
- * Shown on the Settings home page and counted on the drawer's Settings
+ * Shown on the General settings page and counted on the drawer's Settings
  * button. Usually there are none.
  *
  * Everything here is read from what MonoRail already knows: the last result
@@ -89,7 +89,7 @@ async function read(): Promise<SettingsAlert[]> {
       tone: 'info',
       title: app.state === 'downloaded' ? `Version ${app.latestVersion} is ready to install` : `Version ${app.latestVersion} is available`,
       text: app.state === 'downloaded' ? 'Restart MonoRail to finish the update.' : `You have version ${app.currentVersion}.`,
-      path: '/settings/general',
+      path: '/settings',
       where: 'General',
       at: app.lastChecked,
     })

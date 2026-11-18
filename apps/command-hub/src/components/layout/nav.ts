@@ -72,7 +72,7 @@ function coreSections(list: ExtensionList): NavSection[] {
 
 /** The section name that makes a module a Settings page. */
 export const SETTINGS_SECTION = 'Settings'
-/** The Settings home page: the one Settings button in the drawer opens it. */
+/** The General settings page: the one Settings button in the drawer opens it. */
 export const SETTINGS_PATH = '/settings'
 
 /**
@@ -117,7 +117,7 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
   const out = sections.filter((s) => s.items.length > 0)
   if (home) {
     const children = settingsPages.filter((m) => m !== home).map((m) => ({ path: m.path, label: m.title, icon: m.icon }))
-    out.push({ pinned: true, items: [{ path: home.path, label: home.title, icon: Settings, children }] })
+    out.push({ pinned: true, items: [{ path: home.path, label: 'Settings', icon: Settings, children }] })
   }
   return out
 }

@@ -10,7 +10,7 @@ services it works with. Each [connection](../glossary.md#connection) is a
 row in one table: whether it still works, which account it uses, what in
 MonoRail uses it and when it was last checked, with a button to sign in again
 when it doesn't. Click a row to see everything the check found. A connection
-that stops working is also listed on the Settings home page (see
+that stops working is also listed at the top of the General settings page (see
 [finding your way around Settings](README.md#finding-your-way-around-settings)).
 
 ## Nothing runs until you add it

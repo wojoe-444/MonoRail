@@ -16,7 +16,7 @@ import { flowsModule } from './flows'
 import { mcpModule } from './mcp'
 import { notesModule } from './notes'
 import { remoteModule } from './remote'
-import { appearanceModule, backupsModule, settingsHomeModule, settingsModule } from './settings'
+import { appearanceModule, backupsModule, settingsModule } from './settings'
 import { dockerModule } from './docker'
 import { storageModule } from './storage'
 import { wikiModule } from './wiki'
@@ -27,7 +27,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [exploreModule, openMetadataModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, browserModule, notesModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, semanticModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsHomeModule, settingsModule, appearanceModule, backupsModule, wikiModule]
+export const modules: ModuleDefinition[] = [exploreModule, openMetadataModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, browserModule, notesModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, semanticModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsModule, appearanceModule, backupsModule, wikiModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()

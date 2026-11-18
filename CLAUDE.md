@@ -720,12 +720,12 @@ files.
 the drawer (above the version footer; amber count = alerts). Every module
 with `nav.section: 'Settings'` is a Settings page: it is not listed in the
 drawer, `nav.group` names its heading in the Settings menu ("App": General
-`/settings/general` (the `settings` module, updates, about, profile,
-Developer Mode), Appearance, Backups; "Accounts & access": Connections,
+`/settings`, the page the Settings button opens (the `settings` module,
+updates, about, profile, Developer Mode), Appearance, Backups; "Accounts & access": Connections,
 Agent access, Extensions), and `App.tsx` wraps it in
-`src/modules/settings/SettingsLayout.tsx` (menu plus search). `/settings` is
-the Settings **Home** (`SettingsHomePage.tsx`): only alerts, usually "Nothing
-needs you". Alerts (`alerts.ts`, one shared store) are read from what
+`src/modules/settings/SettingsLayout.tsx` (menu plus search). There is no
+Settings Home page: the alerts show as a "Needs attention" card at the top of
+General (`SettingsAlerts.tsx`, nothing when there are none). Alerts (`alerts.ts`, one shared store) are read from what
 MonoRail already knows and never start a check: the `connections.summary`
 file (so connectors that are not set up are never looked at), the update
 state, global backups' last results and extensions waiting for approval or

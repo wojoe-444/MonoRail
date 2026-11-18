@@ -44,15 +44,13 @@ Two pages are worth knowing before you change anything:
 Everything on these pages lives behind the **Settings** button at the bottom
 of the left-hand menu. Settings has its own menu beside the page:
 
-- **Home** opens first. It lists only what needs you right now, such as a
-  [connection](connections.md) whose sign-in expired, a
-  [backup](backups-and-updates.md) that failed, an
+- **App**: **General** opens first (version, updates, your profile and
+  [Developer Mode](developer-mode.md)), then **Appearance** and **Backups**.
+  When something needs you right now, such as a [connection](connections.md)
+  whose sign-in expired, a [backup](backups-and-updates.md) that failed, an
   [update](backups-and-updates.md#updates) that is ready, or an
-  [extension](extensions.md) waiting for your approval. Most of the time it
-  says "Nothing needs you". When something does, the Settings button shows
-  how many.
-- **App**: **General** (version, updates, your profile and
-  [Developer Mode](developer-mode.md)), **Appearance** and **Backups**.
+  [extension](extensions.md) waiting for your approval, a **Needs attention**
+  card appears at the top of General and the Settings button shows how many.
 - **Accounts & access**: **Connections**, [Agent access](../agents/agent-access.md)
   and **Extensions**.
 

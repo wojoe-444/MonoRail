@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { Archive, House, Palette, SlidersHorizontal } from 'lucide-react'
+import { Archive, Palette, SlidersHorizontal } from 'lucide-react'
 
 import type { ModuleDefinition } from '../types'
 
@@ -10,24 +10,17 @@ import type { ModuleDefinition } from '../types'
  * modules); SettingsLayout draws the menu and search beside them.
  */
 
-/** Settings home: only what needs the user (src/modules/settings/alerts.ts). Usually empty. */
-export const settingsHomeModule: ModuleDefinition = {
-  id: 'settings-home',
-  title: 'Settings',
-  description: 'Anything in your setup that needs you.',
-  icon: House,
-  path: '/settings',
-  nav: { section: 'Settings', order: 0 },
-  component: lazy(() => import('./SettingsHomePage')),
-}
-
-/** General: version and updates, about, profile, developer mode. Owns the settings backend. */
+/**
+ * General: the page the Settings button opens, and where alerts show (there
+ * is no separate Home page). Version and updates, about, profile, developer
+ * mode. Owns the settings backend.
+ */
 export const settingsModule: ModuleDefinition = {
   id: 'settings',
   title: 'General',
   description: 'Your profile, app version, updates and where MonoRail keeps its local data.',
   icon: SlidersHorizontal,
-  path: '/settings/general',
+  path: '/settings',
   nav: { section: 'Settings', group: 'App', order: 10 },
   component: lazy(() => import('./SettingsPage')),
   dataMethods: ['getStatus', 'checkForUpdates', 'downloadUpdate', 'installAndRestart'],
