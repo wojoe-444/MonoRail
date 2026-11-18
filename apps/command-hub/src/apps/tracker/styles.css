@@ -1,0 +1,17 @@
+/*
+ * Tracker. Everything is drawn with the hub's own tokens and Tailwind
+ * utilities, so palettes and dark mode apply. The app root and every panel it
+ * portals to <body> carry the .trk class; rules here stay inside it.
+ */
+.trk {
+  /* Inline editors grow with their text. */
+  & textarea {
+    field-sizing: content;
+  }
+
+  /* Native date and number inputs follow light/dark. */
+  & input[type='date'],
+  & input[type='number'] {
+    color-scheme: light dark;
+  }
+}

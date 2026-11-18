@@ -747,7 +747,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Calendar, Email, Bookmarks, Files, Notes and Flashcards behind one rail button.
+Tracker, Calendar, Email, Bookmarks, Files, Notes and Flashcards behind one rail button.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their
@@ -769,7 +769,7 @@ one page in the hub's own style, an app may look and feel like its own
 product: its own colors, fonts, layout and in-app routing. The contract is
 `AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
-**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Calendar, Email) are
+**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Tracker, Calendar, Email) are
 Tools subpages. The hub's drawer and top bar stay on screen (breadcrumb
 `Workspace > Tools > <app>`) and the app fills the page body below them, scrolling on
 its own (`AppBody` in `App.tsx`). Each gets a nav item under Tools that
@@ -971,6 +971,30 @@ GitHub+ reads them through Jira+'s exported `tasksForRepo` / `repoLinks`
 repo (link/unlink from that side too; tasks open in Jira+ via
 `openInJiraPlus`), task counts on Home, and the tasks of a GitHub-only repo
 in its "On GitHub" row. Deleting a local task drops its links.
+
+`tracker` (**Tracker**, a Workspace app under Tools; reference `docs/tracker.md`,
+guide `docs/guide/workspace/tracker.md`, types `docs/standard/monorail/tracker.md`)
+plans work on the model fast product teams use (Linear-style): teams with
+their own workflow (status types triage, backlog, unstarted, started,
+completed, canceled), issues (`<KEY>-<number>`, priority 0-4, estimates on
+the team's scale, labels with one-per-group label groups, sub-issues,
+blocks/related/duplicate relations, threaded comments, history), automatic
+cycles with rollover, projects with milestones and health updates, nested
+initiatives and saved views. Everything is an entity in the **local
+database** (never files of its own; `apps/tracker` stays empty): teams and
+members are OpenMetadata `team` / `user` with `extension.tracker` (only
+those belong to Tracker), the rest are MonoRail's own types carrying
+`entityType`. Rules live in `electron/apps/tracker/model.cjs` (no Electron;
+tests `tracker.test.cjs`): a child's full name starts with its parent's id so
+renames never cascade, a taken full name is refused before `put` (which
+would match and update it), issues are deleted softly (Undo restores),
+everything else is removed with its references cleared in one transaction,
+and an issue's history is diffed from its stored versions. The page
+(`src/apps/tracker`) reads one `snapshot`; every issue list is
+`IssueBrowser` (filters, list or board, grouping, ordering, drag and drop,
+bulk edit, save as view; per-page `prefs`), the open issue is `?issue=KEY-n`
+and C starts a new issue. It is separate from Tasks (Jira) and is never named
+or styled after another product in the UI.
 
 `email` (**Email**) is the third app: mail through pluggable **inbox
 connectors**. The connector contract is documented at the top of
@@ -1184,9 +1208,11 @@ glossary term, ...) is an **entity type** in the MonoRail standard (wiki
 section `docs/standard/`, featured on the wiki home). The standard is **every
 entity type of [OpenMetadata 2.1](https://docs.open-metadata.org/v2.1.x-SNAPSHOT/api-reference)**
 (91, fields from the `2.1.0-rc2-release` JSON schemas) plus MonoRail's own
-types for things OpenMetadata has no word for (11: subagent, flow, note,
+types for things OpenMetadata has no word for (21: subagent, flow, note,
 bookmark, bookmarkFolder, scheduledTask, flashcardDeck, flashcard,
-semanticModel, semanticMetric, savedQuery). The one definition is
+semanticModel, semanticMetric, savedQuery, and Tracker's issue,
+workflowState, issueLabel, project, projectMilestone, projectUpdate, cycle,
+initiative, customView, comment). The one definition is
 `apps/command-hub/src/standard/standard.json` (sections > categories >
 entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
 `reference` and, for the 9 types new in 2.1, `since`), read through

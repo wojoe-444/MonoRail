@@ -6,7 +6,7 @@ summary: The pages for the work itself: your git repositories, issues, tasks, ma
 
 # Your workspace
 
-Open **Tools** in the menu for GitHub+, Tasks, Calendar, Email, Bookmarks,
+Open **Tools** in the menu for GitHub+, Tasks, Tracker, Calendar, Email, Bookmarks,
 Files, Notes and Flashcards. Its overview links to each page, and its flyout lets
 you jump straight to one. Each keeps its data on your computer, as [private data stays
 local](../private-data.md) promises, and they are linked to each other where
@@ -21,6 +21,9 @@ it helps.
   repository, so they travel with it.
 - **Tasks.** [Tasks](tasks.md) (formerly Jira+) keeps private projects on your computer
   next to your team's real Jira, and links tasks to repositories.
+- **Planning.** [Tracker](tracker.md) plans work for your teams: issues with
+  their own workflow, cycles, projects with milestones and updates, and
+  initiatives above them, all kept on your computer.
 - **Calendar.** Calendar shows your tasks on their expected end dates. Select a date to see its tasks, then open one in Tasks. Team issues follow the Team Jira filter in Tasks.
 - **Scheduled.** Windows Task Scheduler shows schedules, recent results and the next run for this PC's tasks. You can run, stop, enable, disable or delete tasks that run as your Windows account. Other tasks are read-only; Microsoft system tasks are omitted. Open Task Scheduler from the page to create or edit tasks. Hide removes a task from the list until you unhide it; it does not change the task.
   Its **In-App** page lists the jobs MonoRail runs by itself while it is open:

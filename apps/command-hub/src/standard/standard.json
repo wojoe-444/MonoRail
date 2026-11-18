@@ -66,6 +66,14 @@
       "docs": "standard/monorail/semantic"
     },
     {
+      "id": "tracker",
+      "name": "Tracker",
+      "section": "monorail",
+      "origin": "monorail",
+      "summary": "Issues, workflow states, labels, projects, milestones, updates, cycles, initiatives, views and comments.",
+      "docs": "standard/monorail/tracker"
+    },
+    {
       "id": "databases",
       "name": "Databases",
       "section": "data-assets",
@@ -930,6 +938,982 @@
           "type": "string[]",
           "required": true,
           "description": "Filters, as written."
+        }
+      ]
+    },
+    {
+      "type": "issue",
+      "name": "Issue",
+      "plural": "Issues",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A unit of work in a team: title, status, priority, estimate, assignee, labels, project, cycle, parent and relations.",
+      "docs": "standard/monorail/tracker#issue",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The issue number as text (unique per team)."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "number",
+          "type": "number",
+          "required": true,
+          "description": "The number within its team; with the team key it makes the identifier, like ENG-12."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "One line, up to 500 characters."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "The issue text."
+        },
+        {
+          "name": "teamId",
+          "type": "uuid",
+          "required": true,
+          "description": "The team it belongs to."
+        },
+        {
+          "name": "stateId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its workflow state (status) in that team."
+        },
+        {
+          "name": "priority",
+          "type": "number",
+          "required": true,
+          "description": "0 No priority, 1 Urgent, 2 High, 3 Medium, 4 Low."
+        },
+        {
+          "name": "estimate",
+          "type": "number",
+          "description": "Points on the team's estimate scale; empty when not estimated."
+        },
+        {
+          "name": "assigneeId",
+          "type": "uuid",
+          "description": "The member it is assigned to."
+        },
+        {
+          "name": "creatorId",
+          "type": "uuid",
+          "description": "The member who made it."
+        },
+        {
+          "name": "labelIds",
+          "type": "uuid[]",
+          "description": "Its labels, at most one from each label group."
+        },
+        {
+          "name": "projectId",
+          "type": "uuid",
+          "description": "The project it is part of."
+        },
+        {
+          "name": "projectMilestoneId",
+          "type": "uuid",
+          "description": "A milestone of that project."
+        },
+        {
+          "name": "cycleId",
+          "type": "uuid",
+          "description": "A cycle of its team."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "The parent issue when this is a sub-issue; never a loop."
+        },
+        {
+          "name": "dueDate",
+          "type": "date",
+          "description": "Due date, YYYY-MM-DD."
+        },
+        {
+          "name": "relations",
+          "type": "object[]",
+          "description": "`{ type: blocks | related | duplicate, issueId }`, from this issue to another. The other side (blocked by, duplicated by) is worked out on read."
+        },
+        {
+          "name": "sortOrder",
+          "type": "number",
+          "required": true,
+          "description": "Its place in manual ordering (lower first)."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made."
+        },
+        {
+          "name": "startedAt",
+          "type": "timestamp",
+          "description": "First moved to a Started status."
+        },
+        {
+          "name": "completedAt",
+          "type": "timestamp",
+          "description": "Moved to a Completed status."
+        },
+        {
+          "name": "canceledAt",
+          "type": "timestamp",
+          "description": "Moved to a Canceled status."
+        },
+        {
+          "name": "triagedAt",
+          "type": "timestamp",
+          "description": "Moved out of Triage."
+        },
+        {
+          "name": "previousIdentifiers",
+          "type": "string[]",
+          "description": "Identifiers it had before moving to another team."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "Deleted issues can be restored."
+        },
+        {
+          "name": "archivedAt",
+          "type": "timestamp",
+          "description": "When it was deleted."
+        }
+      ]
+    },
+    {
+      "type": "workflowState",
+      "name": "Workflow state",
+      "plural": "Workflow states",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A status in a team's workflow, of one of six types: triage, backlog, unstarted, started, completed, canceled.",
+      "docs": "standard/monorail/tracker#workflow-state",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The status name, unique in its team."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "teamId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its team."
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "description": "`triage`, `backlog`, `unstarted`, `started`, `completed` or `canceled`. Fixed once made."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "description": "A `#rrggbb` color."
+        },
+        {
+          "name": "position",
+          "type": "number",
+          "required": true,
+          "description": "Order within its type (lower first)."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "What it means, up to 500 characters."
+        }
+      ]
+    },
+    {
+      "type": "issueLabel",
+      "name": "Issue label",
+      "plural": "Issue labels",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A label for issues, for the whole workspace or one team; a label group holds labels of which an issue takes one.",
+      "docs": "standard/monorail/tracker#issue-label",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The label name, unique among its siblings."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "teamId",
+          "type": "uuid",
+          "description": "Its team; empty for a workspace label."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "Its label group."
+        },
+        {
+          "name": "isGroup",
+          "type": "boolean",
+          "required": true,
+          "description": "A label group: holds labels and is not put on issues itself."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "description": "A `#rrggbb` color."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Up to 500 characters."
+        }
+      ]
+    },
+    {
+      "type": "project",
+      "name": "Project",
+      "plural": "Projects",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A time-bound piece of work with a goal, across teams: status, priority, lead, dates, milestones and updates.",
+      "docs": "standard/monorail/tracker#project",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The project name, unique in the workspace."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "description": "One line, up to 255 characters."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "The project brief."
+        },
+        {
+          "name": "icon",
+          "type": "string",
+          "description": "An emoji."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "description": "A `#rrggbb` color."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "`backlog`, `planned`, `started`, `paused`, `completed` or `canceled`."
+        },
+        {
+          "name": "priority",
+          "type": "number",
+          "required": true,
+          "description": "0 No priority to 4 Low, as on issues."
+        },
+        {
+          "name": "leadId",
+          "type": "uuid",
+          "description": "The member who leads it."
+        },
+        {
+          "name": "memberIds",
+          "type": "uuid[]",
+          "description": "Members working on it."
+        },
+        {
+          "name": "teamIds",
+          "type": "uuid[]",
+          "description": "Teams it belongs to."
+        },
+        {
+          "name": "startDate",
+          "type": "date",
+          "description": "Planned start."
+        },
+        {
+          "name": "targetDate",
+          "type": "date",
+          "description": "Target date."
+        },
+        {
+          "name": "startedAt",
+          "type": "timestamp",
+          "description": "First set to started."
+        },
+        {
+          "name": "completedAt",
+          "type": "timestamp",
+          "description": "Set to completed."
+        },
+        {
+          "name": "canceledAt",
+          "type": "timestamp",
+          "description": "Set to canceled."
+        },
+        {
+          "name": "sortOrder",
+          "type": "number",
+          "required": true,
+          "description": "Manual order."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made."
+        }
+      ]
+    },
+    {
+      "type": "projectMilestone",
+      "name": "Project milestone",
+      "plural": "Project milestones",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A stage of a project with a target date; issues of the project can belong to one.",
+      "docs": "standard/monorail/tracker#project-milestone",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The milestone name, unique in its project."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "projectId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its project."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Up to 2,000 characters."
+        },
+        {
+          "name": "targetDate",
+          "type": "date",
+          "description": "Target date."
+        },
+        {
+          "name": "sortOrder",
+          "type": "number",
+          "required": true,
+          "description": "Order in the project."
+        }
+      ]
+    },
+    {
+      "type": "projectUpdate",
+      "name": "Project update",
+      "plural": "Project updates",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A dated progress note on a project with its health: on track, at risk or off track. The newest sets the project's health.",
+      "docs": "standard/monorail/tracker#project-update",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The update id."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "projectId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its project."
+        },
+        {
+          "name": "health",
+          "type": "enum",
+          "required": true,
+          "description": "`onTrack`, `atRisk` or `offTrack`."
+        },
+        {
+          "name": "body",
+          "type": "markdown",
+          "required": true,
+          "description": "The update."
+        },
+        {
+          "name": "userId",
+          "type": "uuid",
+          "required": true,
+          "description": "Who wrote it."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was written."
+        }
+      ]
+    },
+    {
+      "type": "cycle",
+      "name": "Cycle",
+      "plural": "Cycles",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A team's fixed-length period of work (a sprint). Made automatically when the team turns cycles on; unfinished issues roll over.",
+      "docs": "standard/monorail/tracker#cycle",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The cycle number as text."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "teamId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its team."
+        },
+        {
+          "name": "number",
+          "type": "number",
+          "required": true,
+          "description": "Counts up per team."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "An optional name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Up to 2,000 characters."
+        },
+        {
+          "name": "startsAt",
+          "type": "date",
+          "required": true,
+          "description": "First day."
+        },
+        {
+          "name": "endsAt",
+          "type": "date",
+          "required": true,
+          "description": "The day after the last day. Cycles of a team never overlap."
+        },
+        {
+          "name": "completedAt",
+          "type": "timestamp",
+          "description": "When it ended and its unfinished issues rolled over."
+        }
+      ]
+    },
+    {
+      "type": "initiative",
+      "name": "Initiative",
+      "plural": "Initiatives",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A larger goal that groups projects, with an owner, status and target date; initiatives can nest.",
+      "docs": "standard/monorail/tracker#initiative",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The initiative name, unique in the workspace."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "description": "One line."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "The goal in full."
+        },
+        {
+          "name": "icon",
+          "type": "string",
+          "description": "An emoji."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "description": "A `#rrggbb` color."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "description": "`planned`, `active` or `completed`."
+        },
+        {
+          "name": "ownerId",
+          "type": "uuid",
+          "description": "The member who owns it."
+        },
+        {
+          "name": "targetDate",
+          "type": "date",
+          "description": "Target date."
+        },
+        {
+          "name": "projectIds",
+          "type": "uuid[]",
+          "description": "Its projects."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "The initiative it is part of (sub-initiative); never a loop."
+        },
+        {
+          "name": "sortOrder",
+          "type": "number",
+          "required": true,
+          "description": "Manual order."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made."
+        }
+      ]
+    },
+    {
+      "type": "customView",
+      "name": "Custom view",
+      "plural": "Custom views",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A saved set of issue filters and display options (layout, grouping, ordering), for the workspace or one team.",
+      "docs": "standard/monorail/tracker#custom-view",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The view name, unique in its team or the workspace."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "teamId",
+          "type": "uuid",
+          "description": "Its team; empty for a workspace view."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Up to 500 characters."
+        },
+        {
+          "name": "icon",
+          "type": "string",
+          "description": "An emoji."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "required": true,
+          "description": "A `#rrggbb` color."
+        },
+        {
+          "name": "filters",
+          "type": "object",
+          "required": true,
+          "description": "Lists of `stateTypes`, `stateIds`, `priorities`, `assigneeIds`, `labelIds`, `projectIds`, `cycleIds`, `teamIds`, `creatorIds`, `milestoneIds`, plus `due` and `query`. Every list given must match."
+        },
+        {
+          "name": "display",
+          "type": "object",
+          "required": true,
+          "description": "`layout` (list, board), `groupBy`, `orderBy`, `showSubIssues`, `showCompleted`, `showEmptyGroups`."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made."
+        }
+      ]
+    },
+    {
+      "type": "comment",
+      "name": "Comment",
+      "plural": "Comments",
+      "category": "tracker",
+      "origin": "monorail",
+      "summary": "A Markdown comment on an issue, optionally a reply in a thread.",
+      "docs": "standard/monorail/tracker#comment",
+      "source": "Tools > Tracker",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The entity id, given by the local database."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The comment id."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "string",
+          "required": true,
+          "description": "Unique among entities of the type; starts with the parent's id for things inside a team or project."
+        },
+        {
+          "name": "entityType",
+          "type": "string",
+          "required": true,
+          "description": "The type name, so a stored entity says what it is."
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": true,
+          "description": "Goes up by 0.1 on every real change; every version is kept."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "issueId",
+          "type": "uuid",
+          "required": true,
+          "description": "Its issue."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "The comment it replies to."
+        },
+        {
+          "name": "body",
+          "type": "markdown",
+          "required": true,
+          "description": "The comment."
+        },
+        {
+          "name": "userId",
+          "type": "uuid",
+          "required": true,
+          "description": "Who wrote it."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was written."
+        },
+        {
+          "name": "editedAt",
+          "type": "timestamp",
+          "description": "Last edit."
         }
       ]
     },
