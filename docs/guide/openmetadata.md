@@ -1,21 +1,36 @@
 ---
 audience: human
-summary: One page for everything in your OpenMetadata server, every kind of entity it has, with every field, relationship and version.
+summary: One page for every kind of entity, from MonoRail's local database or your OpenMetadata server, with every field, relationship and version.
 ---
 
 # Browse your OpenMetadata server
 
 **OpenMetadata**, right under Home and [Explore](explore.md), shows everything
-in an [OpenMetadata](https://open-metadata.org) server on one page: tables,
+in an [OpenMetadata](https://open-metadata.org) catalog on one page: tables,
 databases and schemas, dashboards, pipelines, glossaries, tags, test cases,
 users, roles and every other kind of thing OpenMetadata keeps. It shows each
 one the way OpenMetadata stores it, in the same words the
 [MonoRail standard](../standard/README.md) uses.
 
-It is optional. Nothing happens until you add the **OpenMetadata** connection
-on [Connections](setup/connections.md).
+## Without a server: MonoRail's local database
 
-## Set it up
+You don't need a server to use the page. Until you connect one, it shows
+MonoRail's own [local database](../local-database.md): a small SQLite file in
+MonoRail's [data folder](glossary.md#data-folder) that keeps entities the way
+OpenMetadata does. [Ingestion pipelines](setup/services.md) that run on your
+PC fill it: the tables and columns of a SQLite database, row counts from a
+profiler run, a dbt project's models and lineage, and the pipelines
+themselves. You can edit descriptions there too; every edit is kept as a new
+version. Nothing in it leaves your PC.
+
+## With your own OpenMetadata server
+
+Connecting a server is optional, and MonoRail contacts none until you add the
+**OpenMetadata** connection on [Connections](setup/connections.md). Once you
+do, the page shows the server, and a **This PC / Server** switch in the
+header lets you go back to the local database. MonoRail remembers your choice.
+
+### Set it up
 
 1. Have an OpenMetadata 2.0 or 2.1 server running. On your own computer that is
    usually OpenMetadata's Docker setup, at `http://localhost:8585`.

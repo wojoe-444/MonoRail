@@ -18,6 +18,7 @@ const fs = require('node:fs/promises')
 const { Worker } = require('node:worker_threads')
 
 const mfLib = require('./semantic-mf.cjs')
+const { stableStringify } = require('../localdb/index.cjs')
 
 const MANIFEST_LIMIT = 64 * 1024 * 1024
 /** Tables with more rows get a row count only, no per-column metrics (one full scan each). */
@@ -157,7 +158,7 @@ function nest(tables) {
 }
 
 /** Merge freshly read tables into the old ones; returns { tables, added, updated, deleted }. */
-const comparable = (t) => JSON.stringify({ ...t, profile: undefined, deleted: undefined })
+const comparable = (t) => stableStringify({ ...t, profile: undefined, deleted: undefined })
 
 function mergeTables(old, fresh, { markDeleted, keep = () => ({}) }) {
   const out = []

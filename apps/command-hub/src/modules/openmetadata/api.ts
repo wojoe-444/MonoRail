@@ -4,9 +4,18 @@ import { invokeModule, isDesktop } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 
+/** Which catalog the page reads: MonoRail's local database or the OpenMetadata server. Unset: the backend's default. */
+export type Source = 'local' | 'server'
+let source: Source | undefined
+/** Set by the page before its children load; every call then names it. */
+export function setSource(s: Source | undefined) {
+  source = s
+}
+
 /** Call the OpenMetadata backend; in the browser dev server, the fictional sample catalog. */
 export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
-  return isDesktop() ? invokeModule<T>('openmetadata', method, args) : sampleInvoke<T>(method, args)
+  const withSource = source && !(args && 'source' in args) ? { source, ...args } : args
+  return isDesktop() ? invokeModule<T>('openmetadata', method, withSource) : sampleInvoke<T>(method, args)
 }
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')

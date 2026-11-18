@@ -7,6 +7,7 @@ const path = require('node:path')
 const cron = require('./ingestion-cron.cjs')
 const local = require('./ingestion-local.cjs')
 const { createStore } = require('./ingestion-store.cjs')
+const { openDatabase } = require('../localdb/index.cjs')
 const omLib = require('./openmetadata.cjs')
 const { createIngestion, SOURCE_TYPES } = require('./ingestion.cjs')
 const { DATA_FILES } = require('../cache/declared.cjs')
@@ -14,6 +15,7 @@ const { SCOPES } = require('../profiles/index.cjs')
 const { CONNECTORS } = require('../connections/index.cjs')
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'monorail-ingestion-'))
+const newDb = () => openDatabase(tmp())
 
 describe('cron', () => {
   test('next run times', () => {
@@ -53,17 +55,16 @@ describe('filters', () => {
 })
 
 describe('store', () => {
-  test('a damaged file is never overwritten', async () => {
+  test('a damaged older file is skipped and left as it is', async () => {
     const dir = tmp()
     fs.writeFileSync(path.join(dir, 'pipelines.json'), '{ broken')
-    const store = createStore(dir)
-    await assert.rejects(store.pipelines(), /damaged/)
-    await assert.rejects(store.updatePipelines((l) => l.push({})), /damaged/)
+    const store = createStore({ db: newDb(), legacyDir: dir })
+    assert.deepEqual(await store.pipelines(), [])
     assert.equal(fs.readFileSync(path.join(dir, 'pipelines.json'), 'utf8'), '{ broken')
   })
 
   test('keeps the newest runs and caps the log', async () => {
-    const store = createStore(tmp())
+    const store = createStore({ db: newDb() })
     for (let i = 0; i < 35; i++) await store.saveRun('p', { runId: String(i), startDate: i, log: Array.from({ length: 300 }, (_, n) => `line ${n}`) })
     const { runs } = await store.runsFile()
     assert.equal(runs.p.length, 30)
@@ -162,7 +163,7 @@ async function waitIdle(svc) {
 
 describe('ingestion service', () => {
   test('adds no pipelines on its own and refuses services that are not set up', async () => {
-    const svc = createIngestion({ dataDir: tmp(), deps: { connections: fakeConnections() } })
+    const svc = createIngestion({ dataDir: tmp(), deps: { db: newDb(), connections: fakeConnections() } })
     const o = await svc.overview()
     assert.deepEqual(o.pipelines, [])
     assert.equal(o.serverSetUp, false)
@@ -173,7 +174,7 @@ describe('ingestion service', () => {
   })
 
   test('validates what is saved', async () => {
-    const svc = createIngestion({ dataDir: tmp(), deps: { connections: fakeConnections({ added: { sqlite: { file: 'C:\\x.sqlite3' } } }) } })
+    const svc = createIngestion({ dataDir: tmp(), deps: { db: newDb(), connections: fakeConnections({ added: { sqlite: { file: 'C:\\x.sqlite3' } } }) } })
     const base = { serviceKind: 'sqlite', pipelineType: 'metadata', name: 'notes_metadata' }
     await assert.rejects(svc.savePipeline({ pipeline: { ...base, pipelineType: 'usage' } }), /cannot run usage/)
     await assert.rejects(svc.savePipeline({ pipeline: { ...base, name: 'has space' } }), /letters, digits/)
@@ -189,7 +190,7 @@ describe('ingestion service', () => {
   test('runs SQLite metadata and profiler pipelines into the local catalog', { skip: !sqliteAvailable && 'node:sqlite missing' }, async () => {
     const dir = tmp()
     const file = makeDb(dir)
-    const svc = createIngestion({ dataDir: dir, deps: { connections: fakeConnections({ added: { sqlite: { file } } }) } })
+    const svc = createIngestion({ dataDir: dir, deps: { db: newDb(), connections: fakeConnections({ added: { sqlite: { file } } }) } })
     const meta = await svc.savePipeline({ pipeline: { serviceKind: 'sqlite', pipelineType: 'metadata', name: 'notes_metadata', sourceConfig: { config: { tableFilterPattern: { excludes: ['.*_tmp'] } } } } })
     await svc.run({ id: meta.id })
     await assert.rejects(svc.run({ id: meta.id }), /already running/)
@@ -198,6 +199,10 @@ describe('ingestion service', () => {
     assert.equal(r.pipelineState, 'success', JSON.stringify(r))
     assert.deepEqual(r.status.map((s) => [s.name, s.records, s.filtered]), [['SQLite source', 2, 1], ['Local catalog sink', 2, 0]])
     const cat = (await svc.explore()).catalog.local_sqlite
+    // The catalog is OpenMetadata entities in the local database.
+    const svcDb = svc._db()
+    assert.equal(svcDb.get('table', 'local_sqlite.main.main.notes').service.name, 'local_sqlite')
+    assert.equal(svcDb.get('ingestionPipeline', 'local_sqlite.notes_metadata').pipelineType, 'metadata')
     const tables = cat.databases[0].schemas[0].tables
     assert.deepEqual(tables.map((t) => `${t.name}:${t.tableType}`), ['notes:Regular', 'titles:View'])
     assert.deepEqual(tables[0].columns.map((c) => [c.name, c.dataType, c.constraint]), [['id', 'INTEGER', 'PRIMARY_KEY'], ['title', 'TEXT', 'NOT_NULL'], ['body', 'TEXT', undefined]])
@@ -215,7 +220,7 @@ describe('ingestion service', () => {
 
   test('a failed run is recorded with its error', async () => {
     const dir = tmp()
-    const svc = createIngestion({ dataDir: dir, deps: { connections: fakeConnections({ added: { metricflow: { project: path.join(dir, 'nope') } } }) } })
+    const svc = createIngestion({ dataDir: dir, deps: { db: newDb(), connections: fakeConnections({ added: { metricflow: { project: path.join(dir, 'nope') } } }) } })
     const p = await svc.savePipeline({ pipeline: { serviceKind: 'metricflow', pipelineType: 'dbt', name: 'shop_dbt' } })
     await svc.run({ id: p.id })
     await waitIdle(svc)
@@ -227,7 +232,7 @@ describe('ingestion service', () => {
   test('the scheduler runs only deployed, enabled pipelines that are due, once for missed runs', async () => {
     const dir = tmp()
     let clock = new Date(2026, 10, 18, 10, 0)
-    const svc = createIngestion({ dataDir: dir, deps: { now: () => clock, connections: fakeConnections({ added: { metricflow: { project: path.join(dir, 'nope') } } }) } })
+    const svc = createIngestion({ dataDir: dir, deps: { db: newDb(), now: () => clock, connections: fakeConnections({ added: { metricflow: { project: path.join(dir, 'nope') } } }) } })
     const p = await svc.savePipeline({ pipeline: { serviceKind: 'metricflow', pipelineType: 'dbt', name: 'shop_dbt', airflowConfig: { scheduleInterval: '0 * * * *' } } })
     clock = new Date(2026, 10, 18, 13, 0)
     await svc.tick()
@@ -268,7 +273,7 @@ describe('ingestion service', () => {
       },
       withFields: async (_k, opts, fn) => fn(opts[0]),
     }
-    const svc = createIngestion({ dataDir: tmp(), deps: { omClient, connections: fakeConnections({ added: { openmetadata: { url: 'x' } } }) } })
+    const svc = createIngestion({ dataDir: tmp(), deps: { db: newDb(), omClient, connections: fakeConnections({ added: { openmetadata: { url: 'x' } } }) } })
     const o = await svc.serverOverview()
     assert.equal(o.services[0].name, 'warehouse')
     assert.equal(o.pipelines[0].schedule, 'Daily at 02:00')

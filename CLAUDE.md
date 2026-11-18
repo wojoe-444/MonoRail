@@ -624,10 +624,11 @@ disagrees, OpenMetadata's shape wins. A connector with `service: { category,
 serviceType }` is a **data source** (today `sqlite`, `metricflow`,
 `openmetadata`; Connections tags them "Data service" and still owns their
 fields and secrets); the rest are accounts. Pipelines are `ingestionPipeline`
-entities with `extension.monorail.runner`: **`this-pc`** pipelines live in
-`pipelines.json` (runs in `runs.json`, newest 30, results in `catalog.json`;
-all in `modules/ingestion`, profile scope, never overwritten when damaged)
-and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
+entities with `extension.monorail.runner`: **`this-pc`** pipelines live in the
+local database (below) as entities, with runs (`pipelineStatus` records,
+newest 30) and results as catalog entities (older versions' `pipelines.json`,
+`runs.json`, `catalog.json` in `modules/ingestion` are copied in once and left
+as they are) and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
 `ingestion-cron.cjs`) only after the user deploys them; SQLite metadata and
 profiler run read-only in a worker thread, dbt reads `target/manifest.json`
 (`ingestion-local.cjs`); deployed ones are In-App rows. **`server`**
@@ -636,6 +637,19 @@ UUID (trigger, deploy, kill, toggleIngestion, logs, create); MonoRail never
 sends the server a connection or password. No Auto Pilot: adding a service
 creates no pipelines. Explore shows local services, pipelines and catalog
 tables (full names start at the service).
+
+**Local database** (`electron/localdb`, docs `docs/local-database.md`): one
+SQLite file per profile, `databaseslocal.sqlite3` (folder `databases`,
+profile scope), through the `node:sqlite` built into Electron's Node (nothing
+bundled). The home for in-app data in the standard's OpenMetadata shape:
+`entity` (OpenMetadata JSON by type and full name; `put` assigns UUIDs and
+bumps `version` by 0.1 only on a real change, keeping every version),
+`record` (non-entity JSON: pipeline statuses, schedules, table profiles) and
+`meta`. Created on first use (OpenMetadata page, saving a pipeline); the
+scheduler and read-only views never create it (`localDbExists`). A damaged
+file or a newer schema is refused and never overwritten; secrets never go in
+it. Other modules keep their own stores; moving one in is a separate,
+never-automatic change that leaves old data in place.
 
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
@@ -1195,7 +1209,12 @@ entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
 
 **OpenMetadata** (`openmetadata` module, right under Home and Explore,
 `nav: { section: '', order: 2 }`; guide `docs/guide/openmetadata.md`) is that
-app's UI side: every OpenMetadata 2.1 entity type that has a REST collection
+app's UI side, reading **MonoRail's local database by default** and a connected
+server on request (`createLocalService` / `createServerService` behind
+`createService` in `openmetadata.cjs`; every method takes `source: 'local' |
+'server'`, default server once its connection is set up, local until then; the
+page shows a This PC / Server switch, pref `monorail.openmetadata.source`):
+every OpenMetadata 2.1 entity type that has a REST collection
 (90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
 rows take their wording from the standard) on one page, read live from the
 user's own OpenMetadata server (2.0 or 2.1; a type the server lacks answers

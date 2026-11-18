@@ -1,98 +1,237 @@
-// Files of the Services page's ingestion pipelines, in its data folder
-// (modules/ingestion, profile scope; declared in electron/cache/declared.cjs):
+// Where the Services page's local ingestion pipelines keep their data: MonoRail's
+// local database (electron/localdb, docs/local-database.md), in OpenMetadata's
+// shape, so the OpenMetadata page shows it too.
 //
-//   pipelines.json  the pipelines that run on this PC, as OpenMetadata
-//                   ingestionPipeline entities (name, pipelineType, service,
-//                   sourceConfig, airflowConfig, enabled, deployed, extension)
-//   runs.json       per pipeline the newest RUNS_KEPT run statuses in
-//                   OpenMetadata's pipelineStatus shape (state, times, step
-//                   counts, failures) plus up to LOG_LINES log lines, and the
-//                   last scheduled time per pipeline
-//   catalog.json    what local pipelines read: databases, schemas, tables,
-//                   columns, profiles and dbt lineage per service. Names and
-//                   numbers only, never row data.
+//   ingestionPipeline entities   pipelines that run on this PC (fqn service.name)
+//   records 'pipelineStatus'     newest RUNS_KEPT run statuses per pipeline, in
+//                                OpenMetadata's pipelineStatus shape, with up to
+//                                LOG_LINES log lines
+//   records 'pipelineSchedule'   the last scheduled time per pipeline
+//   catalog entities             what the pipelines read: databaseService,
+//                                database, databaseSchema and table entities
+//                                (extension.monorail.catalog = true)
+//   records 'tableProfile'       profiler results per table, newest PROFILES_KEPT,
+//                                kept apart from the table as OpenMetadata keeps
+//                                profiles apart from entity versions
 //
-// Writes are atomic and queued one at a time in this process (only the main
-// process writes). A damaged file is never read as empty or overwritten: the
-// reader throws and the page shows the error. No Electron here.
+// Older versions kept pipelines.json, runs.json and catalog.json in the
+// module's data folder. They are copied in once (meta 'import.ingestion') and
+// then left as they are; a damaged one is skipped, never changed.
+//
+// The interface (pipelines, updatePipelines, runsFile, saveRun, setScheduled,
+// forgetRuns, catalog, updateCatalog) is what ingestion.cjs and
+// ingestion-local.cjs use; the catalog reads and writes as one nested object
+// per service. No Electron here.
 
 const path = require('node:path')
 const fs = require('node:fs/promises')
-const { writeJsonAtomic } = require('../cache/files.cjs')
+const { fqnOf } = require('../localdb/index.cjs')
 
 const PIPELINES_FILE = 'pipelines.json'
 const RUNS_FILE = 'runs.json'
 const CATALOG_FILE = 'catalog.json'
-const VERSION = 1
 const RUNS_KEPT = 30
 const LOG_LINES = 200
+const PROFILES_KEPT = 30
+const IMPORT_KEY = 'import.ingestion'
 
-const EMPTY = Object.freeze({
-  [PIPELINES_FILE]: () => ({ version: VERSION, pipelines: [] }),
-  [RUNS_FILE]: () => ({ version: VERSION, runs: {}, scheduled: {} }),
-  [CATALOG_FILE]: () => ({ version: VERSION, services: {} }),
-})
+const ref = (e, type) => ({ id: e.id, type, name: e.name, fullyQualifiedName: e.fullyQualifiedName })
+const strip = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
 
-const LABELS = { [PIPELINES_FILE]: 'saved pipelines', [RUNS_FILE]: 'pipeline run history', [CATALOG_FILE]: 'local catalog' }
+function createStore({ db, legacyDir } = {}) {
+  if (!db) throw new Error('The ingestion store needs the local database.')
+  let imported = false
 
-function createStore(dir) {
-  let queue = Promise.resolve()
-
-  async function read(name) {
-    let text
-    try {
-      text = await fs.readFile(path.join(dir, name), 'utf8')
-    } catch (e) {
-      if (e.code === 'ENOENT') return EMPTY[name]()
-      throw e
+  async function ready() {
+    if (imported) return
+    imported = true
+    if (db.getMeta(IMPORT_KEY) || !legacyDir) return
+    const read = async (name) => {
+      try {
+        const data = JSON.parse(await fs.readFile(path.join(legacyDir, name), 'utf8'))
+        return data && typeof data === 'object' && data.version === 1 ? data : undefined
+      } catch {
+        return undefined // missing or damaged: skipped, left as it is
+      }
     }
-    let data
-    try {
-      data = JSON.parse(text)
-    } catch {
-      data = undefined
-    }
-    if (!data || typeof data !== 'object' || data.version !== VERSION) {
-      throw new Error(`The ${LABELS[name]} file (${name}) is damaged or from another version, so it was left as it is.`)
-    }
-    return { ...EMPTY[name](), ...data }
+    const [pipelines, runs, catalog] = await Promise.all([read(PIPELINES_FILE), read(RUNS_FILE), read(CATALOG_FILE)])
+    db.transaction(() => {
+      for (const p of pipelines?.pipelines ?? []) if (p?.name && p.service?.name) putPipeline(p)
+      for (const [id, list] of Object.entries(runs?.runs ?? {})) for (const r of list ?? []) if (r?.runId) saveRunSync(id, r)
+      for (const [id, iso] of Object.entries(runs?.scheduled ?? {})) if (typeof iso === 'string') db.putRecord('pipelineSchedule', id, 'last', Date.parse(iso) || 0, { at: iso })
+      if (catalog?.services) writeCatalog(catalog.services)
+      db.setMeta(IMPORT_KEY, new Date().toISOString())
+    })
   }
 
-  /** Read, change and write one file, one change at a time. `change` returns the result. */
-  function update(name, change) {
-    const run = queue.then(async () => {
-      const data = await read(name) // throws on a damaged file: never overwrite it
-      const result = await change(data)
-      await fs.mkdir(dir, { recursive: true })
-      await writeJsonAtomic(path.join(dir, name), data)
+  // ---------- pipelines
+
+  const localPipelines = () => db.all('ingestionPipeline').filter((p) => p.extension?.monorail?.runner === 'this-pc')
+
+  function putPipeline(p) {
+    const { pipelineStatuses: _s, ...entity } = p
+    return db.put('ingestionPipeline', { ...entity, fullyQualifiedName: fqnOf(p.service.name, p.name) })
+  }
+
+  /** Change the list in place (add, replace, splice); what `change` returns is returned. */
+  async function updatePipelines(change) {
+    await ready()
+    return db.transaction(() => {
+      const list = localPipelines()
+      const before = new Set(list.map((p) => p.id))
+      const result = change(list)
+      const after = new Set()
+      for (const p of list) {
+        putPipeline(p)
+        after.add(p.id)
+      }
+      for (const id of before) if (!after.has(id)) db.remove(id)
       return result
     })
-    queue = run.catch(() => {})
-    return run
+  }
+
+  // ---------- runs
+
+  function saveRunSync(pipelineId, status) {
+    const log = Array.isArray(status.log) ? status.log.slice(-LOG_LINES) : undefined
+    db.putRecord('pipelineStatus', pipelineId, status.runId, Number(status.startDate) || 0, { ...status, log })
+    db.pruneRecords('pipelineStatus', pipelineId, RUNS_KEPT)
+  }
+
+  async function runsFile() {
+    await ready()
+    const scheduled = {}
+    for (const [id, [last]] of Object.entries(db.recordsByOwner('pipelineSchedule'))) scheduled[id] = last.at
+    return { runs: db.recordsByOwner('pipelineStatus'), scheduled }
+  }
+
+  // ---------- catalog
+
+  /** The nested catalog per service, as the runners read it: { [service]: { serviceType, updatedAt, databases, lineage } }. */
+  function readCatalog() {
+    const isCatalog = (e) => e.extension?.monorail?.catalog === true
+    const services = {}
+    const byFqn = new Map()
+    for (const s of db.all('databaseService').filter(isCatalog)) {
+      services[s.name] = strip({ serviceType: s.serviceType, updatedAt: db.getMeta(`catalog.updatedAt.${s.name}`), lineage: s.extension.monorail.lineage, databases: [] })
+      byFqn.set(s.fullyQualifiedName, services[s.name])
+    }
+    const dbs = new Map()
+    for (const d of db.all('database').filter(isCatalog)) {
+      const svc = byFqn.get(d.service?.fullyQualifiedName)
+      if (!svc) continue
+      const node = { name: d.name, schemas: [] }
+      svc.databases.push(node)
+      dbs.set(d.fullyQualifiedName, node)
+    }
+    const schemas = new Map()
+    for (const s of db.all('databaseSchema').filter(isCatalog)) {
+      const parent = dbs.get(s.database?.fullyQualifiedName)
+      if (!parent) continue
+      const node = { name: s.name, tables: [] }
+      parent.schemas.push(node)
+      schemas.set(s.fullyQualifiedName, node)
+    }
+    for (const t of db.all('table').filter(isCatalog)) {
+      const parent = schemas.get(t.databaseSchema?.fullyQualifiedName)
+      if (!parent) continue
+      const { monorail, ...ext } = t.extension ?? {}
+      const [profile] = db.records('tableProfile', t.id, 1)
+      parent.tables.push(
+        strip({
+          name: t.name,
+          tableType: t.tableType,
+          description: t.description,
+          columns: (t.columns ?? []).map(({ fullyQualifiedName: _f, ...c }) => strip(c)),
+          tags: monorail?.tags,
+          extension: Object.keys(ext).length ? ext : undefined,
+          deleted: t.deleted || undefined,
+          profile,
+        }),
+      )
+    }
+    return services
+  }
+
+  /** Write the nested catalog back as entities; entities of a service that are no longer in it are removed. */
+  function writeCatalog(services) {
+    for (const [svcName, svc] of Object.entries(services)) {
+      const keep = new Set()
+      const mark = (e) => (keep.add(e.id), e)
+      const prev = db.get('databaseService', fqnOf(svcName))
+      const service = mark(
+        db.put('databaseService', strip({ name: svcName, fullyQualifiedName: fqnOf(svcName), serviceType: svc.serviceType, description: prev?.description, extension: { monorail: strip({ catalog: true, lineage: svc.lineage?.length ? svc.lineage : undefined }) } })),
+      )
+      if (svc.updatedAt) db.setMeta(`catalog.updatedAt.${svcName}`, svc.updatedAt)
+      for (const d of svc.databases ?? []) {
+        const database = mark(db.put('database', { name: d.name, fullyQualifiedName: fqnOf(svcName, d.name), service: ref(service, 'databaseService'), serviceType: svc.serviceType, extension: { monorail: { catalog: true } } }))
+        for (const s of d.schemas ?? []) {
+          const schema = mark(
+            db.put('databaseSchema', { name: s.name, fullyQualifiedName: fqnOf(svcName, d.name, s.name), service: ref(service, 'databaseService'), database: ref(database, 'database'), serviceType: svc.serviceType, extension: { monorail: { catalog: true } } }),
+          )
+          for (const t of s.tables ?? []) {
+            const fqn = fqnOf(svcName, d.name, s.name, t.name)
+            const stored = mark(
+              db.put(
+                'table',
+                strip({
+                  name: t.name,
+                  fullyQualifiedName: fqn,
+                  tableType: t.tableType,
+                  description: t.description,
+                  columns: (t.columns ?? []).map((c) => strip({ ...c, fullyQualifiedName: `${fqn}.${fqnOf(c.name)}` })),
+                  service: ref(service, 'databaseService'),
+                  database: ref(database, 'database'),
+                  databaseSchema: ref(schema, 'databaseSchema'),
+                  serviceType: svc.serviceType,
+                  deleted: t.deleted || undefined,
+                  extension: { ...t.extension, monorail: strip({ catalog: true, tags: t.tags }) },
+                }),
+              ),
+            )
+            const [last] = db.records('tableProfile', stored.id, 1)
+            if (t.profile && t.profile.timestamp !== last?.timestamp) {
+              db.putRecord('tableProfile', stored.id, String(t.profile.timestamp), Number(t.profile.timestamp) || 0, t.profile)
+              db.pruneRecords('tableProfile', stored.id, PROFILES_KEPT)
+            }
+          }
+        }
+      }
+      for (const type of ['database', 'databaseSchema', 'table']) {
+        for (const e of db.all(type)) {
+          if (e.extension?.monorail?.catalog === true && e.service?.fullyQualifiedName === service.fullyQualifiedName && !keep.has(e.id)) {
+            db.deleteRecords('tableProfile', e.id)
+            db.remove(e.id)
+          }
+        }
+      }
+    }
   }
 
   return {
-    pipelines: async () => (await read(PIPELINES_FILE)).pipelines,
-    updatePipelines: (change) => update(PIPELINES_FILE, (d) => change(d.pipelines)),
-    runsFile: () => read(RUNS_FILE),
-    /** Add or replace a run status (matched by runId), newest first. */
-    saveRun: (pipelineId, status) =>
-      update(RUNS_FILE, (d) => {
-        const list = (d.runs[pipelineId] ?? []).filter((r) => r.runId !== status.runId)
-        const log = Array.isArray(status.log) ? status.log.slice(-LOG_LINES) : undefined
-        d.runs[pipelineId] = [{ ...status, log }, ...list].sort((a, b) => b.startDate - a.startDate).slice(0, RUNS_KEPT)
-      }),
-    setScheduled: (pipelineId, iso) =>
-      update(RUNS_FILE, (d) => {
-        d.scheduled[pipelineId] = iso
-      }),
-    forgetRuns: (pipelineId) =>
-      update(RUNS_FILE, (d) => {
-        delete d.runs[pipelineId]
-        delete d.scheduled[pipelineId]
-      }),
-    catalog: () => read(CATALOG_FILE),
-    updateCatalog: (change) => update(CATALOG_FILE, (d) => change(d.services)),
+    pipelines: async () => (await ready(), localPipelines()),
+    updatePipelines,
+    runsFile,
+    saveRun: async (pipelineId, status) => (await ready(), db.transaction(() => saveRunSync(pipelineId, status))),
+    setScheduled: async (pipelineId, iso) => (await ready(), db.putRecord('pipelineSchedule', pipelineId, 'last', Date.parse(iso) || 0, { at: iso })),
+    forgetRuns: async (pipelineId) => {
+      await ready()
+      db.transaction(() => {
+        db.deleteRecords('pipelineStatus', pipelineId)
+        db.deleteRecords('pipelineSchedule', pipelineId)
+      })
+    },
+    catalog: async () => (await ready(), { services: readCatalog() }),
+    /** Read the nested catalog, let `change` edit it, write it back in one transaction. */
+    updateCatalog: async (change) => {
+      await ready()
+      return db.transaction(() => {
+        const services = readCatalog()
+        const result = change(services)
+        writeCatalog(services)
+        return result
+      })
+    },
   }
 }
 

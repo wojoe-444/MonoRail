@@ -24,7 +24,9 @@ folder with an earlier name, such as `command-hub`; MonoRail keeps using
 whichever one already holds your data and never moves it.
 
 Inside, each page has its own subfolder: settings, caches it can rebuild, and
-encrypted secrets. [Storage](../storage.md) shows how big it has grown, and
+encrypted secrets. The `databases` folder holds MonoRail's
+[local database](../local-database.md), where catalog data such as what
+[ingestion pipelines](setup/services.md) read is kept. [Storage](../storage.md) shows how big it has grown, and
 [backups](setup/backups-and-updates.md) can copy the parts worth keeping.
 
 ## Passwords and tokens are encrypted
