@@ -67,8 +67,8 @@ export interface CommandHubBridge {
   /** Toggle the window's full screen mode (F11 does the same). Resolves to the new state. Desktop app only. */
   toggleFullScreen?(): Promise<boolean>
   isFullScreen?(): Promise<boolean>
-  /** Push channels from the main process: 'extension:event', 'extension:changed' and 'window:fullscreen' (boolean). Returns an unsubscribe. */
-  on?(channel: 'extension:event' | 'extension:changed' | 'window:fullscreen', cb: (payload: unknown) => void): () => void
+  /** Push channels from the main process: 'extension:event', 'extension:changed', 'window:fullscreen' (boolean) and 'browser:open-tab' ({ url }). Returns an unsubscribe. */
+  on?(channel: 'extension:event' | 'extension:changed' | 'window:fullscreen' | 'browser:open-tab', cb: (payload: unknown) => void): () => void
   /** Set by the browser dev bridge (`npm run dev:browser`): HTTP to backends on this same PC. */
   devBridge?: boolean
   /**

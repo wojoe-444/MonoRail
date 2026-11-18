@@ -72,6 +72,7 @@ const SCOPES = Object.freeze({
   'modules/jira': 'profile', // Jira+'s legacy folder (read in place)
   'modules/mcp': 'profile', // per-agent consent and the activity log
   'modules/bookmarks': 'profile', // saved links and local paths
+  'modules/browser': 'profile', // Tools > Browser; keeps no files (sign-ins are in Electron's Partitions folder, per profile)
   'modules/notes': 'profile', // the Notes page's local git repo
   'modules/files': 'profile', // Files (file explorer); keeps no files, pins and tags are page prefs
   'modules/openmetadata': 'profile', // OpenMetadata server (settings in Connections); keeps no files

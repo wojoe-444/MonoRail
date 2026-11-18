@@ -747,7 +747,17 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Tracker, Calendar, Email, Bookmarks, Files, Notes and Flashcards behind one rail button.
+Tracker, Calendar, Email, Bookmarks, Browser, Files, Notes and Flashcards behind one rail button.
+**Browser** (`browser`, guide `docs/guide/workspace/browser.md`) is a tabbed
+`<webview>` browser with its own sign-ins per profile (`persist:browser`,
+`persist:browser-<id>`, in memory for New User; Electron's `Partitions`
+folder). Chrome's own cookies are never read (app-bound encryption; copying
+them would be cookie theft). `electron/browser-pane.cjs` sets every rule in
+`will-attach-webview` (forced partition, no preload, sandbox, http(s) only,
+plain Chrome user agent, only fullscreen/clipboard-write permissions); new
+tabs come over the `browser:open-tab` push channel, sized popups (sign-in
+flows) open as sandboxed windows in the same session. `clearData` is in
+`REMOTE_DENY`; the page only runs in the desktop window.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their
