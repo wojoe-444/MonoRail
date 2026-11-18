@@ -678,9 +678,10 @@ check's details, actions and running sign-ins.
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. They never expand inside
 the drawer: the item opens a panel just right of the drawer's edge (`NavFlyout`
-in `SideNav.tsx`, open drawer and icon rail alike) listing the item's own page
-first, then its subpages, the current one highlighted; the item shows the open
-subpage's name under its label, and the drawer stays open while the panel is.
+in `SideNav.tsx`) listing the item's own page first, then its subpages, the
+current one highlighted. The drawer is a permanent 72px icon rail: hovering
+or focusing an icon shows its name in a tooltip, and opening a subpage panel
+never changes the rail's width.
 
 ### Charts
 
@@ -1137,17 +1138,17 @@ numbers in JetBrains Mono Variable (`font-mono`). Use the primitives in
 - **8px grid.** Spacing values come from multiples of 8 (Tailwind `2`, `4`,
   `6`, `8`, ...). Page gutters 24px (32px on large screens), gaps between
   cards 24px, page sections 32px apart.
-- **App frame.** Permanent left drawer (256px, collapses to a 72px icon
-  rail) + a 64px top bar. The drawer header (brand tile, "MonoRail",
-  "Agent hub") is the same height as the top bar and has a bottom border;
-  the drawer footer shows the version and a desktop / browser badge.
+- **App frame.** Permanent 72px left icon rail + a 64px top bar. The rail's
+  brand tile header is the same height as the top bar and has a bottom border.
+  The rail stays narrow on hover, keyboard focus, and while a subpage panel
+  is open.
 - **Top bar.** Drawer toggle, a divider, a `Section > Page` breadcrumb, and
   on the right the full screen toggle (F11). Color scheme and light/dark mode
   are only in Settings > Appearance. Nothing else lives there unless it is
   page-wide status (the Bot Dashboard puts live pills there).
-- **Navigation.** Items grouped into sections with small uppercase overline
-  labels; 40px rows on soft pills (`bg-sidebar-accent`); the active item is
-  filled with `bg-sidebar-primary` and a soft colored shadow. Count badges
+- **Navigation.** Items grouped into sections with dividers and names shown
+  in tooltips on hover or focus; 40px rows on soft pills (`bg-sidebar-accent`);
+  the active item is filled with `bg-sidebar-primary` and a soft colored shadow. Count badges
   are amber. Every destination lives in `nav.ts`.
 - **Page structure.** Every page starts with `PageHeader`: overline
   (optional), 24px semibold title, one-line subtitle, actions aligned right.
