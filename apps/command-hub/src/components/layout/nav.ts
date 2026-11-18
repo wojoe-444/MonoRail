@@ -91,6 +91,8 @@ export function buildNavSections(list: ExtensionList): NavSection[] {
     if (m.nav.section === SETTINGS_SECTION) continue
     // The chat module is the Bots landing page, already represented above.
     if (m.id === 'agent-chat') continue
+    // Reached another way, e.g. Claude Stats as a tab of Bots > Dashboard.
+    if (m.nav.hidden) continue
     const item: NavItem = { path: m.path, label: m.title, icon: m.icon, badge: m.nav.badge }
     if (m.nav.section === '') {
       // Keep top-level modules after Home and before the optional Apps entry.
@@ -132,6 +134,8 @@ export function findNavItem(
 ): { item: NavItem; section: NavSection; parent?: NavItem } | undefined {
   // Keep older chat links working while highlighting the Bots landing page.
   if (path === '/agents/chat') path = '/agents'
+  // Dashboard tabs (src/pages/agents/DashboardLayout.tsx) all highlight Dashboard.
+  if (path.startsWith('/agents/dashboard/') || path === '/claude-stats') path = '/agents/dashboard'
   if (path === '/agents/catalog/subagents' || path === '/agents/pr-review') path = '/agents/catalog'
   for (const section of sections) {
     for (const item of section.items) {

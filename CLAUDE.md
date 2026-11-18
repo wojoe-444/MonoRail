@@ -191,7 +191,9 @@ the two extension push channels and `window:fullscreen`, and
 `toggleFullScreen()` / `isFullScreen()` (`electron/window-fullscreen.cjs`:
 F11 or the top-bar button toggles the window's full screen mode).
 
-`claude-stats` is the reference module: its backend runs the bundled
+`claude-stats` is the reference module (shown as the **Claude Stats** tab of
+Bots > Dashboard, `src/pages/agents/DashboardLayout.tsx`, not a drawer item:
+`nav.hidden`): its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
 `asarUnpack`) for Claude Code's daily API-equivalent cost, and
 `electron/modules/claude-stats-scan.cjs` reads the raw logs of every source
