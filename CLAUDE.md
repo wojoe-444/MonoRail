@@ -1118,42 +1118,68 @@ personal paths, names or test-user details.
 
 ## The MonoRail standard: entity types
 
-Every kind of thing MonoRail knows about (subagent, note, flashcard, database,
-table, ...) is an **entity type** in the MonoRail standard (wiki section
-`docs/standard/`, featured on the wiki home). For now the standard is
-[OpenMetadata v2.0.x](https://docs.open-metadata.org/v2.0.x/api-reference/data-assets)
-plus MonoRail's own types for things OpenMetadata has no word for. The one
-definition is `apps/command-hub/src/standard/standard.json` (categories,
-entity types, fields; OpenMetadata fields copied from the 2.0.8 JSON schemas),
-read through `src/standard/index.ts`. Rules (`docs/standard/README.md`):
+Every kind of thing MonoRail knows about (subagent, note, database, user,
+glossary term, ...) is an **entity type** in the MonoRail standard (wiki
+section `docs/standard/`, featured on the wiki home). The standard is **every
+entity type of [OpenMetadata 2.1](https://docs.open-metadata.org/v2.1.x-SNAPSHOT/api-reference)**
+(91, fields from the `2.1.0-rc2-release` JSON schemas) plus MonoRail's own
+types for things OpenMetadata has no word for (11: subagent, flow, note,
+bookmark, bookmarkFolder, scheduledTask, flashcardDeck, flashcard,
+semanticModel, semanticMetric, savedQuery). The one definition is
+`apps/command-hub/src/standard/standard.json` (sections > categories >
+entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
+`reference` and, for the 9 types new in 2.1, `since`), read through
+`src/standard/index.ts`. Rules (`docs/standard/README.md`):
 
-- An OpenMetadata entity is adopted whole: its type name (`databaseSchema`),
-  field names, types and meanings unchanged. Fields may stay unset, never be
-  renamed or repurposed; MonoRail's extra fields go in `extension`.
+- An OpenMetadata entity is adopted whole: its type name (`databaseSchema`,
+  `eventsubscription`, as OpenMetadata's `Entity.java` spells it), field
+  names, types and meanings unchanged. Fields may stay unset, never be
+  renamed or repurposed; MonoRail's extra fields go in `extension`. When
+  OpenMetadata adds a type for something MonoRail had, MonoRail moves to it:
+  prompt templates are OpenMetadata's `promptTemplate` since 2.1 (Explore
+  maps the stored template onto it in `promptTemplateRecord`; versions go in
+  `extension.versions`).
 - MonoRail's own types are camelCase and never reuse an OpenMetadata type name
-  (the MetricFlow metric is `semanticMetric`; a test lists the names).
+  (the MetricFlow metric is `semanticMetric`); the test checks against every
+  OpenMetadata type in the file plus OpenMetadata's non-entity record names.
+  `subagent` and `flow` stay MonoRail's: `aiApplication` is a running AI
+  system and `workflowDefinition` a governance workflow.
+- Entity types are OpenMetadata's: schemas whose top-level `javaInterfaces`
+  names an EntityInterface. Results, runs, feed threads and similar records
+  are not entity types.
 - **Every entity type is on Explore** (`src/modules/explore`): its tree is
-  built from the standard's categories and types, items are made with
-  `entry('<type>', ...)` (a test fails on a type not in the standard), and
-  field details show the standard's type and description with a link to the
-  type's wiki page. Types with no items still show, with 0.
-- Each type has a wiki page with a `<!-- standard:fields <type> -->` block.
-  The tables between `<!-- standard:... -->` and `<!-- /standard -->` are
-  generated: run `node scripts/standard-docs.cjs` from `apps/command-hub`
-  after changing `standard.json` (`electron/standard.test.cjs` fails when
-  stale).
-- Adopted so far: OpenMetadata's **Databases** category (databaseService,
-  database, databaseSchema, table, storedProcedure). Explore fills database,
-  schema and table from the semantic project's models (`relation`, from the
-  manifest's `node_relation`); there is no OpenMetadata or warehouse
-  connection yet. The wider goal is to bring the separate MonoRail-Metadata
-  app (a UI over headless OpenMetadata) into MonoRail, starting with Database.
+  sections (overline labels) > categories > types > items > fields, built from
+  the standard; items are made with `entry('<type>', ...)` (a test fails on a
+  type not in the standard), and field details show the standard's type and
+  description with a link to the type's wiki page. Types with no items still
+  show, with 0.
+- Each type has a wiki page with a `<!-- standard:fields <type> -->` block
+  (OpenMetadata types: `docs/standard/<category folder>/<kebab name>.md`,
+  data asset categories under `docs/standard/data-assets/`; MonoRail's in
+  `docs/standard/monorail/`). The tables between `<!-- standard:... -->` and
+  `<!-- /standard -->` are generated: run `node scripts/standard-docs.cjs`
+  from `apps/command-hub` after changing `standard.json`
+  (`electron/standard.test.cjs` fails when stale).
+- **New OpenMetadata version:** `node scripts/standard-openmetadata.cjs
+  <OpenMetadata checkout>` rewrites every OpenMetadata type's fields from its
+  schema (following `$ref`s for descriptions) and lists entity schemas the
+  standard lacks and entries whose schema is gone; then add new types by hand
+  (category, name, summary, REST path from the server's `@Path`, page, the
+  OpenMetadata page's lists) and bump `openMetadata.pinned`.
+- MonoRail fills one OpenMetadata category itself so far: Explore lists
+  database, schema and table from the semantic project's models (`relation`,
+  from the manifest's `node_relation`). The OpenMetadata page (below) shows
+  every type from the user's own server. The wider goal is to bring the
+  separate MonoRail-Metadata app (a UI over headless OpenMetadata) into
+  MonoRail, starting with Database.
 
 **OpenMetadata** (`openmetadata` module, right under Home and Explore,
 `nav: { section: '', order: 2 }`; guide `docs/guide/openmetadata.md`) is that
-app's UI side: every OpenMetadata 2.0.8 entity type (51, in OpenMetadata's
-groups, `src/modules/openmetadata/catalog.ts`) on one page, read live from the
-user's own OpenMetadata server. The type navigator has counts; the overview,
+app's UI side: every OpenMetadata 2.1 entity type that has a REST collection
+(90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
+rows take their wording from the standard) on one page, read live from the
+user's own OpenMetadata server (2.0 or 2.1; a type the server lacks answers
+404 and is greyed out). The type navigator has counts; the overview,
 one type's list (owners, tags, include deleted, load more) and one entity
 (owners, tier, tags, domains, Markdown description, every field, custom
 properties, columns or fields, references, versions, raw JSON) follow. Field
@@ -1163,8 +1189,8 @@ string). Connector `openmetadata` (`electron/connections/connectors/`): server
 (https, or http on localhost) plus a bot token, or an email and password
 exchanged at `POST /api/v1/users/login` (password base64); opt-in like every
 connector. Backend `electron/modules/openmetadata.cjs`: the page sends an
-entity type, never a path; `TYPES` maps types to REST collections (a test
-checks it matches `catalog.ts`), ids must be UUIDs, list and get fall back from
+entity type, never a path; `TYPES` maps types to REST collections (tests
+check it matches `catalog.ts` and the standard's `basePath`s), ids must be UUIDs, list and get fall back from
 `fields=owners,tags` / `*` when OpenMetadata answers 400 and remember the
 refusal. The only write is `setDescription` (one JSON Patch op on
 `/description`). Keeps no files. The browser dev server uses the fictional

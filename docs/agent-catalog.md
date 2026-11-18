@@ -93,4 +93,4 @@ The settings and recent run metadata live in the active profile under
 `modules/pr-review`; the generated review is posted to GitHub. The patch and
 guidance are sent to OpenAI, where API usage charges apply.
 
-In the [MonoRail standard](standard/README.md), subagents and prompt templates are the [Subagent](standard/agents.md#subagent) and [Prompt template](standard/agents.md#prompt-template) entity types.
+In the [MonoRail standard](standard/README.md), subagents are the [Subagent](standard/monorail/agents.md#subagent) entity type, and prompt templates are OpenMetadata's [Prompt Template](standard/data-assets/ai/prompt-template.md).

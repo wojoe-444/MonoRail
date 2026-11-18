@@ -6,8 +6,8 @@
 //
 //   <!-- standard:fields database -->      the field table of one entity type
 //   <!-- standard:entities databases -->   the entity types of one category
-//   <!-- standard:categories -->           every category
-//   <!-- standard:by-reference -->         OpenMetadata data assets not adopted yet
+//   <!-- standard:categories -->           every category, by section
+//   <!-- standard:categories data-assets --> the categories of one section
 //   ...generated...
 //   <!-- /standard -->
 //
@@ -18,11 +18,11 @@ const path = require('node:path')
 
 const STANDARD = require('../src/standard/standard.json')
 const DOCS = path.join(__dirname, '..', '..', '..', 'docs')
-const BLOCK = /(<!-- standard:([a-z-]+)(?: ([A-Za-z]+))? -->\n)[\s\S]*?(<!-- \/standard -->)/g
+const BLOCK = /(<!-- standard:([a-z-]+)(?: ([A-Za-z-]+))? -->\n)[\s\S]*?(<!-- \/standard -->)/g
 
 const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
 
-/** Link from one doc to another doc id ("standard/agents#flow"), relative like every link in docs/. */
+/** Link from one doc to another doc id ("standard/monorail/agents#flow"), relative like every link in docs/. */
 function linkTo(fromFile, docId) {
   const [id, anchor] = docId.split('#')
   const rel = path.relative(path.dirname(fromFile), path.join(DOCS, `${id}.md`)).replace(/\\/g, '/')
@@ -42,24 +42,26 @@ function entityTable(file, category) {
   const om = entities[0].origin === 'openmetadata'
   const rows = entities.map((e) =>
     om
-      ? `| [${e.name}](${linkTo(file, e.docs)}) | \`${e.type}\` | ${cell(e.summary)} | \`${e.basePath}\` |`
+      ? `| [${e.name}](${linkTo(file, e.docs)}) | \`${e.type}\` | ${cell(e.summary)} | ${e.basePath ? `\`${e.basePath}\`` : 'none of its own'} |`
       : `| [${e.name}](${linkTo(file, e.docs)}) | \`${e.type}\` | ${cell(e.summary)} | ${cell(e.source)} |`,
   )
   return [`| Entity | Type | What it is | ${om ? 'Base path' : 'In MonoRail'} |`, '| --- | --- | --- | --- |', ...rows].join('\n')
 }
 
-function categoryTable(file) {
-  const rows = STANDARD.categories.map((c) => {
+/** The categories of one section, or of every section (then with a Section column). */
+function categoryTable(file, section) {
+  const sectionName = (id) => STANDARD.sections.find((s) => s.id === id)?.name ?? id
+  if (section && !STANDARD.sections.some((s) => s.id === section)) throw new Error(`No section "${section}" in standard.json`)
+  const rows = STANDARD.categories.filter((c) => !section || c.section === section).map((c) => {
     const names = STANDARD.entities.filter((e) => e.category === c.id).map((e) => e.name).join(', ')
     const origin = c.origin === 'openmetadata' ? `OpenMetadata ${STANDARD.openMetadata.version}` : 'MonoRail'
-    return `| [${c.name}](${linkTo(file, c.docs)}) | ${cell(c.summary)} | ${cell(names)} | ${origin} |`
+    return section
+      ? `| [${c.name}](${linkTo(file, c.docs)}) | ${cell(c.summary)} | ${cell(names)} |`
+      : `| ${sectionName(c.section)} | [${c.name}](${linkTo(file, c.docs)}) | ${cell(c.summary)} | ${cell(names)} | ${origin} |`
   })
-  return ['| Category | What it covers | Entity types | Defined by |', '| --- | --- | --- | --- |', ...rows].join('\n')
-}
-
-function byReferenceTable() {
-  const rows = STANDARD.byReference.map((r) => `| [${r.name}](${r.reference}) | ${cell(r.summary)} |`)
-  return ['| Category | What it covers |', '| --- | --- |', ...rows].join('\n')
+  return section
+    ? ['| Category | What it covers | Entity types |', '| --- | --- | --- |', ...rows].join('\n')
+    : ['| Section | Category | What it covers | Entity types | Defined by |', '| --- | --- | --- | --- | --- |', ...rows].join('\n')
 }
 
 function render(file, text) {
@@ -67,8 +69,7 @@ function render(file, text) {
     const body =
       kind === 'fields' ? fieldTable(arg)
       : kind === 'entities' ? entityTable(file, arg)
-      : kind === 'categories' ? categoryTable(file)
-      : kind === 'by-reference' ? byReferenceTable()
+      : kind === 'categories' ? categoryTable(file, arg)
       : null
     if (body == null) throw new Error(`${path.relative(DOCS, file)}: unknown block "standard:${kind}"`)
     return `${open}\n${body}\n\n${close}`

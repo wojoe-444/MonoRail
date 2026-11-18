@@ -1,12 +1,13 @@
 /**
  * The MonoRail standard: every entity type MonoRail knows, with its fields.
- * It is OpenMetadata v2.0.x (fields copied from 2.0.8) plus entity types of
+ * It is every entity type of OpenMetadata 2.1 (fields copied from the
+ * 2.1.0-rc2 schemas by scripts/standard-openmetadata.cjs) plus entity types of
  * MonoRail's own for things OpenMetadata has no word for. The one definition
  * is standard.json next to this file; docs/standard/ explains it, and its
  * field tables are generated from the same file (scripts/standard-docs.cjs).
  *
- * Explore builds its tree from CATEGORIES and ENTITY_TYPES, so every entity
- * type here is listed there.
+ * Explore builds its tree from SECTIONS, CATEGORIES and ENTITY_TYPES, so every
+ * entity type here is listed there.
  */
 import data from './standard.json'
 
@@ -20,12 +21,19 @@ export interface StandardField {
   description: string
 }
 
+/** A group of categories: MonoRail, Data assets, Governance, ... */
+export interface StandardSection {
+  id: string
+  name: string
+}
+
 export interface StandardCategory {
   id: string
   name: string
+  section: string
   origin: Origin
   summary: string
-  /** Wiki page id under docs/, e.g. `standard/agents`. */
+  /** Wiki page id under docs/, e.g. `standard/monorail/agents`. */
   docs: string
   /** OpenMetadata's page for an adopted category. */
   reference?: string
@@ -39,26 +47,31 @@ export interface EntityType {
   category: string
   origin: Origin
   summary: string
-  /** Wiki page id, optionally with an anchor: `standard/agents#flow`. */
+  /** Wiki page id, optionally with an anchor: `standard/monorail/agents#flow`. */
   docs: string
   /** Where MonoRail keeps it (MonoRail's own types). */
   source?: string
   /** OpenMetadata's REST path (adopted types). */
   basePath?: string
-  /** OpenMetadata's page (adopted types). */
+  /** OpenMetadata's page, or its schema on GitHub (adopted types). */
   reference?: string
+  /** Its JSON schema file under OpenMetadata's json/schema folder (adopted types). */
+  schema?: string
+  /** The OpenMetadata version that added it, when that is newer than 2.0 (an older server lacks it). */
+  since?: string
   fields: StandardField[]
 }
 
 interface Standard {
   version: number
   openMetadata: { version: string; pinned: string; docs: string }
+  sections: StandardSection[]
   categories: StandardCategory[]
-  byReference: { name: string; summary: string; reference: string }[]
   entities: EntityType[]
 }
 
 export const STANDARD = data as Standard
+export const SECTIONS: StandardSection[] = STANDARD.sections
 export const CATEGORIES: StandardCategory[] = STANDARD.categories
 export const ENTITY_TYPES: EntityType[] = STANDARD.entities
 
@@ -71,6 +84,10 @@ export function entityType(type: string): EntityType | undefined {
 
 export function category(id: string): StandardCategory | undefined {
   return byCategory.get(id)
+}
+
+export function categoriesIn(sectionId: string): StandardCategory[] {
+  return CATEGORIES.filter((c) => c.section === sectionId)
 }
 
 export function entityTypesIn(categoryId: string): EntityType[] {

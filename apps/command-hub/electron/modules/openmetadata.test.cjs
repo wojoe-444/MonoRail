@@ -31,7 +31,7 @@ const service = (fetch, { setUp = true, creds = TOKEN_CREDS } = {}) =>
 describe('OpenMetadata backend', () => {
   test('the page and the backend name the same entity types', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'modules', 'openmetadata', 'catalog.ts'), 'utf8')
-    const page = [...src.matchAll(/\bt\('(\w+)'/g)].map((m) => m[1]).sort()
+    const page = [...src.matchAll(/\b(?:t|std)\('(\w+)'/g)].map((m) => m[1]).sort()
     assert.deepEqual(page, Object.keys(om.TYPES).sort())
   })
 

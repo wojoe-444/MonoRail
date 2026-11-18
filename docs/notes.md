@@ -68,4 +68,4 @@ into `<backup folder>\notes\`. Restore with `git clone "<file>" repo`. See
 - GitHub+ listing: `SOURCES` in `electron/apps/github-plus/linked.cjs`.
 - Backups: `notes` in `electron/backups/global.cjs` and `service.cjs`.
 
-In the [MonoRail standard](standard/README.md), a note is the [Note](standard/workspace.md#note) entity type.
+In the [MonoRail standard](standard/README.md), a note is the [Note](standard/monorail/workspace.md#note) entity type.

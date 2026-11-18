@@ -15,10 +15,12 @@
 const connector = require('../connections/connectors/openmetadata.cjs')
 
 /**
- * Every OpenMetadata 2.0.8 entity type and its REST collection under /api/v1
- * (paths from OpenMetadata's own UI client, openmetadata-ui/src/rest/*.ts on
- * the 2.0.8-release branch). The page's src/modules/openmetadata/catalog.ts
- * lists the same types; a test checks they match.
+ * Every OpenMetadata 2.1 entity type that has a REST collection, and that
+ * collection under /api/v1. They are the MonoRail standard's OpenMetadata
+ * types (src/standard/standard.json, `basePath` without /v1/): a test checks
+ * this list names every one with the same path, and the page's
+ * src/modules/openmetadata/catalog.ts lists the same types. A server older
+ * than a type answers 404 for it, and the page shows the type greyed out.
  */
 const TYPES = Object.freeze({
   // Data assets
@@ -42,6 +44,17 @@ const TYPES = Object.freeze({
   file: 'drives/files',
   spreadsheet: 'drives/spreadsheets',
   worksheet: 'drives/worksheets',
+  report: 'reports',
+  metricGroup: 'metricGroups',
+  // AI assets
+  llmModel: 'llmModels',
+  aiApplication: 'aiApplications',
+  mcpServer: 'mcpServers',
+  promptTemplate: 'promptTemplates',
+  aiGovernanceFramework: 'aiGovernanceFrameworks',
+  aiFrameworkControl: 'aiFrameworkControls',
+  aiGovernancePolicy: 'aiGovernancePolicies',
+  auditReport: 'auditReports',
   // Services
   databaseService: 'services/databaseServices',
   dashboardService: 'services/dashboardServices',
@@ -54,6 +67,8 @@ const TYPES = Object.freeze({
   metadataService: 'services/metadataServices',
   securityService: 'services/securityServices',
   driveService: 'services/driveServices',
+  llmService: 'services/llmServices',
+  mcpService: 'services/mcpServices',
   ingestionPipeline: 'services/ingestionPipelines',
   // Governance
   glossary: 'glossaries',
@@ -63,21 +78,50 @@ const TYPES = Object.freeze({
   domain: 'domains',
   dataProduct: 'dataProducts',
   dataContract: 'dataContracts',
+  workflowDefinition: 'governance/workflowDefinitions',
+  intakeForm: 'governance/intakeForms',
+  // Ontology
+  ontology: 'ontologies',
+  ontologyConcept: 'ontologyConcepts',
+  ontologyProperty: 'ontologyProperties',
+  ontologyAxiom: 'ontologyAxioms',
+  ontologyChangeSet: 'ontologyChangeSets',
+  ontologyRelease: 'ontologyReleases',
+  relationshipType: 'relationshipTypes',
   // Data quality
   testDefinition: 'dataQuality/testDefinitions',
   testSuite: 'dataQuality/testSuites',
   testCase: 'dataQuality/testCases',
+  dataQualityDimension: 'dataQuality/dimensions',
   // Teams and access
   user: 'users',
   team: 'teams',
   role: 'roles',
   policy: 'policies',
   persona: 'personas',
+  bot: 'bots',
+  // Collaboration and context
+  task: 'tasks',
+  taskFormSchema: 'taskFormSchemas',
+  announcement: 'announcements',
+  page: 'contextCenter/pages',
+  learningResource: 'learning/resources',
+  folder: 'contextCenter/drive/folders',
+  contextFile: 'contextCenter/drive/files',
+  contextMemory: 'contextCenter/memories',
   // Platform
   eventsubscription: 'events/subscriptions',
   app: 'apps',
   kpi: 'kpi',
   type: 'metadata/types',
+  workflow: 'automations/workflows',
+  appMarketPlaceDefinition: 'apps/marketplace',
+  notificationTemplate: 'notificationTemplates',
+  testConnectionDefinition: 'services/testConnectionDefinitions',
+  document: 'docStore',
+  dataInsightChart: 'analytics/dataInsights/charts',
+  dataInsightCustomChart: 'analytics/dataInsights/system/charts',
+  webAnalyticEvent: 'analytics/web/events',
 })
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

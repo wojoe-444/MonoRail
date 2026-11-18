@@ -73,8 +73,12 @@ const ORDER: Record<string, string[]> = {
   'guide/agents': ['chat', 'create-an-agent', 'coordinator', 'flows', 'spend', 'agent-access'],
   'guide/workspace': ['browse-repos', 'local-issues', 'tasks', 'email'],
   'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'extensions', 'spending-limit', 'remote-access', 'developer-mode', 'docker', 'semantic'],
-  standard: ['databases', 'agents', 'workspace', 'learning', 'semantic'],
-  'standard/databases': ['database-service', 'database', 'database-schema', 'table', 'stored-procedure'],
+  standard: ['monorail', 'data-assets', 'governance', 'data-contracts', 'ontology', 'teams-and-users', 'data-quality', 'insights', 'collaboration', 'context-center', 'platform'],
+  'standard/monorail': ['agents', 'workspace', 'learning', 'semantic'],
+  'standard/data-assets': ['databases', 'messaging', 'dashboards', 'pipelines', 'ml-models', 'storage', 'search', 'apis', 'drives', 'metrics', 'ai'],
+  'standard/data-assets/databases': ['database-service', 'database', 'database-schema', 'table', 'stored-procedure', 'query'],
+  'standard/governance': ['domain', 'data-product', 'glossary', 'glossary-term', 'classification', 'tag', 'workflow-definition', 'intake-form'],
+  'standard/teams-and-users': ['user', 'team', 'role', 'persona', 'policy', 'bot'],
   extensions: ['concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'non-node-runtimes', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
 }
 

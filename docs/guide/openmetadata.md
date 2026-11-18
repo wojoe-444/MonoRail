@@ -17,7 +17,7 @@ on [Connections](setup/connections.md).
 
 ## Set it up
 
-1. Have an OpenMetadata 2.0 server running. On your own computer that is
+1. Have an OpenMetadata 2.0 or 2.1 server running. On your own computer that is
    usually OpenMetadata's Docker setup, at `http://localhost:8585`.
 2. In OpenMetadata, open **Settings > Bots**, pick a bot (or make one) and
    copy its token.
@@ -32,10 +32,11 @@ A server on another computer must use https.
 ## Find your way around
 
 The list on the left has every kind of [entity](glossary.md#entity)
-OpenMetadata has, in its groups (data assets, services, governance, data
-quality, teams and access, platform), with how many your server holds. Kinds
-with none are greyed out but still there, so you can see what OpenMetadata
-could hold.
+OpenMetadata has, in its groups (data assets, AI assets, services,
+governance, ontology, data quality, teams and access, collaboration and
+context, platform), with how many your server holds. Kinds with none are
+greyed out but still there, so you can see what OpenMetadata could hold. A
+server older than 2.1 has no ontology kinds, so those stay greyed out.
 
 - **Overview** shows the totals, which server you are connected to, and what
   changed most recently.
@@ -64,5 +65,6 @@ open. It keeps nothing on your computer. See
 ## Related
 
 - [Explore](explore.md) lists what MonoRail itself knows, sorted the same way.
-- [Databases in the standard](../standard/databases/README.md) explains the
-  database kinds.
+- [The MonoRail standard](../standard/README.md) explains every kind, with all
+  its fields; [Databases](../standard/data-assets/databases/README.md) is the
+  one MonoRail fills itself too.

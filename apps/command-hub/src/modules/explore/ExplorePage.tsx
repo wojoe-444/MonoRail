@@ -16,10 +16,29 @@ import { sampleProject } from '@/modules/semantic/sample'
 import type { SemanticProject } from '@/modules/semantic/types'
 import type { NoteList } from '@/modules/notes/types'
 import type { DeckList, CardList } from '@/modules/flashcards/types'
-import { CATEGORIES, STANDARD, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
+import { SECTIONS, STANDARD, categoriesIn, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
 
 type Bookmark = { id: string; name: string; description: string; target: string; kind?: 'folder' | 'bookmark'; parentId?: string | null; color?: string }
 type Prompt = { id: string; versions: { version: number; name: string; text: string; savedAt: string }[] }
+
+/**
+ * A MonoRail prompt template in the shape of OpenMetadata's promptTemplate
+ * (MonoRail adopted that type in 2.1, see docs/standard/data-assets/ai/prompt-template.md).
+ * The newest version is the template; every version's number, name and time go
+ * in `extension`, OpenMetadata's place for fields of MonoRail's own.
+ */
+function promptTemplateRecord(p: Prompt) {
+  const last = p.versions.at(-1)
+  const name = last?.name || 'Untitled prompt'
+  const savedAt = last ? Date.parse(last.savedAt) : NaN
+  return {
+    id: p.id, name, displayName: name, fullyQualifiedName: name,
+    templateContent: last?.text ?? '',
+    templateVersion: last ? String(last.version) : undefined,
+    updatedAt: Number.isFinite(savedAt) ? savedAt : undefined,
+    extension: { versions: p.versions.map((v) => ({ version: v.version, name: v.name, savedAt: v.savedAt })) },
+  }
+}
 type ScheduledTask = { name: string; path: string; description: string; command: string; schedule: string; state: string; lastRun: string | null; nextRun: string | null; result: number | null; writable: boolean }
 
 /** One item of one entity type in the MonoRail standard (src/standard), with its fields flattened. */
@@ -136,7 +155,7 @@ export default function ExplorePage() {
   const entries = useMemo(() => [
     ...(catalog.data?.subagents ?? []).map((s) => entry('subagent', s.name, s, s.description)),
     ...(flows?.flows ?? []).map((f) => entry('flow', f.name, f, f.description)),
-    ...prompts.map((p) => entry('promptTemplate', p.versions.at(-1)?.name || 'Untitled prompt', p)),
+    ...prompts.map((p) => { const rec = promptTemplateRecord(p); return entry('promptTemplate', rec.name, rec) }),
     ...(notes?.notes ?? []).map((n) => entry('note', n.title, n, n.excerpt)),
     ...bookmarks.map((b) => entry(b.kind === 'folder' ? 'bookmarkFolder' : 'bookmark', b.name, b, b.description)),
     ...tasks.map((t) => entry('scheduledTask', t.name, t, t.description)),
@@ -174,23 +193,26 @@ export default function ExplorePage() {
 
   return <div className="flex flex-col gap-6">
     <PageHeader title="Explore" description="Browse everything MonoRail knows, sorted by the MonoRail standard." actions={<Button variant="outline" onClick={() => { setPath([]); setExpanded([]); setSelected(''); setPage(0); setRevision((n) => n + 1); void catalog.refresh() }}><RefreshCw /> Refresh</Button>} />
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"><Search className="size-4 text-muted-foreground" /><Input className="min-w-48 flex-1" placeholder="Search names, fields and values" aria-label="Search catalog" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} /><select aria-label="Filter by category" className="rounded-md border bg-background px-3 py-2 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPath([]); setPage(0) }}><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><Button variant="ghost" onClick={() => { setQuery(''); setScope(''); setPath([]); setPage(0) }}>Clear filters</Button></div>
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"><Search className="size-4 text-muted-foreground" /><Input className="min-w-48 flex-1" placeholder="Search names, fields and values" aria-label="Search catalog" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} /><select aria-label="Filter by category" className="rounded-md border bg-background px-3 py-2 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPath([]); setPage(0) }}><option value="">All categories</option>{SECTIONS.map((s) => <optgroup key={s.id} label={s.name}>{categoriesIn(s.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}</select><Button variant="ghost" onClick={() => { setQuery(''); setScope(''); setPath([]); setPage(0) }}>Clear filters</Button></div>
     {(errors.length > 0 || catalog.error || cards.some((c) => c.truncated) || catalog.data?.truncated) && <div role="alert" className="rounded-lg bg-warning-soft p-4 text-sm text-warning-soft-foreground">{[...errors, ...(catalog.error ? [`Agents: ${catalog.error.message}`] : []), ...(cards.some((c) => c.truncated) ? ['Some decks have more than 2,000 cards; only the first 2,000 per deck are shown.'] : []), ...(catalog.data?.truncated ? ['The subagent list is truncated.'] : [])].join(' ')}</div>}
     <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
       <section className="rounded-xl border bg-card p-4" aria-label="Browse estate">
         <div className="mb-1 flex items-center gap-2 font-semibold"><Compass className="size-4 text-primary" /> Browse estate</div>
         <p className="mb-4 text-xs text-muted-foreground">Categories and entity types of the MonoRail standard</p>
         <button className="mb-2 text-sm text-primary" onClick={() => choose([])}>All fields ({fields.length})</button>
-        {CATEGORIES.map((c) => node(c.name, [c.id], entries.filter((e) => e.category === c.id).length,
-          () => entityTypesIn(c.id).map((t) => {
-            const items = entries.filter((e) => e.type === t.type)
-            return node(t.plural, [c.id, t.type], items.length, () => items.map((e) =>
-              node(e.name, [c.id, t.type, String(entries.indexOf(e))], Object.keys(e.fields).length,
-                () => Object.keys(e.fields).map((f) => node(f, [c.id, t.type, String(entries.indexOf(e)), f], 1)))
-            ))
-          })
-        ))}
-        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: OpenMetadata {STANDARD.openMetadata.version} plus MonoRail&apos;s own entity types. Databases are the tables your semantic project&apos;s models read. Other MonoRail data is not yet indexed.</p>
+        {SECTIONS.map((s) => <div key={s.id} role="group" aria-label={s.name}>
+          <div className="mt-3 mb-1 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{s.name}</div>
+          {categoriesIn(s.id).map((c) => node(c.name, [c.id], entries.filter((e) => e.category === c.id).length,
+            () => entityTypesIn(c.id).map((t) => {
+              const items = entries.filter((e) => e.type === t.type)
+              return node(t.plural, [c.id, t.type], items.length, () => items.map((e) =>
+                node(e.name, [c.id, t.type, String(entries.indexOf(e))], Object.keys(e.fields).length,
+                  () => Object.keys(e.fields).map((f) => node(f, [c.id, t.type, String(entries.indexOf(e)), f], 1)))
+              ))
+            })
+          ))}
+        </div>)}
+        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: every OpenMetadata {STANDARD.openMetadata.version} entity type plus MonoRail&apos;s own. Databases are the tables your semantic project&apos;s models read; prompt templates are listed under AI assets. Your OpenMetadata server&apos;s own entities are on the OpenMetadata page. Other MonoRail data is not yet indexed.</p>
         <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => openWiki('standard/README')}>Read the standard</Button>
         {project?.block && <p className="mt-2 text-xs text-muted-foreground">Semantic project unavailable: {project.block}. Set it up on Connections.</p>}
       </section>
