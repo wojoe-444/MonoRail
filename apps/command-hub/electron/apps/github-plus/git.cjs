@@ -466,6 +466,44 @@ async function recentActivity(repo, { commits = 10, branches = 6 } = {}) {
 }
 
 /**
+ * Uncommitted work and sync state, for the Home table and the repo status
+ * strip. One `git status` (it reads the working tree, so the answer is never
+ * cached) plus, with `withBase` on a branch other than main/master, a
+ * for-each-ref and a rev-list against that branch. Read-only: status runs with
+ * GIT_OPTIONAL_LOCKS=0, so it never refreshes the index.
+ */
+async function workingState(repo, { withBase = false } = {}) {
+  const out = await text(repo, ['status', '--porcelain=v2', '--branch', '--untracked-files=normal', '--ignore-submodules=all'])
+  let branch = null
+  let upstream = null
+  let ahead = null
+  let behind = null
+  let changed = 0
+  let untracked = 0
+  for (const line of out.split('\n')) {
+    if (line.startsWith('# branch.head ')) {
+      const b = line.slice(14).trim()
+      branch = b === '(detached)' ? null : b
+    } else if (line.startsWith('# branch.upstream ')) upstream = line.slice(18).trim()
+    else if (line.startsWith('# branch.ab ')) {
+      const m = /\+(\d+) -(\d+)/.exec(line)
+      if (m) [ahead, behind] = [Number(m[1]), Number(m[2])]
+    } else if (line.startsWith('? ')) untracked++
+    else if (/^[12u] /.test(line)) changed++
+  }
+  let base = null
+  if (withBase && branch && branch !== 'main' && branch !== 'master') {
+    const heads = (await text(repo, ['for-each-ref', '--format=%(refname:short)', 'refs/heads/main', 'refs/heads/master'])).split('\n').filter(Boolean)
+    const name = heads.includes('main') ? 'main' : heads[0]
+    if (name) {
+      const [b, a] = (await text(repo, ['rev-list', '--left-right', '--count', `refs/heads/${name}...HEAD`, '--'])).trim().split(/\s+/).map(Number)
+      if (Number.isFinite(a) && Number.isFinite(b)) base = { name, ahead: a, behind: b }
+    }
+  }
+  return { branch, upstream, ahead, behind, changed, untracked, base }
+}
+
+/**
  * One line per ref (branches, tags, remotes, refs/local-issues) with its
  * commit, and a * on the checked-out branch: changes whenever anything a
  * dashboard summary shows could have changed.
@@ -486,6 +524,7 @@ module.exports = {
   _useRevListDivergence: () => { aheadBehindAtom = false },
   createBundle,
   recentActivity,
+  workingState,
   refsFingerprint,
   assertRef,
   assertPath,

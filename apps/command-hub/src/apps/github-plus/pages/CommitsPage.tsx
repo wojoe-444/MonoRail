@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import type { CommitSummary } from '../types'
 import { useRepo } from '../RepoContext'
-import RefSelector from '../components/RefSelector'
 import CommitList from '../components/CommitList'
-import { commitsLink } from '../links'
 import { api } from '../api'
 
 const PAGE = 30
 
 export default function CommitsPage() {
   const { repo } = useRepo()
-  const nav = useNavigate()
   const [sp] = useSearchParams()
   const ref = sp.get('ref') || repo!.defaultRef || 'HEAD'
   const path = sp.get('path') || undefined
@@ -35,7 +32,6 @@ export default function CommitsPage() {
   return (
     <div>
       <div className="toolbar">
-        <RefSelector value={ref} onChange={(r) => nav(commitsLink(r, path))} />
         {path && <span className="muted">History for <strong className="mono">{path}</strong></span>}
         <span className="spacer" />
         <form onSubmit={(e) => { e.preventDefault(); setApplied(search) }}>

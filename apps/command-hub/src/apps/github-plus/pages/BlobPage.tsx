@@ -1,19 +1,18 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
-import RefSelector from '../components/RefSelector'
 import Breadcrumb from '../components/Breadcrumb'
+import FileTree from '../components/FileTree'
 import CodeView from '../components/CodeView'
 import Markdown from '../components/Markdown'
 import { Avatar } from '../components/CommitList'
 import { CopyIcon, HistoryIcon } from '../components/Icons'
-import { blobLink, commitLink, commitsLink } from '../links'
+import { commitLink, commitsLink } from '../links'
 import { basename, dirname, formatSize, timeAgo } from '../util'
 import { api } from '../api'
 
 export default function BlobPage() {
   const { repo } = useRepo()
-  const nav = useNavigate()
   const [sp] = useSearchParams()
   const ref = sp.get('ref') || repo!.defaultRef || 'HEAD'
   const path = sp.get('path') || ''
@@ -29,9 +28,10 @@ export default function BlobPage() {
   const lines = b?.kind === 'text' ? b.content.split('\n').length - (b.content.endsWith('\n') ? 1 : 0) : 0
 
   return (
-    <div>
+    <div className="ghp-code">
+      <FileTree refName={ref} current={path} isFile />
+      <div className="min-w-0">
       <div className="toolbar">
-        <RefSelector value={ref} onChange={(r) => nav(blobLink(r, path))} />
         <Breadcrumb refName={ref} path={path} isFile />
       </div>
       {blob.error && <div className="flash error">{blob.error}</div>}
@@ -73,6 +73,7 @@ export default function BlobPage() {
         {b?.kind === 'image' && <div className="pad center"><img className="preview" src={b.dataUrl} alt={basename(path)} /></div>}
         {b?.kind === 'binary' && <div className="pad center muted">Binary file ({formatSize(b.size)}) — not shown</div>}
         {b?.kind === 'toolarge' && <div className="pad center muted">File is too large to display ({formatSize(b.size)})</div>}
+      </div>
       </div>
     </div>
   )

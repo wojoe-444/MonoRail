@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { LinkCounts, LinkedTask, GitHubRepos, GitHubTarget, BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry } from './types'
+import type { LinkCounts, LinkedTask, GitHubRepos, GitHubTarget, BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry, WorkingState } from './types'
 
 /**
  * Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call
@@ -23,6 +23,10 @@ export interface RepoApi {
   getLinked(): Promise<LinkedRepo[]>
   /** Home dashboard: activity across the recently opened repos and the linked ones. */
   getActivity(): Promise<RepoActivity[]>
+  /** Uncommitted work and unpushed commits per Home repo, by path (null: could not be read). */
+  getWorkingStates(): Promise<Record<string, WorkingState | null>>
+  /** The open repo's working state, with ahead/behind against main/master. */
+  workingState(repo: string): Promise<WorkingState>
   removeRecent(path: string): Promise<string[]>
   /** Show the repo's folder in File Explorer (an opened or recent repo only). */
   openInExplorer(path: string): Promise<null>
@@ -97,6 +101,8 @@ const desktopApi: RepoApi = {
   getRecents: () => call('getRecents'),
   getLinked: () => call('getLinked'),
   getActivity: () => call('getActivity'),
+  getWorkingStates: () => call('getWorkingStates'),
+  workingState: (repo) => call('workingState', { repo }),
   removeRecent: (path) => call('removeRecent', { path }),
   openInExplorer: (path) => call('openInExplorer', { path }),
   listRefs: (repo) => call('listRefs', { repo }),

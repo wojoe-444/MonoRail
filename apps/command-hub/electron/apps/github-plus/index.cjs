@@ -203,6 +203,19 @@ module.exports = {
         }),
       )
     },
+    /**
+     * Uncommitted work and unpushed commits per Home repo, by path: a second
+     * call so the Home tables show first. Like getActivity it reads only the
+     * stored recents and linked paths; a repo that cannot be read maps to null.
+     */
+    async getWorkingStates(ctx) {
+      const [recents, linked] = await Promise.all([readRecents(ctx), linkedRepos(ctx.dataDir)])
+      const paths = mergeRecents(recents, linked)
+      const states = await Promise.all(paths.map((p) => git.workingState(p).catch(() => null)))
+      return Object.fromEntries(paths.map((p, i) => [p, states[i]]))
+    },
+    /** The repo page's status strip: working state plus ahead/behind against main/master. */
+    workingState: (_ctx, { repo } = {}) => git.workingState(guard(repo), { withBase: true }),
     /** Repos the user opened, most recent first (the first one is reopened when GitHub+ starts). */
     async getRecents(ctx) {
       return readRecents(ctx)

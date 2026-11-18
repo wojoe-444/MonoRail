@@ -749,6 +749,19 @@ network requests of its own (remote images in READMEs are blocked and external
 links do nothing) except through the GitHub connection below. Tests live in
 `git.test.cjs`.
 
+**Look**: GitHub+ is drawn like a native hub page (like Tasks). Its `--gh-*`
+variables in `styles.css` map onto the hub tokens (prefixed so they never
+shadow the tokens shadcn components use), and the whole file sits in
+`@layer components`. Home (`pages/Welcome.tsx`) is a page header, a view
+switcher (Overview / Repositories / Activity / Issues / Backups, `?view=`), a
+status strip of counts (no KPI tiles) and dense tables (`.ghp-table`);
+the repo frame (`RepoLayout.tsx`) has the same header, the tabs as a
+segmented control, the branch picker for ref-following pages and a status
+strip. Code and file pages show a lazy file tree (`components/FileTree.tsx`,
+listings memoized in memory by commit); the folder listing and README cards
+collapse, remembered per person with `prefs`
+(`commandHub.githubPlus.collapsed.*`).
+
 **GitHub repos and GitHub issues** (`github.cjs`, tests `github.test.cjs`):
 once the user has added the GitHub connection on Connections (never before;
 until then the page shows a "Set up GitHub" hint and nothing runs), Home lists
@@ -778,6 +791,11 @@ as it can and `git.cjs` runs at most 6 at a time. A folder lists in one
 `git log --name-only` walk that stops when every entry is found). Ahead/behind
 is `branchDivergence`, asked for only by the Branches page (one
 `for-each-ref %(ahead-behind:)` on git 2.41+, else one `rev-list` per branch).
+Uncommitted files and unpushed commits are `workingState` (one read-only
+`git status --porcelain=v2 --branch`, never cached since it reads the working
+tree): Home asks for all of its repos in a second call (`getWorkingStates`,
+stored recents and linked paths only) so its tables paint first, and the repo
+status strip adds ahead/behind against main/master (`workingState`).
 Answers keyed by a commit sha (last commits, commit counts, ahead/behind,
 parsed issues) are memoized in memory; Home reuses a repo's summary while
 `refsFingerprint` is unchanged. Nothing of it is written to disk.
