@@ -87,14 +87,14 @@ function Shell() {
         }
         actions={
           <>
-            <form onSubmit={search} className="relative" role="search">
+            <form onSubmit={search} className="relative max-w-full" role="search">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 aria-label="Search tasks or jump to a task key"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search or jump to a key"
-                className="h-9 w-64 rounded-lg border bg-card pr-3 pl-9 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="h-9 w-64 max-w-full rounded-lg border bg-card pr-3 pl-9 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
               />
             </form>
             <Button variant="outline" onClick={() => openDialog('connect')}>
