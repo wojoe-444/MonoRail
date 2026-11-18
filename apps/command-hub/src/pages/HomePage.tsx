@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 
 import { Sparkline } from '@/components/charts/Sparkline'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +20,8 @@ import { sampleActivity, sampleAgents, type AgentStatus } from '@/data/sample'
 import { cn } from '@/lib/utils'
 import { ClaudeStatsHomeWidget } from '@/modules/claude-stats/HomeWidget'
 import { openWiki } from '@/modules/wiki/store'
+
+import { HomeBanner } from './HomeBanner'
 
 const statusMeta: Record<AgentStatus, { label: string; variant: 'success' | 'secondary' | 'warning' | 'destructive' }> = {
   running: { label: 'Running', variant: 'success' },
@@ -53,33 +54,10 @@ const stats: Stat[] = [
   { label: 'Needs attention', value: '1', delta: 'Inbox Digest', good: false, spark: [0, 0, 1, 0, 0, 2, 1] },
 ]
 
-function greeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
 export function HomePage() {
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        eyebrow="Overview"
-        title={greeting()}
-        description="Here is what your agents have been up to. Sample data is shown until agents are loaded from the repository."
-        actions={
-          <>
-            <Button variant="outline">
-              <FolderGit2 />
-              Open repo
-            </Button>
-            <Button>
-              <Plus />
-              New agent
-            </Button>
-          </>
-        }
-      />
+      <HomeBanner />
 
       {/* KPI tiles: 4-up on desktop, 2-up on tablet */}
       <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">

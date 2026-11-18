@@ -676,9 +676,11 @@ as the card narrows via container queries) whose rows open to show the
 check's details, actions and running sign-ins.
 
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
-module nests under an item with `nav.parent: '<path>'`. The drawer draws them as
-a collapsible tree (plain rows on a guide line, current page tinted; open/closed
-per group in `commandHub.navOpen`), and on the icon rail as a menu.
+module nests under an item with `nav.parent: '<path>'`. They never expand inside
+the drawer: the item opens a panel just right of the drawer's edge (`NavFlyout`
+in `SideNav.tsx`, open drawer and icon rail alike) listing the item's own page
+first, then its subpages, the current one highlighted; the item shows the open
+subpage's name under its label, and the drawer stays open while the panel is.
 
 ### Charts
 
