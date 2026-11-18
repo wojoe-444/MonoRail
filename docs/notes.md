@@ -4,7 +4,7 @@ audience: human, ai
 
 # Notes
 
-**Notes** (under Home in the nav) is an info dump: links, snippets, meeting
+**Notes** (under Tools in the nav) is an info dump: links, snippets, meeting
 scraps, half-formed ideas. There are no folders, fields or tags. Press
 **New note** and type; the first line becomes the note's title. **Write** and
 **Preview** switch between the text and its Markdown rendering, and search

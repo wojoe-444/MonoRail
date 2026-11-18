@@ -4,7 +4,7 @@ audience: human, ai
 
 # Flashcards
 
-**Workspace > Flashcards** keeps spaced repetition decks: each card comes back
+**Tools > Flashcards** keeps spaced repetition decks: each card comes back
 just before you would forget it, so a few minutes a day is enough to remember
 it for years.
 

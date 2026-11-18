@@ -16,8 +16,8 @@ for these, so the [MonoRail standard](README.md) defines them in its style
 | Entity | Type | What it is | In MonoRail |
 | --- | --- | --- | --- |
 | [Note](workspace.md#note) | `note` | A Markdown note in Notes' local git repo. Explore shows its summary, not its text. | Home > Notes |
-| [Bookmark](workspace.md#bookmark) | `bookmark` | A saved web address or local path. | Workspace > Bookmarks |
-| [Bookmark folder](workspace.md#bookmark-folder) | `bookmarkFolder` | A folder that groups bookmarks. Same record as a bookmark, with no target. | Workspace > Bookmarks |
+| [Bookmark](workspace.md#bookmark) | `bookmark` | A saved web address or local path. | Tools > Bookmarks |
+| [Bookmark folder](workspace.md#bookmark-folder) | `bookmarkFolder` | A folder that groups bookmarks. Same record as a bookmark, with no target. | Tools > Bookmarks |
 | [Scheduled task](workspace.md#scheduled-task) | `scheduledTask` | A task in Windows Task Scheduler. | Workspace > Scheduled |
 
 <!-- /standard -->

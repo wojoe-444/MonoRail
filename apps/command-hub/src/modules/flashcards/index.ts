@@ -13,7 +13,7 @@ export const flashcardsModule: ModuleDefinition = {
   description: 'Spaced repetition decks: study what is due, add and edit cards.',
   icon: Layers,
   path: '/flashcards',
-  nav: { section: 'Workspace' },
+  nav: { section: 'Workspace', parent: '/tools' },
   component: lazy(() => import('./FlashcardsPage')),
   dataMethods: ['listDecks', 'createDeck', 'updateDeck', 'deleteDeck', 'listCards', 'addCard', 'importCards', 'updateCard', 'resetCard', 'deleteCard', 'study', 'answer', 'undo'],
 }

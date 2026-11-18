@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bot, History, House, LayoutDashboard, LayoutGrid, Settings } from 'lucide-react'
+import { Bot, History, House, LayoutDashboard, LayoutGrid, PanelsTopLeft, Settings } from 'lucide-react'
 
 import { apps, fullscreenApps, isWorkspaceApp } from '@/apps/registry'
 import { useExtensionList } from '@/extensions/store'
@@ -32,7 +32,7 @@ export interface NavSection {
  * through the same registries (src/extensions).
  */
 function coreSections(list: ExtensionList): NavSection[] {
-  // Workspace apps (GitHub+, Tasks, Email) are pages under the drawer; their
+  // Workspace apps are subpages of Tools; their
   // own routes all belong to their one nav item.
   const workspaceApps: NavItem[] = apps
     .filter(isWorkspaceApp)
@@ -59,7 +59,7 @@ function coreSections(list: ExtensionList): NavSection[] {
             { path: '/agents/runs', label: 'Runs', icon: History },
           ],
         },
-        ...workspaceApps,
+        { path: '/tools', label: 'Tools', icon: PanelsTopLeft, children: workspaceApps },
       ],
     },
     {
@@ -144,6 +144,8 @@ export function findNavItem(
   for (const section of sections) {
     for (const item of section.items) {
       if (item.matchPrefix && (path.startsWith(`${item.path}/`) || path.startsWith(`${item.path}?`))) return { item, section }
+      const child = item.children?.find((c) => c.matchPrefix && (path.startsWith(`${c.path}/`) || path.startsWith(`${c.path}?`)))
+      if (child) return { item: child, section, parent: item }
     }
   }
   return undefined

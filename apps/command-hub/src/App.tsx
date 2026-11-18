@@ -23,6 +23,7 @@ import { CatalogLayout, CATALOG_PATH, SUBAGENTS_PATH, PROMPTS_PATH } from '@/mod
 import { AppsPage } from '@/pages/AppsPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ToolsPage } from '@/pages/ToolsPage'
 
 const PromptsPage = lazy(() => import('@/modules/agent-catalog/PromptsPage'))
 const CatalogPage = lazy(() => import('@/modules/agent-catalog/CatalogPage'))
@@ -41,6 +42,7 @@ function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem
   }
   if (path === '/') return <HomePage />
   if (path === '/apps') return <AppsPage onOpen={onOpen} />
+  if (path === '/tools') return <ToolsPage onOpen={onOpen} />
   if (path === '/agents/dashboard') return <AgentsPage />
   if (path === '/agents/pr-review') return <PrReviewer onBack={() => onOpen(SUBAGENTS_PATH)} />
   // Extension pages are known once the installed list has loaded.
