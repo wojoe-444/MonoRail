@@ -48,6 +48,8 @@ export interface SemanticModel {
   description?: string
   /** The dbt model it is defined on, e.g. `fct_orders`. */
   model?: string
+  /** The warehouse table it reads, from the manifest's node relation. Explore lists these under Databases. */
+  relation?: { database?: string; schema?: string; name: string }
   defaultTimeDimension?: string
   primaryEntity?: string
   entities: ModelEntity[]

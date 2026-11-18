@@ -71,6 +71,8 @@ describe('semantic manifest', () => {
       ['orders', 'fct_orders', 'order'],
       ['customers', 'dim_customers', 'customer'],
     ])
+    // The table each model reads, for Explore's Databases (MonoRail standard).
+    assert.deepEqual(p.models.map((m) => m.relation), [{ database: undefined, schema: 'analytics', name: 'fct_orders' }, { database: undefined, schema: undefined, name: 'dim_customers' }])
     const revenue = p.metrics.find((m) => m.name === 'revenue')
     assert.equal(revenue.definition, 'Sum of order_total')
     assert.deepEqual(revenue.semanticModels, ['orders'])

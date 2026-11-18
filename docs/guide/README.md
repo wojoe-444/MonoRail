@@ -32,6 +32,9 @@ everything; [private data stays local](private-data.md) explains it.
 - **Let agents help themselves.** [Agent access](agents/agent-access.md) lets
   an agent read what MonoRail knows, and, only with your OK, write a few
   things back.
+- **See everything in one place.** [Explore](explore.md) lists everything
+  MonoRail knows about, sorted by the kinds of thing in the
+  [MonoRail standard](../standard/README.md).
 - **Make it yours.** [Connect your accounts](setup/connections.md), pick a
   [look](setup/appearance.md), turn on [backups](setup/backups-and-updates.md)
   and [add extensions](setup/extensions.md). [Set up and look after

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Compass, RefreshCw, Search } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, Compass, RefreshCw, Search } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -9,17 +10,20 @@ import { useCatalog } from '@/modules/agent-catalog/api'
 import { call as notesCall } from '@/modules/notes/api'
 import { call as cardsCall } from '@/modules/flashcards/api'
 import { call as flowsCall } from '@/modules/flows/api'
+import { openWiki } from '@/modules/wiki/store'
 import type { FlowList } from '@/modules/flows/types'
 import { sampleProject } from '@/modules/semantic/sample'
 import type { SemanticProject } from '@/modules/semantic/types'
 import type { NoteList } from '@/modules/notes/types'
 import type { DeckList, CardList } from '@/modules/flashcards/types'
+import { CATEGORIES, STANDARD, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
 
 type Bookmark = { id: string; name: string; description: string; target: string; kind?: 'folder' | 'bookmark'; parentId?: string | null; color?: string }
 type Prompt = { id: string; versions: { version: number; name: string; text: string; savedAt: string }[] }
 type ScheduledTask = { name: string; path: string; description: string; command: string; schedule: string; state: string; lastRun: string | null; nextRun: string | null; result: number | null; writable: boolean }
 
-type Entry = { group: string; type: string; name: string; description?: string; fields: Record<string, unknown> }
+/** One item of one entity type in the MonoRail standard (src/standard), with its fields flattened. */
+type Entry = { category: string; type: string; name: string; description?: string; fields: Record<string, unknown> }
 type Field = { id: string; entry: Entry; name: string; value: unknown }
 const display = (v: unknown): string => v == null || v === '' ? 'Not set' : typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)
 function flatten(value: unknown, prefix = ''): Record<string, unknown> {
@@ -29,7 +33,57 @@ function flatten(value: unknown, prefix = ''): Record<string, unknown> {
   }
   return { [prefix]: value }
 }
-const entry = (group: string, type: string, name: string, fields: object, description?: string): Entry => ({ group, type, name, fields: flatten(fields), description })
+/** An entry of a standard entity type; its category comes from the standard, so Explore never invents one. */
+function entry(type: string, name: string, fields: object, description?: string): Entry {
+  const def = entityType(type)
+  if (!def) throw new Error(`"${type}" is not an entity type in the MonoRail standard.`)
+  return { category: def.category, type, name, fields: flatten(fields), description }
+}
+const openStandard = (def: EntityType) => { const t = docsTarget(def.docs); openWiki(t.id, t.anchor) }
+
+/**
+ * OpenMetadata's Database, Database Schema and Table, from the tables the
+ * semantic project's models read. The manifest does not name the service,
+ * so `service` stays unset and full names start at the database.
+ */
+function databaseEntries(project?: SemanticProject): Entry[] {
+  const ref = (type: string, fullyQualifiedName: string, name: string) => ({ type, name, fullyQualifiedName })
+  const databases = new Map<string, Set<string>>()
+  const schemas = new Map<string, { database?: string; name: string; tables: Set<string> }>()
+  const tables = new Map<string, { relation: { database?: string; schema?: string; name: string }; models: string[] }>()
+  for (const m of project?.models ?? []) {
+    const r = m.relation
+    if (!r) continue
+    const tableFqn = [r.database, r.schema, r.name].filter(Boolean).join('.')
+    const t = tables.get(tableFqn) ?? { relation: r, models: [] }
+    t.models.push(m.name)
+    tables.set(tableFqn, t)
+    if (r.schema) {
+      const schemaFqn = [r.database, r.schema].filter(Boolean).join('.')
+      const s = schemas.get(schemaFqn) ?? { database: r.database, name: r.schema, tables: new Set() }
+      s.tables.add(tableFqn)
+      schemas.set(schemaFqn, s)
+      if (r.database) databases.set(r.database, (databases.get(r.database) ?? new Set()).add(schemaFqn))
+    } else if (r.database && !databases.has(r.database)) databases.set(r.database, new Set())
+  }
+  const leaf = (fqn: string) => fqn.split('.').at(-1) ?? fqn
+  return [
+    ...[...databases].map(([name, schemaFqns]) => entry('database', name, {
+      name, fullyQualifiedName: name,
+      databaseSchemas: [...schemaFqns].map((f) => ref('databaseSchema', f, leaf(f))),
+    }, 'A database the semantic project reads tables from.')),
+    ...[...schemas].map(([fqn, s]) => entry('databaseSchema', s.name, {
+      name: s.name, fullyQualifiedName: fqn,
+      ...(s.database ? { database: ref('database', s.database, s.database) } : {}),
+      tables: [...s.tables].map((f) => ref('table', f, leaf(f))),
+    }, 'A schema the semantic project reads tables from.')),
+    ...[...tables].map(([fqn, { relation: r, models }]) => entry('table', r.name, {
+      name: r.name, fullyQualifiedName: fqn, columns: [],
+      ...(r.database ? { database: ref('database', r.database, r.database) } : {}),
+      ...(r.schema ? { databaseSchema: ref('databaseSchema', [r.database, r.schema].filter(Boolean).join('.'), r.schema) } : {}),
+    }, `Read by the semantic model${models.length > 1 ? 's' : ''} ${models.join(', ')}.`)),
+  ]
+}
 
 export default function ExplorePage() {
   const catalog = useCatalog()
@@ -45,7 +99,9 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
   const [query, setQuery] = useState('')
-  const [scope, setScope] = useState('All sources')
+  /** A category id, or '' for all. */
+  const [scope, setScope] = useState('')
+  /** [category id, entity type, entry index, field name], as deep as chosen. */
   const [path, setPath] = useState<string[]>([])
   const [expanded, setExpanded] = useState<string[]>([])
   const [selected, setSelected] = useState('')
@@ -78,57 +134,77 @@ export default function ExplorePage() {
   }, [revision])
 
   const entries = useMemo(() => [
-    ...(catalog.data?.subagents ?? []).map((s) => entry('Agents', 'Subagents', s.name, s, s.description)),
-    ...prompts.map((p) => entry('Agents', 'Prompt templates', p.versions.at(-1)?.name || 'Untitled prompt', p)),
-    ...(flows?.flows ?? []).map((f) => entry('Agents', 'Flows', f.name, f, f.description)),
-    ...bookmarks.map((b) => entry('Workspace', b.kind === 'folder' ? 'Bookmark folders' : 'Bookmarks', b.name, b, b.description)),
-    ...tasks.map((t) => entry('Workspace', 'Scheduled tasks', t.name, t, t.description)),
-    ...(notes?.notes ?? []).map((n) => entry('Workspace', 'Notes', n.title, n, n.excerpt)),
-    ...(decks?.decks ?? []).map((d) => entry('Learning', 'Decks', d.name, d, d.description)),
-    ...cards.flatMap((list) => list.cards.map((c) => entry('Learning', `Cards · ${list.deck.name}`, c.front || 'Untitled card', c, c.back))),
-    ...(project?.models ?? []).map((m) => entry('Semantic', 'Models', m.name, m, m.description)),
-    ...(project?.metrics ?? []).map((m) => entry('Semantic', 'Metrics', m.name, m, m.description)),
-    ...(project?.savedQueries ?? []).map((s) => entry('Semantic', 'Saved queries', s.name, s, s.description)),
+    ...(catalog.data?.subagents ?? []).map((s) => entry('subagent', s.name, s, s.description)),
+    ...(flows?.flows ?? []).map((f) => entry('flow', f.name, f, f.description)),
+    ...prompts.map((p) => entry('promptTemplate', p.versions.at(-1)?.name || 'Untitled prompt', p)),
+    ...(notes?.notes ?? []).map((n) => entry('note', n.title, n, n.excerpt)),
+    ...bookmarks.map((b) => entry(b.kind === 'folder' ? 'bookmarkFolder' : 'bookmark', b.name, b, b.description)),
+    ...tasks.map((t) => entry('scheduledTask', t.name, t, t.description)),
+    ...(decks?.decks ?? []).map((d) => entry('flashcardDeck', d.name, d, d.description)),
+    ...cards.flatMap((list) => list.cards.map((c) => entry('flashcard', c.front || 'Untitled card', c, `${list.deck.name}: ${c.back}`))),
+    ...(project?.models ?? []).map((m) => entry('semanticModel', m.name, m, m.description)),
+    ...(project?.metrics ?? []).map((m) => entry('semanticMetric', m.name, m, m.description)),
+    ...(project?.savedQueries ?? []).map((s) => entry('savedQuery', s.name, s, s.description)),
+    ...databaseEntries(project),
   ], [catalog.data, notes, decks, cards, project, bookmarks, flows, prompts, tasks])
-  const groups = ['Agents', 'Workspace', 'Learning', 'Semantic']
-  const types: Record<string, string[]> = {
-    Agents: ['Subagents', 'Flows', 'Prompt templates'], Workspace: ['Notes', 'Bookmarks', 'Bookmark folders', 'Scheduled tasks'], Learning: ['Decks', ...cards.map((c) => `Cards · ${c.deck.name}`)], Semantic: ['Models', 'Metrics', 'Saved queries'],
-  }
   const fields = useMemo<Field[]>(() => entries.flatMap((e, i) => Object.entries(e.fields).map(([name, value]) => ({ id: `${i}:${name}`, entry: e, name, value }))), [entries])
-  const visible = fields.filter((f) => (scope === 'All sources' || f.entry.group === scope) && (!path[0] || f.entry.group === path[0]) && (!path[1] || f.entry.type === path[1]) && (!path[2] || String(entries.indexOf(f.entry)) === path[2]) && (!path[3] || f.name === path[3]) && `${f.entry.group} ${f.entry.type} ${f.entry.name} ${f.name} ${display(f.value)}`.toLowerCase().includes(query.toLowerCase()))
+  const visible = fields.filter((f) => (!scope || f.entry.category === scope) && (!path[0] || f.entry.category === path[0]) && (!path[1] || f.entry.type === path[1]) && (!path[2] || String(entries.indexOf(f.entry)) === path[2]) && (!path[3] || f.name === path[3]) && `${f.entry.category} ${f.entry.type} ${f.entry.name} ${f.name} ${display(f.value)}`.toLowerCase().includes(query.toLowerCase()))
   const pageFields = visible.slice(page * 100, (page + 1) * 100)
   const active = pageFields.find((f) => f.id === selected) ?? pageFields[0]
+  const chosenType = path[1] ? entityType(path[1]) : undefined
+  const label = (e: Entry) => `${category(e.category)?.name ?? e.category} / ${entityType(e.type)?.plural ?? e.type} / ${e.name}`
   const toggle = (key: string) => setExpanded((x) => x.includes(key) ? x.filter((v) => v !== key) : [...x, key])
-  const choose = (p: string[]) => { setPath(p); setScope('All sources'); setSelected(''); setPage(0) }
-  const node = (label: string, p: string[], count: number, children?: () => React.ReactNode) => {
+  const choose = (p: string[]) => { setPath(p); setScope(''); setSelected(''); setPage(0) }
+  const node = (text: string, p: string[], count: number, children?: () => React.ReactNode) => {
     const key = JSON.stringify(p); const open = expanded.includes(key)
     return <div key={key}><div className={cn('flex items-center rounded-md text-sm hover:bg-muted', JSON.stringify(path) === key && 'bg-primary/10 text-primary')}>
-      <button type="button" className="p-1" aria-label={`${open ? 'Collapse' : 'Expand'} ${label}`} onClick={() => toggle(key)}>{children ? open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" /> : <span className="block size-4" />}</button>
-      <button type="button" className="min-w-0 flex-1 truncate py-1 text-left" onClick={() => choose(p)}>{label}</button><span className="px-2 text-xs text-muted-foreground">{count}</span></div>{open && children && <div className="ml-4 border-l pl-2">{children()}</div>}</div>
+      <button type="button" className="p-1" aria-label={`${open ? 'Collapse' : 'Expand'} ${text}`} onClick={() => toggle(key)}>{children ? open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" /> : <span className="block size-4" />}</button>
+      <button type="button" className="min-w-0 flex-1 truncate py-1 text-left" onClick={() => choose(p)}>{text}</button><span className="px-2 text-xs text-muted-foreground">{count}</span></div>{open && children && <div className="ml-4 border-l pl-2">{children()}</div>}</div>
   }
+  const typeCard = (def: EntityType) => <>
+    <div className="text-xs text-muted-foreground">ENTITY TYPE</div>
+    <h2 className="mt-2 break-words font-semibold">{def.name}</h2>
+    <div className="mt-2 flex flex-wrap gap-1.5"><Badge variant={def.origin === 'openmetadata' ? 'info' : 'primary'}>{def.origin === 'openmetadata' ? `OpenMetadata ${STANDARD.openMetadata.version}` : 'MonoRail'}</Badge><Badge variant="outline" className="font-mono">{def.type}</Badge></div>
+    <p className="mt-3 text-sm text-muted-foreground">{def.summary}</p>
+    <p className="mt-2 text-sm text-muted-foreground">{def.fields.length} fields in the standard.</p>
+    <Button variant="outline" size="sm" className="mt-4" onClick={() => openStandard(def)}><BookOpen /> {def.name} in the standard</Button>
+  </>
+  const activeType = active ? entityType(active.entry.type) : undefined
+  const activeField = active ? standardField(active.entry.type, active.name) : undefined
+
   return <div className="flex flex-col gap-6">
-    <PageHeader title="Explore" description="Browse the fields available from connected MonoRail sources." actions={<Button variant="outline" onClick={() => { setPath([]); setExpanded([]); setSelected(''); setPage(0); setRevision((n) => n + 1); void catalog.refresh() }}><RefreshCw /> Refresh</Button>} />
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"><Search className="size-4 text-muted-foreground" /><Input className="min-w-48 flex-1" placeholder="Search names, fields and values" aria-label="Search catalog" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} /><select aria-label="Filter by source" className="rounded-md border bg-background px-3 py-2 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPath([]); setPage(0) }}><option>All sources</option>{groups.map((g) => <option key={g}>{g}</option>)}</select><Button variant="ghost" onClick={() => { setQuery(''); setScope('All sources'); setPath([]); setPage(0) }}>Clear filters</Button></div>
+    <PageHeader title="Explore" description="Browse everything MonoRail knows, sorted by the MonoRail standard." actions={<Button variant="outline" onClick={() => { setPath([]); setExpanded([]); setSelected(''); setPage(0); setRevision((n) => n + 1); void catalog.refresh() }}><RefreshCw /> Refresh</Button>} />
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"><Search className="size-4 text-muted-foreground" /><Input className="min-w-48 flex-1" placeholder="Search names, fields and values" aria-label="Search catalog" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} /><select aria-label="Filter by category" className="rounded-md border bg-background px-3 py-2 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPath([]); setPage(0) }}><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><Button variant="ghost" onClick={() => { setQuery(''); setScope(''); setPath([]); setPage(0) }}>Clear filters</Button></div>
     {(errors.length > 0 || catalog.error || cards.some((c) => c.truncated) || catalog.data?.truncated) && <div role="alert" className="rounded-lg bg-warning-soft p-4 text-sm text-warning-soft-foreground">{[...errors, ...(catalog.error ? [`Agents: ${catalog.error.message}`] : []), ...(cards.some((c) => c.truncated) ? ['Some decks have more than 2,000 cards; only the first 2,000 per deck are shown.'] : []), ...(catalog.data?.truncated ? ['The subagent list is truncated.'] : [])].join(' ')}</div>}
     <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
       <section className="rounded-xl border bg-card p-4" aria-label="Browse estate">
         <div className="mb-1 flex items-center gap-2 font-semibold"><Compass className="size-4 text-primary" /> Browse estate</div>
-        <p className="mb-4 text-xs text-muted-foreground">Available sources and their fields</p>
+        <p className="mb-4 text-xs text-muted-foreground">Categories and entity types of the MonoRail standard</p>
         <button className="mb-2 text-sm text-primary" onClick={() => choose([])}>All fields ({fields.length})</button>
-        {groups.map((g) => node(g, [g], entries.filter((e) => e.group === g).length,
-          () => types[g].map((t) => {
-            const items = entries.filter((e) => e.group === g && e.type === t)
-            return node(t, [g, t], items.length, () => items.map((e) =>
-              node(e.name, [g, t, String(entries.indexOf(e))], Object.keys(e.fields).length,
-                () => Object.keys(e.fields).map((f) => node(f, [g, t, String(entries.indexOf(e)), f], 1)))
+        {CATEGORIES.map((c) => node(c.name, [c.id], entries.filter((e) => e.category === c.id).length,
+          () => entityTypesIn(c.id).map((t) => {
+            const items = entries.filter((e) => e.type === t.type)
+            return node(t.plural, [c.id, t.type], items.length, () => items.map((e) =>
+              node(e.name, [c.id, t.type, String(entries.indexOf(e))], Object.keys(e.fields).length,
+                () => Object.keys(e.fields).map((f) => node(f, [c.id, t.type, String(entries.indexOf(e)), f], 1)))
             ))
           })
         ))}
-        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Includes subagents, flows, prompt templates, note summaries, bookmarks, scheduled tasks, flashcards and the connected semantic project. Other MonoRail data is not yet indexed.</p>
+        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: OpenMetadata {STANDARD.openMetadata.version} plus MonoRail&apos;s own entity types. Databases are the tables your semantic project&apos;s models read. Other MonoRail data is not yet indexed.</p>
+        <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => openWiki('standard/README')}>Read the standard</Button>
         {project?.block && <p className="mt-2 text-xs text-muted-foreground">Semantic project unavailable: {project.block}. Set it up on Connections.</p>}
       </section>
-      <section aria-label="Fields" className="min-w-0 rounded-xl border bg-card p-4"><div className="mb-4 flex justify-between gap-2 text-sm"><span className="font-medium">{[...path.slice(0, 2), ...(path[2] ? [entries[Number(path[2])]?.name ?? ''] : []), ...path.slice(3)].join(' / ') || 'All fields'}</span><span className="text-muted-foreground">{visible.length} fields</span></div><div className="max-h-[70vh] space-y-2 overflow-auto">{pageFields.map((f) => <button key={f.id} onClick={() => setSelected(f.id)} className={cn('block w-full rounded-lg border p-4 text-left hover:bg-muted/50', active?.id === f.id && 'border-primary bg-primary/5')}><div className="truncate text-xs text-muted-foreground">{f.entry.group} / {f.entry.type} / {f.entry.name}</div><div className="mt-1 font-medium text-primary">{f.name}</div><div className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{display(f.value)}</div></button>)}{visible.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">{loading || catalog.loading ? 'Loading sources…' : 'No fields match this selection.'}</p>}</div>{visible.length > 100 && <div className="mt-4 flex items-center justify-between text-sm"><Button variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button><span>Page {page + 1} of {Math.ceil(visible.length / 100)}</span><Button variant="outline" disabled={(page + 1) * 100 >= visible.length} onClick={() => setPage((p) => p + 1)}>Next</Button></div>}</section>
-      <section aria-label="Field details" className="min-w-0 rounded-xl border bg-card p-4">{active ? <><div className="text-xs text-muted-foreground">FIELD DETAILS</div><h2 className="mt-2 break-words font-semibold">{active.name}</h2><p className="mt-1 break-words text-sm text-muted-foreground">{active.entry.group} / {active.entry.type} / {active.entry.name}</p><div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">Value</h3><pre className="mt-2 overflow-auto whitespace-pre-wrap break-words font-sans text-sm">{display(active.value)}</pre></div>{active.entry.description && <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">About {active.entry.name}</h3><p className="mt-2 break-words text-sm text-muted-foreground">{active.entry.description}</p></div>}</> : <p className="text-sm text-muted-foreground">Select a field to inspect its value.</p>}</section>
+      <section aria-label="Fields" className="min-w-0 rounded-xl border bg-card p-4"><div className="mb-4 flex justify-between gap-2 text-sm"><span className="font-medium">{[...(path[0] ? [category(path[0])?.name ?? path[0]] : []), ...(chosenType ? [chosenType.plural] : []), ...(path[2] ? [entries[Number(path[2])]?.name ?? ''] : []), ...path.slice(3)].join(' / ') || 'All fields'}</span><span className="text-muted-foreground">{visible.length} fields</span></div><div className="max-h-[70vh] space-y-2 overflow-auto">{pageFields.map((f) => <button key={f.id} onClick={() => setSelected(f.id)} className={cn('block w-full rounded-lg border p-4 text-left hover:bg-muted/50', active?.id === f.id && 'border-primary bg-primary/5')}><div className="truncate text-xs text-muted-foreground">{label(f.entry)}</div><div className="mt-1 font-medium text-primary">{f.name}</div><div className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{display(f.value)}</div></button>)}{visible.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">{loading || catalog.loading ? 'Loading sources…' : chosenType && !entries.some((e) => e.type === chosenType.type) ? `No ${chosenType.plural.toLowerCase()} yet. No MonoRail source has given Explore any so far.` : 'No fields match this selection.'}</p>}</div>{visible.length > 100 && <div className="mt-4 flex items-center justify-between text-sm"><Button variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button><span>Page {page + 1} of {Math.ceil(visible.length / 100)}</span><Button variant="outline" disabled={(page + 1) * 100 >= visible.length} onClick={() => setPage((p) => p + 1)}>Next</Button></div>}</section>
+      <section aria-label="Field details" className="min-w-0 rounded-xl border bg-card p-4">{active && activeType ? <>
+        <div className="text-xs text-muted-foreground">FIELD DETAILS</div><h2 className="mt-2 break-words font-semibold">{active.name}</h2><p className="mt-1 break-words text-sm text-muted-foreground">{label(active.entry)}</p>
+        <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">Value</h3><pre className="mt-2 overflow-auto whitespace-pre-wrap break-words font-sans text-sm">{display(active.value)}</pre></div>
+        <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">In the standard</h3>{activeField ? <>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5"><Badge variant="outline" className="font-mono">{activeField.name}: {activeField.type}</Badge>{activeField.required && <Badge variant="secondary">Required</Badge>}</div>
+          <p className="mt-2 break-words text-sm text-muted-foreground">{activeField.description}</p>
+        </> : <p className="mt-2 text-sm text-muted-foreground">Not a field of {activeType.name} in the standard.</p>}
+          <Button variant="link" size="sm" className="h-auto px-0" onClick={() => openStandard(activeType)}><BookOpen /> {activeType.name} in the standard</Button></div>
+        {active.entry.description && <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">About {active.entry.name}</h3><p className="mt-2 break-words text-sm text-muted-foreground">{active.entry.description}</p></div>}
+      </> : chosenType ? typeCard(chosenType) : <p className="text-sm text-muted-foreground">Select a field to inspect its value.</p>}</section>
     </div>
   </div>
 }

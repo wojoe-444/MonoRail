@@ -115,6 +115,13 @@ always-empty **New User** profile for testing. See
 [Developer Mode](setup/developer-mode.md) and, for the details,
 [Profiles](../profiles.md).
 
+## Entity
+
+One kind of thing MonoRail knows about, such as a subagent, a note, a
+database or a table, with a fixed set of fields. The
+[MonoRail standard](../standard/README.md) lists them all, and
+[Explore](explore.md) shows them.
+
 ## For people and for agents
 
 The tags on every wiki page. *For people* pages are plain guides; *for

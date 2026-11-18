@@ -111,6 +111,13 @@ function whereList(filter) {
   return arr(filter.where_filters).map((w) => str(w?.where_sql_template)).filter(Boolean)
 }
 
+/** The warehouse table a semantic model reads (its dbt node's relation), for Explore's Databases. */
+function relationOf(n) {
+  const name = str(n?.alias)
+  if (!name) return undefined
+  return { database: str(n.database), schema: str(n.schema_name), name }
+}
+
 function toModel(m) {
   const entities = arr(m.entities)
     .filter((e) => str(e?.name))
@@ -120,6 +127,7 @@ function toModel(m) {
     name: m.name,
     description: str(m.description),
     model: str(m.node_relation?.alias),
+    relation: relationOf(m.node_relation),
     defaultTimeDimension: str(m.defaults?.agg_time_dimension),
     primaryEntity: primary,
     entities,

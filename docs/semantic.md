@@ -56,5 +56,7 @@ settings straight from Connections' `connections.json` (no secrets there).
 
 ## Related
 
+- [MonoRail standard: Semantic](standard/semantic.md): the entity types this
+  page reads, and how their tables feed [Databases](standard/databases/README.md).
 - [Docker](docker.md): the same optional-connector pattern.
 - [Caching](caching.md): why this page caches nothing on disk.
