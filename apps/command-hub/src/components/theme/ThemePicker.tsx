@@ -33,22 +33,13 @@ export function Swatches({ p, dark, className }: { p: Palette; dark: boolean; cl
   )
 }
 
-/** Below Tailwind's `xl` the scheme grid drops to two columns and the list gets long. */
-const SMALL_SCREEN = '(max-width: 1279px)'
-
-function isSmallScreen(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia?.(SMALL_SCREEN).matches
-}
-
-/** Settings card: light / dark mode and the color schemes, in collapsible sets. */
+/** Settings card: light / dark mode and the color schemes, in collapsible sets (one open at a time). */
 export function AppearanceCard({ className }: { className?: string }) {
   const [palette, setPalette] = usePalette()
   const [theme, toggle] = useTheme()
   const dark = theme === 'dark'
-  // Every set starts open on a wide window and collapsed on a smaller one. Kept per visit only.
-  const [open, setOpen] = useState<Set<string>>(() =>
-    isSmallScreen() ? new Set() : new Set(PALETTE_GROUPS.map((g) => g.id)),
-  )
+  // Always starts fully collapsed, and at most one set is open: opening another closes the first.
+  const [openId, setOpenId] = useState<string | null>(null)
   return (
     <Card className={className}>
       <CardHeader>
@@ -83,15 +74,8 @@ export function AppearanceCard({ className }: { className?: string }) {
               dark={dark}
               active={palette}
               onPick={setPalette}
-              open={open.has(g.id)}
-              onToggle={() =>
-                setOpen((s) => {
-                  const next = new Set(s)
-                  if (next.has(g.id)) next.delete(g.id)
-                  else next.add(g.id)
-                  return next
-                })
-              }
+              open={openId === g.id}
+              onToggle={() => setOpenId((id) => (id === g.id ? null : g.id))}
             />
           ))}
         </div>
