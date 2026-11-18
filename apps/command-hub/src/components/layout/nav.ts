@@ -134,6 +134,7 @@ export function findNavItem(
 ): { item: NavItem; section: NavSection; parent?: NavItem } | undefined {
   // Keep older chat links working while highlighting the Bots landing page.
   if (path === '/agents/chat') path = '/agents'
+  if (path === '/semantic') path = '/openmetadata'
   // Dashboard tabs (src/pages/agents/DashboardLayout.tsx) all highlight Dashboard.
   if (path.startsWith('/agents/dashboard/') || path === '/claude-stats') path = '/agents/dashboard'
   if (path === '/agents/catalog/subagents' || path === '/agents/pr-review') path = '/agents/catalog'

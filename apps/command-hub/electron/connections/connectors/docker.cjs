@@ -156,7 +156,7 @@ async function openLazydocker(conn, deps = {}) {
 module.exports = {
   kind: 'docker',
   title: 'Docker',
-  description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Utilities reads from it. Optional: MonoRail never installs either.',
+  description: 'Your own Docker (Docker Desktop or Docker Engine), and lazydocker if you have it. The Docker page under Tools reads from it. Optional: MonoRail never installs either.',
   icon: 'container',
   fields: [
     {

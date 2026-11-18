@@ -7,7 +7,6 @@ import { agentCatalogModule } from './agent-catalog'
 import { inAppSchedulerModule, scheduledModule, windowsSchedulerModule } from './scheduled'
 import { agentChatModule } from './agent-chat'
 import { claudeStatsModule } from './claude-stats'
-import { semanticModule } from './semantic'
 import { connectionsModule } from './connections'
 import { extensionsModule } from './extensions'
 import { filesModule } from './files'
@@ -27,7 +26,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [exploreModule, openMetadataModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, browserModule, notesModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, semanticModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsModule, appearanceModule, backupsModule, wikiModule]
+export const modules: ModuleDefinition[] = [exploreModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, browserModule, notesModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, openMetadataModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsModule, appearanceModule, backupsModule, wikiModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()
@@ -45,5 +44,6 @@ export function allModules(list: ExtensionList = getExtensionList()): ModuleDefi
 
 export function findModuleByPath(path: string, list?: ExtensionList): ModuleDefinition | undefined {
   if (path === '/agents/chat') path = '/agents'
+  if (path === '/semantic') path = '/openmetadata'
   return allModules(list).find((m) => m.path === path)
 }

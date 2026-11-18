@@ -62,7 +62,7 @@ export default function DockerPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Utilities"
+        eyebrow="Tools"
         title="Docker"
         description="What Docker is running on this computer: containers, their logs and load, images and volumes. This page only looks; it never starts, stops or removes anything."
         actions={

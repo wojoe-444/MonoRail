@@ -5,7 +5,7 @@ summary: One page for every kind of entity, from MonoRail's local database or yo
 
 # Browse your OpenMetadata server
 
-**OpenMetadata**, right under Home and [Explore](explore.md), shows everything
+**OpenMetadata**, the shapes icon under **Insights** in the menu, shows everything
 in an [OpenMetadata](https://open-metadata.org) catalog on one page: tables,
 databases and schemas, dashboards, pipelines, glossaries, tags, test cases,
 users, roles and every other kind of thing OpenMetadata keeps. It shows each

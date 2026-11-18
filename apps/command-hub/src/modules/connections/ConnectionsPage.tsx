@@ -414,7 +414,7 @@ const USED_BY: Record<string, string> = {
   git: 'GitHub+, Chat',
   github: 'GitHub+',
   docker: 'Docker page',
-  metricflow: 'Semantic page',
+  metricflow: 'Explore, agents',
 }
 
 /** The detail that says which account a connection uses, for the Account column. */

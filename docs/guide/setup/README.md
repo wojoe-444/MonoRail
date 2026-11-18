@@ -25,19 +25,19 @@ to them:
   your PC from your phone over your own private Tailscale network. Off
   until you turn it on.
 - [Docker](docker.md): if you use Docker, see your containers, logs and
-  images under **Utilities > Docker**, and open lazydocker in one click.
+  images under **Tools > Docker**, and open lazydocker in one click.
 - [Services and ingestion pipelines](services.md): read SQLite databases,
   dbt projects and your OpenMetadata server's sources into a catalog on a
   schedule, under **Settings > Services**.
-- [Semantic (MetricFlow)](semantic.md): browse your dbt project's metrics
-  and chart them with MetricFlow under **Insights > Semantic**.
+- [Semantic (MetricFlow)](semantic.md): connect your dbt project's metrics
+  and MetricFlow, for Explore, Services and your agents.
 
 Two pages are worth knowing before you change anything:
 
 - [Private data stays local](../private-data.md): where everything is kept,
   and what never leaves your computer.
 - [Storage](../../storage.md): how much space MonoRail, your agents and their
-  caches take up, under **Utilities > Storage**.
+  caches take up, under **Tools > Storage**.
 
 ## Finding your way around Settings
 

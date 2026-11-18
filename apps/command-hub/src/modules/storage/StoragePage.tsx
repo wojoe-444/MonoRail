@@ -84,7 +84,7 @@ export default function StoragePage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Utilities"
+        eyebrow="Tools"
         title="Storage"
         description="How full your drives are and which folders take up the space. This page only looks: it never moves or deletes anything."
         actions={

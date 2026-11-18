@@ -1,22 +1,24 @@
 ---
 audience: human
-summary: Browse your dbt project's metrics and dimensions, and chart them with MetricFlow, on the Semantic page.
+summary: Connect your dbt project's semantic layer and MetricFlow, so Explore, Services and your agents can read its metrics.
 ---
 
 # Semantic (MetricFlow)
 
 If your team keeps its business metrics in a [dbt](https://www.getdbt.com/)
-project with a semantic layer, **Insights > Semantic** shows them: every
-metric with what it means and how it is worked out, the semantic models
-behind it, and the saved queries your team defined. With MetricFlow (dbt's
-semantic layer engine, the `mf` command) you can also chart any metric over
-time or split it by a dimension, without writing SQL.
+project with a semantic layer, you can connect it to MonoRail. MonoRail reads
+its metrics, semantic models and saved queries, and with MetricFlow (dbt's
+semantic layer engine, the `mf` command) your agents can query them.
+
+The Semantic page itself is empty for now: the menu's shapes icon under
+**Insights** opens [OpenMetadata](../openmetadata.md) instead. The connection
+described here still works, and nothing about it changed.
 
 ## It is optional, twice
 
 MonoRail does nothing about dbt or MetricFlow until you add the
-**MetricFlow** connection on [Connections](connections.md). Until then the
-page only says it is not set up: MonoRail does not look for dbt projects or
+**MetricFlow** connection on [Connections](connections.md). Until then
+nothing reads the project: MonoRail does not look for dbt projects or
 Python, and it never installs Python, dbt or MetricFlow. This is MonoRail's
 [nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)
 rule.
@@ -44,31 +46,22 @@ parsed, the MetricFlow and dbt versions it found, and whether it found a
 warehouse password. With queries on, **Validate project** runs
 `mf validate-configs` for you.
 
-## What the page shows
+## What uses the connection
 
-- **Query**: pick one or more metrics, a time grain (day to year), the
-  dimensions to group by, filters, dates, sort order and a row limit. **Run
-  query** shows a chart (a line over time, or bars by dimension) with the
-  table of results below it. **SQL** shows the SQL MetricFlow would run,
-  without running it. The copy button gives you the same query as an
-  `mf query` command for a terminal, even while queries are off.
-- **Metrics**: every metric with its type (simple, ratio, cumulative,
-  derived, conversion), how it is worked out, any filter, where it comes from
-  (input metrics, measures, semantic models, dbt models) and every dimension
-  it can be split by. **Query this metric** opens it in Query.
-- **Semantic models**: each model's entities, dimensions and measures, and
-  which other models it joins.
-- **Saved queries**: the ones your team defined in dbt. **Open in Query**
-  loads one.
+- **[Explore](../explore.md)** lists the project's semantic models and
+  metrics, and the databases and tables they read.
+- **[Services](services.md)** can read the dbt project into the catalog.
+- **Agents** can list the metrics and, with your permission, query them (see
+  below).
 
-After you change the dbt project, run `dbt parse` again and press **Reload
-project**.
+After you change the dbt project, run `dbt parse` again so the files MonoRail
+reads are current.
 
 ## Where your data goes
 
 A query runs your own `mf` program in the project folder, which connects to
 your warehouse with your own dbt profile, exactly as if you typed the command.
-The results come back to the page and are kept only while it is open:
+The results go back to the agent that asked and are kept only while the call runs:
 MetricFlow writes them to a temporary file that MonoRail deletes as soon as it
 has read it. Nothing about your project or results is saved in MonoRail's data
 folder. See [Private data stays local](../private-data.md).

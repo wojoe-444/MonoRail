@@ -1,4 +1,4 @@
-// Semantic page backend (Insights > Semantic): a dbt project's semantic layer,
+// Semantic backend (read by Explore; its page is empty, the Insights slot shows OpenMetadata): a dbt project's semantic layer,
 // read from its files and queried with the user's own MetricFlow.
 //
 // Opt-in twice. Nothing runs until the user adds the MetricFlow connection

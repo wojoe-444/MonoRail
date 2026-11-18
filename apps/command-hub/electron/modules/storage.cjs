@@ -1,4 +1,4 @@
-// Storage Manager backend (Utilities > Storage): how full each drive is, and
+// Storage Manager backend (Tools > Storage): how full each drive is, and
 // what MonoRail, agents, developer caches and a few well-known folders take up.
 //
 // Read-only by design. Nothing here deletes, moves, renames or copies a file

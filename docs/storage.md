@@ -4,7 +4,7 @@ audience: human
 
 # Storage Manager
 
-**Utilities > Storage** shows how full each drive is and what takes up the
+**Tools > Storage** shows how full each drive is and what takes up the
 space: MonoRail itself, your agents, developer caches and a few well-known
 folders. It is there for the day the system drive runs out.
 

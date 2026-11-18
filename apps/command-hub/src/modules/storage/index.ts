@@ -13,7 +13,7 @@ export const storageModule: ModuleDefinition = {
   description: 'How full your drives are and which folders take up the space.',
   icon: HardDrive,
   path: '/storage',
-  nav: { section: 'Utilities' },
+  nav: { section: 'Workspace', parent: '/tools' },
   component: lazy(() => import('./StoragePage')),
   dataMethods: ['getDrives', 'getScan', 'startScan', 'getHistory', 'openLocation', 'openStorageSettings'],
 }
