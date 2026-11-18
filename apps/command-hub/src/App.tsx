@@ -120,17 +120,19 @@ export default function App() {
               <RouteView path={path} navItems={navItems} onOpen={openPath} />
             </main>
           ) : (
-            // Content container: max 1536px with 24/32px gutters
-            <main className="mx-auto min-h-0 w-full max-w-[96rem] flex-1 overflow-y-auto p-6 lg:p-8">
-              {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
-                <SettingsLayout path={path}>
+            // Scroll at the app edge; constrain only the content inside it.
+            <main className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
+                {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
+                  <SettingsLayout path={path}>
+                    <RouteView path={path} navItems={navItems} onOpen={openPath} />
+                  </SettingsLayout>
+                ) : (path === CATALOG_PATH || path === PROMPTS_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
+                  <CatalogLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></CatalogLayout>
+                ) : (
                   <RouteView path={path} navItems={navItems} onOpen={openPath} />
-                </SettingsLayout>
-              ) : (path === CATALOG_PATH || path === PROMPTS_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
-                <CatalogLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></CatalogLayout>
-              ) : (
-                <RouteView path={path} navItems={navItems} onOpen={openPath} />
-              )}
+                )}
+              </div>
             </main>
           )}
         </div></HeaderRevealProvider>
