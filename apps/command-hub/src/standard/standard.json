@@ -1,0 +1,1796 @@
+{
+  "$comment": "The MonoRail standard: the entity types MonoRail knows. OpenMetadata v2.0.x (fields pinned to 2.0.8) plus MonoRail's own. Docs: docs/standard/. Field tables there are generated from this file: node scripts/standard-docs.cjs.",
+  "version": 1,
+  "openMetadata": {
+    "version": "2.0.x",
+    "pinned": "2.0.8",
+    "docs": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets"
+  },
+  "categories": [
+    {
+      "id": "agents",
+      "name": "Agents",
+      "origin": "monorail",
+      "summary": "Subagents, flows and prompt templates.",
+      "docs": "standard/agents"
+    },
+    {
+      "id": "workspace",
+      "name": "Workspace",
+      "origin": "monorail",
+      "summary": "Notes, bookmarks and scheduled tasks.",
+      "docs": "standard/workspace"
+    },
+    {
+      "id": "learning",
+      "name": "Learning",
+      "origin": "monorail",
+      "summary": "Flashcard decks and cards.",
+      "docs": "standard/learning"
+    },
+    {
+      "id": "semantic",
+      "name": "Semantic",
+      "origin": "monorail",
+      "summary": "A dbt project's semantic layer: semantic models, metrics and saved queries.",
+      "docs": "standard/semantic"
+    },
+    {
+      "id": "databases",
+      "name": "Databases",
+      "origin": "openmetadata",
+      "summary": "Database services, databases, schemas, tables and stored procedures.",
+      "docs": "standard/databases/README",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/databases-overview"
+    }
+  ],
+  "byReference": [
+    {
+      "name": "Messaging",
+      "summary": "Messaging services and topics, such as Kafka and Kinesis.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/messaging-services"
+    },
+    {
+      "name": "Dashboards",
+      "summary": "Dashboard services, dashboards and charts.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/dashboard-services"
+    },
+    {
+      "name": "Pipelines",
+      "summary": "Pipeline services and pipelines.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/pipeline-services"
+    },
+    {
+      "name": "ML Models",
+      "summary": "ML model services and ML models.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/mlmodel-services"
+    },
+    {
+      "name": "Storage",
+      "summary": "Storage services and containers.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/storage-services"
+    },
+    {
+      "name": "Search Indexes",
+      "summary": "Search index entities.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/search-indexes"
+    },
+    {
+      "name": "API Services",
+      "summary": "API collections and endpoints.",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/api-collections"
+    }
+  ],
+  "entities": [
+    {
+      "type": "subagent",
+      "name": "Subagent",
+      "plural": "Subagents",
+      "category": "agents",
+      "origin": "monorail",
+      "summary": "A helper agent defined in a Markdown file with a header, for Claude Code or pi.",
+      "docs": "standard/agents#subagent",
+      "source": "Agents > Catalog",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "Handle the backend hands out; never a path."
+        },
+        {
+          "name": "tool",
+          "type": "enum",
+          "required": true,
+          "description": "`claude` or `pi`: the agent that reads the file."
+        },
+        {
+          "name": "scope",
+          "type": "enum",
+          "required": true,
+          "description": "`user` (home folder), `project` (an allowed repo) or `builtin` (MonoRail's own, read-only)."
+        },
+        {
+          "name": "repo",
+          "type": "string",
+          "description": "The allowed repo a project subagent lives in."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The header's `name`: lowercase letters and hyphens."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "When the agent should use it."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "description": "Claude: `sonnet`, `opus`, `haiku`, `inherit` or a model id; pi: a model id. Unset = the chat's model."
+        },
+        {
+          "name": "tools",
+          "type": "string[]",
+          "description": "Tools it may use. Unset = the default tools."
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "required": true,
+          "description": "Where the file is, relative to the home folder or the repo."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change to the file, ms since epoch."
+        },
+        {
+          "name": "customized",
+          "type": "boolean",
+          "description": "A built-in the user has made their own copy of."
+        },
+        {
+          "name": "extraFields",
+          "type": "string[]",
+          "required": true,
+          "description": "Header fields MonoRail does not edit; kept as they are on save."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "description": "Built-ins only: what it needs or how it is used."
+        },
+        {
+          "name": "problem",
+          "type": "string",
+          "description": "Why the agent would skip this file, if it would."
+        }
+      ]
+    },
+    {
+      "type": "flow",
+      "name": "Flow",
+      "plural": "Flows",
+      "category": "agents",
+      "origin": "monorail",
+      "summary": "A saved chain of agent steps that runs in one of Chat's allowed repos.",
+      "docs": "standard/agents#flow",
+      "source": "Agents > Flows",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "The flow's id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Its name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "What it does."
+        },
+        {
+          "name": "folder",
+          "type": "string",
+          "required": true,
+          "description": "The allowed repo, by name, where agent steps run by default."
+        },
+        {
+          "name": "kinds",
+          "type": "string[]",
+          "required": true,
+          "description": "The kinds of step it uses."
+        },
+        {
+          "name": "steps",
+          "type": "number",
+          "required": true,
+          "description": "How many steps it has."
+        },
+        {
+          "name": "agentName",
+          "type": "string",
+          "required": true,
+          "description": "The agent that runs its steps."
+        },
+        {
+          "name": "updated",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        },
+        {
+          "name": "runs7d",
+          "type": "number",
+          "description": "Runs in the last 7 days."
+        },
+        {
+          "name": "running",
+          "type": "boolean",
+          "description": "A run is going now."
+        },
+        {
+          "name": "error",
+          "type": "string",
+          "description": "Why the flow could not be read, if it could not."
+        }
+      ]
+    },
+    {
+      "type": "promptTemplate",
+      "name": "Prompt template",
+      "plural": "Prompt templates",
+      "category": "agents",
+      "origin": "monorail",
+      "summary": "A reusable prompt. Every save adds a version; nothing is overwritten.",
+      "docs": "standard/agents#prompt-template",
+      "source": "Agents > Catalog > Prompts",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The template's id."
+        },
+        {
+          "name": "versions",
+          "type": "promptVersion[]",
+          "required": true,
+          "description": "Every saved version, oldest first: `version`, `name`, `text`, `savedAt`. The last one is current."
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "name": "Note",
+      "plural": "Notes",
+      "category": "workspace",
+      "origin": "monorail",
+      "summary": "A Markdown note in Notes' local git repo. Explore shows its summary, not its text.",
+      "docs": "standard/workspace#note",
+      "source": "Home > Notes",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "The file's name without `.md`."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "The first line."
+        },
+        {
+          "name": "excerpt",
+          "type": "string",
+          "required": true,
+          "description": "The start of the text."
+        },
+        {
+          "name": "updated",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change to the file, ms since epoch."
+        },
+        {
+          "name": "words",
+          "type": "number",
+          "required": true,
+          "description": "Word count."
+        }
+      ]
+    },
+    {
+      "type": "bookmark",
+      "name": "Bookmark",
+      "plural": "Bookmarks",
+      "category": "workspace",
+      "origin": "monorail",
+      "summary": "A saved web address or local path.",
+      "docs": "standard/workspace#bookmark",
+      "source": "Workspace > Bookmarks",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The bookmark's id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Its name, up to 120 characters."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "A note about it, up to 500 characters."
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "required": true,
+          "description": "An http(s) address or an absolute local path."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": true,
+          "description": "Always `bookmark`."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "The bookmark folder it is in; `null` at the top."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "description": "A `#rrggbb` color, or empty."
+        }
+      ]
+    },
+    {
+      "type": "bookmarkFolder",
+      "name": "Bookmark folder",
+      "plural": "Bookmark folders",
+      "category": "workspace",
+      "origin": "monorail",
+      "summary": "A folder that groups bookmarks. Same record as a bookmark, with no target.",
+      "docs": "standard/workspace#bookmark-folder",
+      "source": "Workspace > Bookmarks",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "The folder's id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Its name, up to 120 characters."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "A note about it, up to 500 characters."
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "required": true,
+          "description": "Always empty."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": true,
+          "description": "Always `folder`."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "description": "The folder it is in; `null` at the top."
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "description": "A `#rrggbb` color, or empty."
+        }
+      ]
+    },
+    {
+      "type": "scheduledTask",
+      "name": "Scheduled task",
+      "plural": "Scheduled tasks",
+      "category": "workspace",
+      "origin": "monorail",
+      "summary": "A task in Windows Task Scheduler.",
+      "docs": "standard/workspace#scheduled-task",
+      "source": "Workspace > Scheduled",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The task's name."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Its folder in Task Scheduler."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "Its description."
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "description": "What it runs."
+        },
+        {
+          "name": "schedule",
+          "type": "string",
+          "required": true,
+          "description": "When it runs, in words."
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": true,
+          "description": "Ready, Running, Disabled and so on."
+        },
+        {
+          "name": "lastRun",
+          "type": "string",
+          "description": "When it last ran, or `null`."
+        },
+        {
+          "name": "nextRun",
+          "type": "string",
+          "description": "When it runs next, or `null`."
+        },
+        {
+          "name": "result",
+          "type": "number",
+          "description": "The last run's result code, or `null`."
+        },
+        {
+          "name": "writable",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether MonoRail may change it."
+        }
+      ]
+    },
+    {
+      "type": "flashcardDeck",
+      "name": "Flashcard deck",
+      "plural": "Decks",
+      "category": "learning",
+      "origin": "monorail",
+      "summary": "A deck of spaced repetition cards with its own daily limit and target recall.",
+      "docs": "standard/learning#flashcard-deck",
+      "source": "Workspace > Flashcards",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "The deck's id."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "Its name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "description": "What it covers."
+        },
+        {
+          "name": "newPerDay",
+          "type": "number",
+          "required": true,
+          "description": "New cards per day (default 20)."
+        },
+        {
+          "name": "retention",
+          "type": "number",
+          "required": true,
+          "description": "Target recall, 0 to 1 (default 0.9)."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made, ms since epoch."
+        },
+        {
+          "name": "counts",
+          "type": "deckCounts",
+          "required": true,
+          "description": "Cards by state: new (today's allowance), newTotal, learning, review and so on."
+        },
+        {
+          "name": "today",
+          "type": "object",
+          "required": true,
+          "description": "Studied today: `new` and `reviews`."
+        }
+      ]
+    },
+    {
+      "type": "flashcard",
+      "name": "Flashcard",
+      "plural": "Cards",
+      "category": "learning",
+      "origin": "monorail",
+      "summary": "One card: a Markdown front and back, scheduled with FSRS-5.",
+      "docs": "standard/learning#flashcard",
+      "source": "Workspace > Flashcards",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "The card's id."
+        },
+        {
+          "name": "deckId",
+          "type": "string",
+          "required": true,
+          "description": "The deck it belongs to."
+        },
+        {
+          "name": "front",
+          "type": "markdown",
+          "required": true,
+          "description": "The question side."
+        },
+        {
+          "name": "back",
+          "type": "markdown",
+          "required": true,
+          "description": "The answer side."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "required": true,
+          "description": "`new`, `learning`, `review` or `relearning`."
+        },
+        {
+          "name": "due",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it is next due, ms since epoch."
+        },
+        {
+          "name": "intervalDays",
+          "type": "number",
+          "required": true,
+          "description": "Days between the last review and the next."
+        },
+        {
+          "name": "reps",
+          "type": "number",
+          "required": true,
+          "description": "Times reviewed."
+        },
+        {
+          "name": "lapses",
+          "type": "number",
+          "required": true,
+          "description": "Times forgotten after being learned."
+        },
+        {
+          "name": "suspended",
+          "type": "boolean",
+          "required": true,
+          "description": "Left out of study."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When it was made, ms since epoch."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "Last change, ms since epoch."
+        }
+      ]
+    },
+    {
+      "type": "semanticModel",
+      "name": "Semantic model",
+      "plural": "Semantic models",
+      "category": "semantic",
+      "origin": "monorail",
+      "summary": "A MetricFlow semantic model: entities, dimensions and measures over one dbt model.",
+      "docs": "standard/semantic#semantic-model",
+      "source": "Insights > Semantic",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The semantic model's name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "What it describes."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "description": "The dbt model it is defined on, e.g. `fct_orders`."
+        },
+        {
+          "name": "relation",
+          "type": "object",
+          "description": "The warehouse table it reads: `database`, `schema` and `name`. This is the link to a Table."
+        },
+        {
+          "name": "defaultTimeDimension",
+          "type": "string",
+          "description": "The time dimension measures use by default."
+        },
+        {
+          "name": "primaryEntity",
+          "type": "string",
+          "description": "Its primary entity."
+        },
+        {
+          "name": "entities",
+          "type": "modelEntity[]",
+          "required": true,
+          "description": "Join keys: `name` and `type` (primary, foreign, unique, natural)."
+        },
+        {
+          "name": "dimensions",
+          "type": "modelDimension[]",
+          "required": true,
+          "description": "What it can be grouped by: `name`, `type` (categorical or time), `grain`, `description`."
+        },
+        {
+          "name": "measures",
+          "type": "modelMeasure[]",
+          "required": true,
+          "description": "What it adds up: `name`, `agg`, `description`."
+        }
+      ]
+    },
+    {
+      "type": "semanticMetric",
+      "name": "Metric",
+      "plural": "Metrics",
+      "category": "semantic",
+      "origin": "monorail",
+      "summary": "A MetricFlow metric. Not OpenMetadata's Metric entity, which MonoRail has not adopted yet.",
+      "docs": "standard/semantic#metric",
+      "source": "Insights > Semantic",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The metric's name."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Its display name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "What it measures."
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "required": true,
+          "description": "`simple`, `ratio`, `cumulative`, `derived` or `conversion`."
+        },
+        {
+          "name": "definition",
+          "type": "string",
+          "required": true,
+          "description": "How it is worked out, in words, e.g. \"Sum of order_total\"."
+        },
+        {
+          "name": "filter",
+          "type": "string",
+          "description": "A where filter on the metric itself, as written."
+        },
+        {
+          "name": "measures",
+          "type": "string[]",
+          "required": true,
+          "description": "Measures it reads, directly or through its input metrics."
+        },
+        {
+          "name": "inputMetrics",
+          "type": "string[]",
+          "required": true,
+          "description": "Metrics it is built from."
+        },
+        {
+          "name": "semanticModels",
+          "type": "string[]",
+          "required": true,
+          "description": "Semantic models it reads."
+        },
+        {
+          "name": "dimensions",
+          "type": "string[]",
+          "required": true,
+          "description": "Group-by names it can be split by, e.g. `customer__region`."
+        }
+      ]
+    },
+    {
+      "type": "savedQuery",
+      "name": "Saved query",
+      "plural": "Saved queries",
+      "category": "semantic",
+      "origin": "monorail",
+      "summary": "A MetricFlow saved query: metrics, group-bys and filters under one name.",
+      "docs": "standard/semantic#saved-query",
+      "source": "Insights > Semantic",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "description": "The saved query's name."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "What it answers."
+        },
+        {
+          "name": "metrics",
+          "type": "string[]",
+          "required": true,
+          "description": "Metrics it returns."
+        },
+        {
+          "name": "groupBy",
+          "type": "string[]",
+          "required": true,
+          "description": "Group-bys it splits them by."
+        },
+        {
+          "name": "where",
+          "type": "string[]",
+          "required": true,
+          "description": "Filters, as written."
+        }
+      ]
+    },
+    {
+      "type": "databaseService",
+      "name": "Database Service",
+      "plural": "Database services",
+      "category": "databases",
+      "origin": "openmetadata",
+      "summary": "A service such as BigQuery, Snowflake, Postgres or DuckDB that hosts databases.",
+      "docs": "standard/databases/database-service",
+      "basePath": "/v1/services/databaseServices",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/database-services",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Unique identifier of this database service instance."
+        },
+        {
+          "name": "name",
+          "type": "entityName",
+          "required": true,
+          "description": "Name that identifies this database service."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "fullyQualifiedEntityName",
+          "description": "FullyQualifiedName same as `name`."
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display Name that identifies this database service."
+        },
+        {
+          "name": "serviceType",
+          "type": "databaseServiceType",
+          "required": true,
+          "description": "Type of database service such as MySQL, BigQuery, Snowflake, Redshift, Postgres..."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "Description of a database service instance."
+        },
+        {
+          "name": "connection",
+          "type": "databaseConnection",
+          "description": "How to connect to the service. Secrets in it are never shown."
+        },
+        {
+          "name": "pipelines",
+          "type": "entityReferenceList",
+          "description": "References to pipelines deployed for this database service to extract metadata, usage, lineage etc.."
+        },
+        {
+          "name": "testConnectionResult",
+          "type": "testConnectionResult",
+          "description": "Last test connection results for this service"
+        },
+        {
+          "name": "tags",
+          "type": "tagLabel[]",
+          "description": "Tags for this Database Service."
+        },
+        {
+          "name": "style",
+          "type": "style",
+          "description": "Color and icon for the entity in the UI."
+        },
+        {
+          "name": "version",
+          "type": "entityVersion",
+          "description": "Metadata version of the entity."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds."
+        },
+        {
+          "name": "updatedBy",
+          "type": "string",
+          "description": "User who made the update."
+        },
+        {
+          "name": "impersonatedBy",
+          "type": "impersonatedBy",
+          "description": "Bot user that performed the action on behalf of the actual user."
+        },
+        {
+          "name": "owners",
+          "type": "entityReferenceList",
+          "description": "Owners of this database service."
+        },
+        {
+          "name": "href",
+          "type": "href",
+          "description": "Link to the resource corresponding to this database service."
+        },
+        {
+          "name": "followers",
+          "type": "entityReferenceList",
+          "description": "Followers of this entity."
+        },
+        {
+          "name": "changeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "incrementalChangeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "When `true` indicates the entity has been soft deleted."
+        },
+        {
+          "name": "entityStatus",
+          "type": "status",
+          "description": "Status of the entity."
+        },
+        {
+          "name": "dataProducts",
+          "type": "entityReferenceList",
+          "description": "List of data products this entity is part of."
+        },
+        {
+          "name": "dataContract",
+          "type": "entityReference",
+          "description": "Reference to the data contract for this entity."
+        },
+        {
+          "name": "domains",
+          "type": "entityReferenceList",
+          "description": "Domains the Database service belongs to."
+        },
+        {
+          "name": "ingestionRunner",
+          "type": "entityReference",
+          "description": "The ingestion agent responsible for executing the ingestion pipeline."
+        }
+      ]
+    },
+    {
+      "type": "database",
+      "name": "Database",
+      "plural": "Databases",
+      "category": "databases",
+      "origin": "openmetadata",
+      "summary": "A logical container within a database service. In BigQuery, a project.",
+      "docs": "standard/databases/database",
+      "basePath": "/v1/databases",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/databases",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Unique identifier that identifies this database instance."
+        },
+        {
+          "name": "name",
+          "type": "entityName",
+          "required": true,
+          "description": "Name that identifies the database."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "fullyQualifiedEntityName",
+          "description": "Name that uniquely identifies a database in the format 'ServiceName.DatabaseName'."
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display Name that identifies this database."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "Description of the database instance."
+        },
+        {
+          "name": "dataProducts",
+          "type": "entityReferenceList",
+          "description": "List of data products this entity is part of."
+        },
+        {
+          "name": "dataContract",
+          "type": "entityReference",
+          "description": "Reference to the data contract for this entity."
+        },
+        {
+          "name": "tags",
+          "type": "tagLabel[]",
+          "description": "Tags for this Database."
+        },
+        {
+          "name": "version",
+          "type": "entityVersion",
+          "description": "Metadata version of the entity."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds."
+        },
+        {
+          "name": "updatedBy",
+          "type": "string",
+          "description": "User who made the update."
+        },
+        {
+          "name": "impersonatedBy",
+          "type": "impersonatedBy",
+          "description": "Bot user that performed the action on behalf of the actual user."
+        },
+        {
+          "name": "href",
+          "type": "href",
+          "description": "Link to the resource corresponding to this entity."
+        },
+        {
+          "name": "owners",
+          "type": "entityReferenceList",
+          "description": "Owners of this database."
+        },
+        {
+          "name": "service",
+          "type": "entityReference",
+          "required": true,
+          "description": "Link to the database cluster/service where this database is hosted in."
+        },
+        {
+          "name": "serviceType",
+          "type": "databaseServiceType",
+          "description": "Service type where this database is hosted in."
+        },
+        {
+          "name": "location",
+          "type": "entityReference",
+          "description": "Reference to the Location that contains this database."
+        },
+        {
+          "name": "usageSummary",
+          "type": "usageDetails",
+          "description": "Latest usage information for this database."
+        },
+        {
+          "name": "databaseSchemas",
+          "type": "entityReferenceList",
+          "description": "References to schemas in the database."
+        },
+        {
+          "name": "changeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "incrementalChangeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "default",
+          "type": "boolean",
+          "description": "Some databases don't support a database/catalog in the hierarchy and use default database."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "When `true` indicates the entity has been soft deleted."
+        },
+        {
+          "name": "retentionPeriod",
+          "type": "duration",
+          "description": "Retention period of the data in the database."
+        },
+        {
+          "name": "extension",
+          "type": "entityExtension",
+          "description": "Entity extension data with custom attributes added to the entity."
+        },
+        {
+          "name": "sourceUrl",
+          "type": "sourceUrl",
+          "description": "Source URL of database."
+        },
+        {
+          "name": "domains",
+          "type": "entityReferenceList",
+          "description": "Domains the Database belongs to."
+        },
+        {
+          "name": "votes",
+          "type": "votes",
+          "description": "Votes on the entity."
+        },
+        {
+          "name": "lifeCycle",
+          "type": "lifeCycle",
+          "description": "Life Cycle properties of the entity"
+        },
+        {
+          "name": "certification",
+          "type": "assetCertification",
+          "description": "The asset's certification: a tag from the Certification classification, with when it was applied and when it expires."
+        },
+        {
+          "name": "followers",
+          "type": "entityReferenceList",
+          "description": "Followers of this entity."
+        },
+        {
+          "name": "sourceHash",
+          "type": "string",
+          "description": "Source hash of the entity"
+        },
+        {
+          "name": "databaseProfilerConfig",
+          "type": "object",
+          "description": "This schema defines the type for Database profile config."
+        },
+        {
+          "name": "entityStatus",
+          "type": "status",
+          "description": "Status of the Database."
+        }
+      ]
+    },
+    {
+      "type": "databaseSchema",
+      "name": "Database Schema",
+      "plural": "Database schemas",
+      "category": "databases",
+      "origin": "openmetadata",
+      "summary": "A container of tables and stored procedures within a database. In BigQuery, a dataset.",
+      "docs": "standard/databases/database-schema",
+      "basePath": "/v1/databaseSchemas",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/database-schemas",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Unique identifier that identifies this schema instance."
+        },
+        {
+          "name": "name",
+          "type": "entityName",
+          "required": true,
+          "description": "Name that identifies the schema."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "fullyQualifiedEntityName",
+          "description": "Name that uniquely identifies a schema in the format 'ServiceName.DatabaseName.SchemaName'."
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display Name that identifies this schema."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "Description of the schema instance."
+        },
+        {
+          "name": "dataProducts",
+          "type": "entityReferenceList",
+          "description": "List of data products this entity is part of."
+        },
+        {
+          "name": "dataContract",
+          "type": "entityReference",
+          "description": "Reference to the data contract for this entity."
+        },
+        {
+          "name": "version",
+          "type": "entityVersion",
+          "description": "Metadata version of the entity."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds."
+        },
+        {
+          "name": "updatedBy",
+          "type": "string",
+          "description": "User who made the update."
+        },
+        {
+          "name": "impersonatedBy",
+          "type": "impersonatedBy",
+          "description": "Bot user that performed the action on behalf of the actual user."
+        },
+        {
+          "name": "href",
+          "type": "href",
+          "description": "Link to the resource corresponding to this entity."
+        },
+        {
+          "name": "owners",
+          "type": "entityReferenceList",
+          "description": "Owner of this schema."
+        },
+        {
+          "name": "service",
+          "type": "entityReference",
+          "required": true,
+          "description": "Link to the database cluster/service where this schema is hosted in."
+        },
+        {
+          "name": "serviceType",
+          "type": "databaseServiceType",
+          "description": "Service type where this schema is hosted in."
+        },
+        {
+          "name": "database",
+          "type": "entityReference",
+          "required": true,
+          "description": "Reference to Database that contains this table."
+        },
+        {
+          "name": "tables",
+          "type": "entityReferenceList",
+          "description": "References to tables in the schema."
+        },
+        {
+          "name": "usageSummary",
+          "type": "usageDetails",
+          "description": "Latest usage information for this database."
+        },
+        {
+          "name": "tags",
+          "type": "tagLabel[]",
+          "description": "Tags for this Database Schema Service."
+        },
+        {
+          "name": "changeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "incrementalChangeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "When `true` indicates the entity has been soft deleted."
+        },
+        {
+          "name": "retentionPeriod",
+          "type": "duration",
+          "description": "Retention period of the data in the database schema."
+        },
+        {
+          "name": "extension",
+          "type": "entityExtension",
+          "description": "Entity extension data with custom attributes added to the entity."
+        },
+        {
+          "name": "sourceUrl",
+          "type": "sourceUrl",
+          "description": "Source URL of database schema."
+        },
+        {
+          "name": "domains",
+          "type": "entityReferenceList",
+          "description": "Domains the Database Schema belongs to."
+        },
+        {
+          "name": "votes",
+          "type": "votes",
+          "description": "Votes on the entity."
+        },
+        {
+          "name": "lifeCycle",
+          "type": "lifeCycle",
+          "description": "Life Cycle properties of the entity"
+        },
+        {
+          "name": "followers",
+          "type": "entityReferenceList",
+          "description": "Followers of this entity."
+        },
+        {
+          "name": "certification",
+          "type": "assetCertification",
+          "description": "The asset's certification: a tag from the Certification classification, with when it was applied and when it expires."
+        },
+        {
+          "name": "sourceHash",
+          "type": "string",
+          "description": "Source hash of the entity"
+        },
+        {
+          "name": "databaseSchemaProfilerConfig",
+          "type": "object",
+          "description": "This schema defines the type for Schema profile config."
+        },
+        {
+          "name": "entityStatus",
+          "type": "status",
+          "description": "Status of the DatabaseSchema."
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "name": "Table",
+      "plural": "Tables",
+      "category": "databases",
+      "origin": "openmetadata",
+      "summary": "Data in rows and columns, defined in a database schema. Views count as tables.",
+      "docs": "standard/databases/table",
+      "basePath": "/v1/tables",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/tables",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Unique identifier of this table instance."
+        },
+        {
+          "name": "name",
+          "type": "entityName",
+          "required": true,
+          "description": "Name of a table."
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display Name that identifies this table."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "fullyQualifiedEntityName",
+          "description": "Fully qualified name of a table in the form `serviceName.databaseName.tableName`."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "Description of a table."
+        },
+        {
+          "name": "version",
+          "type": "entityVersion",
+          "description": "Metadata version of the entity."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds."
+        },
+        {
+          "name": "updatedBy",
+          "type": "string",
+          "description": "User who made the update."
+        },
+        {
+          "name": "impersonatedBy",
+          "type": "impersonatedBy",
+          "description": "Bot user that performed the action on behalf of the actual user."
+        },
+        {
+          "name": "href",
+          "type": "href",
+          "description": "Link to this table resource."
+        },
+        {
+          "name": "tableType",
+          "type": "tableType",
+          "description": "Regular, External, View, SecureView, MaterializedView, Iceberg, Local, Partitioned, Foreign, Transient, Dynamic or Stream."
+        },
+        {
+          "name": "columns",
+          "type": "column[]",
+          "required": true,
+          "description": "Columns in this table."
+        },
+        {
+          "name": "tableConstraints",
+          "type": "tableConstraint[]",
+          "description": "Table constraints."
+        },
+        {
+          "name": "aliases",
+          "type": "fullyQualifiedEntityName[]",
+          "description": "Alternate fully qualified SQL names that resolve to this table, such as SQL Server synonyms."
+        },
+        {
+          "name": "tablePartition",
+          "type": "tablePartition",
+          "description": "How the table is partitioned: columns, interval type and interval."
+        },
+        {
+          "name": "owners",
+          "type": "entityReferenceList",
+          "description": "Owners of this table."
+        },
+        {
+          "name": "databaseSchema",
+          "type": "entityReference",
+          "description": "Reference to database schema that contains this table."
+        },
+        {
+          "name": "database",
+          "type": "entityReference",
+          "description": "Reference to Database that contains this table."
+        },
+        {
+          "name": "service",
+          "type": "entityReference",
+          "description": "Link to Database service this table is hosted in."
+        },
+        {
+          "name": "serviceType",
+          "type": "databaseServiceType",
+          "description": "Service type this table is hosted in."
+        },
+        {
+          "name": "location",
+          "type": "entityReference",
+          "description": "Reference to the Location that contains this table."
+        },
+        {
+          "name": "locationPath",
+          "type": "string",
+          "description": "Full storage path in case of external and managed tables."
+        },
+        {
+          "name": "schemaDefinition",
+          "type": "sqlQuery",
+          "description": "DDL for Tables and Views"
+        },
+        {
+          "name": "tags",
+          "type": "tagLabel[]",
+          "description": "Tags for this table."
+        },
+        {
+          "name": "usageSummary",
+          "type": "usageDetails",
+          "description": "Latest usage information for this table."
+        },
+        {
+          "name": "followers",
+          "type": "entityReferenceList",
+          "description": "Followers of this table."
+        },
+        {
+          "name": "joins",
+          "type": "tableJoins",
+          "description": "Details of other tables this table is frequently joined with."
+        },
+        {
+          "name": "sampleData",
+          "type": "tableData",
+          "description": "Sample data for a table."
+        },
+        {
+          "name": "tableProfilerConfig",
+          "type": "tableProfilerConfig",
+          "description": "Table Profiler Config to include or exclude columns from profiling."
+        },
+        {
+          "name": "customMetrics",
+          "type": "customMetric[]",
+          "description": "List of Custom Metrics registered for a table."
+        },
+        {
+          "name": "profile",
+          "type": "tableProfile",
+          "description": "Latest Data profile for a table."
+        },
+        {
+          "name": "testSuite",
+          "type": "entityReference",
+          "description": "Executable test suite associated with this table"
+        },
+        {
+          "name": "dataModel",
+          "type": "dataModel",
+          "description": "This captures information about how the table is modeled."
+        },
+        {
+          "name": "changeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "incrementalChangeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "When `true` indicates the entity has been soft deleted."
+        },
+        {
+          "name": "retentionPeriod",
+          "type": "duration",
+          "description": "Retention period of the data in the table."
+        },
+        {
+          "name": "compressionEnabled",
+          "type": "boolean",
+          "description": "Indicates whether compression is enabled on this table."
+        },
+        {
+          "name": "compressionCodec",
+          "type": "string",
+          "description": "Compression algorithm/codec used."
+        },
+        {
+          "name": "compressionStrategy",
+          "type": "object",
+          "description": "Compression strategy configuration including segment/partition/order keys"
+        },
+        {
+          "name": "extension",
+          "type": "entityExtension",
+          "description": "Entity extension data with custom attributes added to the entity."
+        },
+        {
+          "name": "sourceUrl",
+          "type": "sourceUrl",
+          "description": "Source URL of table."
+        },
+        {
+          "name": "domains",
+          "type": "entityReferenceList",
+          "description": "Domains the asset belongs to."
+        },
+        {
+          "name": "dataProducts",
+          "type": "entityReferenceList",
+          "description": "List of data products this entity is part of."
+        },
+        {
+          "name": "dataContract",
+          "type": "entityReference",
+          "description": "Reference to the data contract for this entity."
+        },
+        {
+          "name": "fileFormat",
+          "type": "fileFormat",
+          "description": "File format in case of file/datalake tables."
+        },
+        {
+          "name": "votes",
+          "type": "votes",
+          "description": "Votes on the entity."
+        },
+        {
+          "name": "lifeCycle",
+          "type": "lifeCycle",
+          "description": "Life Cycle of the entity"
+        },
+        {
+          "name": "certification",
+          "type": "assetCertification",
+          "description": "The asset's certification: a tag from the Certification classification, with when it was applied and when it expires."
+        },
+        {
+          "name": "sourceHash",
+          "type": "string",
+          "description": "Source hash of the entity"
+        },
+        {
+          "name": "processedLineage",
+          "type": "boolean",
+          "description": "Processed lineage for the table"
+        },
+        {
+          "name": "queries",
+          "type": "sqlQuery[]",
+          "description": "List of queries that are used to create this table."
+        },
+        {
+          "name": "pipelineObservability",
+          "type": "pipelineObservability[]",
+          "description": "Pipeline observability information for the table."
+        },
+        {
+          "name": "entityStatus",
+          "type": "status",
+          "description": "Status of the Table."
+        },
+        {
+          "name": "tableSharding",
+          "type": "tableSharding",
+          "description": "How the table is sharded, for sharded tables (for example BigQuery date-sharded tables)."
+        }
+      ]
+    },
+    {
+      "type": "storedProcedure",
+      "name": "Stored Procedure",
+      "plural": "Stored procedures",
+      "category": "databases",
+      "origin": "openmetadata",
+      "summary": "A procedure stored in a database schema.",
+      "docs": "standard/databases/stored-procedure",
+      "basePath": "/v1/storedProcedures",
+      "reference": "https://docs.open-metadata.org/v2.0.x/api-reference/data-assets/stored-procedures",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Unique identifier of the StoredProcedure."
+        },
+        {
+          "name": "name",
+          "type": "entityName",
+          "required": true,
+          "description": "Name of Stored Procedure."
+        },
+        {
+          "name": "fullyQualifiedName",
+          "type": "fullyQualifiedEntityName",
+          "description": "Fully qualified name of a Stored Procedure."
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "Display Name that identifies this Stored Procedure."
+        },
+        {
+          "name": "description",
+          "type": "markdown",
+          "description": "Description of a Stored Procedure."
+        },
+        {
+          "name": "storedProcedureCode",
+          "type": "storedProcedureCode",
+          "required": true,
+          "description": "Stored Procedure Code."
+        },
+        {
+          "name": "version",
+          "type": "entityVersion",
+          "description": "Metadata version of the Stored Procedure."
+        },
+        {
+          "name": "dataProducts",
+          "type": "entityReferenceList",
+          "description": "List of data products this entity is part of."
+        },
+        {
+          "name": "dataContract",
+          "type": "entityReference",
+          "description": "Reference to the data contract for this entity."
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "description": "Last update time corresponding to the new version of the entity in Unix epoch time milliseconds."
+        },
+        {
+          "name": "storedProcedureType",
+          "type": "storedProcedureType",
+          "description": "Type of the Stored Procedure."
+        },
+        {
+          "name": "updatedBy",
+          "type": "string",
+          "description": "User who made the query."
+        },
+        {
+          "name": "impersonatedBy",
+          "type": "impersonatedBy",
+          "description": "Bot user that performed the action on behalf of the actual user."
+        },
+        {
+          "name": "href",
+          "type": "href",
+          "description": "Link to this Query resource."
+        },
+        {
+          "name": "changeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "incrementalChangeDescription",
+          "type": "changeDescription",
+          "description": "Change that lead to this version of the entity."
+        },
+        {
+          "name": "databaseSchema",
+          "type": "entityReference",
+          "description": "Reference to Database Schema that contains this stored procedure."
+        },
+        {
+          "name": "database",
+          "type": "entityReference",
+          "description": "Reference to Database that contains this stored procedure."
+        },
+        {
+          "name": "service",
+          "type": "entityReference",
+          "description": "Link to Database service this table is hosted in."
+        },
+        {
+          "name": "serviceType",
+          "type": "databaseServiceType",
+          "description": "Service type this table is hosted in."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "description": "When `true` indicates the entity has been soft deleted."
+        },
+        {
+          "name": "owners",
+          "type": "entityReferenceList",
+          "description": "Owners of this Stored Procedure."
+        },
+        {
+          "name": "followers",
+          "type": "entityReferenceList",
+          "description": "Followers of this Stored Procedure."
+        },
+        {
+          "name": "votes",
+          "type": "votes",
+          "description": "Votes on the entity."
+        },
+        {
+          "name": "code",
+          "type": "sqlQuery",
+          "description": "SQL Query definition."
+        },
+        {
+          "name": "tags",
+          "type": "tagLabel[]",
+          "description": "Tags for this SQL query."
+        },
+        {
+          "name": "extension",
+          "type": "entityExtension",
+          "description": "Entity extension data with custom attributes added to the entity."
+        },
+        {
+          "name": "sourceUrl",
+          "type": "sourceUrl",
+          "description": "Source URL of database schema."
+        },
+        {
+          "name": "domains",
+          "type": "entityReferenceList",
+          "description": "Domains the Stored Procedure belongs to."
+        },
+        {
+          "name": "lifeCycle",
+          "type": "lifeCycle",
+          "description": "Life Cycle properties of the entity"
+        },
+        {
+          "name": "certification",
+          "type": "assetCertification",
+          "description": "The asset's certification: a tag from the Certification classification, with when it was applied and when it expires."
+        },
+        {
+          "name": "sourceHash",
+          "type": "string",
+          "description": "Source hash of the entity"
+        },
+        {
+          "name": "processedLineage",
+          "type": "boolean",
+          "description": "Processed lineage for the stored procedure"
+        },
+        {
+          "name": "entityStatus",
+          "type": "status",
+          "description": "Status of the StoredProcedure."
+        }
+      ]
+    }
+  ]
+}

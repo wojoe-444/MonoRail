@@ -71,3 +71,5 @@ Agents connected to [MonoRail's MCP server](mcp.md) can read your decks
 (`list_flashcard_decks`, `list_flashcards`) and, once you allow it for that
 agent on **Settings > Agent access**, add cards with `add_flashcards`, for
 example "make flashcards from this chapter". Every call is in the Activity log.
+
+In the [MonoRail standard](standard/README.md), decks and cards are the [Flashcard deck](standard/learning.md#flashcard-deck) and [Flashcard](standard/learning.md#flashcard) entity types.

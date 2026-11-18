@@ -1106,6 +1106,39 @@ should get a guide page (or a section in one) in the same PR, linked from its
 folder index and from the pages that mention it. Guides must not contain
 personal paths, names or test-user details.
 
+## The MonoRail standard: entity types
+
+Every kind of thing MonoRail knows about (subagent, note, flashcard, database,
+table, ...) is an **entity type** in the MonoRail standard (wiki section
+`docs/standard/`, featured on the wiki home). For now the standard is
+[OpenMetadata v2.0.x](https://docs.open-metadata.org/v2.0.x/api-reference/data-assets)
+plus MonoRail's own types for things OpenMetadata has no word for. The one
+definition is `apps/command-hub/src/standard/standard.json` (categories,
+entity types, fields; OpenMetadata fields copied from the 2.0.8 JSON schemas),
+read through `src/standard/index.ts`. Rules (`docs/standard/README.md`):
+
+- An OpenMetadata entity is adopted whole: its type name (`databaseSchema`),
+  field names, types and meanings unchanged. Fields may stay unset, never be
+  renamed or repurposed; MonoRail's extra fields go in `extension`.
+- MonoRail's own types are camelCase and never reuse an OpenMetadata type name
+  (the MetricFlow metric is `semanticMetric`; a test lists the names).
+- **Every entity type is on Explore** (`src/modules/explore`): its tree is
+  built from the standard's categories and types, items are made with
+  `entry('<type>', ...)` (a test fails on a type not in the standard), and
+  field details show the standard's type and description with a link to the
+  type's wiki page. Types with no items still show, with 0.
+- Each type has a wiki page with a `<!-- standard:fields <type> -->` block.
+  The tables between `<!-- standard:... -->` and `<!-- /standard -->` are
+  generated: run `node scripts/standard-docs.cjs` from `apps/command-hub`
+  after changing `standard.json` (`electron/standard.test.cjs` fails when
+  stale).
+- Adopted so far: OpenMetadata's **Databases** category (databaseService,
+  database, databaseSchema, table, storedProcedure). Explore fills database,
+  schema and table from the semantic project's models (`relation`, from the
+  manifest's `node_relation`); there is no OpenMetadata or warehouse
+  connection yet. The wider goal is to bring the separate MonoRail-Metadata
+  app (a UI over headless OpenMetadata) into MonoRail, starting with Database.
+
 ## Diagrams
 
 Process and decision diagrams follow the MonoRail diagrams standard (BPMN 2.0 and DMN),

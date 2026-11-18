@@ -8,6 +8,7 @@ const models: SemanticModel[] = [
     name: 'orders',
     description: 'One row per order placed in a store or online.',
     model: 'fct_orders',
+    relation: { database: 'lantern', schema: 'marts', name: 'fct_orders' },
     defaultTimeDimension: 'ordered_at',
     primaryEntity: 'order',
     entities: [
@@ -32,6 +33,7 @@ const models: SemanticModel[] = [
     name: 'order_items',
     description: 'One row per product on an order.',
     model: 'fct_order_items',
+    relation: { database: 'lantern', schema: 'marts', name: 'fct_order_items' },
     defaultTimeDimension: 'ordered_at',
     primaryEntity: 'order_item',
     entities: [
@@ -49,6 +51,7 @@ const models: SemanticModel[] = [
     name: 'customers',
     description: 'Everyone who has ordered at least once.',
     model: 'dim_customers',
+    relation: { database: 'lantern', schema: 'core', name: 'dim_customers' },
     defaultTimeDimension: 'first_order_at',
     primaryEntity: 'customer',
     entities: [{ name: 'customer', type: 'primary' }],
@@ -62,6 +65,7 @@ const models: SemanticModel[] = [
   {
     name: 'stores',
     model: 'dim_stores',
+    relation: { database: 'lantern', schema: 'core', name: 'dim_stores' },
     primaryEntity: 'store',
     entities: [{ name: 'store', type: 'primary' }],
     dimensions: [
@@ -74,6 +78,7 @@ const models: SemanticModel[] = [
   {
     name: 'products',
     model: 'dim_products',
+    relation: { database: 'lantern', schema: 'core', name: 'dim_products' },
     primaryEntity: 'product',
     entities: [{ name: 'product', type: 'primary' }],
     dimensions: [

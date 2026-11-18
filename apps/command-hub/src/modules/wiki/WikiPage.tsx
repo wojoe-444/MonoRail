@@ -12,11 +12,13 @@ import {
   CircleHelp,
   Compass,
   CornerDownRight,
+  Database,
   ExternalLink,
   FileText,
   Folder,
   FolderGit2,
   FolderOpen,
+  GraduationCap,
   KeyRound,
   Link2,
   MessagesSquare,
@@ -26,8 +28,11 @@ import {
   Puzzle,
   RefreshCw,
   Search,
+  Shapes,
   ShieldCheck,
+  Sigma,
   Sparkles,
+  Telescope,
   UserRound,
   Workflow,
   Wrench,
@@ -333,6 +338,7 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/README': Sparkles,
   'guide/first-ten-minutes': Compass,
   'guide/private-data': ShieldCheck,
+  'guide/explore': Telescope,
   'guide/agents': Bot,
   'guide/agents/chat': MessagesSquare,
   'guide/agents/create-an-agent': Plus,
@@ -348,6 +354,12 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/setup/extensions': Puzzle,
   'guide/glossary': BookA,
   'guide/faq': CircleHelp,
+  'standard/README': Shapes,
+  'standard/agents': Bot,
+  'standard/workspace': FolderGit2,
+  'standard/learning': GraduationCap,
+  'standard/semantic': Sigma,
+  'standard/databases': Database,
 }
 
 function iconFor(id: string, fallback: LucideIcon = FileText) {
@@ -356,7 +368,8 @@ function iconFor(id: string, fallback: LucideIcon = FileText) {
 
 function WikiHome({ audience, onOpen }: { audience: AudienceFilter; onOpen: Open }) {
   const guide = findFolder('guide')
-  const rest = tree.filter((f) => f.path !== 'guide' && folderShows(audience, f))
+  const standard = findFolder('standard')
+  const rest = tree.filter((f) => f.path !== 'guide' && f.path !== 'standard' && folderShows(audience, f))
   return (
     <div className="flex flex-col gap-8">
       {guide && folderShows(audience, guide) && (
@@ -366,6 +379,15 @@ function WikiHome({ audience, onOpen }: { audience: AudienceFilter; onOpen: Open
             <p className="text-sm text-muted-foreground">Short guides in plain language. Each one links on to the next thing worth knowing, so pick one and follow the links.</p>
           </div>
           <NodeCards folder={guide} audience={audience} onOpen={onOpen} withIndex />
+        </section>
+      )}
+      {standard && folderShows(audience, standard) && (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">The MonoRail standard</h2>
+            <p className="text-sm text-muted-foreground">Every kind of thing MonoRail knows about and the fields it has: OpenMetadata v2.0.x, plus a few kinds of MonoRail's own.</p>
+          </div>
+          <NodeCards folder={standard} audience={audience} onOpen={onOpen} withIndex />
         </section>
       )}
       {rest.map((f) => (

@@ -69,15 +69,17 @@ export type WikiNode = { kind: 'page'; page: WikiPage } | { kind: 'folder'; fold
  * not listed follows (pages by title, then folders by title).
  */
 const ORDER: Record<string, string[]> = {
-  guide: ['first-ten-minutes', 'private-data', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
+  guide: ['first-ten-minutes', 'private-data', 'explore', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
   'guide/agents': ['chat', 'create-an-agent', 'coordinator', 'flows', 'spend', 'agent-access'],
   'guide/workspace': ['browse-repos', 'local-issues', 'tasks', 'email'],
   'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'extensions', 'spending-limit', 'remote-access', 'developer-mode', 'docker', 'semantic'],
+  standard: ['databases', 'agents', 'workspace', 'learning', 'semantic'],
+  'standard/databases': ['database-service', 'database', 'database-schema', 'table', 'stored-procedure'],
   extensions: ['concepts', 'tutorial', 'manifest', 'page-api', 'backend-api', 'non-node-runtimes', 'permissions', 'lifecycle', 'testing', 'troubleshooting', 'roadmap'],
 }
 
 /** Top-level folders in this order; "" is the loose top-level pages, shown as one folder. */
-const TOP_ORDER = ['guide', '', 'extensions']
+const TOP_ORDER = ['guide', 'standard', '', 'extensions']
 const ROOT_TITLE = 'Features in depth'
 
 /** Split "---\nkey: value\n---" off the top of a page. */

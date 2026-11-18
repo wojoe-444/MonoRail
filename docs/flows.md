@@ -77,3 +77,5 @@ or outputs. Both files are declared in `electron/cache/declared.cjs`.
 Multi-agent helpers, branching and loops, Python components (opt-in, per-code
 consent), deploying as an MCP tool or local API, and a Langflow importer come
 in later phases.
+
+In the [MonoRail standard](standard/README.md), a flow is the [Flow](standard/agents.md#flow) entity type.
