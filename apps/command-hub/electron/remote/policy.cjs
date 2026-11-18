@@ -17,6 +17,7 @@ const REMOTE_DENY = Object.freeze({
   mcp: ['setAllowed', 'forgetAgent', 'clearAudit'],
   backups: ['save', 'runAll'],
   'agent-chat': ['setSystemPrompts', 'setSpending', 'allowOneMoreTurn', 'resetSpending', 'removeRepo'],
+  browser: ['clearData'], // signs out of every site in the PC's in-app browser
   'agent-catalog': ['create', 'update', 'remove'], // subagent definitions change what agents may do
   extensions: ['confirm', 'cancel', 'uninstall', 'setEnabled', 'approve', 'reload', 'checkUpdates', 'stageUpdate', 'revokeFolder', 'saveSettings'],
   'app:email': ['saveConnectorConfig', 'signIn', 'cancelSignIn', 'removeAccount', 'discover', 'addStores', 'updateAccount'],

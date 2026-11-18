@@ -33,6 +33,7 @@ const moduleBackends = [
   require('./agents.cjs'),
   require('./backups.cjs'),
   require('./bookmarks.cjs'),
+  require('./browser.cjs'),
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
   require('./developer.cjs'),

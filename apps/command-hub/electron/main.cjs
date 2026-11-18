@@ -64,11 +64,14 @@ function startApp() {
         nodeIntegration: false,
         sandbox: true,
         preload: path.join(__dirname, 'preload.cjs'),
+        // Tools > Browser's tabs; electron/browser-pane.cjs locks every webview down.
+        webviewTag: true,
       },
     })
 
     win.once('ready-to-show', () => win.show())
     attachFullScreen(win)
+    require('./browser-pane.cjs').attachBrowserPane(win)
 
     // Open external links in the user's browser, not inside the app.
     win.webContents.setWindowOpenHandler(({ url }) => {
