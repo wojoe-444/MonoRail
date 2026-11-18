@@ -118,7 +118,7 @@ class OmError extends Error {
  */
 function createClient(deps = {}) {
   const fetchImpl = deps.fetch ?? fetch
-  let token
+  let login
   // Field lists a collection refused (400), so they are not asked for again.
   const refused = new Set()
 
@@ -127,17 +127,30 @@ function createClient(deps = {}) {
     return require('../connections/index.cjs').getCredentials('openmetadata')
   }
 
+  function loginFor(c) {
+    if (login?.url === c.url && login.email === c.email && login.password === c.password) return login
+    const entry = { url: c.url, email: c.email, password: c.password, token: connector.accessToken(c, fetchImpl) }
+    login = entry
+    return entry
+  }
+
   async function request(method, apiPath, { body, contentType, retried = false } = {}) {
     const c = await creds()
-    if (!token || token.key !== `${c.url}|${c.auth}|${c.email ?? ''}`) {
-      token = { key: `${c.url}|${c.auth}|${c.email ?? ''}`, value: await connector.accessToken(c, fetchImpl) }
+    const entry = c.auth === 'login' ? loginFor(c) : undefined
+    if (!entry) login = undefined
+    let token
+    try {
+      token = await (entry?.token ?? connector.accessToken(c, fetchImpl))
+    } catch (e) {
+      if (login === entry) login = undefined
+      throw e
     }
     let res
     try {
       res = await fetchImpl(`${c.url}/api/v1${apiPath}`, {
         method,
         headers: {
-          Authorization: `Bearer ${token.value}`,
+          Authorization: `Bearer ${token}`,
           Accept: 'application/json',
           ...(body !== undefined ? { 'Content-Type': contentType ?? 'application/json' } : {}),
         },
@@ -148,8 +161,8 @@ function createClient(deps = {}) {
       throw new OmError(0, `Could not reach ${c.url}: ${e.cause?.code ?? e.message}`)
     }
     // A login's token runs out: sign in again once.
-    if (res.status === 401 && c.auth === 'login' && !retried) {
-      token = undefined
+    if (res.status === 401 && entry && !retried) {
+      if (login === entry) login = undefined
       return request(method, apiPath, { body, contentType, retried: true })
     }
     const raw = await res.text()
