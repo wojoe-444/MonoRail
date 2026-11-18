@@ -149,7 +149,10 @@ older releases' notes.
 - `data/` fictional sample data only.
 - `index.css` design tokens (light and dark defaults = the "Sand & Ink"
   palette), fonts, chart series.
-- `lib/palettes.ts` the color schemes; `lib/theme.ts` applies the chosen
+- `lib/palettes.ts` the color schemes (picture schemes add a `backdrop`: an
+  SVG drawing from `src/assets/backdrops/`, generated from the modules in
+  `scripts/backdrops/` by `npm run backdrops`, with the glass rules at the end
+  of `index.css`); `lib/theme.ts` applies the chosen
   palette and light/dark mode; `components/theme/ThemePicker.tsx` holds the
   Settings "Appearance" card, the only place to pick them.
 
