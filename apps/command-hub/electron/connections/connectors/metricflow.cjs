@@ -91,6 +91,8 @@ async function validateProject(conn, job, deps = {}) {
 
 module.exports = {
   kind: 'metricflow',
+  // A data source: the dbt project, read by a local dbt ingestion pipeline on the Services page.
+  service: { category: 'databaseService', serviceType: 'dbt' },
   title: 'MetricFlow',
   description: 'Your dbt project’s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
   icon: 'database',

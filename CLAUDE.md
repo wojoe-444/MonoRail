@@ -617,6 +617,26 @@ against the manifest, versions come from dist-info folder names, and
 folder deleted at once; nothing is cached or kept, and the page never gets the
 project's full path. MonoRail never installs Python, dbt or MetricFlow.
 
+`ingestion` (**Services**, Settings group "Data", `/services`; docs:
+`docs/ingestion.md`, guide `docs/guide/setup/services.md`) adopts
+OpenMetadata's services and ingestion pipelines; where the Connections model
+disagrees, OpenMetadata's shape wins. A connector with `service: { category,
+serviceType }` is a **data source** (today `sqlite`, `metricflow`,
+`openmetadata`; Connections tags them "Data service" and still owns their
+fields and secrets); the rest are accounts. Pipelines are `ingestionPipeline`
+entities with `extension.monorail.runner`: **`this-pc`** pipelines live in
+`pipelines.json` (runs in `runs.json`, newest 30, results in `catalog.json`;
+all in `modules/ingestion`, profile scope, never overwritten when damaged)
+and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
+`ingestion-cron.cjs`) only after the user deploys them; SQLite metadata and
+profiler run read-only in a worker thread, dbt reads `target/manifest.json`
+(`ingestion-local.cjs`); deployed ones are In-App rows. **`server`**
+pipelines are read live from the OpenMetadata connection and acted on by
+UUID (trigger, deploy, kill, toggleIngestion, logs, create); MonoRail never
+sends the server a connection or password. No Auto Pilot: adding a service
+creates no pipelines. Explore shows local services, pipelines and catalog
+tables (full names start at the service).
+
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
 `ChatMarkdown`) and per-day study counts (90 days) live in one file,

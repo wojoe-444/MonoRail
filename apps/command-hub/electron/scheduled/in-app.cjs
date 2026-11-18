@@ -1,6 +1,6 @@
 // The list behind Scheduled > In-App: every job MonoRail runs on a timer while
 // it is open (report rebuilds, backups, update checks, drive samples, the PR
-// watcher, Remote access checks).
+// watcher, Remote access checks, ingestion pipelines deployed to this PC).
 //
 // Each backend that owns such a job registers a provider from its start(ctx):
 //

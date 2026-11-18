@@ -12,7 +12,7 @@ import { useSettingsAlerts } from './alerts'
 import { scrollToAnchor, searchSettings, type SearchHit } from './search'
 
 /** Groups in menu order; a page with another group is listed after these, under its own heading. */
-const GROUP_ORDER = ['App', 'Accounts & access']
+const GROUP_ORDER = ['App', 'Data', 'Accounts & access']
 
 /** Every Settings page (modules with `nav.section: 'Settings'`), in menu order. */
 export function useSettingsPages(): ModuleDefinition[] {

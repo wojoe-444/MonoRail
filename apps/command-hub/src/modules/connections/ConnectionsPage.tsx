@@ -40,6 +40,7 @@ import { invokeModule, isDesktop } from '@/modules/client'
 import { refreshSettingsAlerts } from '@/modules/settings/alerts'
 
 import { ClaudeAccountBadge } from './ClaudeAccountBadge'
+import { navigate } from '@/lib/router'
 import { sampleList, sampleStatuses } from './sample'
 import type { ClaudeAccount } from './account'
 import type { Connection, ConnectionJob, ConnectionState, ConnectionStatus, ConnectionsList, Connector, ConnectorField } from './types'
@@ -255,6 +256,13 @@ export default function ConnectionsPage() {
       />
 
       {!desktop && <Notice tone="info">This is fictional sample data. Connections work in the desktop app.</Notice>}
+      <p className="-mt-4 text-sm text-muted-foreground">
+        Connections marked <span className="font-medium text-foreground">Data service</span> are data sources. Their ingestion pipelines are on{' '}
+        <button type="button" className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => navigate('/services')}>
+          Services
+        </button>
+        .
+      </p>
       {loadError && <Notice tone="destructive">{loadError}</Notice>}
       {list && !list.encryptionAvailable && (
         <Notice tone="warning">Windows could not provide encryption, so MonoRail will not save tokens. Credential Manager entries still work.</Notice>
@@ -461,6 +469,11 @@ function NameCell({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{connector.title}</span>
           {child && <span className="hidden shrink-0 text-xs whitespace-nowrap text-muted-foreground @5xl:inline">Add-on</span>}
+          {connector.service && (
+            <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground" title="A data source: its ingestion pipelines are on Settings > Services">
+              Data service
+            </span>
+          )}
           {extra}
         </div>
         <div className="truncate text-xs text-muted-foreground" title={line}>

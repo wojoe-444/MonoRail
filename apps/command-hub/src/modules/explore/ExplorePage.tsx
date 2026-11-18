@@ -104,6 +104,50 @@ function databaseEntries(project?: SemanticProject): Entry[] {
   ]
 }
 
+type CatalogTable = { name: string; tableType?: string; description?: string; deleted?: boolean; columns?: object[]; profile?: object; tags?: string[]; extension?: object }
+type IngestionExplore = {
+  services: { kind: string; name: string; displayName: string; category: string; serviceType: string }[]
+  pipelines: ({ name: string; displayName?: string; description?: string } & Record<string, unknown>)[]
+  catalog: Record<string, { serviceType?: string; updatedAt?: string; databases?: { name: string; schemas?: { name: string; tables?: CatalogTable[] }[] }[]; lineage?: { from: string; to: string }[] }>
+}
+
+/**
+ * Services, ingestion pipelines and what the pipelines read (Settings >
+ * Services). Local catalog tables get full names that start at the service,
+ * as in OpenMetadata: service.database.schema.table.
+ */
+function ingestionEntries(data?: IngestionExplore): Entry[] {
+  if (!data) return []
+  const ref = (type: string, fullyQualifiedName: string, name: string) => ({ type, name, fullyQualifiedName })
+  const out: Entry[] = []
+  for (const s of data.services) {
+    out.push(entry(s.category, s.displayName, { name: s.name, fullyQualifiedName: s.name, displayName: s.displayName, serviceType: s.serviceType, extension: { monorail: { runsOn: 'this PC', connection: s.kind } } }, `A data source on this PC (${s.serviceType}).`))
+  }
+  for (const p of data.pipelines) out.push(entry('ingestionPipeline', p.displayName || p.name, p, p.description || 'An ingestion pipeline that runs on this PC.'))
+  for (const [service, svc] of Object.entries(data.catalog ?? {})) {
+    const upstream = new Map<string, string[]>()
+    for (const e of svc.lineage ?? []) upstream.set(e.to, [...(upstream.get(e.to) ?? []), e.from])
+    for (const db of svc.databases ?? []) {
+      const dbFqn = `${service}.${db.name}`
+      out.push(entry('database', db.name, { name: db.name, fullyQualifiedName: dbFqn, service: ref('databaseService', service, service), databaseSchemas: (db.schemas ?? []).map((s) => ref('databaseSchema', `${dbFqn}.${s.name}`, s.name)) }, `Read by an ingestion pipeline from ${service}.`))
+      for (const sc of db.schemas ?? []) {
+        const scFqn = `${dbFqn}.${sc.name}`
+        out.push(entry('databaseSchema', sc.name, { name: sc.name, fullyQualifiedName: scFqn, service: ref('databaseService', service, service), database: ref('database', dbFqn, db.name), tables: (sc.tables ?? []).map((t) => ref('table', `${scFqn}.${t.name}`, t.name)) }, `Read by an ingestion pipeline from ${service}.`))
+        for (const t of sc.tables ?? []) {
+          const up = upstream.get(`${db.name}.${sc.name}.${t.name}`)
+          out.push(entry('table', t.name, {
+            name: t.name, fullyQualifiedName: `${scFqn}.${t.name}`, tableType: t.tableType, description: t.description, deleted: t.deleted || undefined,
+            columns: t.columns ?? [], profile: t.profile, tags: t.tags,
+            service: ref('databaseService', service, service), database: ref('database', dbFqn, db.name), databaseSchema: ref('databaseSchema', scFqn, sc.name),
+            ...(up || t.extension ? { extension: { ...t.extension, ...(up ? { lineage: { upstream: up.map((u) => `${service}.${u}`) } } : {}) } } : {}),
+          }, t.description || `Read by an ingestion pipeline from ${service}${t.deleted ? '; no longer in the source' : ''}.`))
+        }
+      }
+    }
+  }
+  return out
+}
+
 export default function ExplorePage() {
   const catalog = useCatalog()
   const [notes, setNotes] = useState<NoteList>()
@@ -114,6 +158,7 @@ export default function ExplorePage() {
   const [prompts, setPrompts] = useState<Prompt[]>([])
   const [tasks, setTasks] = useState<ScheduledTask[]>([])
   const [project, setProject] = useState<SemanticProject>()
+  const [ingestion, setIngestion] = useState<IngestionExplore>()
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
@@ -137,7 +182,8 @@ export default function ExplorePage() {
       flowsCall<FlowList>('list'),
       isDesktop() ? invokeModule<Prompt[]>('prompt-templates', 'list') : Promise.resolve([]),
       isDesktop() ? invokeModule<{ tasks: ScheduledTask[] }>('scheduled', 'list') : Promise.resolve({ tasks: [] }),
-    ]).then(([n, c, p, b, f, t, s]) => {
+      isDesktop() ? invokeModule<IngestionExplore>('ingestion', 'explore') : Promise.resolve(undefined),
+    ]).then(([n, c, p, b, f, t, s, g]) => {
       if (!live) return
       const failures: string[] = []
       if (n.status === 'fulfilled') setNotes(n.value); else { setNotes(undefined); failures.push(`Notes: ${String(n.reason)}`) }
@@ -147,6 +193,7 @@ export default function ExplorePage() {
       if (f.status === 'fulfilled') setFlows(f.value); else { setFlows(undefined); failures.push('Flows: ' + String(f.reason)) }
       if (t.status === 'fulfilled') setPrompts(t.value); else { setPrompts([]); failures.push('Prompts: ' + String(t.reason)) }
       if (s.status === 'fulfilled') setTasks(s.value.tasks); else { setTasks([]); failures.push('Scheduled tasks: ' + String(s.reason)) }
+      if (g.status === 'fulfilled') setIngestion(g.value); else { setIngestion(undefined); failures.push('Services: ' + String(g.reason)) }
       setErrors(failures); setLoading(false)
     })
     return () => { live = false }
@@ -165,7 +212,8 @@ export default function ExplorePage() {
     ...(project?.metrics ?? []).map((m) => entry('semanticMetric', m.name, m, m.description)),
     ...(project?.savedQueries ?? []).map((s) => entry('savedQuery', s.name, s, s.description)),
     ...databaseEntries(project),
-  ], [catalog.data, notes, decks, cards, project, bookmarks, flows, prompts, tasks])
+    ...ingestionEntries(ingestion),
+  ], [catalog.data, notes, decks, cards, project, bookmarks, flows, prompts, tasks, ingestion])
   const fields = useMemo<Field[]>(() => entries.flatMap((e, i) => Object.entries(e.fields).map(([name, value]) => ({ id: `${i}:${name}`, entry: e, name, value }))), [entries])
   const visible = fields.filter((f) => (!scope || f.entry.category === scope) && (!path[0] || f.entry.category === path[0]) && (!path[1] || f.entry.type === path[1]) && (!path[2] || String(entries.indexOf(f.entry)) === path[2]) && (!path[3] || f.name === path[3]) && `${f.entry.category} ${f.entry.type} ${f.entry.name} ${f.name} ${display(f.value)}`.toLowerCase().includes(query.toLowerCase()))
   const pageFields = visible.slice(page * 100, (page + 1) * 100)
@@ -212,7 +260,7 @@ export default function ExplorePage() {
             })
           ))}
         </div>)}
-        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: every OpenMetadata {STANDARD.openMetadata.version} entity type plus MonoRail&apos;s own. Databases are the tables your semantic project&apos;s models read; prompt templates are listed under AI assets. Your OpenMetadata server&apos;s own entities are on the OpenMetadata page. Other MonoRail data is not yet indexed.</p>
+        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: every OpenMetadata {STANDARD.openMetadata.version} entity type plus MonoRail&apos;s own. Databases are the tables your semantic project&apos;s models read and what ingestion pipelines on this PC read (Settings &gt; Services); prompt templates are listed under AI assets. Your OpenMetadata server&apos;s own entities are on the OpenMetadata page. Other MonoRail data is not yet indexed.</p>
         <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => openWiki('standard/README')}>Read the standard</Button>
         {project?.block && <p className="mt-2 text-xs text-muted-foreground">Semantic project unavailable: {project.block}. Set it up on Connections.</p>}
       </section>

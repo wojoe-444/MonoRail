@@ -41,6 +41,7 @@ const moduleBackends = [
   require('./flashcards.cjs'),
   require('./flows.cjs'),
   require('./home.cjs'),
+  require('./ingestion.cjs'),
   require('./mcp.cjs'),
   require('./notes.cjs'),
   require('./openmetadata.cjs'),

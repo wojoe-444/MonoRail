@@ -59,4 +59,6 @@ settings straight from Connections' `connections.json` (no secrets there).
 - [MonoRail standard: Semantic](standard/monorail/semantic.md): the entity types this
   page reads, and how their tables feed [Databases](standard/data-assets/databases/README.md).
 - [Docker](docker.md): the same optional-connector pattern.
+- [Services and ingestion pipelines](ingestion.md): the MetricFlow connection
+  is also a data service; a local `dbt` pipeline reads its `target/manifest.json`.
 - [Caching](caching.md): why this page caches nothing on disk.

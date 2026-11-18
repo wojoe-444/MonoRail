@@ -42,6 +42,11 @@ with their databases and schemas. Until you
 the category is empty. [Databases in the standard](../standard/data-assets/databases/README.md)
 explains each type.
 
+[Ingestion pipelines](setup/services.md) that run on your PC add more: the
+tables, views and columns of a SQLite database, row counts from a profiler
+run, and the models, sources and lineage of a dbt project. Their full names
+start with the service, such as `local_sqlite.main.main.notes`.
+
 To see what is in an OpenMetadata server itself, every kind of entity it
 has, open the [OpenMetadata](openmetadata.md) page.
 

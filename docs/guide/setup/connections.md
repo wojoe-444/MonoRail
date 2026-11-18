@@ -58,6 +58,10 @@ rule.
 - **OpenMetadata**: optional. Your OpenMetadata server and a bot token (or an
   email and password), for the [OpenMetadata](../openmetadata.md) page.
 
+SQLite, MetricFlow and OpenMetadata are tagged **Data service**: they are data
+sources, and their ingestion pipelines are on
+[Services](services.md).
+
 ## Where secrets go
 
 Tokens you paste are encrypted for your Windows account before they are

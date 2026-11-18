@@ -33,6 +33,8 @@ export interface Connector {
   icon: string
   /** A subconnector: shown nested inside this connector's card (pi > Playwright browser). */
   parent?: string
+  /** A data source: an OpenMetadata service, listed on Settings > Services with its ingestion pipelines. */
+  service?: { category: string; serviceType: string }
   fields: ConnectorField[]
   actions: ConnectorAction[]
 }

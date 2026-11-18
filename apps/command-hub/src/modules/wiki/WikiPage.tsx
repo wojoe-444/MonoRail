@@ -349,6 +349,7 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/workspace': FolderGit2,
   'guide/setup': Wrench,
   'guide/setup/connections': PlugZap,
+  'guide/setup/services': Workflow,
   'guide/setup/appearance': Palette,
   'guide/setup/backups-and-updates': RefreshCw,
   'guide/setup/extensions': Puzzle,

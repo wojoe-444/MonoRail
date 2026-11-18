@@ -364,6 +364,7 @@ export const sampleList: ConnectionsList = {
     },
     {
       kind: 'metricflow',
+      service: { category: 'databaseService', serviceType: 'dbt' },
       title: 'MetricFlow',
       description: 'Your dbt project\u2019s semantic layer and your own MetricFlow (mf). The Semantic page under Insights reads it. Optional: MonoRail never installs Python, dbt or MetricFlow.',
       icon: 'database',

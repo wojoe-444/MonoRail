@@ -68,6 +68,7 @@ const SCOPES = Object.freeze({
   'modules/flashcards': 'profile', // decks, cards, study history
   'modules/flows': 'profile', // the Flows page's local git repo and run metadata
   'modules/home': 'profile', // keeps no files
+  'modules/ingestion': 'profile', // Services: local ingestion pipelines, their runs and the local catalog
   'modules/jira': 'profile', // Jira+'s legacy folder (read in place)
   'modules/mcp': 'profile', // per-agent consent and the activity log
   'modules/bookmarks': 'profile', // saved links and local paths

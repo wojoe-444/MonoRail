@@ -23,6 +23,11 @@
 //   parent?    kind of another connector: this one is a subconnector, shown
 //              nested inside the parent's card (pi > Playwright browser,
 //              Claude > Playwright browser).
+//   service?   { category, serviceType }: this connection is a data source,
+//              an OpenMetadata service (category is OpenMetadata's entity
+//              type, e.g. databaseService). The Services page lists it with
+//              its ingestion pipelines (electron/modules/ingestion.cjs).
+//              Connectors without it are accounts.
 //
 // A status may also carry actions: [ids], the actions that fit right now;
 // the page shows only those (on top of showWhen). A running job may set
@@ -88,6 +93,7 @@ function describeConnector(c) {
     description: c.description,
     icon: c.icon,
     parent: c.parent,
+    service: c.service,
     fields: c.fields,
     actions: c.actions.map(({ id, label, description, showWhen, steps }) => ({ id, label, description, showWhen, steps })),
   }
