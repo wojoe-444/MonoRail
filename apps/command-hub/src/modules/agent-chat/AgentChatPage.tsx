@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentMochi, MochiAvatar } from '@/components/mochi'
+import { prefs } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
@@ -66,6 +67,22 @@ import {
 
 type Filter = 'all' | SessionSource
 const PAGE = 150
+/** A read chat untouched this long moves to Settled. */
+const SETTLED_AFTER_MS = 2 * 24 * 60 * 60 * 1000
+/** Browser sample: one chat shown as working. */
+const sampleWorking = ['claude:demo-1']
+/** Which of the list's bottom sections are open (per person; both closed by default). */
+const SECTIONS_KEY = 'commandHub.chat.listSections'
+type ListSection = 'working' | 'settled'
+
+function readOpenSections(): ListSection[] {
+  try {
+    const v: unknown = JSON.parse(prefs.getItem(SECTIONS_KEY) ?? '[]')
+    return Array.isArray(v) ? v.filter((x): x is ListSection => x === 'working' || x === 'settled') : []
+  } catch {
+    return []
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Time helpers
@@ -146,6 +163,50 @@ export default function AgentChatPage() {
   // Scheduled and archived chats are hidden until asked for; the open chat always stays listed.
   const visible = matching.filter((s) => s.id === selectedId || (s.archived ? showArchived : showScheduled || !s.scheduled))
 
+  // Working: chats with a turn running in the main process, from this page or
+  // the phone. The backend list is polled while the page is open.
+  const [backendRunning, setBackendRunning] = useState<string[]>([])
+  useEffect(() => {
+    if (!desktop) return
+    let stopped = false
+    const read = () =>
+      invokeModule<string[]>('agent-chat', 'runningChats').then(
+        (ids) => {
+          if (!stopped) setBackendRunning((prev) => (prev.join() === ids.join() ? prev : ids))
+        },
+        () => {},
+      )
+    void read()
+    const timer = setInterval(read, 5000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [desktop])
+  const workingIds = useMemo(() => {
+    const ids = new Set(desktop ? backendRunning : sampleWorking)
+    for (const t of turns) {
+      if (t.status !== 'running') continue
+      ids.add(t.chatKey)
+      if (t.sessionId) ids.add(`${t.sdk}:${t.sessionId}`)
+    }
+    return ids
+  }, [desktop, backendRunning, turns])
+  // The list is split the way T3 Code splits its threads: recent chats on top,
+  // then Working and Settled (read, untouched for a while) at the bottom.
+  const sections = useMemo(() => {
+    const now = Date.now()
+    const recent: SessionSummary[] = []
+    const working: SessionSummary[] = []
+    const settled: SessionSummary[] = []
+    for (const s of visible) {
+      if (workingIds.has(s.id)) working.push(s)
+      else if (!s.unread && now - s.updatedAt > SETTLED_AFTER_MS) settled.push(s)
+      else recent.push(s)
+    }
+    return { recent, working, settled }
+  }, [visible, workingIds])
+
   async function setFlag(id: string, flag: 'unread' | 'archived', value: boolean) {
     setLocalFlags((f) => ({ ...f, [id]: { ...f[id], [flag]: value } }))
     if (flag === 'unread' && !value) stickyUnread.current.delete(id)
@@ -160,7 +221,10 @@ export default function AgentChatPage() {
 
   const selected = draft
     ? undefined
-    : (sessions.find((s) => s.id === selectedId) ?? (selectedId ? pendingSessions[selectedId] : undefined) ?? visible[0])
+    : (sessions.find((s) => s.id === selectedId) ??
+      (selectedId ? pendingSessions[selectedId] : undefined) ??
+      sections.recent[0] ??
+      visible[0])
   const chatKey = draft?.key ?? selected?.id
 
   // Unread (F3): a chat that was unread when opened stays unread while it is
@@ -457,6 +521,7 @@ export default function AgentChatPage() {
           />
           <SessionListView
             sessions={visible}
+            sections={sections}
             loading={desktop && list.loading}
             error={desktop ? list.error : undefined}
             selectedId={selected?.id}
@@ -575,6 +640,7 @@ function CoordinatorEntry({
 
 function SessionListView({
   sessions,
+  sections,
   loading,
   error,
   selectedId,
@@ -593,6 +659,7 @@ function SessionListView({
   folders?: SessionList['folders']
   onOpenFolders: () => void
   sessions: SessionSummary[]
+  sections: { recent: SessionSummary[]; working: SessionSummary[]; settled: SessionSummary[] }
   loading: boolean
   error?: Error
   selectedId?: string
@@ -600,20 +667,14 @@ function SessionListView({
   sources?: SessionList['sources']
   filtered: boolean
 }) {
-  // Grouped by repo. Sessions arrive newest first, so each group and the
-  // group order (by its newest chat) come out newest first too.
-  const groups = useMemo(() => {
-    const byRepo = new Map<string, { label: string; title: string; items: SessionSummary[] }>()
-    for (const s of sessions) {
-      let g = byRepo.get(s.repo.path)
-      if (!g) byRepo.set(s.repo.path, (g = { label: s.repo.name, title: s.repo.path, items: [] }))
-      g.items.push(s)
-    }
-    // Coordinator chats are listed apart, first.
-    return [...byRepo.entries()]
-      .map(([key, g]) => ({ key, ...g, coordinator: g.items.some((s) => s.coordinator) }))
-      .sort((a, b) => Number(b.coordinator) - Number(a.coordinator))
-  }, [sessions])
+  const [open, setOpen] = useState<ListSection[]>(readOpenSections)
+  function toggle(section: ListSection) {
+    setOpen((prev) => {
+      const next = prev.includes(section) ? prev.filter((x) => x !== section) : [...prev, section]
+      prefs.setItem(SECTIONS_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   if (error) {
     return (
@@ -658,82 +719,186 @@ function SessionListView({
     )
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-      {groups.map((g) => (
-        <div key={g.key} className="mb-2">
-          <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase" title={g.title}>
-            <FolderGit2 className="size-3.5" />
-            <span className="truncate">{g.label}</span>
-          </div>
-          <ul className="flex flex-col gap-0.5">
-            {g.items.map((s) => {
-              const active = s.id === selectedId
-              const unread = isUnread(s)
-              return (
-                <li key={s.id}>
-                  <ContextMenu>
-                    <ContextMenuTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(s.id)}
-                        aria-current={active ? 'true' : undefined}
-                        className={cn(
-                          'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          active ? 'bg-primary-soft text-primary-soft-foreground' : 'hover:bg-muted',
-                        )}
-                      >
-                        <SourceAvatar source={s.source} className="mt-0.5 size-7" />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-2">
-                            {unread && <span className="size-2 shrink-0 self-center rounded-full bg-primary" aria-label="Unread" />}
-                            <span className={cn('flex-1 truncate text-sm', unread ? 'font-semibold' : 'font-medium')}>{s.title}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{relative(s.updatedAt)}</span>
-                          </span>
-                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
-                            {s.total?.usd !== undefined && (
-                              <span className="shrink-0 font-mono tabular-nums" title={s.total.complete ? 'Total cost' : 'At least this much'}>
-                                {s.total.complete ? '' : '≥'}
-                                {formatUsd(s.total.usd)}
-                              </span>
-                            )}
-                            {s.scheduled && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                                Scheduled
-                              </Badge>
-                            )}
-                            {s.archived && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                                Archived
-                              </Badge>
-                            )}
-                            {s.source !== 'claude' && (
-                              <Badge variant="info" className="px-1.5 py-0 text-[10px]">
-                                {SOURCE_LABEL[s.source]}
-                              </Badge>
-                            )}
-                          </span>
-                        </span>
-                      </button>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => onFlag(s.id, 'unread', !unread)}>
-                        {unread ? <MailOpen /> : <Mail />} Mark as {unread ? 'read' : 'unread'}
-                      </ContextMenuItem>
-                      <ContextMenuItem onSelect={() => onFlag(s.id, 'archived', !s.archived)}>
-                        {s.archived ? <ArchiveRestore /> : <Archive />} {s.archived ? 'Unarchive' : 'Archive'}
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+  const rows = (items: SessionSummary[], working = false) => (
+    <ul className="flex flex-col gap-0.5">
+      {items.map((s) => (
+        <SessionRow
+          key={s.id}
+          session={s}
+          active={s.id === selectedId}
+          unread={isUnread(s)}
+          working={working}
+          onSelect={onSelect}
+          onFlag={onFlag}
+        />
       ))}
-      <ListLimits limits={limits} onOpenFolders={onOpenFolders} />
+    </ul>
+  )
+
+  return (
+    <>
+      {/* Recent chats, newest first, in one flat list with the repo on each row. */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {sections.recent.length > 0 ? (
+          rows(sections.recent)
+        ) : (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No recent chats.{sections.settled.length > 0 && ' Older ones are under Settled.'}
+          </p>
+        )}
+        <ListLimits limits={limits} onOpenFolders={onOpenFolders} />
+      </div>
+      {/* Working and Settled sit at the bottom, closed until opened. */}
+      <div className="shrink-0 border-t p-2">
+        <ListSectionView
+          title="Working"
+          count={sections.working.length}
+          open={open.includes('working')}
+          onToggle={() => toggle('working')}
+          hint="Chats with a reply running in MonoRail"
+        >
+          {rows(sections.working, true)}
+        </ListSectionView>
+        <ListSectionView
+          title="Settled"
+          count={sections.settled.length}
+          open={open.includes('settled')}
+          onToggle={() => toggle('settled')}
+          hint="Read chats with no activity for two days"
+        >
+          {rows(sections.settled)}
+        </ListSectionView>
+      </div>
+    </>
+  )
+}
+
+function ListSectionView({
+  title,
+  count,
+  open,
+  onToggle,
+  hint,
+  children,
+}: {
+  title: string
+  count: number
+  open: boolean
+  onToggle: () => void
+  hint: string
+  children: ReactNode
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        title={hint}
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex-1">{title}</span>
+        <span className="tabular-nums">{count}</span>
+        <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="max-h-[35vh] overflow-y-auto pb-1">
+          {count > 0 ? children : <p className="px-3 py-2 text-xs text-muted-foreground">Nothing here.</p>}
+        </div>
+      )}
     </div>
+  )
+}
+
+function SessionRow({
+  session: s,
+  active,
+  unread,
+  working,
+  onSelect,
+  onFlag,
+}: {
+  session: SessionSummary
+  active: boolean
+  unread: boolean
+  working: boolean
+  onSelect: (id: string) => void
+  onFlag: (id: string, flag: 'unread' | 'archived', value: boolean) => void
+}) {
+  return (
+    <li>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            type="button"
+            onClick={() => onSelect(s.id)}
+            aria-current={active ? 'true' : undefined}
+            className={cn(
+              'flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              active ? 'bg-primary-soft text-primary-soft-foreground' : 'hover:bg-muted',
+            )}
+          >
+            {/* Repo and status on top, then the title, then branch and cost. */}
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <SourceAvatar source={s.source} className="size-4 rounded-[4px] [&_svg]:size-2.5 [&>span]:text-[10px]" />
+              <span className="min-w-0 flex-1 truncate" title={s.repo.path}>
+                {s.repo.name}
+              </span>
+              {working ? (
+                <span className="flex shrink-0 items-center gap-1 text-info">
+                  <Loader2 className="size-3 animate-spin" /> Working
+                </span>
+              ) : (
+                <span className="shrink-0 tabular-nums">{relative(s.updatedAt)}</span>
+              )}
+            </span>
+            <span className="flex items-center gap-2">
+              {unread && <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />}
+              <span className={cn('flex-1 truncate text-sm', unread ? 'font-semibold' : 'font-medium')}>{s.title}</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {s.branch ? (
+                <span className="flex min-w-0 items-center gap-1 font-mono" title={s.model}>
+                  <GitBranch className="size-3 shrink-0" />
+                  <span className="truncate">{s.branch}</span>
+                </span>
+              ) : (
+                <span className="truncate font-mono">{s.model ?? 'Model unknown'}</span>
+              )}
+              {s.total?.usd !== undefined && (
+                <span className="shrink-0 font-mono tabular-nums" title={s.total.complete ? 'Total cost' : 'At least this much'}>
+                  {s.total.complete ? '' : '≥'}
+                  {formatUsd(s.total.usd)}
+                </span>
+              )}
+              {s.scheduled && (
+                <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                  Scheduled
+                </Badge>
+              )}
+              {s.archived && (
+                <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                  Archived
+                </Badge>
+              )}
+              {s.source !== 'claude' && (
+                <Badge variant="info" className="px-1.5 py-0 text-[10px]">
+                  {SOURCE_LABEL[s.source]}
+                </Badge>
+              )}
+            </span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => onFlag(s.id, 'unread', !unread)}>
+            {unread ? <MailOpen /> : <Mail />} Mark as {unread ? 'read' : 'unread'}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => onFlag(s.id, 'archived', !s.archived)}>
+            {s.archived ? <ArchiveRestore /> : <Archive />} {s.archived ? 'Unarchive' : 'Archive'}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </li>
   )
 }
 

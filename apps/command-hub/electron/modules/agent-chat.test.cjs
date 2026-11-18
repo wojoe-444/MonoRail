@@ -269,3 +269,12 @@ test('a reply is the assistant text after the last tool result', () => {
     'It is fine.\n\nAnything else?',
   )
 })
+
+test('runningChatIds lists continued chats and new chats once they have a session id', () => {
+  const ids = chat.runningChatIds([
+    { chatKey: 'claude:abc', sdk: 'claude', sessionId: 'abc' },
+    { chatKey: 'new:1234', sdk: 'pi', sessionId: 'p1' },
+    { chatKey: 'new:5678', sdk: 'claude' },
+  ])
+  assert.deepEqual(ids.sort(), ['claude:abc', 'pi:p1'])
+})

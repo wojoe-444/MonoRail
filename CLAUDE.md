@@ -322,6 +322,13 @@ archived, and started-here. Claude chats whose log says they were started
 headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
 Scheduled and archived chats are hidden behind toggle buttons; the open chat
 always stays listed. Right-click a chat to mark it read/unread or archive it.
+The list is laid out like T3 Code's thread list: one flat newest-first list
+(repo above the title, branch below), then two sections pinned to the bottom,
+both closed by default (open state in the `commandHub.chat.listSections`
+pref): **Working** (a turn is running in this app: the page's own turns plus
+the backend's `runningChats`, ids only, polled every 5 s while the page is
+open; main-process turns only, so coordinator child turns and the MCP
+server's, which run in other processes, are not shown) and **Settled** (read and not updated for 2 days, `SETTLED_AFTER_MS`).
 
 **Side panels** (page header buttons): **Changes** runs `git status` and
 `git diff HEAD` for the chat's folder (`agent-chat-changes.cjs`; read-only,
