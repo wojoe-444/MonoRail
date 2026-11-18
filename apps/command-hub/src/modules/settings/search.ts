@@ -23,6 +23,7 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Updates', detail: 'Check for a newer version, download and restart', path: '/settings/general', anchor: 'settings-updates', keywords: 'update upgrade version release new install restart' },
   { label: "What's new", detail: 'Changes in the next version', path: '/settings/general', anchor: 'settings-updates', keywords: 'release notes changelog' },
   { label: 'About', detail: 'Version, Electron, local data folder', path: '/settings/general', anchor: 'settings-about', keywords: 'version electron appdata data folder location' },
+  { label: 'New user tour', detail: 'A one-minute walk around the app', path: '/settings/general', anchor: 'settings-tour', keywords: 'tour welcome intro onboarding help getting started walkthrough' },
   { label: 'Profile', detail: 'Whose settings and data MonoRail uses', path: '/settings/general', anchor: 'settings-profile', keywords: 'user person account name' },
   { label: 'Spending limit', detail: 'A daily or monthly cap on what Chat may spend', path: '/settings/general', anchor: 'settings-spending', keywords: 'budget cost money limit cap spend dollars' },
   { label: 'Developer Mode', detail: 'Element inspector, F12 DevTools, New User profile', path: '/settings/general', anchor: 'settings-developer', keywords: 'devtools inspector debug f12 test new user' },

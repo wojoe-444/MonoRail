@@ -38,6 +38,7 @@ export function SideNav({ current, onNavigate }: SideNavProps) {
     <div className="h-full shrink-0">
       <aside
         data-slot="sidebar"
+        data-tour="rail"
         aria-label="Navigation"
         className="flex h-full w-[72px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
       >
@@ -101,6 +102,7 @@ function NavButton({
     <button
       type="button"
       onClick={() => onNavigate(item.path)}
+      data-tour={`nav:${item.path}`}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
       className={cn(
@@ -151,6 +153,7 @@ function NavFlyout({
       <button
         type="button"
         aria-label={`${item.label} pages`}
+        data-tour={`nav:${item.path}`}
         className={cn(
           'relative flex h-10 w-full items-center justify-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
           active || activeChild
