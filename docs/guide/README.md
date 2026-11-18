@@ -35,6 +35,8 @@ everything; [private data stays local](private-data.md) explains it.
 - **See everything in one place.** [Explore](explore.md) lists everything
   MonoRail knows about, sorted by the kinds of thing in the
   [MonoRail standard](../standard/README.md).
+- **Browse your data catalog.** [OpenMetadata](openmetadata.md) shows
+  everything in an OpenMetadata server, every kind of entity it has.
 - **Make it yours.** [Connect your accounts](setup/connections.md), pick a
   [look](setup/appearance.md), turn on [backups](setup/backups-and-updates.md)
   and [add extensions](setup/extensions.md). [Set up and look after

@@ -498,7 +498,9 @@ called. `hasConnection(kind)` in `index.cjs` says whether a connection is
 added without running anything. `git` stores nothing and
 reports the version, global `user.name` / `user.email` and the credential
 helper's name; it never runs `git credential`. `docker` (optional) checks
-the user's own Docker and lazydocker for the Docker page (see below). Command-line tools only get
+the user's own Docker and lazydocker for the Docker page (see below). `openmetadata` (optional) is an
+OpenMetadata server and a bot token or login for the OpenMetadata page (see
+"The MonoRail standard"). Command-line tools only get
 fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
 
 `mcp` (**Agent access**, a Settings page) shows how to connect agents to
@@ -1139,6 +1141,27 @@ read through `src/standard/index.ts`. Rules (`docs/standard/README.md`):
   manifest's `node_relation`); there is no OpenMetadata or warehouse
   connection yet. The wider goal is to bring the separate MonoRail-Metadata
   app (a UI over headless OpenMetadata) into MonoRail, starting with Database.
+
+**OpenMetadata** (`openmetadata` module, right under Home and Explore,
+`nav: { section: '', order: 2 }`; guide `docs/guide/openmetadata.md`) is that
+app's UI side: every OpenMetadata 2.0.8 entity type (51, in OpenMetadata's
+groups, `src/modules/openmetadata/catalog.ts`) on one page, read live from the
+user's own OpenMetadata server. The type navigator has counts; the overview,
+one type's list (owners, tags, include deleted, load more) and one entity
+(owners, tier, tags, domains, Markdown description, every field, custom
+properties, columns or fields, references, versions, raw JSON) follow. Field
+descriptions come from the standard for adopted types. The page keeps its
+place in component state (module routes match exact paths, so no query
+string). Connector `openmetadata` (`electron/connections/connectors/`): server
+(https, or http on localhost) plus a bot token, or an email and password
+exchanged at `POST /api/v1/users/login` (password base64); opt-in like every
+connector. Backend `electron/modules/openmetadata.cjs`: the page sends an
+entity type, never a path; `TYPES` maps types to REST collections (a test
+checks it matches `catalog.ts`), ids must be UUIDs, list and get fall back from
+`fields=owners,tags` / `*` when OpenMetadata answers 400 and remember the
+refusal. The only write is `setDescription` (one JSON Patch op on
+`/description`). Keeps no files. The browser dev server uses the fictional
+catalog in `sample.ts`. Descriptions render with links and images inert.
 
 ## Diagrams
 

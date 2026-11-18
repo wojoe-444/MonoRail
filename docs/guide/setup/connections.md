@@ -55,6 +55,8 @@ rule.
 - **MetricFlow**: optional. Your dbt project folder, for the
   [Semantic](semantic.md) page. Running queries is a second switch, off by
   default. MonoRail never installs Python, dbt or MetricFlow.
+- **OpenMetadata**: optional. Your OpenMetadata server and a bot token (or an
+  email and password), for the [OpenMetadata](../openmetadata.md) page.
 
 ## Where secrets go
 

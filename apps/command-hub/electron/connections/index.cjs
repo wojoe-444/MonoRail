@@ -57,6 +57,7 @@ const CONNECTORS = [
   require('./connectors/docker.cjs'),
   require('./connectors/metricflow.cjs'),
   require('./connectors/sqlite.cjs'),
+  require('./connectors/openmetadata.cjs'),
 ]
 const byKind = new Map(CONNECTORS.map((c) => [c.kind, c]))
 

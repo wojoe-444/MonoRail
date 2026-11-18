@@ -43,6 +43,7 @@ const moduleBackends = [
   require('./home.cjs'),
   require('./mcp.cjs'),
   require('./notes.cjs'),
+  require('./openmetadata.cjs'),
   require('./profiles.cjs'),
   require('./remote.cjs'),
   require('./settings.cjs'),
