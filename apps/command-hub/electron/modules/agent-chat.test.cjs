@@ -211,6 +211,24 @@ test('unread, archived and started-here flags live in a record file', () => {
   assert.deepEqual(Object.keys(chatState.read(dir).chats[id]).sort(), ['archived', 'here', 'seen'])
 })
 
+test('archiving a chat survives a transient sharing error when saving state', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-state-'))
+  const id = 'claude:abc-1'
+  chatState.markSeen(dir, id)
+  const rename = fs.renameSync
+  let attempts = 0
+  t.mock.method(fs, 'renameSync', (from, to) => {
+    if (to === path.join(dir, chatState.FILE) && ++attempts === 1) {
+      throw Object.assign(new Error('File is temporarily busy'), { code: 'EPERM' })
+    }
+    return rename(from, to)
+  })
+  chatState.setArchived(dir, id, true)
+  assert.equal(chatState.flags(chatState.read(dir), id, 0).archived, true)
+  assert.equal(attempts, 2)
+  assert.deepEqual(fs.readdirSync(dir), [chatState.FILE])
+})
+
 // ---------------------------------------------------------------------------
 // Coordinator tools (agent-chat-coordinator.cjs)
 

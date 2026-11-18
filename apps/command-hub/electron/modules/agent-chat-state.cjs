@@ -6,8 +6,10 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
+const { randomUUID } = require('node:crypto')
 
 const FILE = 'chat-state.json'
+const retryWait = new Int32Array(new SharedArrayBuffer(4))
 
 function read(dataDir) {
   let state
@@ -26,12 +28,23 @@ function read(dataDir) {
 }
 
 function write(dataDir, state) {
+  const file = path.join(dataDir, FILE)
+  const temp = `${file}.${randomUUID()}.tmp`
   try {
     fs.mkdirSync(dataDir, { recursive: true })
-    const file = path.join(dataDir, FILE)
-    fs.writeFileSync(`${file}.tmp`, JSON.stringify(state))
-    fs.renameSync(`${file}.tmp`, file)
+    fs.writeFileSync(temp, JSON.stringify(state))
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(temp, file)
+        return
+      } catch (e) {
+        // Windows can briefly refuse replacement while the destination is open.
+        if (attempt >= 3 || !['EPERM', 'EACCES', 'EBUSY'].includes(e.code)) throw e
+        Atomics.wait(retryWait, 0, 0, 10 * (attempt + 1))
+      }
+    }
   } catch {
+    try { fs.rmSync(temp, { force: true }) } catch { /* best effort cleanup */ }
     // best effort: the list still works without flags
   }
 }
