@@ -13,7 +13,7 @@ export function ToolsPage({ onOpen }: { onOpen: (path: string) => void }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Tools" description="Your repositories, tasks, calendar, mail and reference material, together in one place." />
+      <PageHeader title="Tools" description="Your files, repositories, tasks, calendar, mail and reference material, together in one place." />
       <section aria-label="Tools" className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {pages.map((page) => {
           const Icon = page.icon

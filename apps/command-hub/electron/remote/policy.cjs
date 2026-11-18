@@ -8,6 +8,7 @@
 const REMOTE_DENY = Object.freeze({
   scheduled: ['change', 'runInApp'],
   storage: ['setGoal'],
+  files: ['*'], // the PC's own files are not served to a phone
   remote: ['*'], // pairing, devices, settings: only from the PC's own window
   developer: ['*'],
   profiles: ['rename', 'switchTo', 'restart'],

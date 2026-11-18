@@ -7,7 +7,7 @@ summary: The pages for the work itself: your git repositories, issues, tasks, ma
 # Your workspace
 
 Open **Tools** in the menu for GitHub+, Tasks, Calendar, Email, Bookmarks,
-Notes and Flashcards. Its overview links to each page, and its flyout lets
+Files, Notes and Flashcards. Its overview links to each page, and its flyout lets
 you jump straight to one. Each keeps its data on your computer, as [private data stays
 local](../private-data.md) promises, and they are linked to each other where
 it helps.
@@ -34,6 +34,9 @@ it helps.
 - **Mail.** [Email](email.md) reads Gmail or the classic Outlook on your PC.
 - **Learning.** [Flashcards](../../flashcards.md) keeps spaced repetition
   decks; agents can add cards if you [let them](../agents/agent-access.md).
+- **Your files.** [Files](../../files.md), under Tools, is a file explorer
+  with tabs, two panes side by side, previews, pinned folders and color tags.
+  Deleting always goes to the Recycle Bin.
 - **Info dump.** [Notes](../../notes.md), under Tools, takes anything you want
   to jot down; every note is a file in a git repository on your computer that
   GitHub+ shows too.
