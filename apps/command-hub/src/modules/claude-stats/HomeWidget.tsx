@@ -9,6 +9,7 @@ import { formatRelative, formatUSD } from '@/lib/format'
 import { navigate } from '@/lib/router'
 import { isDesktop, useModuleQuery } from '@/modules/client'
 
+import { CLAUDE_STATS_PATH } from '.'
 import { buildFacts } from './facts'
 import { sampleReport } from './sample'
 import { addDays, isoDate, sourceModelLabel } from './transform'
@@ -79,7 +80,7 @@ export function ClaudeStatsHomeWidget() {
           {entry && ` · built ${formatRelative(entry.builtAt)}`}
         </CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/claude-stats')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(CLAUDE_STATS_PATH)}>
             Open
             <ArrowRight />
           </Button>

@@ -35,7 +35,7 @@ explains what happens to the passwords.
 
 ## 4. Look at your spending
 
-**Insights > Claude Stats** reads the usage logs your agents already keep and
+The **Claude Stats** tab of **Bots > Dashboard** reads the usage logs your agents already keep and
 charts them. [Keep an eye on spending](agents/spend.md) explains the charts
 and the one number worth watching.
 
