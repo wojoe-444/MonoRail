@@ -60,6 +60,19 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Extension permissions', detail: 'Extensions: what each extension may access', path: '/settings/extensions', keywords: 'permissions approve folders network' },
 ]
 
+/** Scroll to an element on the page just opened, once it has rendered, and flash it. */
+export function scrollToAnchor(id: string) {
+  let tries = 0
+  const t = setInterval(() => {
+    const el = document.getElementById(id)
+    if (el || ++tries > 40) clearInterval(t)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.classList.add('settings-flash')
+    setTimeout(() => el.classList.remove('settings-flash'), 1600)
+  }, 50)
+}
+
 export interface SearchHit extends SearchEntry {
   page: string
 }

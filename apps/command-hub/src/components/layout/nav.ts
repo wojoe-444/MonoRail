@@ -13,7 +13,7 @@ export interface NavItem {
   label: string
   icon: IconComponent
   badge?: string
-  /** Subpages, drawn as a collapsible tree under this item. One level deep. */
+  /** Subpages, listed in a panel that opens right of the drawer (SideNav `NavFlyout`). One level deep. */
   children?: NavItem[]
   /** Also the current item for any path under it (a workspace app's own routes). */
   matchPrefix?: boolean

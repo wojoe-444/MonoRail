@@ -9,7 +9,7 @@ import { allModules } from '@/modules/registry'
 import type { ModuleDefinition } from '@/modules/types'
 
 import { useSettingsAlerts } from './alerts'
-import { searchSettings, type SearchHit } from './search'
+import { scrollToAnchor, searchSettings, type SearchHit } from './search'
 
 /** Groups in menu order; a page with another group is listed after these, under its own heading. */
 const GROUP_ORDER = ['App', 'Accounts & access']
@@ -33,18 +33,6 @@ function groupPages(pages: ModuleDefinition[]): { heading?: string; pages: Modul
   return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0])).map(([heading, pages]) => ({ heading: heading || undefined, pages }))
 }
 
-/** Scroll to an element on the page just opened, once it has rendered, and flash it. */
-function scrollToAnchor(id: string) {
-  let tries = 0
-  const t = setInterval(() => {
-    const el = document.getElementById(id)
-    if (el || ++tries > 40) clearInterval(t)
-    if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    el.classList.add('settings-flash')
-    setTimeout(() => el.classList.remove('settings-flash'), 1600)
-  }, 50)
-}
 
 /**
  * The frame of every Settings page: a menu of the pages (grouped, with the
