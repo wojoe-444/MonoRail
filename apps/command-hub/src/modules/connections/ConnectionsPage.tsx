@@ -418,7 +418,7 @@ const ACCOUNT_DETAIL = /^(account|email|site|signed in to|user\.email|codex sign
  * whose badge then moves under the name.
  */
 const COLS =
-  'grid items-center gap-x-4 grid-cols-[minmax(0,1fr)_auto] @2xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_auto] @4xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_minmax(0,1fr)_6rem_auto]'
+  'grid items-center gap-x-4 gap-y-3 grid-cols-1 @xl:grid-cols-[minmax(0,1fr)_auto] @2xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_auto] @4xl:grid-cols-[minmax(0,2fr)_8.5rem_minmax(0,1.3fr)_minmax(0,1fr)_6rem_auto]'
 
 function TableHead() {
   return (
@@ -457,8 +457,8 @@ function NameCell({
     <div className={cn('flex min-w-0 items-center gap-3', child && 'pl-7')}>
       {child && <span className="-ml-4 h-6 w-3 shrink-0 -translate-y-2 rounded-bl border-b border-l border-border" aria-hidden />}
       <ConnectorIcon connector={connector} state={state} checking={checking} small />
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{connector.title}</span>
           {child && <span className="hidden shrink-0 text-xs whitespace-nowrap text-muted-foreground @5xl:inline">Add-on</span>}
           {extra}
@@ -526,7 +526,7 @@ function ConnectionRow({ connector, connection, status, checking, job, child, op
         </div>
         <div className="hidden truncate text-xs text-muted-foreground @4xl:block">{USED_BY[connector.kind] ?? '–'}</div>
         <div className="hidden text-xs text-muted-foreground tabular-nums @4xl:block">{status?.checkedAt ? formatRelative(status.checkedAt) : '–'}</div>
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex min-w-0 flex-wrap items-center justify-start gap-1 @xl:justify-end" onClick={(e) => e.stopPropagation()}>
           {main ? (
             <Button size="sm" onClick={() => onAction(main.id)} disabled={running || !isDesktop()} title={main.description}>
               {running && job?.action === main.id ? <Loader2 className="animate-spin" /> : <LogIn />} {main.label}
@@ -570,7 +570,7 @@ function ConnectionRow({ connector, connection, status, checking, job, child, op
       </div>
 
       {open && (
-        <div className={cn('flex flex-col gap-4 border-t border-dashed py-4 pr-5', child ? 'pl-[104px]' : 'pl-[68px]')}>
+        <div className={cn('flex flex-col gap-4 border-t border-dashed px-5 py-4', child ? '@xl:pl-[104px]' : '@xl:pl-[68px]')}>
           <div className="text-sm text-muted-foreground">{connector.description}</div>
           {status ? (
             <>
@@ -725,8 +725,8 @@ interface AvailableRowProps {
 /** A connector that is not set up. Nothing has been checked for it, so it shows no status. */
 function AvailableRow({ connector, busy, onAdd, child }: AvailableRowProps) {
   return (
-    <div id={`connection-${connector.kind}`} className="flex min-h-16 scroll-mt-24 items-center gap-4 px-5 py-3">
-      <div className="min-w-0 flex-1">
+    <div id={`connection-${connector.kind}`} className="flex min-h-16 scroll-mt-24 flex-col items-start gap-3 px-5 py-3 @xl:flex-row @xl:items-center">
+      <div className="min-w-0 w-full flex-1 @xl:w-auto">
         <NameCell connector={connector} line={connector.description} child={child} />
       </div>
       <span className="hidden shrink-0 text-xs text-muted-foreground @2xl:block">{USED_BY[connector.kind] && `Used by ${USED_BY[connector.kind]}`}</span>

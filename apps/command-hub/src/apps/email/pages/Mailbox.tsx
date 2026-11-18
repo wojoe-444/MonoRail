@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Check, ChevronDown, Inbox, Paperclip, RefreshCw, Search, Star, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Inbox, Menu, Paperclip, RefreshCw, Search, Star, X } from 'lucide-react'
+
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
 import { api, errorCode, toMailError } from '../api'
 import { Avatar } from '../components/Avatar'
@@ -47,6 +49,7 @@ export default function Mailbox() {
   const [notes, setNotes] = useState<string[]>([])
   const [search, setSearch] = useState(query)
   const [reload, setReload] = useState(0)
+  const [foldersOpen, setFoldersOpen] = useState(false)
 
   useEffect(() => setSearch(query), [query])
 
@@ -148,117 +151,130 @@ export default function Mailbox() {
   const code = errorCode(error)
 
   return (
-    <div className={`eml-shell${threadId ? ' reading' : ''}`}>
-      <Sidebar />
+    <div className="eml-mailbox">
+      <div className="eml-mobile-tools">
+        <Dialog open={foldersOpen} onOpenChange={setFoldersOpen}>
+          <DialogTrigger asChild>
+            <button type="button" className="eml-btn ghost"><Menu /> Folders</button>
+          </DialogTrigger>
+          <DialogContent side="right" className="w-[min(20rem,calc(100%-48px))]" aria-describedby={undefined}>
+            <DialogTitle className="sr-only">Email folders and accounts</DialogTitle>
+            <div className="eml min-h-0"><Sidebar onNavigate={() => setFoldersOpen(false)} /></div>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <div className={`eml-shell${threadId ? ' reading' : ''}`}>
+        <div className="eml-desktop-side"><Sidebar /></div>
 
-      <section className="eml-list">
-        <form
-          className="eml-search"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setParam('q', search.trim() || null)
-          }}
-        >
-          <Search />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={caps.queryHint ?? 'Search mail'} aria-label="Search mail" />
-          {query && (
-            <button type="button" className="eml-icon-btn small" aria-label="Clear search" onClick={() => setParam('q', null)}><X /></button>
+        <section className="eml-list">
+          <form
+            className="eml-search"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setParam('q', search.trim() || null)
+            }}
+          >
+            <Search />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={caps.queryHint ?? 'Search mail'} aria-label="Search mail" />
+            {query && (
+              <button type="button" className="eml-icon-btn small" aria-label="Clear search" onClick={() => setParam('q', null)}><X /></button>
+            )}
+          </form>
+          <div className="eml-filters">
+            {accounts.length > 1 && <ScopePicker accounts={accounts} selected={searchIds} onChange={setScope} />}
+            <label className="eml-select">
+              <span className="sr-only">Days back</span>
+              <select value={daysBack} onChange={(e) => setParam('d', e.target.value === '0' ? null : e.target.value)} aria-label="Days back">
+                {DAY_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{d === 0 ? 'Any time' : d === 1 ? 'Last day' : `Last ${d} days`}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className={`eml-chip-btn${unreadOnly ? ' on' : ''}`} aria-pressed={unreadOnly} onClick={() => setParam('u', unreadOnly ? null : '1')}>Unread</button>
+            {fullStoreAvailable && (
+              <button
+                type="button"
+                className={`eml-chip-btn${allFolders ? ' on' : ''}`}
+                aria-pressed={allFolders}
+                title="Search every folder, not just the open one. Online-only shared mailboxes can be slow, so it stops after 60 seconds and shows what it found."
+                onClick={() => setParam('all', allFolders ? null : '1')}
+              >
+                All folders
+              </button>
+            )}
+          </div>
+          <div className="eml-list-head">
+            <h2 className="eml-ellipsis">{title}</h2>
+            <button className="eml-icon-btn" title="Refresh" aria-label="Refresh" onClick={() => setReload((n) => n + 1)}><RefreshCw className={loading ? 'eml-spin' : ''} /></button>
+          </div>
+          {query && !multi && allFolders && caps.fullStoreSearch && <p className="eml-muted small eml-list-note">Searching every folder. This can take up to a minute.</p>}
+          {query && !allFolders && caps.fullStoreSearch && <p className="eml-muted small eml-list-note">{multi ? 'Searching each Outlook inbox.' : `Searching ${folder?.name ?? 'this folder'}.`} Turn on All folders to search everywhere.</p>}
+
+          {error && (
+            <div className="eml-banner error">
+              <span className="eml-grow">{error.message}</span>
+              {code === 'reauth' && <Link className="eml-btn small" to="/setup">Reconnect</Link>}
+              {(code === 'not-running' || code === 'timeout') && <button className="eml-btn small" onClick={() => setReload((n) => n + 1)}>Retry</button>}
+              {code === 'store-missing' && <Link className="eml-btn small" to="/setup">Manage inboxes</Link>}
+            </div>
           )}
-        </form>
-        <div className="eml-filters">
-          {accounts.length > 1 && <ScopePicker accounts={accounts} selected={searchIds} onChange={setScope} />}
-          <label className="eml-select">
-            <span className="sr-only">Days back</span>
-            <select value={daysBack} onChange={(e) => setParam('d', e.target.value === '0' ? null : e.target.value)} aria-label="Days back">
-              {DAY_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d === 0 ? 'Any time' : d === 1 ? 'Last day' : `Last ${d} days`}</option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className={`eml-chip-btn${unreadOnly ? ' on' : ''}`} aria-pressed={unreadOnly} onClick={() => setParam('u', unreadOnly ? null : '1')}>Unread</button>
-          {fullStoreAvailable && (
-            <button
-              type="button"
-              className={`eml-chip-btn${allFolders ? ' on' : ''}`}
-              aria-pressed={allFolders}
-              title="Search every folder, not just the open one. Online-only shared mailboxes can be slow, so it stops after 60 seconds and shows what it found."
-              onClick={() => setParam('all', allFolders ? null : '1')}
-            >
-              All folders
+          {notes.map((n) => (
+            <div key={n} className="eml-banner warn"><AlertTriangle /> <span className="eml-grow">{n}</span></div>
+          ))}
+
+          <ul className="eml-threads">
+            {threads.map((t) => (
+              <li key={`${t.accountId ?? ''}:${t.id}`}>
+                <button className={`eml-thread${t.unread ? ' unread' : ''}${t.id === threadId ? ' active' : ''}`} onClick={() => open(t)}>
+                  <Avatar from={t.from} />
+                  <span className="eml-thread-main">
+                    <span className="eml-thread-top">
+                      <span className="eml-ellipsis eml-thread-from">
+                        {t.participants.length > 1 ? t.participants.slice(-3).join(', ') : nameOf(t.from)}
+                        {t.messageCount > 1 && <span className="eml-muted"> {t.messageCount}</span>}
+                      </span>
+                      {t.starred && <Star className="eml-star" />}
+                      {t.hasAttachments && <Paperclip className="eml-clip" />}
+                      <time className="eml-thread-date">{listDate(t.date)}</time>
+                    </span>
+                    <span className="eml-ellipsis eml-thread-subject">{t.subject}</span>
+                    {(multi || t.folder) && (
+                      <span className="eml-ellipsis eml-thread-where">
+                        {multi && t.accountId && <span className="eml-tag">{label(t.accountId)}</span>}
+                        {!!t.alsoIn?.length && <span className="eml-tag" title={t.alsoIn.map(label).join(', ')}>+{t.alsoIn.length}</span>}
+                        {t.folder && <span className="eml-muted">{t.folder}</span>}
+                      </span>
+                    )}
+                    {t.snippet && <span className="eml-ellipsis eml-muted eml-thread-snippet">{t.snippet}</span>}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {!loading && !error && threads.length === 0 && (
+            <div className="eml-empty">
+              <Inbox />
+              <p>{query ? 'Nothing matches that search.' : daysBack || unreadOnly ? 'Nothing matches these filters.' : 'Nothing here.'}</p>
+            </div>
+          )}
+          {next && (
+            <button className="eml-btn ghost eml-more" disabled={loading} onClick={() => void more()}>
+              {loading ? 'Loading…' : 'Load more'}
             </button>
           )}
-        </div>
-        <div className="eml-list-head">
-          <h2 className="eml-ellipsis">{title}</h2>
-          <button className="eml-icon-btn" title="Refresh" aria-label="Refresh" onClick={() => setReload((n) => n + 1)}><RefreshCw className={loading ? 'eml-spin' : ''} /></button>
-        </div>
-        {query && !multi && allFolders && caps.fullStoreSearch && <p className="eml-muted small eml-list-note">Searching every folder. This can take up to a minute.</p>}
-        {query && !allFolders && caps.fullStoreSearch && <p className="eml-muted small eml-list-note">{multi ? 'Searching each Outlook inbox.' : `Searching ${folder?.name ?? 'this folder'}.`} Turn on All folders to search everywhere.</p>}
-
-        {error && (
-          <div className="eml-banner error">
-            <span className="eml-grow">{error.message}</span>
-            {code === 'reauth' && <Link className="eml-btn small" to="/setup">Reconnect</Link>}
-            {(code === 'not-running' || code === 'timeout') && <button className="eml-btn small" onClick={() => setReload((n) => n + 1)}>Retry</button>}
-            {code === 'store-missing' && <Link className="eml-btn small" to="/setup">Manage inboxes</Link>}
-          </div>
-        )}
-        {notes.map((n) => (
-          <div key={n} className="eml-banner warn"><AlertTriangle /> <span className="eml-grow">{n}</span></div>
-        ))}
-
-        <ul className="eml-threads">
-          {threads.map((t) => (
-            <li key={`${t.accountId ?? ''}:${t.id}`}>
-              <button className={`eml-thread${t.unread ? ' unread' : ''}${t.id === threadId ? ' active' : ''}`} onClick={() => open(t)}>
-                <Avatar from={t.from} />
-                <span className="eml-thread-main">
-                  <span className="eml-thread-top">
-                    <span className="eml-ellipsis eml-thread-from">
-                      {t.participants.length > 1 ? t.participants.slice(-3).join(', ') : nameOf(t.from)}
-                      {t.messageCount > 1 && <span className="eml-muted"> {t.messageCount}</span>}
-                    </span>
-                    {t.starred && <Star className="eml-star" />}
-                    {t.hasAttachments && <Paperclip className="eml-clip" />}
-                    <time className="eml-thread-date">{listDate(t.date)}</time>
-                  </span>
-                  <span className="eml-ellipsis eml-thread-subject">{t.subject}</span>
-                  {(multi || t.folder) && (
-                    <span className="eml-ellipsis eml-thread-where">
-                      {multi && t.accountId && <span className="eml-tag">{label(t.accountId)}</span>}
-                      {!!t.alsoIn?.length && <span className="eml-tag" title={t.alsoIn.map(label).join(', ')}>+{t.alsoIn.length}</span>}
-                      {t.folder && <span className="eml-muted">{t.folder}</span>}
-                    </span>
-                  )}
-                  {t.snippet && <span className="eml-ellipsis eml-muted eml-thread-snippet">{t.snippet}</span>}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {!loading && !error && threads.length === 0 && (
-          <div className="eml-empty">
-            <Inbox />
-            <p>{query ? 'Nothing matches that search.' : daysBack || unreadOnly ? 'Nothing matches these filters.' : 'Nothing here.'}</p>
-          </div>
-        )}
-        {next && (
-          <button className="eml-btn ghost eml-more" disabled={loading} onClick={() => void more()}>
-            {loading ? 'Loading…' : 'Load more'}
-          </button>
-        )}
-      </section>
-
-      {threadId && threadAccount ? (
-        <ThreadView key={`${threadAccount.id}:${threadId}`} account={threadAccount} threadId={threadId} folderId={folderId} onClose={close} onPatch={patch} onRemoved={removed} />
-      ) : (
-        <section className="eml-reader">
-          <div className="eml-reader-empty eml-muted">
-            <Inbox />
-            <p>Pick a conversation to read it.</p>
-          </div>
         </section>
-      )}
+
+        {threadId && threadAccount ? (
+          <ThreadView key={`${threadAccount.id}:${threadId}`} account={threadAccount} threadId={threadId} folderId={folderId} onClose={close} onPatch={patch} onRemoved={removed} />
+        ) : (
+          <section className="eml-reader">
+            <div className="eml-reader-empty eml-muted">
+              <Inbox />
+              <p>Pick a conversation to read it.</p>
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

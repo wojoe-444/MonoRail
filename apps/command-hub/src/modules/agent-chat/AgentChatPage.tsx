@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Archive,
   ArchiveRestore,
+  ArrowLeft,
   Brain,
   CalendarClock,
   Check,
@@ -115,6 +116,7 @@ export default function AgentChatPage() {
   const [query, setQuery] = useState('')
   // Opened from the Agents overview: a session to show, or a new chat to start.
   const [handoff] = useState(takeChatHandoff)
+  const [showSessions, setShowSessions] = useState(!handoff)
   const [selectedId, setSelectedId] = useState<string | undefined>(() => (handoff && 'open' in handoff ? handoff.open : undefined))
   const [foldersOpen, setFoldersOpen] = useState(false)
   const [promptsOpen, setPromptsOpen] = useState(false)
@@ -251,6 +253,7 @@ export default function AgentChatPage() {
   // The pinned coordinator entry opens the latest coordinator chat, or starts one.
   const latestCoordinator = sessions.find((s) => s.coordinator)
   function openCoordinator() {
+    setShowSessions(false)
     setSendError(undefined)
     if (latestCoordinator) {
       setDraft(undefined)
@@ -425,6 +428,7 @@ export default function AgentChatPage() {
             <Button
               size="sm"
               onClick={() => {
+                setShowSessions(false)
                 setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
                 setSendError(undefined)
               }}
@@ -439,6 +443,17 @@ export default function AgentChatPage() {
             )}
       </div></RevealableHeader>
 
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b p-2 md:hidden">
+        <Button variant="ghost" size="sm" onClick={() => setShowSessions((v) => !v)} aria-label={showSessions ? 'Show conversation' : 'Show sessions'}>
+          {showSessions ? <MessagesSquare /> : <ArrowLeft />} {showSessions ? 'Conversation' : 'Sessions'}
+        </Button>
+        <Button size="sm" onClick={() => {
+          setDraft({ key: `draft:${crypto.randomUUID()}`, repo: selected?.repo.path ?? composerInfo?.repos[0]?.path })
+          setSendError(undefined)
+          setShowSessions(false)
+        }}><Plus /> New chat</Button>
+      </div>
+
       <SystemPromptsDialog open={promptsOpen} onOpenChange={setPromptsOpen} />
 
       <FoldersDialog
@@ -451,7 +466,7 @@ export default function AgentChatPage() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden bg-card text-card-foreground">
         {/* Session list */}
-        <aside className="flex w-80 shrink-0 flex-col border-r">
+        <aside aria-label="Chat sessions" className={cn('min-h-0 w-full shrink-0 flex-col border-r md:flex md:w-80', showSessions ? 'flex' : 'hidden')}>
           <div className="flex flex-col gap-3 border-b p-4">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -515,6 +530,7 @@ export default function AgentChatPage() {
             active={isCoordinator}
             onOpen={openCoordinator}
             onNew={() => {
+              setShowSessions(false)
               setSendError(undefined)
               setDraft({ key: `draft:${crypto.randomUUID()}`, coordinator: true })
             }}
@@ -528,6 +544,7 @@ export default function AgentChatPage() {
             onSelect={(id) => {
               setDraft(undefined)
               setSelectedId(id)
+              setShowSessions(false)
             }}
             sources={data?.sources}
             filtered={sessions.length > 0}
@@ -540,7 +557,7 @@ export default function AgentChatPage() {
         </aside>
 
         {/* Conversation */}
-        <section className="flex min-w-0 flex-1">
+        <section aria-label="Conversation" className={cn('relative min-h-0 min-w-0 flex-1 md:flex', showSessions ? 'hidden' : 'flex')}>
           <div className="flex min-w-0 flex-1 flex-col">
             {draft ? (
               <Conversation
@@ -1123,7 +1140,7 @@ function ConversationHeader({ session, totals }: { session: SessionSummary; tota
   return (
     <div className="flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b px-6 py-3">
       <SourceAvatar source={session.source} className="size-9" />
-      <div className="min-w-56 flex-1">
+      <div className="min-w-0 flex-1 md:min-w-56">
         <div className="truncate font-semibold">{session.title}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1" title={session.cwd}>
@@ -1137,7 +1154,7 @@ function ConversationHeader({ session, totals }: { session: SessionSummary; tota
           <span>Started {clock(session.startedAt)}</span>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
         <TotalChip total={totals.total} sinceOpened={totals.sinceOpened} />
         <Badge variant={session.source === 'claude' ? 'primary' : 'info'}>{SOURCE_LABEL[session.source]}</Badge>
         {session.model && (

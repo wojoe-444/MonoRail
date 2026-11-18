@@ -22,7 +22,7 @@ export interface ChangesResult {
 /** The side panel next to the conversation: a header with a close button, then the panel. */
 export function SidePanel({ kind, target, onClose }: { kind: PanelKind; target?: { chatId?: string; repo?: string }; onClose: () => void }) {
   return (
-    <aside className="flex w-[26rem] min-w-0 shrink-0 flex-col border-l max-xl:w-80">
+    <aside className="absolute inset-0 z-20 flex min-w-0 shrink-0 flex-col border-l bg-card md:static md:w-80 xl:w-[26rem]">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
         {kind === 'changes' ? <GitBranch className="size-4 text-muted-foreground" /> : <Globe className="size-4 text-muted-foreground" />}
         <span className="flex-1 text-sm font-semibold">{kind === 'changes' ? 'Changes' : 'Browser'}</span>
