@@ -1,9 +1,10 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
-import RefSelector from '../components/RefSelector'
 import Breadcrumb from '../components/Breadcrumb'
 import Markdown from '../components/Markdown'
-import { Avatar } from '../components/CommitList'
+import FileTree from '../components/FileTree'
+import { CardHead } from '../components/Dense'
+import { useCollapsed } from '../components/collapsed'
 import { FileIcon, FolderIcon, HistoryIcon, SubmoduleIcon } from '../components/Icons'
 import { blobLink, commitLink, commitsLink, treeLink } from '../links'
 import { fullDate, timeAgo } from '../util'
@@ -13,75 +14,79 @@ const README_RE = /^readme(\.(md|markdown|txt|rst))?$/i
 
 export default function TreePage() {
   const { repo } = useRepo()
-  const nav = useNavigate()
   const [sp] = useSearchParams()
   const ref = sp.get('ref') || repo!.defaultRef || 'HEAD'
   const path = sp.get('path') || ''
   const rp = repo!.path
+  const [listClosed, toggleList] = useCollapsed('folder')
+  const [readmeClosed, toggleReadme] = useCollapsed('readme')
 
   const tree = useAsync(() => api.listTree(rp, ref, path), [rp, ref, path])
   // Filled in after the list shows: it walks history, the list doesn't.
   const lastCommits = useAsync(() => api.treeLastCommits(rp, ref, path), [rp, ref, path])
   const last = lastCommits.loading ? null : lastCommits.data
-  const latest = useAsync(() => api.getLog(rp, { ref, path: path || undefined, limit: 1 }), [rp, ref, path])
   const count = useAsync(() => api.countCommits(rp, ref), [rp, ref])
   const readme = tree.data?.find((e) => e.type === 'file' && README_RE.test(e.name))
   const readmeBlob = useAsync(async () => (readme ? api.readBlob(rp, ref, readme.path) : null), [rp, ref, readme?.path])
-
-  const c = latest.data?.commits[0]
   const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
 
   return (
-    <div>
-      <div className="toolbar">
-        <RefSelector value={ref} onChange={(r) => nav(treeLink(r, path))} />
-        <Breadcrumb refName={ref} path={path} />
-        <span className="spacer" />
-        <Link className="btn" to={commitsLink(ref, path)}><HistoryIcon /> {count.data !== null && !path ? `${count.data} commit${count.data === 1 ? "" : "s"}` : 'History'}</Link>
-      </div>
-      {tree.error && <div className="flash error">{tree.error}</div>}
-      <div className="box">
-        <div className="box-head commit-bar">
-          {c ? (
-            <>
-              <Avatar name={c.authorName} /> <strong>{c.authorName}</strong>
-              <Link to={commitLink(c.sha)} className="commit-title ellipsis">{c.subject}</Link>
-              <span className="spacer" />
-              <Link to={commitLink(c.sha)} className="mono muted">{c.shortSha}</Link>
-              <span className="muted" title={fullDate(c.date)}>{timeAgo(c.date)}</span>
-            </>
-          ) : <span className="muted">{latest.loading ? 'Loading…' : ''}</span>}
+    <div className="ghp-code">
+      <FileTree refName={ref} current={path} />
+      <div className="min-w-0">
+        {tree.error && <div className="flash error">{tree.error}</div>}
+        <div className="ghp-card">
+          <CardHead title={<Breadcrumb refName={ref} path={path} />} collapse={{ closed: listClosed, toggle: toggleList, label: 'the folder listing' }}>
+            {tree.data && <span className="hint">{tree.data.length} item{tree.data.length === 1 ? '' : 's'}</span>}
+            <Link className="act" to={commitsLink(ref, path || undefined)}>
+              <HistoryIcon /> {count.data !== null && !path ? `${count.data} commit${count.data === 1 ? '' : 's'}` : 'History of this folder'}
+            </Link>
+          </CardHead>
+          {!listClosed && (
+            <table className="ghp-table">
+              <thead><tr><th>Name</th><th>Last commit</th><th>Commit</th><th className="num">When</th></tr></thead>
+              <tbody>
+                {path && (
+                  <tr><td colSpan={4}><Link to={treeLink(ref, parent)} className="muted" title="Up one folder">..</Link></td></tr>
+                )}
+                {tree.loading && !tree.data && <tr><td colSpan={4} className="muted">Loading…</td></tr>}
+                {tree.data?.map((e) => {
+                  const lc = last?.[e.name]
+                  return (
+                    <tr key={e.path}>
+                      <td>
+                        <span className="name-cell">
+                          <span className={`tree-icon${e.type === 'dir' ? ' folder' : ''}`}>{e.type === 'dir' ? <FolderIcon /> : e.type === 'submodule' ? <SubmoduleIcon /> : <FileIcon />}</span>
+                          {e.type === 'dir' ? <Link to={treeLink(ref, e.path)}>{e.name}</Link>
+                            : e.type === 'submodule' ? <span title="Submodule">{e.name}</span>
+                            : <Link to={blobLink(ref, e.path)}>{e.name}</Link>}
+                        </span>
+                      </td>
+                      <td className="fill muted">{lc ? <Link className="muted" to={commitLink(lc.sha)} title={lc.subject}>{lc.subject}</Link> : <span />}</td>
+                      <td className="mono muted">{lc ? <Link className="muted" to={commitLink(lc.sha)}>{lc.sha.slice(0, 7)}</Link> : ''}</td>
+                      <td className="num muted">{lc ? <span title={fullDate(lc.date)}>{timeAgo(lc.date)}</span> : ''}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
-        <table className="files">
-          <tbody>
-            {path && (
-              <tr><td className="icon" /><td colSpan={3}><Link to={treeLink(ref, parent)}>..</Link></td></tr>
+        {readme && readmeBlob.data?.kind === 'text' && (
+          <div className="ghp-card">
+            <CardHead title={<span className="title-ico"><FileIcon /><h2>{readme.name}</h2></span>} hint={path ? `in ${path}` : undefined} collapse={{ closed: readmeClosed, toggle: toggleReadme, label: readme.name }}>
+              <Link className="act" to={blobLink(ref, readme.path)}>Open</Link>
+            </CardHead>
+            {!readmeClosed && (
+              <div className="ghp-card-pad">
+                {/\.(md|markdown)$/i.test(readme.name)
+                  ? <Markdown source={readmeBlob.data.content} refName={ref} baseDir={path} />
+                  : <pre className="plain">{readmeBlob.data.content}</pre>}
+              </div>
             )}
-            {tree.data?.map((e) => (
-              <tr key={e.path}>
-                <td className="icon">{e.type === 'dir' ? <span className="folder"><FolderIcon /></span> : e.type === 'submodule' ? <SubmoduleIcon /> : <FileIcon />}</td>
-                <td className="name">
-                  {e.type === 'dir' ? <Link to={treeLink(ref, e.path)}>{e.name}</Link>
-                    : e.type === 'submodule' ? <span title="Submodule">{e.name}</span>
-                    : <Link to={blobLink(ref, e.path)}>{e.name}</Link>}
-                </td>
-                <td className="msg muted ellipsis">{last?.[e.name] && <Link to={commitLink(last[e.name].sha)}>{last[e.name].subject}</Link>}</td>
-                <td className="when muted">{last?.[e.name] && <span title={fullDate(last[e.name].date)}>{timeAgo(last[e.name].date)}</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {readme && readmeBlob.data?.kind === 'text' && (
-        <div className="box readme">
-          <div className="box-head"><FileIcon /> <strong>{readme.name}</strong></div>
-          <div className="pad">
-            {/\.(md|markdown)$/i.test(readme.name)
-              ? <Markdown source={readmeBlob.data.content} refName={ref} baseDir={path} />
-              : <pre className="plain">{readmeBlob.data.content}</pre>}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

@@ -363,6 +363,20 @@ export const sampleApi: RepoApi = {
     sampleRepoLinks.unlink({ source: t.source, key: t.key }, t.linkId)
     return sampleTasks({ path: repo, github: sampleGitHubOf(repo) })
   },
+  getWorkingStates: () =>
+    wait({
+      [REPO.path]: { branch: 'main', upstream: 'origin/main', ahead: 2, behind: 0, changed: 3, untracked: 1, base: null },
+      [PLAIN]: plainIsRepo ? { branch: 'main', upstream: null, ahead: null, behind: null, changed: 0, untracked: 0, base: null } : null,
+      'C:/Users/sample/Repos/trail-planner': { branch: 'elevation-chart', upstream: 'origin/elevation-chart', ahead: 0, behind: 1, changed: 0, untracked: 0, base: null },
+      'C:/Users/sample/Repos/recipe-box': { branch: 'main', upstream: null, ahead: null, behind: null, changed: 0, untracked: 0, base: null },
+      [JIRA_REPO.path]: { branch: 'main', upstream: null, ahead: null, behind: null, changed: 0, untracked: 0, base: null },
+    }),
+  workingState: (repo) =>
+    wait(
+      repo === REPO.path
+        ? { branch: 'main', upstream: 'origin/main', ahead: 2, behind: 0, changed: 3, untracked: 1, base: null }
+        : { branch: 'main', upstream: null, ahead: null, behind: null, changed: 0, untracked: 0, base: null },
+    ),
   removeRecent: () => wait([]),
   // No file manager in the browser dev server.
   openInExplorer: () => wait(null),

@@ -297,3 +297,19 @@ export interface LinkedTask {
 }
 /** How many tasks each repo has, keyed by folder (forward slashes) and by lowercased "owner/name". */
 export interface LinkCounts { paths: Record<string, number>; github: Record<string, number> }
+
+/** Uncommitted work and sync state of a repo's working folder (one `git status`). */
+export interface WorkingState {
+  /** Checked-out branch; null when HEAD is detached. */
+  branch: string | null
+  /** e.g. "origin/main"; null when the branch tracks nothing. */
+  upstream: string | null
+  /** Commits not pushed to / not pulled from the upstream; null without an upstream. */
+  ahead: number | null
+  behind: number | null
+  /** Tracked files with changes (staged or not). */
+  changed: number
+  untracked: number
+  /** Repo page only: the branch against main/master, when it is another branch. */
+  base: { name: string; ahead: number; behind: number } | null
+}

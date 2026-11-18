@@ -12,15 +12,39 @@ terminal. It only reads; it never changes your files.
 
 ## Open a repository
 
-Press **Open a repository** and pick a folder. GitHub+ remembers it on its
+Press **Open repository** and pick a folder. GitHub+ remembers it on its
 home page with its recent activity. Repositories that MonoRail itself keeps,
 like your [Tasks](tasks.md) private projects, are listed there
 automatically.
 
+## The home page
+
+The home page has five views: **Overview**, **Repositories**, **Activity**,
+**Issues** and **Backups**. The search box filters every table at once.
+
+- A summary row at the top counts your repositories and open issues, and how
+  many have commits that are **not pushed** or files that are **not
+  committed** yet. A failed backup shows there too, with a link to fix it.
+- **Active branches** lists recently changed [branches](../glossary.md#branch)
+  with a small bar showing how far each is behind (red) and ahead (green),
+  and a **Compare** button.
+- **Repositories** shows each one's current branch and its state: ↑ commits
+  not pushed, ↓ commits waiting to be pulled, ● files not committed, or
+  *clean*. The Repositories view adds the folder, issue and task counts, and
+  your repositories on GitHub.
+- **Recent commits** lists the newest [commits](../glossary.md#commit) across
+  every repository and branch.
+
 ## What you can see
 
-- **Code**: folders and files, with the README shown below, and when each
-  file last changed.
+Each repository opens with the same strip of facts under its tabs: how far
+the branch is from main, commits not pushed, files not committed, the last
+backup and the newest commit. The branch picker on the right switches the
+branch you are looking at.
+
+- **Code**: a file tree on the left, the open folder's files with when each
+  last changed, and the README below. The arrow on the folder listing and on
+  the README folds them away; GitHub+ remembers that.
 - **History** and **commits**: every [commit](../glossary.md#commit), with
   what it changed.
 - **Branches** and **Compare**: how far [branches](../glossary.md#branch)
