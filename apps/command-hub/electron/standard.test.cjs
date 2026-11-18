@@ -16,16 +16,23 @@ function page(docId) {
 }
 const anchors = (text) => new Set([...text.replace(/```[\s\S]*?```/g, '').matchAll(/^#{1,6} (.+)$/gm)].map((m) => slug(m[1].replace(/`/g, ''))))
 
-// OpenMetadata 2.0 entity type names. MonoRail's own types must not reuse
-// them for something else (that is why the semantic metric is semanticMetric).
-const OPENMETADATA_TYPES = [
-  'table', 'database', 'databaseSchema', 'databaseService', 'storedProcedure', 'dashboard', 'chart', 'dashboardDataModel',
-  'dashboardService', 'pipeline', 'pipelineService', 'topic', 'messagingService', 'mlmodel', 'mlmodelService', 'container',
-  'storageService', 'searchIndex', 'searchService', 'apiCollection', 'apiEndpoint', 'apiService', 'metric', 'query',
-  'glossary', 'glossaryTerm', 'classification', 'tag', 'domain', 'dataProduct', 'dataContract', 'user', 'team', 'role',
-  'policy', 'bot', 'testCase', 'testSuite', 'testDefinition', 'ingestionPipeline', 'report', 'kpi', 'persona', 'type',
-  'document', 'page', 'workflow', 'directory', 'file', 'spreadsheet', 'worksheet', 'metadataService',
+// Names OpenMetadata uses for records that are not entity types here (results,
+// runs, feed items). MonoRail's own types must not take these either, nor the
+// name of any OpenMetadata entity type in standard.json.
+const OPENMETADATA_RESERVED = [
+  'conversation', 'thread', 'suggestion', 'testCaseResult', 'testCaseResolutionStatus', 'testCaseDimensionResult',
+  'agentExecution', 'mcpExecution', 'queryCostRecord', 'tableColumn', 'dashboardDataModelColumn', 'entityProfile',
+  'pipelineExecution', 'workflowInstance', 'workflowInstanceState', 'auditLog', 'api', 'policies', 'dataContractResult',
+  'recognizerFeedback', 'entityReportData', 'rawCostAnalysisReportData', 'rdf',
 ]
+
+test('sections, categories and entity types fit together', () => {
+  const sections = new Set(STANDARD.sections.map((s) => s.id))
+  assert.deepEqual(STANDARD.categories.filter((c) => !sections.has(c.section)).map((c) => c.id), [], 'categories in an unknown section')
+  assert.deepEqual(STANDARD.sections.filter((s) => !STANDARD.categories.some((c) => c.section === s.id)).map((s) => s.id), [], 'empty sections')
+  for (const c of STANDARD.categories) assert.equal(c.origin, c.section === 'monorail' ? 'monorail' : 'openmetadata', `${c.id}: origin follows its section`)
+  for (const e of STANDARD.entities) assert.equal(e.origin, STANDARD.categories.find((c) => c.id === e.category)?.origin, `${e.type}: origin follows its category`)
+})
 
 test('entity types are unique, camelCase and in a known category', () => {
   const types = STANDARD.entities.map((e) => e.type)
@@ -37,7 +44,8 @@ test('entity types are unique, camelCase and in a known category', () => {
 })
 
 test("MonoRail's own entity types never reuse an OpenMetadata name", () => {
-  const clash = STANDARD.entities.filter((e) => e.origin === 'monorail' && OPENMETADATA_TYPES.includes(e.type)).map((e) => e.type)
+  const taken = new Set([...STANDARD.entities.filter((e) => e.origin === 'openmetadata').map((e) => e.type), ...OPENMETADATA_RESERVED].map((n) => n.toLowerCase()))
+  const clash = STANDARD.entities.filter((e) => e.origin === 'monorail' && taken.has(e.type.toLowerCase())).map((e) => e.type)
   assert.deepEqual(clash, [])
 })
 
@@ -45,8 +53,12 @@ test('every entity type has what its origin needs and well-formed fields', () =>
   for (const e of STANDARD.entities) {
     for (const k of ['name', 'plural', 'summary', 'docs']) assert.ok(e[k], `${e.type}: ${k}`)
     if (e.origin === 'openmetadata') {
-      assert.match(e.basePath ?? '', /^\/v1\//, `${e.type}: basePath`)
-      assert.match(e.reference ?? '', /^https:\/\/docs\.open-metadata\.org\/v2\.0\.x\//, `${e.type}: reference`)
+      if (e.basePath !== undefined) assert.match(e.basePath, /^\/v1\/[A-Za-z/]+$/, `${e.type}: basePath`)
+      assert.match(e.schema ?? '', /^[A-Za-z/]+\.json$/, `${e.type}: schema`)
+      const tag = `${STANDARD.openMetadata.pinned}-release`
+      const docs = e.reference?.startsWith('https://docs.open-metadata.org/v2.1.x-SNAPSHOT/')
+      const schemaUrl = e.reference === `https://github.com/open-metadata/OpenMetadata/blob/${tag}/openmetadata-spec/src/main/resources/json/schema/${e.schema}`
+      assert.ok(docs || schemaUrl, `${e.type}: reference is OpenMetadata's 2.1 docs or its schema at ${tag}`)
     } else {
       assert.equal(e.origin, 'monorail', `${e.type}: origin`)
       assert.ok(e.source, `${e.type}: source`)
@@ -80,6 +92,15 @@ test('Explore lists entity types from the standard only, and builds its tree fro
   const used = [...src.matchAll(/\bentry\('([A-Za-z]+)'/g)].map((m) => m[1])
   assert.ok(used.length > 0)
   assert.deepEqual(used.filter((t) => !types.has(t)), [], 'entry() types missing from standard.json')
-  assert.match(src, /CATEGORIES\.map\(/, 'the tree lists every category')
+  assert.match(src, /SECTIONS\.map\(/, 'the tree lists every section')
+  assert.match(src, /categoriesIn\(/, 'the tree lists every category of a section')
   assert.match(src, /entityTypesIn\(/, 'the tree lists every entity type of a category')
+})
+
+test("the OpenMetadata page reads every OpenMetadata type at the standard's REST path", () => {
+  const { TYPES } = require('./modules/openmetadata.cjs')
+  const expected = Object.fromEntries(
+    STANDARD.entities.filter((e) => e.origin === 'openmetadata' && e.basePath).map((e) => [e.type, e.basePath.replace(/^\/v1\//, '')]),
+  )
+  assert.deepEqual({ ...TYPES }, expected)
 })
