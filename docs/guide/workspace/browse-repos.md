@@ -5,7 +5,7 @@ summary: GitHub+ shows the git repositories on your computer in a familiar, GitH
 
 # Browse your repos
 
-**Workspace > GitHub+** is a GitHub-style browser for the git
+**Tools > GitHub+** is a GitHub-style browser for the git
 [repositories](../glossary.md#repository) on your own computer: the code,
 the README, the history, branches and comparisons, without opening a
 terminal. It only reads; it never changes your files.

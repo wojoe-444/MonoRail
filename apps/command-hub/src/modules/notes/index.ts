@@ -14,7 +14,7 @@ export const notesModule: ModuleDefinition = {
   description: 'Unstructured info dump: Markdown notes kept in a local git repo.',
   icon: NotebookPen,
   path: '/notes',
-  nav: { section: 'Workspace' },
+  nav: { section: 'Workspace', parent: '/tools' },
   component: lazy(() => import('./NotesPage')),
   dataMethods: ['list', 'get', 'create', 'save', 'flush', 'remove', 'history', 'version'],
 }

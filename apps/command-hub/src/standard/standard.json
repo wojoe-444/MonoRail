@@ -321,7 +321,7 @@
       "origin": "monorail",
       "summary": "A saved web address or local path.",
       "docs": "standard/workspace#bookmark",
-      "source": "Workspace > Bookmarks",
+      "source": "Tools > Bookmarks",
       "fields": [
         {
           "name": "id",
@@ -373,7 +373,7 @@
       "origin": "monorail",
       "summary": "A folder that groups bookmarks. Same record as a bookmark, with no target.",
       "docs": "standard/workspace#bookmark-folder",
-      "source": "Workspace > Bookmarks",
+      "source": "Tools > Bookmarks",
       "fields": [
         {
           "name": "id",
@@ -494,7 +494,7 @@
       "origin": "monorail",
       "summary": "A deck of spaced repetition cards with its own daily limit and target recall.",
       "docs": "standard/learning#flashcard-deck",
-      "source": "Workspace > Flashcards",
+      "source": "Tools > Flashcards",
       "fields": [
         {
           "name": "id",
@@ -554,7 +554,7 @@
       "origin": "monorail",
       "summary": "One card: a Markdown front and back, scheduled with FSRS-5.",
       "docs": "standard/learning#flashcard",
-      "source": "Workspace > Flashcards",
+      "source": "Tools > Flashcards",
       "fields": [
         {
           "name": "id",

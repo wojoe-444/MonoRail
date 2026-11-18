@@ -629,7 +629,7 @@ cards per day (default 20); the page shows each rating's next interval from
 style it after any other product. MCP: `list_flashcard_decks`,
 `list_flashcards` (read) and `add_flashcards` (write, consent per agent).
 
-`notes` (**Notes**, a subpage of Home; docs: `docs/notes.md`) is an
+`notes` (**Notes**, a subpage of Tools; docs: `docs/notes.md`) is an
 unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
 line = title) in a local git repo in its data folder (`repo/`), via
 isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
@@ -683,6 +683,13 @@ current one highlighted. The drawer is a permanent 72px icon rail: hovering
 or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
+**Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
+Calendar, Email, Bookmarks, Notes and Flashcards behind one rail button.
+Its overview lists the same destinations as its flyout. Modules join it with
+`nav.parent: '/tools'`; workspace apps are added from the app registry.
+Existing page URLs stay the same, and nested app routes resolve to their
+child item so the Tools rail button and breadcrumb stay current.
+
 ### Charts
 
 Follow the data-viz rules already encoded in `components/charts/`: series
@@ -700,9 +707,9 @@ product: its own colors, fonts, layout and in-app routing. The contract is
 `AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
 
 **Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Calendar, Email) are
-Workspace pages. The hub's drawer and top bar stay on screen (breadcrumb
-`Workspace > <app>`) and the app fills the page body below them, scrolling on
-its own (`AppBody` in `App.tsx`). Each gets a nav item under Workspace that
+Tools subpages. The hub's drawer and top bar stay on screen (breadcrumb
+`Workspace > Tools > <app>`) and the app fills the page body below them, scrolling on
+its own (`AppBody` in `App.tsx`). Each gets a nav item under Tools that
 stays current on all of the app's routes (`matchPrefix`). Going back to one
 from the nav resumes where it was left; clicking its item while in it goes to
 its start page (`src/apps/session.ts`).

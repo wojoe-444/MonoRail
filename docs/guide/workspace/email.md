@@ -5,7 +5,7 @@ summary: Read and answer Gmail, or the classic Outlook on your PC, without your 
 
 # Email
 
-**Workspace > Email** reads your mail through an inbox connector. There are
+**Tools > Email** reads your mail through an inbox connector. There are
 two so far: Gmail, and the classic Outlook already running on your PC.
 
 ## Gmail

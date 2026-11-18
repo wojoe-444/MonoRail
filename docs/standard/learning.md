@@ -15,8 +15,8 @@ under **Learning**.
 
 | Entity | Type | What it is | In MonoRail |
 | --- | --- | --- | --- |
-| [Flashcard deck](learning.md#flashcard-deck) | `flashcardDeck` | A deck of spaced repetition cards with its own daily limit and target recall. | Workspace > Flashcards |
-| [Flashcard](learning.md#flashcard) | `flashcard` | One card: a Markdown front and back, scheduled with FSRS-5. | Workspace > Flashcards |
+| [Flashcard deck](learning.md#flashcard-deck) | `flashcardDeck` | A deck of spaced repetition cards with its own daily limit and target recall. | Tools > Flashcards |
+| [Flashcard](learning.md#flashcard) | `flashcard` | One card: a Markdown front and back, scheduled with FSRS-5. | Tools > Flashcards |
 
 <!-- /standard -->
 

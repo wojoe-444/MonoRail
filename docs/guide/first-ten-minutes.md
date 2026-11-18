@@ -41,7 +41,7 @@ and the one number worth watching.
 
 ## 5. Open a repository
 
-**Workspace > GitHub+** opens any git repository on your computer in a
+**Tools > GitHub+** opens any git repository on your computer in a
 GitHub-style view. Try one you know: [browse your repos](workspace/browse-repos.md).
 
 ## 6. Turn on backups

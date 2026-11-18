@@ -5,7 +5,7 @@ summary: Your private tasks and your team's Jira on one page; private projects s
 
 # Tasks
 
-**Workspace > Tasks** (called Jira+ before) keeps every task, big or small, on
+**Tools > Tasks** (called Jira+ before) keeps every task, big or small, on
 one page. Its special trick is that a **private project** on your computer is
 a first-class project, right next to your team's real Jira projects. Your
 existing Jira+ tasks are all still there: Tasks reads the same data in place.
@@ -19,7 +19,7 @@ existing Jira+ tasks are all still there: Tasks reads the same data in place.
 - **List** groups tasks by status. Turn on **Show done** to see finished ones.
 - **Board** has a column per status; drag a card to move it.
 - **Calendar** shows tasks by expected end date (the same view as
-  **Workspace > Calendar**).
+  **Tools > Calendar**).
 - The project buttons next to the views (**All projects**, then each project)
   narrow every view to one project. A project adds **Epics**, **Recurring**
   (private projects) and **On trigger**.
