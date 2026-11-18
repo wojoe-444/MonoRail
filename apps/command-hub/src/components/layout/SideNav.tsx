@@ -44,73 +44,88 @@ export function SideNav({ current, onNavigate }: SideNavProps) {
   const inSettings = !!settings && (current === settings.path || !!settings.children?.some((c) => c.path === current))
   const { alerts } = useSettingsAlerts()
   return (
-    <aside
-      data-slot="sidebar"
-      tabIndex={0}
-      aria-label="Navigation"
+    // The rectangular hover region includes the picture theme's outer margins
+    // and rounded corners, so the very left window edge always opens the drawer.
+    <div
+      data-slot="sidebar-hover-region"
+      className="h-full shrink-0"
       onMouseEnter={() => { clearTimeout(collapseTimer.current); setHovered(true) }}
       onMouseLeave={() => { clearTimeout(collapseTimer.current); collapseTimer.current = setTimeout(() => setHovered(false), 250) }}
-      onFocusCapture={(event) => { if (event.target.matches(':focus-visible')) setKeyboardFocus(true) }}
-      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardFocus(false) }}
-      className={cn(
-        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring transition-[width]',
-        collapsed ? 'w-[72px] duration-500' : 'w-[256px] duration-200',
-      )}
     >
-      {/* Brand header: height matches the 64px top bar */}
-      <div
+      <aside
+        data-slot="sidebar"
+        tabIndex={0}
+        aria-label="Navigation"
+        onFocusCapture={(event) => { if (event.target.matches(':focus-visible')) setKeyboardFocus(true) }}
+        onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardFocus(false) }}
         className={cn(
-          'flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-4',
-          collapsed && 'justify-center px-0',
+          'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring transition-[width]',
+          collapsed ? 'w-[72px] duration-500' : 'w-[256px] duration-200',
         )}
       >
-        <BrandTile className="size-8" />
-        {!collapsed && (
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">MonoRail</span>
-            <span className="truncate text-xs text-sidebar-muted-foreground">Agent hub</span>
+        {/* Brand header: height matches the 64px top bar */}
+        <div
+          className={cn(
+            'flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-4',
+            collapsed && 'justify-center px-0',
+          )}
+        >
+          <BrandTile className="size-8" />
+          {!collapsed && (
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">MonoRail</span>
+              <span className="truncate text-xs text-sidebar-muted-foreground">Agent hub</span>
+            </div>
+          )}
+        </div>
+
+        <nav
+          className={cn(
+            'min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4',
+            // Keep the narrow rail centered without a native scrollbar taking icon space.
+            // Overflow still scrolls with the wheel, touch, and keyboard focus.
+            collapsed && '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          )}
+          aria-label="Main"
+        >
+          {mainSections.map((section, i) => (
+            <div key={section.heading ?? i} className={cn(i > 0 && 'mt-4')}>
+              {section.heading && !collapsed && (
+                <div className="flex h-8 items-center px-3 text-[11px] font-semibold tracking-wider text-sidebar-muted-foreground uppercase">
+                  {section.heading}
+                </div>
+              )}
+              {section.heading && collapsed && <div className="mx-2 mb-3 h-px bg-sidebar-border" />}
+              <ul className="flex flex-col gap-1">
+                {section.items.map((item) => (
+                  <li key={item.path}>
+                    {item.children && item.children.length > 0 ? (
+                      <NavFlyout item={item} current={current} collapsed={collapsed} onNavigate={onNavigate} onOpenChange={setFlyoutOpen} />
+                    ) : (
+                      <NavButton item={item} current={current} collapsed={collapsed} onNavigate={onNavigate} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {settings && (
+          // Settings: one button pinned at the bottom. Its pages (Connections,
+          // Agent access, Extensions, ...) have their own menu on the Settings page.
+          <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
+            <NavButton
+              item={{ ...settings, children: undefined, badge: alerts.length ? String(alerts.length) : undefined }}
+              current={inSettings ? settings.path : current}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+            />
           </div>
         )}
-      </div>
 
-      <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label="Main">
-        {mainSections.map((section, i) => (
-          <div key={section.heading ?? i} className={cn(i > 0 && 'mt-4')}>
-            {section.heading && !collapsed && (
-              <div className="flex h-8 items-center px-3 text-[11px] font-semibold tracking-wider text-sidebar-muted-foreground uppercase">
-                {section.heading}
-              </div>
-            )}
-            {section.heading && collapsed && <div className="mx-2 mb-3 h-px bg-sidebar-border" />}
-            <ul className="flex flex-col gap-1">
-              {section.items.map((item) => (
-                <li key={item.path}>
-                  {item.children && item.children.length > 0 ? (
-                    <NavFlyout item={item} current={current} collapsed={collapsed} onNavigate={onNavigate} onOpenChange={setFlyoutOpen} />
-                  ) : (
-                    <NavButton item={item} current={current} collapsed={collapsed} onNavigate={onNavigate} />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {settings && (
-        // Settings: one button pinned at the bottom. Its pages (Connections,
-        // Agent access, Extensions, ...) have their own menu on the Settings page.
-        <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
-          <NavButton
-            item={{ ...settings, children: undefined, badge: alerts.length ? String(alerts.length) : undefined }}
-            current={inSettings ? settings.path : current}
-            collapsed={collapsed}
-            onNavigate={onNavigate}
-          />
-        </div>
-      )}
-
-    </aside>
+      </aside>
+    </div>
   )
 }
 

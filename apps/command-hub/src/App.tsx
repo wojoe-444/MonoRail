@@ -99,7 +99,7 @@ export default function App() {
           current={current?.path ?? path}
           onNavigate={openPath}
         />
-        <HeaderRevealProvider><div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <HeaderRevealProvider><div data-slot="app-body" className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
           <HeaderRevealTrigger />
           <RevealableHeader>
           <TopBar

@@ -9,6 +9,20 @@ import { cn } from '@/lib/utils'
 /** Strip of the colors that define a palette: drawer, page, card, primary, accent, highlight, success. */
 export function Swatches({ p, dark, className }: { p: Palette; dark: boolean; className?: string }) {
   const t = tokens(p, dark)
+  if (p.backdrop) {
+    // Picture themes: the picture itself, with the primary, highlight and success chips on the right.
+    const src = (dark && p.backdrop.dark ? p.backdrop.dark : p.backdrop).thumb
+    return (
+      <span
+        className={cn('flex h-5 justify-end overflow-hidden rounded-md bg-cover bg-center ring-1 ring-black/10 dark:ring-white/15', className)}
+        style={{ backgroundImage: `url("${src}")` }}
+      >
+        {[t.primary, t.highlight, t.success].map((c, i) => (
+          <span key={i} className="h-full w-[12%]" style={{ background: c }} />
+        ))}
+      </span>
+    )
+  }
   const cols = [t.sidebar, t.background, t.card, t.primary, t.accent, t.highlight, t.success]
   return (
     <span className={cn('flex h-5 overflow-hidden rounded-md ring-1 ring-black/10 dark:ring-white/15', className)}>

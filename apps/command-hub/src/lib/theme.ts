@@ -45,6 +45,20 @@ function apply() {
   else delete root.dataset.shape
   if (p.texture) root.dataset.texture = p.texture
   else delete root.dataset.texture
+  // Picture themes: the picture and its dimming go on <html>; the layout rules are at the end of index.css.
+  const backdrop = p.backdrop
+  if (backdrop) {
+    const night = theme === 'dark' ? backdrop.dark : undefined
+    const files = night ?? backdrop
+    root.dataset.backdrop = backdrop.layout
+    root.style.setProperty('--backdrop-image', `url("${files.src}")`)
+    root.style.setProperty('--backdrop-blur', `url("${files.blur}")`)
+    root.style.setProperty('--backdrop-dim', String(theme === 'dark' && !night ? backdrop.dim : 0))
+    root.style.setProperty('--backdrop-color', backdrop.color)
+  } else {
+    delete root.dataset.backdrop
+    for (const name of ['--backdrop-image', '--backdrop-blur', '--backdrop-dim', '--backdrop-color']) root.style.removeProperty(name)
+  }
   for (const [k, v] of Object.entries(tokens(p, theme === 'dark'))) {
     root.style.setProperty(`--${k}`, v)
   }

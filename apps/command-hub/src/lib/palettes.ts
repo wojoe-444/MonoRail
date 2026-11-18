@@ -10,6 +10,7 @@
  * validated fixed order in index.css.
  */
 
+
 export type SidebarStyle = 'dark' | 'light' | 'bold'
 
 export interface Palette {
@@ -40,7 +41,75 @@ export interface Palette {
    * `leaf` in white for a dark or bold drawer, `leaf-ink` in green ink for a light one.
    */
   texture?: 'leaf' | 'leaf-ink'
+  /** A picture behind the whole app; the page, cards and drawer turn to frosted glass over it. */
+  backdrop?: Backdrop
 }
+
+/**
+ * A picture theme's backdrop. The pictures are drawings in scripts/backdrops/,
+ * rendered by `npm run backdrops` into WebP files in src/assets/backdrops/.
+ * theme.ts puts it on <html> as `data-backdrop` plus `--backdrop-*`
+ * variables, and the rules at the end of index.css lay the glass out.
+ */
+export interface Backdrop {
+  /** The picture's URL. */
+  src: string
+  /** A small blurred copy, shown through the frosted glass (the app never blurs live). */
+  blur: string
+  /** A small sharp copy for the swatch in Settings. */
+  thumb: string
+  /** A night version, with its own blurred copy and thumbnail. Without one, dark mode dims `src` by `dim`. */
+  dark?: { src: string; blur: string; thumb: string }
+  /**
+   * `panel`: the drawer sits right on the picture and the page is one frosted sheet.
+   * `glass`: the drawer, top bar and page float as separate frosted pieces.
+   * `liquid`: the `glass` layout in clearer, heavier glass with lit edges, a
+   * sheen and fine grain; made for moody, dark pictures.
+   */
+  layout: 'panel' | 'glass' | 'liquid'
+  /** How far dark mode darkens the picture, 0 to 1. */
+  dim: number
+  /** Shown while the picture loads. */
+  color: string
+}
+
+/** Every rendered backdrop file, by path. */
+const BACKDROP_FILES = import.meta.glob<string>('../assets/backdrops/*.webp', { eager: true, query: '?url', import: 'default' })
+
+/** A drawing's files: the picture, its blurred copy and thumbnail, and the night version when it has one. */
+function picture(name: string): Pick<Backdrop, 'src' | 'blur' | 'thumb' | 'dark'> {
+  const url = (file: string) => BACKDROP_FILES[`../assets/backdrops/${file}.webp`]
+  const files = (n: string) => ({ src: url(n), blur: url(`${n}-blur`), thumb: url(`${n}-thumb`) })
+  if (!url(name)) throw new Error(`No backdrop "${name}": run npm run backdrops.`)
+  return { ...files(name), dark: url(`${name}-dark`) ? files(`${name}-dark`) : undefined }
+}
+
+const BACKDROPS = {
+  alpine: { ...picture('alpine'), layout: 'panel', dim: 0.42, color: 'oklch(0.78 0.04 235)' },
+  dunes: { ...picture('dunes'), layout: 'glass', dim: 0.48, color: 'oklch(0.78 0.1 55)' },
+  aurora: { ...picture('aurora'), layout: 'panel', dim: 0.15, color: 'oklch(0.2 0.04 245)' },
+  ocean: { ...picture('ocean'), layout: 'glass', dim: 0.5, color: 'oklch(0.75 0.06 210)' },
+  autumn: { ...picture('autumn'), layout: 'panel', dim: 0.5, color: 'oklch(0.8 0.08 75)' },
+  topo: { ...picture('topo'), layout: 'glass', dim: 0, color: 'oklch(0.95 0.02 85)' },
+  cherryBlossom: { ...picture('cherry-blossom'), layout: 'glass', dim: 0.45, color: 'oklch(0.93 0.025 40)' },
+  lagoon: { ...picture('lagoon'), layout: 'glass', dim: 0.5, color: 'oklch(0.75 0.09 210)' },
+  lavenderFields: { ...picture('lavender-fields'), layout: 'glass', dim: 0.45, color: 'oklch(0.7 0.08 310)' },
+  riceTerraces: { ...picture('rice-terraces'), layout: 'panel', dim: 0.45, color: 'oklch(0.8 0.08 140)' },
+  coralReef: { ...picture('coral-reef'), layout: 'panel', dim: 0.3, color: 'oklch(0.5 0.08 225)' },
+  meadow: { ...picture('meadow'), layout: 'glass', dim: 0.45, color: 'oklch(0.78 0.08 200)' },
+  canyonMesa: { ...picture('canyon-mesa'), layout: 'panel', dim: 0, color: 'oklch(0.57 0.06 25)' },
+  winterVillage: { ...picture('winter-village'), layout: 'glass', dim: 0.45, color: 'oklch(0.84 0.02 257)' },
+  savanna: { ...picture('savanna'), layout: 'panel', dim: 0.45, color: 'oklch(0.64 0.1 50)' },
+  paperCut: { ...picture('paper-cut'), layout: 'glass', dim: 0.4, color: 'oklch(0.75 0.05 17)' },
+  bauhaus: { ...picture('bauhaus'), layout: 'glass', dim: 0.5, color: 'oklch(0.75 0.03 73)' },
+  watercolor: { ...picture('watercolor'), layout: 'glass', dim: 0.45, color: 'oklch(0.74 0.03 320)' },
+  neonRain: { ...picture('neon-rain'), layout: 'liquid', dim: 0.1, color: 'oklch(0.2 0.07 305)' },
+  mistyPines: { ...picture('misty-pines'), layout: 'liquid', dim: 0.15, color: 'oklch(0.25 0.03 220)' },
+  stormSea: { ...picture('storm-sea'), layout: 'liquid', dim: 0.12, color: 'oklch(0.22 0.02 230)' },
+  moonlitLake: { ...picture('moonlit-lake'), layout: 'liquid', dim: 0.15, color: 'oklch(0.25 0.07 275)' },
+  ember: { ...picture('ember'), layout: 'liquid', dim: 0.1, color: 'oklch(0.2 0.07 30)' },
+  nebula: { ...picture('nebula'), layout: 'liquid', dim: 0.08, color: 'oklch(0.2 0.08 290)' },
+} satisfies Record<string, Backdrop>
 
 export const DEFAULT_PALETTE = 'sand-ink'
 
@@ -101,6 +170,253 @@ export const PALETTES: Palette[] = [
     texture: 'leaf',
     tune: (dark) => botanicalSandTune(dark),
   },
+
+  // Hues the sets above skip. These also tint the page, wells and lines (see `wash`).
+  {
+    id: 'glacier',
+    name: 'Glacier',
+    blurb: 'Icy cyan page and drawer, white cards, coral highlight',
+    ph: 218, pc: 0.13, nh: 218, nc: 0.01, sidebar: 'light',
+    tune: (dark) => ({
+      ...wash(218, 0.025, dark),
+      ...(dark
+        ? { sidebar: o(0.19, 0.028, 218), 'sidebar-accent': o(0.3, 0.06, 218) }
+        : { sidebar: o(0.955, 0.025, 218), 'sidebar-accent': o(0.895, 0.055, 218), 'sidebar-accent-foreground': o(0.32, 0.08, 225), 'sidebar-border': o(0.9, 0.03, 218) }),
+    }),
+  },
+  {
+    id: 'orchid',
+    name: 'Orchid',
+    blurb: 'Fuchsia-purple drawer, lilac paper',
+    ph: 322, pc: 0.2, nh: 320, nc: 0.01, sidebar: 'bold', sh: 318,
+    tune: (dark) => wash(320, 0.018, dark),
+  },
+  {
+    id: 'apricot',
+    name: 'Apricot',
+    blurb: 'Peach page and drawer, tangerine primary, teal highlight',
+    ph: 52, pc: 0.16, nh: 62, nc: 0.01, sidebar: 'light',
+    tune: (dark) => ({
+      ...wash(62, 0.03, dark),
+      ...(dark
+        ? { sidebar: o(0.19, 0.03, 60), 'sidebar-accent': o(0.3, 0.06, 55) }
+        : { primary: o(0.58, 0.16, 46), sidebar: o(0.935, 0.04, 62), 'sidebar-accent': o(0.88, 0.075, 58), 'sidebar-accent-foreground': o(0.35, 0.09, 50), 'sidebar-border': o(0.9, 0.04, 62) }),
+    }),
+  },
+  {
+    id: 'moss',
+    name: 'Moss',
+    blurb: 'Olive drawer, khaki-green paper, rust highlight',
+    ph: 118, pc: 0.12, nh: 105, nc: 0.01, sidebar: 'dark', sh: 120,
+    tune: (dark) => ({
+      ...wash(105, 0.022, dark),
+      ...(dark
+        ? { highlight: o(0.72, 0.13, 48), 'highlight-foreground': o(0.2, 0.04, 48), 'highlight-soft': o(0.3, 0.05, 48), 'highlight-soft-foreground': o(0.86, 0.08, 48), sidebar: o(0.16, 0.03, 120) }
+        : { primary: o(0.5, 0.12, 120), highlight: o(0.58, 0.14, 45), 'highlight-soft': o(0.94, 0.035, 50), 'highlight-soft-foreground': o(0.44, 0.1, 45), sidebar: o(0.27, 0.045, 120), 'sidebar-accent': o(0.35, 0.07, 120) }),
+    }),
+  },
+  {
+    id: 'raspberry',
+    name: 'Raspberry',
+    blurb: 'Wine drawer, blush paper, raspberry primary',
+    ph: 2, pc: 0.2, nh: 355, nc: 0.01, sidebar: 'dark', sh: 355,
+    tune: (dark) => ({
+      ...wash(355, 0.02, dark),
+      ...(dark ? { sidebar: o(0.17, 0.04, 355) } : { sidebar: o(0.26, 0.07, 355), 'sidebar-accent': o(0.34, 0.09, 358) }),
+    }),
+  },
+  {
+    id: 'periwinkle',
+    name: 'Periwinkle',
+    blurb: 'Periwinkle drawer, blue-lilac paper, gold highlight',
+    ph: 284, pc: 0.15, nh: 280, nc: 0.01, sidebar: 'bold', sh: 282,
+    tune: (dark) => ({
+      ...wash(280, 0.022, dark),
+      ...(dark
+        ? { highlight: o(0.8, 0.13, 85), 'highlight-foreground': o(0.2, 0.04, 85), 'highlight-soft': o(0.3, 0.05, 85), 'highlight-soft-foreground': o(0.88, 0.08, 85) }
+        : { sidebar: o(0.5, 0.15, 282), 'sidebar-accent': o(0.58, 0.15, 282), highlight: o(0.7, 0.14, 80), 'highlight-foreground': o(0.25, 0.05, 80), 'highlight-soft': o(0.95, 0.04, 85), 'highlight-soft-foreground': o(0.45, 0.1, 75) }),
+    }),
+  },
+
+  // Pictures: a drawing behind the app, frosted glass on top (see `Backdrop`).
+  {
+    id: 'alpine-dawn',
+    name: 'Alpine Dawn',
+    blurb: 'Mountains and a lake; drawer on the picture, page on a frosted sheet',
+    ph: 232, pc: 0.12, nh: 228, nc: 0.012, sidebar: 'dark',
+    backdrop: BACKDROPS.alpine,
+  },
+  {
+    id: 'dune-sunset',
+    name: 'Dune Sunset',
+    blurb: 'Warm dunes at dusk; every piece floats as frosted glass',
+    ph: 40, pc: 0.14, nh: 50, nc: 0.012, sidebar: 'dark', sh: 35,
+    backdrop: BACKDROPS.dunes,
+  },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    blurb: 'Northern lights over pines; a night picture for either mode',
+    ph: 168, pc: 0.12, nh: 230, nc: 0.015, sidebar: 'dark',
+    backdrop: BACKDROPS.aurora,
+  },
+  {
+    id: 'ocean-swell',
+    name: 'Ocean Swell',
+    blurb: 'Layered swells under a pale sky; floating frosted glass',
+    ph: 222, pc: 0.12, nh: 215, nc: 0.012, sidebar: 'dark', sh: 225,
+    backdrop: BACKDROPS.ocean,
+  },
+  {
+    id: 'autumn-hills',
+    name: 'Autumn Hills',
+    blurb: 'Storybook hills and trees; page on a frosted sheet',
+    ph: 42, pc: 0.13, nh: 70, nc: 0.012, sidebar: 'dark',
+    backdrop: BACKDROPS.autumn,
+    tune: (dark): Record<string, string> => (dark ? {} : { highlight: o(0.55, 0.1, 125), 'highlight-soft': o(0.94, 0.04, 120), 'highlight-soft-foreground': o(0.42, 0.08, 125) }),
+  },
+  {
+    id: 'field-map',
+    name: 'Field Map',
+    blurb: 'Pen-drawn contour map; a blueprint in dark mode',
+    ph: 158, pc: 0.09, nh: 85, nc: 0.01, sidebar: 'dark', sh: 160,
+    backdrop: BACKDROPS.topo,
+    tune: (dark): Record<string, string> =>
+      dark
+        ? { highlight: o(0.74, 0.14, 55), 'highlight-foreground': o(0.2, 0.04, 55), glass: o(0.2, 0.035, 245, 0.56), card: o(0.21, 0.04, 245, 0.62), sidebar: o(0.17, 0.04, 245, 0.6) }
+        : { highlight: o(0.62, 0.16, 48), 'highlight-foreground': o(0.99, 0.01, 50) },
+  },
+  // Pictures: daytime
+  {
+    id: 'cherry-blossom',
+    name: 'Cherry Blossom',
+    blurb: 'Ink-wash branches in bloom on blush paper; floating frosted glass',
+    ph: 355, pc: 0.13, nh: 35, nc: 0.012, sidebar: 'dark', sh: 350,
+    backdrop: BACKDROPS.cherryBlossom,
+  },
+  {
+    id: 'lagoon',
+    name: 'Lagoon',
+    blurb: 'Turquoise shallows, cumulus and palms; floating frosted glass',
+    ph: 200, pc: 0.12, nh: 210, nc: 0.012, sidebar: 'dark', sh: 215,
+    backdrop: BACKDROPS.lagoon,
+  },
+  {
+    id: 'lavender-fields',
+    name: 'Lavender Fields',
+    blurb: 'Lavender rows to a golden horizon; floating frosted glass',
+    ph: 300, pc: 0.14, nh: 300, nc: 0.012, sidebar: 'dark', sh: 300,
+    backdrop: BACKDROPS.lavenderFields,
+  },
+  {
+    id: 'rice-terraces',
+    name: 'Rice Terraces',
+    blurb: 'Green terraces under misty ridges; drawer on the forest edge',
+    ph: 130, pc: 0.13, nh: 145, nc: 0.012, sidebar: 'dark',
+    backdrop: BACKDROPS.riceTerraces,
+  },
+  {
+    id: 'sunlit-reef',
+    name: 'Sunlit Reef',
+    blurb: 'Light rays over a reef; drawer on the dark coral, page on a sheet',
+    ph: 30, pc: 0.14, nh: 220, nc: 0.014, sidebar: 'dark', sh: 230,
+    backdrop: BACKDROPS.coralReef,
+  },
+  {
+    id: 'meadow',
+    name: 'Meadow',
+    blurb: 'Rolling hills, wildflowers and a big sky; floating frosted glass',
+    ph: 245, pc: 0.13, nh: 120, nc: 0.01, sidebar: 'dark', sh: 235,
+    backdrop: BACKDROPS.meadow,
+  },
+
+  // Pictures: illustrated
+  {
+    id: 'canyon-mesa',
+    name: 'Canyon Mesa',
+    blurb: 'Red-rock mesas at sunset, moonlit at night; drawer on the picture',
+    ph: 38, pc: 0.14, nh: 30, nc: 0.012, sidebar: 'dark', sh: 25,
+    backdrop: BACKDROPS.canyonMesa,
+  },
+  {
+    id: 'winter-village',
+    name: 'Winter Village',
+    blurb: 'Snowy hills, lit cabins and pines; floating frosted glass',
+    ph: 245, pc: 0.12, nh: 250, nc: 0.012, sidebar: 'dark', sh: 235,
+    backdrop: BACKDROPS.winterVillage,
+  },
+  {
+    id: 'savanna',
+    name: 'Savanna',
+    blurb: 'Acacias under a huge low sun; drawer on the picture',
+    ph: 50, pc: 0.15, nh: 45, nc: 0.012, sidebar: 'dark', sh: 30,
+    backdrop: BACKDROPS.savanna,
+  },
+  {
+    id: 'paper-cut',
+    name: 'Paper Cut',
+    blurb: 'Layered paper-cut hills in a dusk ramp; floating frosted glass',
+    ph: 350, pc: 0.13, nh: 330, nc: 0.012, sidebar: 'dark', sh: 310,
+    backdrop: BACKDROPS.paperCut,
+  },
+  {
+    id: 'bauhaus',
+    name: 'Bauhaus',
+    blurb: 'Modernist circles and bars on grainy paper; floating glass',
+    ph: 252, pc: 0.12, nh: 75, nc: 0.01, sidebar: 'dark', sh: 60,
+    backdrop: BACKDROPS.bauhaus,
+  },
+  {
+    id: 'watercolor',
+    name: 'Watercolor',
+    blurb: 'Soft watercolour washes on cold-press paper; floating glass',
+    ph: 265, pc: 0.13, nh: 300, nc: 0.01, sidebar: 'dark', sh: 280,
+    backdrop: BACKDROPS.watercolor,
+  },
+
+  // Moody (liquid glass)
+  {
+    id: 'neon-rain',
+    name: 'Neon Rain',
+    blurb: 'A rainy city at night; neon glows on wet streets',
+    ph: 340, pc: 0.19, nh: 300, nc: 0.014, sidebar: 'dark', sh: 295,
+    backdrop: BACKDROPS.neonRain,
+  },
+  {
+    id: 'misty-pines',
+    name: 'Misty Pines',
+    blurb: 'Pine ridges in blue-hour fog; one warm light in the trees',
+    ph: 65, pc: 0.14, nh: 215, nc: 0.012, sidebar: 'dark', sh: 215,
+    backdrop: BACKDROPS.mistyPines,
+  },
+  {
+    id: 'storm-sea',
+    name: 'Storm Sea',
+    blurb: 'Storm clouds over a dark sea; a lighthouse beam, pale horizon',
+    ph: 85, pc: 0.12, nh: 225, nc: 0.01, sidebar: 'dark', sh: 225,
+    backdrop: BACKDROPS.stormSea,
+  },
+  {
+    id: 'moonlit-lake',
+    name: 'Moonlit Lake',
+    blurb: 'A full moon over a misty lake; the shore mirrored below',
+    ph: 270, pc: 0.12, nh: 270, nc: 0.014, sidebar: 'dark', sh: 268,
+    backdrop: BACKDROPS.moonlitLake,
+  },
+  {
+    id: 'ember',
+    name: 'Ember',
+    blurb: 'Volcanic night; lava rivers, embers and smoke lit from below',
+    ph: 45, pc: 0.18, nh: 25, nc: 0.012, sidebar: 'dark', sh: 20,
+    backdrop: BACKDROPS.ember,
+  },
+  {
+    id: 'nebula',
+    name: 'Nebula',
+    blurb: 'Violet, teal and rose nebula over stars; a dark planet edge',
+    ph: 295, pc: 0.17, nh: 285, nc: 0.014, sidebar: 'dark', sh: 285,
+    backdrop: BACKDROPS.nebula,
+  },
 ]
 
 export interface PaletteGroup {
@@ -143,6 +459,36 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     label: 'Neutrals',
     blurb: 'Grays with almost no color',
     ids: ['slate-mono', 'warm-stone', 'true-gray'],
+  },
+  {
+    id: 'hues',
+    label: 'Hues',
+    blurb: 'Cyan, orchid, apricot, moss, raspberry and periwinkle, with tinted pages',
+    ids: ['glacier', 'orchid', 'apricot', 'moss', 'raspberry', 'periwinkle'],
+  },
+  {
+    id: 'pictures',
+    label: 'Pictures',
+    blurb: 'A drawing behind the app, with frosted glass on top',
+    ids: ['alpine-dawn', 'dune-sunset', 'aurora', 'ocean-swell', 'autumn-hills', 'field-map'],
+  },
+  {
+    id: 'pictures-daytime',
+    label: 'Pictures: daytime',
+    blurb: 'Bright outdoor scenes under frosted glass',
+    ids: ['cherry-blossom', 'lagoon', 'lavender-fields', 'rice-terraces', 'sunlit-reef', 'meadow'],
+  },
+  {
+    id: 'pictures-illustrated',
+    label: 'Pictures: illustrated',
+    blurb: 'Stylized art: paper cut, Bauhaus, watercolor and more',
+    ids: ['canyon-mesa', 'winter-village', 'savanna', 'paper-cut', 'bauhaus', 'watercolor'],
+  },
+  {
+    id: 'moody',
+    label: 'Moody',
+    blurb: 'Dark, cinematic pictures under clear liquid glass; best in dark mode',
+    ids: ['neon-rain', 'misty-pines', 'storm-sea', 'moonlit-lake', 'ember', 'nebula'],
   },
 ]
 
@@ -295,7 +641,93 @@ export function tokens(p: Palette, dark: boolean): Record<string, string> {
       'sidebar-ring': o(0.64, pc * 0.9, ph),
     })
   }
+  // The frosted sheet behind a picture theme's page; plain palettes never show it.
+  t.glass = t.background
+  if (p.backdrop) Object.assign(t, glass(p, p.backdrop, dark))
   return p.tune ? Object.assign(t, p.tune(dark)) : t
+}
+
+/**
+ * Tinted surfaces: the page, wells and lines take the palette's hue instead
+ * of near-white or near-black, and cards keep a trace of it.
+ */
+function wash(h: number, c: number, dark: boolean): Record<string, string> {
+  return dark
+    ? { background: o(0.19, c * 1.1, h), card: o(0.235, c * 1.2, h), muted: o(0.28, c * 1.2, h), secondary: o(0.29, c * 1.3, h), 'muted-foreground': o(0.74, c * 1.4, h) }
+    : { background: o(0.955, c, h), card: o(0.995, c * 0.12, h), muted: o(0.93, c * 1.1, h), secondary: o(0.93, c * 1.2, h), border: o(0.9, c * 1.1, h), input: o(0.87, c * 1.3, h), 'muted-foreground': o(0.48, c * 1.6, h) }
+}
+
+/**
+ * Glass surfaces for a picture theme: the page is see-through, cards, wells
+ * and lines are translucent, and the drawer is clear (`panel`) or smoked
+ * (`glass`) with white text. Popovers and dialogs stay solid.
+ */
+function glass(p: Palette, b: Backdrop, dark: boolean): Record<string, string> {
+  const { nh, ph, pc } = p
+  const sh = p.sh ?? nh
+  const panel = b.layout === 'panel'
+  if (b.layout === 'liquid') {
+    return {
+      background: 'transparent',
+      ...(dark
+        ? {
+            glass: o(0.16, 0.025, nh, 0.38),
+            card: o(0.2, 0.025, nh, 0.34),
+            border: o(1, 0, 0, 0.09),
+            input: o(1, 0, 0, 0.14),
+            muted: o(1, 0, 0, 0.06),
+            secondary: o(1, 0, 0, 0.1),
+            sidebar: o(0.14, 0.025, sh, 0.36),
+          }
+        : {
+            glass: o(0.975, 0.008, nh, 0.62),
+            card: o(1, 0, 0, 0.52),
+            border: o(1, 0, 0, 0.5),
+            input: o(0.3, 0.03, nh, 0.16),
+            muted: o(0.3, 0.03, nh, 0.07),
+            secondary: o(0.3, 0.03, nh, 0.09),
+            sidebar: o(0.16, 0.025, sh, 0.34),
+          }),
+      'sidebar-foreground': o(0.98, 0.005, nh),
+      'sidebar-muted-foreground': o(0.98, 0, 0, 0.66),
+      'sidebar-accent': o(1, 0, 0, 0.1),
+      'sidebar-accent-foreground': o(1, 0, 0),
+      'sidebar-primary': o(1, 0, 0, 0.92),
+      'sidebar-primary-foreground': o(0.28, pc, ph),
+      'sidebar-border': o(1, 0, 0, 0.12),
+      'sidebar-ring': o(1, 0, 0, 0.6),
+    }
+  }
+  return {
+    background: 'transparent',
+    ...(dark
+      ? {
+          glass: o(0.17, 0.02, nh, panel ? 0.74 : 0.56),
+          card: panel ? o(0.27, 0.02, nh, 0.5) : o(0.19, 0.02, nh, 0.58),
+          border: o(1, 0, 0, 0.1),
+          input: o(1, 0, 0, 0.16),
+          muted: o(1, 0, 0, 0.07),
+          secondary: o(1, 0, 0, 0.1),
+          sidebar: panel ? 'transparent' : o(0.13, 0.02, sh, 0.55),
+        }
+      : {
+          glass: panel ? o(0.975, 0.01, nh, 0.8) : o(0.99, 0.006, nh, 0.6),
+          card: panel ? o(1, 0, 0, 0.58) : o(0.99, 0.006, nh, 0.62),
+          border: o(0.35, 0.03, nh, 0.12),
+          input: o(0.35, 0.03, nh, 0.2),
+          muted: o(0.35, 0.03, nh, 0.08),
+          secondary: o(0.35, 0.03, nh, 0.1),
+          sidebar: panel ? 'transparent' : o(0.22, 0.03, sh, 0.48),
+        }),
+    'sidebar-foreground': o(0.98, 0.005, nh),
+    'sidebar-muted-foreground': o(0.98, 0, 0, 0.72),
+    'sidebar-accent': o(1, 0, 0, 0.16),
+    'sidebar-accent-foreground': o(1, 0, 0),
+    'sidebar-primary': o(0.99, 0, 0),
+    'sidebar-primary-foreground': o(0.32, pc, ph),
+    'sidebar-border': o(1, 0, 0, 0.14),
+    'sidebar-ring': o(1, 0, 0, 0.6),
+  }
 }
 
 /**
