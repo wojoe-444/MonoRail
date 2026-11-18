@@ -9,6 +9,7 @@ import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { HeaderRevealProvider, HeaderRevealTrigger, RevealableHeader } from '@/components/layout/HeaderReveal'
 import { Inspector } from '@/components/dev/Inspector'
+import { TourHost } from '@/components/tour/Tour'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { extensionsLoaded, useExtensionList } from '@/extensions/store'
 import { isDesktop } from '@/modules/client'
@@ -17,6 +18,8 @@ import { findModuleByPath } from '@/modules/registry'
 import { SettingsLayout } from '@/modules/settings/SettingsLayout'
 import { UpdateToast } from '@/modules/settings/UpdateToast'
 import { AgentsPage } from '@/pages/agents/AgentsPage'
+import { DashboardLayout, DASHBOARD_PATH, isDashboardPath } from '@/pages/agents/DashboardLayout'
+import { CLAUDE_STATS_PATH } from '@/modules/claude-stats'
 import { PrReviewer } from '@/modules/agent-catalog/PrReviewer'
 import { CatalogLayout, CATALOG_PATH, SUBAGENTS_PATH, PROMPTS_PATH } from '@/modules/agent-catalog/CatalogLayout'
 
@@ -43,7 +46,7 @@ function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem
   if (path === '/') return <HomePage />
   if (path === '/apps') return <AppsPage onOpen={onOpen} />
   if (path === '/tools') return <ToolsPage onOpen={onOpen} />
-  if (path === '/agents/dashboard') return <AgentsPage />
+  if (path === DASHBOARD_PATH) return <AgentsPage />
   if (path === '/agents/pr-review') return <PrReviewer onBack={() => onOpen(SUBAGENTS_PATH)} />
   // Extension pages are known once the installed list has loaded.
   if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
@@ -79,6 +82,11 @@ export default function App() {
     },
     [navigate, workspaceApp],
   )
+
+  // Claude Stats moved from its own drawer item to a Dashboard tab; keep old links working.
+  useEffect(() => {
+    if (path === '/claude-stats') navigate(CLAUDE_STATS_PATH)
+  }, [path, navigate])
 
   const found = findNavItem(navSections, path)
   const current = found?.item
@@ -129,6 +137,8 @@ export default function App() {
                   <SettingsLayout path={path}>
                     <RouteView path={path} navItems={navItems} onOpen={openPath} />
                   </SettingsLayout>
+                ) : isDashboardPath(path) ? (
+                  <DashboardLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></DashboardLayout>
                 ) : (path === CATALOG_PATH || path === PROMPTS_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
                   <CatalogLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></CatalogLayout>
                 ) : (
@@ -140,6 +150,7 @@ export default function App() {
         </div></HeaderRevealProvider>
       </div>
       <UpdateToast />
+      <TourHost />
       <Inspector />
     </TooltipProvider>
   )

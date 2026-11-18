@@ -76,6 +76,16 @@ keys for the default profile. `profiles.json` is written only when the user
 changes a profile (Settings > Profile), never over a damaged file. Copying data
 into a new profile must be user-started and per item, never automatic.
 
+**New user tour** (`src/components/tour/`, guide
+`docs/guide/first-ten-minutes.md#take-the-tour`): a spotlight overlay
+(`TourHost` in `App.tsx`) that walks through the rail, Home, Bots, Tools,
+Wiki, Settings, the breadcrumb and the full screen button. Steps are in
+`steps.ts` and point at elements marked `data-tour="<target>"` (rail buttons
+are `nav:<path>`; a missing target shows the card centered). It opens by
+itself once per profile (pref `commandHub.tour.seen`, set when it closes; not
+below 768px wide) and again from Home's "Take the tour" or the Settings >
+General card (`TourCard.tsx`). It reads and stores nothing else.
+
 **Developer Mode** (Settings card `src/components/dev/DeveloperModeCard.tsx`,
 self-contained so it can move; guide `docs/guide/setup/developer-mode.md`):
 off by default, kept in the machine-wide `commandHub.devMode` key (not
@@ -191,7 +201,9 @@ the two extension push channels and `window:fullscreen`, and
 `toggleFullScreen()` / `isFullScreen()` (`electron/window-fullscreen.cjs`:
 F11 or the top-bar button toggles the window's full screen mode).
 
-`claude-stats` is the reference module: its backend runs the bundled
+`claude-stats` is the reference module (shown as the **Claude Stats** tab of
+Bots > Dashboard, `src/pages/agents/DashboardLayout.tsx`, not a drawer item:
+`nav.hidden`): its backend runs the bundled
 `ccusage` binary (native packages are unpacked from the asar via
 `asarUnpack`) for Claude Code's daily API-equivalent cost, and
 `electron/modules/claude-stats-scan.cjs` reads the raw logs of every source
@@ -675,6 +687,21 @@ follows its title only until its first commit. The repo never gets a remote.
 GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
 item (`notes`, bundle).
 
+`files` (**Files**, a subpage of Tools; docs: `docs/files.md`) is a file
+explorer for this PC: tabs and split panes (tabs, pins, color tags, recent
+folders and view options are prefs `monorail.files.*`, never backend files),
+Details / Grid (Windows shell thumbnails via
+`nativeImage.createThumbnailFromPath`, memory only) / Columns views, a preview
+panel (image, text, Markdown, folder size on request, git branch from
+`.git/HEAD` with "Open in GitHub+"), bounded recursive search and drag and
+drop between panes. Backend `electron/modules/files.cjs`: every path goes
+through `absPath`, typed names through `checkName`; walks never follow links.
+Writes only on the user's action: new folder/file (never overwrite), rename,
+copy/move (`uniqueTarget` "name (2)", never replaces), and `trash`
+(`shell.trashItem`; there is no permanent delete). `open`/`reveal`/`trash` are
+`desktopOnly`, and Remote access refuses the whole backend (`files: ['*']`).
+Keeps nothing on disk (`NOT_CACHED`).
+
 `scheduled` (**Scheduled**, under Workspace) has two subpages: Windows Task
 Scheduler (`scheduled.ps1`) and **In-App**, the timers MonoRail runs itself
 while it is open. In-App reads a registry (`electron/scheduled/in-app.cjs`, no
@@ -720,7 +747,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Calendar, Email, Bookmarks, Notes and Flashcards behind one rail button.
+Calendar, Email, Bookmarks, Files, Notes and Flashcards behind one rail button.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their

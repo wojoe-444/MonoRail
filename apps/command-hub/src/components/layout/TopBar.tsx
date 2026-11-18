@@ -23,7 +23,7 @@ export function TopBar({ section, parent, onNavigate, title }: TopBarProps) {
   const fsLabel = fullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)'
   return (
     <header data-slot="top-bar" className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-background/85 px-6 backdrop-blur">
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+      <nav aria-label="Breadcrumb" data-tour="breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
         <span className="hidden min-w-0 max-w-[40%] truncate text-muted-foreground sm:inline">{section ?? 'MonoRail'}</span>
         <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" aria-hidden />
         {parent && (
@@ -43,7 +43,7 @@ export function TopBar({ section, parent, onNavigate, title }: TopBarProps) {
         </span>
       </nav>
       <DevTopBarItems />
-      <Button variant="ghost" size="icon" className="-mr-2 size-8" onClick={toggle} aria-label={fsLabel} title={fsLabel}>
+      <Button variant="ghost" size="icon" className="-mr-2 size-8" onClick={toggle} data-tour="fullscreen" aria-label={fsLabel} title={fsLabel}>
         {fullScreen ? <Minimize /> : <Maximize />}
       </Button>
     </header>

@@ -197,7 +197,7 @@ export default function ClaudeStatsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="Insights"
+        eyebrow="Dashboard"
         title="Claude Stats"
         description="Claude Code, Gemini CLI and pi output by model and project, priced as if it ran on the API. Read from each tool's logs on this computer, so cloud sessions (Claude project threads, Claude Code on the web) are not included."
         actions={headerActions}

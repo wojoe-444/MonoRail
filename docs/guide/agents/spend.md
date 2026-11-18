@@ -5,7 +5,7 @@ summary: Claude Stats charts what your agents cost, by day, model and effort, fr
 
 # Keep an eye on spending
 
-**Insights > Claude Stats** turns the usage logs your agents already write on
+The **Claude Stats** tab of **Bots > Dashboard** turns the usage logs your agents already write on
 this computer into charts, so you can see where the money goes.
 
 ## What it counts
@@ -63,5 +63,5 @@ by default, and most useful when your login is billed at API prices.
 Home shows a small summary of the same report. Agents can read it too,
 through [agent access](agent-access.md).
 
-The other page under Insights is [Semantic](../setup/semantic.md): your dbt
-project's business metrics, charted with MetricFlow.
+For your dbt project's business metrics, charted with MetricFlow, see
+[Semantic](../setup/semantic.md) under Insights.

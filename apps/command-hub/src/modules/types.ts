@@ -25,7 +25,7 @@ export interface ModuleDefinition {
   /** One-line summary, shown in page headers and module listings. */
   description: string
   icon: IconComponent
-  /** Route path, e.g. "/claude-stats". Must be unique across the app. */
+  /** Route path, e.g. "/storage". Must be unique across the app. */
   path: string
   nav: {
     /** Nav section heading. An empty string places the module directly below Home. */
@@ -42,6 +42,8 @@ export interface ModuleDefinition {
      * opens them (src/modules/settings/SettingsLayout.tsx).
      */
     group?: string
+    /** Not drawn in the drawer: the page is reached another way (e.g. a tab on another page). */
+    hidden?: boolean
   }
   /**
    * `full`: the page fills the body under the top bar edge to edge, with no

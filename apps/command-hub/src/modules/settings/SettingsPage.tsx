@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Download, Info, Loader2, RefreshCw, Rotate
 import { PageHeader } from '@/components/layout/PageHeader'
 import { SpendingCard } from '@/components/spending/SpendingCard'
 import { DeveloperModeCard } from '@/components/dev/DeveloperModeCard'
+import { TourCard } from '@/components/tour/TourCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -107,6 +108,10 @@ export default function SettingsPage() {
               </dl>
             </CardContent>
           </Card>
+        </div>
+
+        <div id="settings-tour" className="scroll-mt-24 rounded-xl lg:col-span-3">
+          <TourCard />
         </div>
 
         <div id="settings-profile" className="scroll-mt-24 rounded-xl lg:col-span-3">
