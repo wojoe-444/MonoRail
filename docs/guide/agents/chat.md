@@ -52,6 +52,15 @@ bar also shows how much of it is used.
 
 ## Keeping the list tidy
 
+- Recent chats come first, newest at the top, each with its repository
+  above the title and its branch below it.
+- Two sections sit at the bottom of the list, closed until you click them
+  (the page remembers which you opened):
+  - **Working**: chats with a reply running right now that was sent from
+    MonoRail, on this page or from your phone. Chats the
+    [Coordinator](coordinator.md) messages for you are not counted yet.
+  - **Settled**: chats you have read that have had no activity for two
+    days. A new reply brings a chat back to the top.
 - A dot marks chats with something new since you last looked.
 - Right-click a chat to mark it read or unread, or to archive it.
 - Chats started by scheduled jobs are tagged **Scheduled** and tucked away

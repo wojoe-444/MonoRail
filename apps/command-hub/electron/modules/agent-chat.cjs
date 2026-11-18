@@ -831,6 +831,19 @@ async function getChanges(ctx, args = {}) {
   return changesApi.changes(dir)
 }
 
+/**
+ * The chat ids of running turns: a continued chat's key, or "<sdk>:<session>"
+ * once a new chat has its session id. Keys of new chats ("new:...") are left out.
+ */
+function runningChatIds(running) {
+  const ids = new Set()
+  for (const t of running) {
+    if (typeof t.chatKey === 'string' && !t.chatKey.startsWith('new:')) ids.add(t.chatKey)
+    if (t.sdk && t.sessionId) ids.add(`${t.sdk}:${t.sessionId}`)
+  }
+  return [...ids]
+}
+
 module.exports = {
   id: 'agent-chat',
   // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
@@ -859,6 +872,8 @@ module.exports = {
     pollTurn: async (_ctx, args) => turnsApi.pollTurn(args?.turnId, args?.after),
     stopTurn: async (_ctx, args) => turnsApi.stopTurn(args?.turnId),
     runningTurn: async (_ctx, args) => (typeof args?.chatId === 'string' ? (turnsApi.runningTurnFor(args.chatId) ?? null) : null),
+    /** Chat ids with a turn running in this app (the list's Working section); ids only. */
+    runningChats: async () => runningChatIds(turnsApi.runningTurns()),
     listSessions: async (ctx) => listSessions({ dataDir: ctx.dataDir }),
     /** List flags live in a record file in the data folder, never in a transcript. */
     markSeen: async (ctx, args) => {
@@ -893,7 +908,7 @@ module.exports = {
   },
   // Exported for tests.
   _format: { clip, oneLine, inputSummary, formatInput, contentText },
-  _internal: { startTurn, getComposer, listSessions, getSession, claudeTranscript, claudeSubagentCalls, piSpend, chatTotal, piTranscript, piBranch, claudeMeta, piMeta },
+  _internal: { runningChatIds, startTurn, getComposer, listSessions, getSession, claudeTranscript, claudeSubagentCalls, piSpend, chatTotal, piTranscript, piBranch, claudeMeta, piMeta },
 }
 
 async function pickFolder(title) {
