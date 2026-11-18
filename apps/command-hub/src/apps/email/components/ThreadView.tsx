@@ -168,7 +168,7 @@ export default function ThreadView({ account, threadId, onClose, onPatch, onRemo
   return (
     <section className="eml-reader">
       <div className="eml-toolbar">
-        <button className="eml-tool" title="Close" onClick={onClose}><ArrowLeft /></button>
+        <button className="eml-tool" title="Back to inbox" aria-label="Back to inbox" onClick={onClose}><ArrowLeft /></button>
         {readOnly ? (
           <span className="eml-muted small eml-ro-note" title="Turn read-only off under Manage inboxes"><Lock /> {account.name || account.address} is read-only</span>
         ) : has('INBOX') ? (

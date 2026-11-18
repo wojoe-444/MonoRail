@@ -436,7 +436,7 @@ export function TurnFooter({ turn }: { turn: LiveTurn }) {
 export function NewChatEmpty({ repoName, sdk, coordinator }: { repoName?: string; sdk: SessionSource; coordinator?: boolean }) {
   if (coordinator) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto p-8 text-center [justify-content:safe_center]">
         <div className="font-medium">New coordinator chat</div>
         <p className="max-w-sm text-sm text-muted-foreground">
           Runs your coordinator subagent (or MonoRail&apos;s built-in one if you have no ~/.claude/agents/coordinator.md) in MonoRail&apos;s own folder. It can delegate to subagents, run workflows, and list, read and message your
@@ -447,7 +447,7 @@ export function NewChatEmpty({ repoName, sdk, coordinator }: { repoName?: string
     )
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+    <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto p-8 text-center [justify-content:safe_center]">
       <div className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
         <FolderGit2 className="size-6" />
       </div>

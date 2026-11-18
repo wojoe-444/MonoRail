@@ -20,7 +20,7 @@ const ROLE_ICON: Record<FolderRole, typeof Inbox> = {
 }
 const ROLE_ORDER: FolderRole[] = ['inbox', 'starred', 'important', 'drafts', 'sent', 'spam', 'trash']
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { state, account, selectAccount, folders, foldersError, foldersTimedOut, openCompose, reloadFolders, notify, caps } = useMail()
   const nav = useNavigate()
   const [menu, setMenu] = useState(false)
@@ -41,7 +41,9 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="eml-side">
+    <aside className="eml-side" aria-label="Email folders" onClick={(e) => {
+      if ((e.target as HTMLElement).closest('a')) onNavigate?.()
+    }}>
       <div className="eml-brand"><span className="eml-brand-mark"><Mail /></span> Email</div>
 
       <div className="eml-account">
@@ -54,13 +56,13 @@ export default function Sidebar() {
         {menu && (
           <div className="eml-menu" onMouseLeave={() => setMenu(false)}>
             {state?.accounts.map((a) => (
-              <button key={a.id} className={a.id === account?.id ? 'active' : ''} onClick={() => { selectAccount(a.id); setMenu(false); nav('/mail/INBOX') }}>
+              <button key={a.id} className={a.id === account?.id ? 'active' : ''} onClick={() => { selectAccount(a.id); setMenu(false); nav('/mail/INBOX'); onNavigate?.() }}>
                 <Avatar from={accountAvatar(a)} size={20} /> <span className="eml-ellipsis">{accountLabel(a)}</span>
                 {a.readOnly && <Lock className="eml-ro" aria-label="Read-only" />}
               </button>
             ))}
             <hr />
-            <button onClick={() => nav('/setup')}><Settings /> Manage inboxes</button>
+            <button onClick={() => { nav('/setup'); onNavigate?.() }}><Settings /> Manage inboxes</button>
           </div>
         )}
       </div>
@@ -68,7 +70,7 @@ export default function Sidebar() {
       {readOnly ? (
         <p className="eml-muted small eml-side-note eml-ro-note"><Lock /> Read-only. Change it under Manage inboxes.</p>
       ) : (
-        <button className="eml-compose-btn" onClick={() => openCompose()}><Pencil /> Compose</button>
+        <button className="eml-compose-btn" onClick={() => { openCompose(); onNavigate?.() }}><Pencil /> Compose</button>
       )}
 
       {foldersError && (
