@@ -1410,6 +1410,15 @@ font if `font-mono` ever needs replacing. Use the primitives in
   use dividers and hover states.
 - **Elevation.** Cards are flat. Use `shadow-elevation-2/3` for raised and
   overlay surfaces (menus, dialogs, hover lift), never ad-hoc shadows.
+- **Saving forms.** A form that keeps a draft and saves as a unit uses
+  `SaveBar` (`components/ui/save-bar.tsx`, guide
+  `docs/guide/setup/saving.md`): sticky at the bottom while there are unsaved
+  changes ("2 unsaved changes", Discard, Save; `blocked` says why Save can't
+  run), then "Saved. Safe to leave." only after the backend confirmed the
+  write (`savedAt`), and save errors with Try again. Put it last in the form's
+  container, outside anything with `overflow: hidden`. Used by Spending limit,
+  Profile, global Backups and GitHub+ repo backups. Dialogs keep their footer
+  buttons; switches that act at once (Remote access) stay immediate.
 
 ### Color system: palettes
 

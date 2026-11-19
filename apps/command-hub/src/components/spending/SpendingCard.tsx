@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
+import { SaveBar } from '@/components/ui/save-bar'
+import { countChanges, savedNow } from '@/lib/changes'
 import { Segmented } from '@/components/ui/segmented'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
@@ -37,8 +39,43 @@ export function SpendingCard({ className }: { className?: string }) {
   }
 
   const live = status && status.state !== 'damaged' ? status : undefined
-  const on = !!live?.settings.enabled
-  const save = (patch: Partial<SpendingSettings>) => live && run(() => saveSpending({ ...live.settings, ...patch }))
+  const saved = live?.settings
+
+  // The form is a draft saved as a unit with the Save bar. It follows the saved
+  // settings until the user edits it.
+  const savedKey = saved ? JSON.stringify(saved) : ''
+  const [form, setForm] = useState<Form>()
+  const [base, setBase] = useState('')
+  if (savedKey !== base) {
+    setBase(savedKey)
+    const old = base ? toForm(JSON.parse(base) as SpendingSettings) : undefined
+    if (saved && (!form || !old || sameForm(form, old))) setForm(toForm(saved))
+  }
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string>()
+  const [savedAt, setSavedAt] = useState<number>()
+
+  const edit = (patch: Partial<Form>) => setForm((f) => f && { ...f, ...patch })
+  const next = form && fromForm(form)
+  const changes = !form || !saved ? 0 : next ? countChanges(saved, next) : Math.max(1, countChanges(toForm(saved), form))
+  const dailyInvalid = !!form && parseLimit(form.daily) === undefined
+  const monthlyInvalid = !!form && parseLimit(form.monthly) === undefined
+  const on = !!form?.enabled
+
+  async function saveForm() {
+    if (!next) return
+    setSaving(true)
+    setSaveError(undefined)
+    try {
+      const s = await saveSpending(next)
+      if (s.state !== 'damaged') setForm(toForm(s.settings))
+      setSavedAt(savedNow())
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card className={className}>
@@ -54,8 +91,8 @@ export function SpendingCard({ className }: { className?: string }) {
         </div>
         <Switch
           checked={on}
-          disabled={!live || busy}
-          onCheckedChange={(enabled) => save({ enabled })}
+          disabled={!form || busy || saving}
+          onCheckedChange={(enabled) => edit({ enabled })}
           aria-label="Spending limit"
           className="mt-1"
         />
@@ -75,21 +112,21 @@ export function SpendingCard({ className }: { className?: string }) {
         </>
       )}
 
-      {live && on && (
+      {live && form && on && (
         <>
           <Separator />
           <CardContent className="flex flex-col gap-5">
             <Row label="Daily limit" hint="Resets at midnight">
-              <LimitInput key={`d${live.settings.dailyUsd}`} value={live.settings.dailyUsd} label="Daily limit" disabled={busy} onSave={(dailyUsd) => save({ dailyUsd })} />
+              <LimitInput value={form.daily} invalid={dailyInvalid} label="Daily limit" disabled={saving} onChange={(daily) => edit({ daily })} />
             </Row>
             <Row label="Monthly limit" hint="Resets on the 1st">
-              <LimitInput key={`m${live.settings.monthlyUsd}`} value={live.settings.monthlyUsd} label="Monthly limit" disabled={busy} onSave={(monthlyUsd) => save({ monthlyUsd })} />
+              <LimitInput value={form.monthly} invalid={monthlyInvalid} label="Monthly limit" disabled={saving} onChange={(monthly) => edit({ monthly })} />
             </Row>
             <Row label="Warn me at">
               <Segmented<string>
                 aria-label="Warn me at"
-                value={String(live.settings.warnAt)}
-                onChange={(v) => save({ warnAt: Number(v) })}
+                value={String(form.warnAt)}
+                onChange={(v) => edit({ warnAt: Number(v) })}
                 options={['50', '80', '90'].map((v) => ({ value: v, label: `${v}%` }))}
               />
             </Row>
@@ -97,8 +134,8 @@ export function SpendingCard({ className }: { className?: string }) {
               <div className="flex flex-wrap items-center gap-3">
                 <Segmented<SpendingSettings['onLimit']>
                   aria-label="When the limit is reached"
-                  value={live.settings.onLimit}
-                  onChange={(onLimit) => save({ onLimit })}
+                  value={form.onLimit}
+                  onChange={(onLimit) => edit({ onLimit })}
                   options={[
                     { value: 'stop', label: 'Stop new turns' },
                     { value: 'warn', label: 'Only warn' },
@@ -127,8 +164,56 @@ export function SpendingCard({ className }: { className?: string }) {
           <p className="text-sm text-destructive-soft-foreground">{error ?? loadError}</p>
         </CardContent>
       )}
+
+      {live && saved && form && (
+          <SaveBar
+            className="mx-6"
+            label="Spending limit"
+            changes={changes}
+            saving={saving}
+            error={saveError}
+            savedAt={savedAt}
+            blocked={dailyInvalid || monthlyInvalid ? 'Fix the amount first' : undefined}
+            savedNote={saved.enabled ? 'New limits apply to the next turn.' : 'The spending limit is off.'}
+            onSave={() => void saveForm()}
+            onDiscard={() => {
+              setForm(toForm(saved))
+              setSaveError(undefined)
+            }}
+          />
+      )}
     </Card>
   )
+}
+
+/** The form's draft: the limits stay as typed until they are saved. */
+type Form = Omit<SpendingSettings, 'dailyUsd' | 'monthlyUsd'> & { daily: string; monthly: string }
+
+const toForm = (s: SpendingSettings): Form => ({
+  enabled: s.enabled,
+  daily: s.dailyUsd == null ? '' : String(s.dailyUsd),
+  monthly: s.monthlyUsd == null ? '' : String(s.monthlyUsd),
+  warnAt: s.warnAt,
+  onLimit: s.onLimit,
+})
+
+const sameForm = (a: Form, b: Form) =>
+  a.enabled === b.enabled && a.daily === b.daily && a.monthly === b.monthly && a.warnAt === b.warnAt && a.onLimit === b.onLimit
+
+/** A typed dollar amount: null for empty (no limit), undefined when it is not an amount above 0. */
+function parseLimit(text: string): number | null | undefined {
+  const t = text.trim().replace(/^\$/, '').replace(/,/g, '')
+  if (t === '') return null
+  const n = Number(t)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+/** The settings to save, or undefined while a limit is not a valid amount. */
+function fromForm(f: Form): SpendingSettings | undefined {
+  const dailyUsd = parseLimit(f.daily)
+  const monthlyUsd = parseLimit(f.monthly)
+  if (dailyUsd === undefined || monthlyUsd === undefined) return undefined
+  return { enabled: f.enabled, dailyUsd, monthlyUsd, warnAt: f.warnAt, onLimit: f.onLimit }
 }
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -143,20 +228,8 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   )
 }
 
-/** A dollar amount (re-mounted by key when the saved value changes), saved when the field loses focus or on Enter. Empty means no limit. */
-function LimitInput({ value, label, disabled, onSave }: { value: number | null; label: string; disabled: boolean; onSave: (v: number | null) => void }) {
-  const [text, setText] = useState(value == null ? '' : String(value))
-  const [invalid, setInvalid] = useState(false)
-  const commit = () => {
-    const t = text.trim().replace(/^\$/, '').replace(/,/g, '')
-    const next = t === '' ? null : Number(t)
-    if (next !== null && (!Number.isFinite(next) || next <= 0)) {
-      setInvalid(true)
-      return
-    }
-    setInvalid(false)
-    if (next !== value) onSave(next)
-  }
+/** A dollar amount as typed; saved with the rest of the form. Empty means no limit. */
+function LimitInput({ value, invalid, label, disabled, onChange }: { value: string; invalid: boolean; label: string; disabled: boolean; onChange: (text: string) => void }) {
   return (
     <div className="flex items-center gap-3">
       <div className="relative w-40">
@@ -164,12 +237,10 @@ function LimitInput({ value, label, disabled, onSave }: { value: number | null; 
         <Input
           aria-label={label}
           inputMode="decimal"
-          value={text}
+          value={value}
           disabled={disabled}
           placeholder="None"
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === 'Enter' && commit()}
+          onChange={(e) => onChange(e.target.value)}
           aria-invalid={invalid || undefined}
           className="pl-6 font-mono tabular-nums"
         />
@@ -177,7 +248,7 @@ function LimitInput({ value, label, disabled, onSave }: { value: number | null; 
       {invalid ? (
         <span className="text-xs text-destructive-soft-foreground">Enter a dollar amount above 0, or leave it empty</span>
       ) : (
-        value == null && <span className="text-xs text-muted-foreground">Leave empty for none</span>
+        value.trim() === '' && <span className="text-xs text-muted-foreground">Leave empty for none</span>
       )}
     </div>
   )

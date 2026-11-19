@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { SaveBar } from '@/components/ui/save-bar'
+import { countChanges, savedNow } from '@/lib/changes'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
@@ -72,6 +74,8 @@ export function BackupsCard({ className }: { className?: string }) {
   const [busy, setBusy] = useState<'save' | 'run' | null>(null)
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
+  const [saveError, setSaveError] = useState<string>()
+  const [savedAt, setSavedAt] = useState<number>()
 
   useEffect(() => {
     let live = true
@@ -93,17 +97,23 @@ export function BackupsCard({ className }: { className?: string }) {
     }
   }, [])
 
-  async function act(kind: 'save' | 'run', fn: () => Promise<BackupStatus>, done: string) {
+  async function act(kind: 'save' | 'run', fn: () => Promise<BackupStatus>, done?: string) {
     setBusy(kind)
     setError(undefined)
+    setSaveError(undefined)
     setNotice(undefined)
     try {
       const s = await fn()
       setStatus(s)
-      if (kind === 'save') setForm(s.settings)
+      if (kind === 'save') {
+        setForm(s.settings)
+        setSavedAt(savedNow())
+      }
       setNotice(done)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const message = e instanceof Error ? e.message : String(e)
+      if (kind === 'save') setSaveError(message)
+      else setError(message)
     } finally {
       setBusy(null)
       void refreshSettingsAlerts()
@@ -122,6 +132,7 @@ export function BackupsCard({ className }: { className?: string }) {
   const set = <K extends keyof GlobalBackupSettings>(k: K, v: GlobalBackupSettings[K]) => setForm((f) => f && { ...f, [k]: v })
   const saved = status?.settings
   const dirty = !!form && !!saved && !same(form, saved)
+  const changes = dirty ? Math.max(1, countChanges(saved, form)) : 0
   const folderChanged = !!saved?.folder && !!form && form.folder !== saved.folder
 
   return (
@@ -203,18 +214,27 @@ export function BackupsCard({ className }: { className?: string }) {
             {notice && !error && <p className="text-sm text-muted-foreground">{notice}</p>}
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button disabled={!dirty || (form.enabled && !form.folder) || !!busy}
-                onClick={() =>
-                  act('save', () => call('save', { settings: form }), form.enabled ? 'Saved. Backups run in MonoRail while it is open, and catch up when it next opens.' : 'Saved. The global backup folder is off.')
-                }>
-                {busy === 'save' && <Loader2 className="animate-spin" />} Save
-              </Button>
               <Button variant="outline" disabled={!saved?.enabled || dirty || !!busy}
                 title={dirty ? 'Save your changes first' : undefined}
                 onClick={() => act('run', () => call('runAll'), 'Backup finished. See each page above.')}>
                 {busy === 'run' ? <Loader2 className="animate-spin" /> : <HardDriveDownload />} Back up now
               </Button>
             </div>
+
+            <SaveBar
+              label="Backups"
+              changes={changes}
+              saving={busy === 'save'}
+              error={saveError}
+              savedAt={savedAt}
+              blocked={form.enabled && !form.folder ? 'Choose a folder first' : busy === 'run' ? 'A backup is running' : undefined}
+              savedNote={saved?.enabled ? 'Backups run in MonoRail while it is open, and catch up when it next opens.' : 'The global backup folder is off.'}
+              onSave={() => void act('save', () => call('save', { settings: form }))}
+              onDiscard={() => {
+                setForm(saved)
+                setSaveError(undefined)
+              }}
+            />
           </>
         )}
       </CardContent>

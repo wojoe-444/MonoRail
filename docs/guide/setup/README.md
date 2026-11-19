@@ -19,6 +19,8 @@ to them:
   by others.
 - [Spending limit](spending-limit.md): cap what agents started from
   MonoRail can spend each day or month. Off until you turn it on.
+- [Saving your changes](saving.md): the Save bar, and how to tell a
+  change is saved and it is safe to leave the page.
 - [Developer Mode](developer-mode.md): name any part of the screen in
   feedback, and try MonoRail as a brand new user.
 - [Use MonoRail from your phone](remote-access.md): reach MonoRail on

@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, ChevronDown, Laptop, Loader2, UserRound } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Laptop, Loader2, UserRound } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { SaveBar } from '@/components/ui/save-bar'
+import { savedNow } from '@/lib/changes'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
@@ -56,7 +57,8 @@ export function ProfileCard({ className }: { className?: string }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string>()
+  const [savedAt, setSavedAt] = useState<number>()
 
   useEffect(() => {
     let live = true
@@ -79,15 +81,14 @@ export function ProfileCard({ className }: { className?: string }) {
   async function save() {
     if (!active) return
     setBusy(true)
-    setError(undefined)
-    setSaved(false)
+    setSaveError(undefined)
     try {
       const v = await call<ProfilesView>('rename', { id: active.id, name })
       setView(v)
       setName(v.profiles.find((p) => p.active)?.name ?? '')
-      setSaved(true)
+      setSavedAt(savedNow())
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setSaveError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -126,29 +127,21 @@ export function ProfileCard({ className }: { className?: string }) {
                 className="flex min-w-0 flex-1 flex-col gap-2"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  if (dirty && !busy) void save()
+                  if (dirty && !busy && !view.damaged) void save()
                 }}
               >
                 <label htmlFor="profile-name" className="flex items-center gap-2 text-sm font-medium">
                   Name {active.isDefault && <Badge variant="secondary">Default profile</Badge>}
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    id="profile-name"
-                    className="max-w-sm"
-                    value={name}
-                    maxLength={60}
-                    placeholder="Your name (optional)"
-                    onChange={(e) => {
-                      setName(e.target.value)
-                      setSaved(false)
-                    }}
-                  />
-                  <Button type="submit" disabled={!dirty || busy || view.damaged}>
-                    {busy ? <Loader2 className="animate-spin" /> : saved && !dirty ? <Check /> : null}
-                    {saved && !dirty ? 'Saved' : 'Save'}
-                  </Button>
-                </div>
+                <Input
+                  id="profile-name"
+                  className="max-w-sm"
+                  value={name}
+                  maxLength={60}
+                  placeholder="Your name (optional)"
+                  disabled={busy}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </form>
             </div>
 
@@ -176,6 +169,20 @@ export function ProfileCard({ className }: { className?: string }) {
               <span className="text-muted-foreground">Profile data</span>
               <span className="font-mono text-xs break-all">{active.dataDir}</span>
             </div>
+
+            <SaveBar
+              label="Profile"
+              changes={dirty ? 1 : 0}
+              saving={busy}
+              error={saveError}
+              savedAt={savedAt}
+              blocked={view.damaged ? 'The profile list cannot be read' : undefined}
+              onSave={() => void save()}
+              onDiscard={() => {
+                setName(active.name)
+                setSaveError(undefined)
+              }}
+            />
           </>
         )}
       </CardContent>
