@@ -9,7 +9,7 @@ const { createRemoteStore, describeAgent, cleanLogin } = require('./store.cjs')
 const { createRemoteServer, createPairing, COOKIE, PAIR_PATH } = require('./server.cjs')
 const { parseStatus, parseServe, checkTailscale } = require('./tailscale.cjs')
 const { REMOTE_DENY, remoteRefusal, isQuiet } = require('./policy.cjs')
-const { readEnabledSync } = require('./service.cjs')
+const { createRemoteService, readEnabledSync } = require('./service.cjs')
 const { decode } = require('../bridge/codec.cjs')
 
 
@@ -291,6 +291,38 @@ test('store: off by default, logins cleaned, readEnabledSync reads the machine f
   assert.equal(readEnabledSync(userData), true)
   assert.equal(cleanLogin('a b@c'), undefined)
   assert.equal(describeAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) AppleWebKit Version/18.0 Mobile Safari/604.1'), 'Safari on iOS')
+})
+
+test('Tailscale checks seed the allowlist once and respect a saved empty list', async () => {
+  const runTool = async (_cmd, args) => ({
+    code: 0,
+    stdout: args[0] === 'status' ? JSON.stringify({ BackendState: 'Running', Self: { UserID: 7 }, User: { 7: { LoginName: LOGIN } } }) : '{}',
+  })
+  const dir = tmp()
+  const file = path.join(dir, 'settings.json')
+  const store = createRemoteStore(dir)
+  await store.writeSettings({ enabled: true })
+  const service = createRemoteService({ runTool })
+  await service.init(dir)
+  await service.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [LOGIN])
+  await service.setLogins([])
+  await service.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).allowedLoginsInitialized, true)
+
+  const restarted = createRemoteService({ runTool })
+  await restarted.init(dir)
+  await restarted.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
+
+  // Existing settings have no initialization flag.
+  fs.writeFileSync(file, JSON.stringify({ enabled: true, allowedLogins: [LOGIN] }))
+  assert.equal((await store.readSettings()).allowedLoginsInitialized, true)
+  await restarted.init(dir)
+  await restarted.setLogins([])
+  await restarted.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
 })
 
 test('tailscale: status and serve parsing, Funnel detection', async () => {

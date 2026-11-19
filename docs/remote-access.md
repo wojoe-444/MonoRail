@@ -27,8 +27,9 @@ no single-instance lock, closing the window quits.
 1. **Host** is the tailnet name (`<pc>.<tailnet>.ts.net`, with or without
    `:443`) or loopback with the port, else 421.
 2. **Tailscale login**: the `Tailscale-User-Login` header that Tailscale
-   serve adds must be in `allowedLogins`, else 403. The first check fills the
-   list with the PC's own login when it is empty.
+   serve adds must be in `allowedLogins`, else 403. The first check that finds
+   the PC's login fills the list once, if nobody has set it yet. Removing the
+   last login keeps the list empty across checks and restarts.
 3. `/__remote/pair` is the only path without a device: GET shows a form, POST
    checks the Origin (`https://<tailnet name>`), takes the one-time code
    (2 minutes, single use, only the newest counts), adds a device and sets
@@ -77,7 +78,8 @@ program's serve config (`other`).
 Machine scope ([profiles](profiles.md#two-scopes-profile-and-machine)):
 `<data folder>\modules\remote\`, declared in `electron/cache/declared.cjs`.
 
-- `settings.json`: `{ enabled, port, allowedLogins, agentFromPhone }`.
+- `settings.json`: `{ enabled, port, allowedLogins, allowedLoginsInitialized, agentFromPhone }`.
+  An existing non-empty list counts as initialized.
 - `devices.json`: `[{ id, name, agent, keyHash, pairedAt, lastSeen }]`;
   `agent` is "Chrome on Android", never the raw user agent.
 - `audit.jsonl`: device, module, method, outcome, ms, refusal reason. Never
