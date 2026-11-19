@@ -111,6 +111,54 @@ describe('local database', () => {
     assert.equal(check.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION)
     assert.equal(SCHEMA_VERSION, 2)
     check.close()
+    // A whole copy was made before the upgrade, at the old schema with the data.
+    const bak = path.join(dir, `${DB_FILE}.before-schema-${SCHEMA_VERSION}.bak`)
+    const old = new DatabaseSync(bak, { readOnly: true })
+    assert.equal(old.prepare('PRAGMA user_version').get().user_version, 1)
+    assert.equal(old.prepare('SELECT name FROM entity WHERE id = ?').get(kept.id).name, 'Business')
+    old.close()
+    db.close()
+  })
+
+  test('updates keep the data: reopening makes no copy, a second upgrade never overwrites the first copy', () => {
+    const dir = tmp()
+    const first = openDatabase(dir)
+    const kept = first.put('table', { name: 'orders', fullyQualifiedName: fqnOf('svc', 'db', 'main', 'orders') })
+    first.close()
+    // Same version again (an update with no schema change): nothing copied, data there.
+    const again = openDatabase(dir)
+    assert.equal(again.byId(kept.id).name, 'orders')
+    again.close()
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.bak')), [])
+    // An empty database at an old schema needs no copy.
+    const emptyDir = tmp()
+    openDatabase(emptyDir).close()
+    const { DatabaseSync } = require('node:sqlite')
+    const lower = (d) => {
+      const raw = new DatabaseSync(path.join(d, DB_FILE))
+      raw.exec('DROP TABLE lineage; PRAGMA user_version = 1')
+      raw.close()
+    }
+    lower(emptyDir)
+    openDatabase(emptyDir).close()
+    assert.deepEqual(fs.readdirSync(emptyDir).filter((n) => n.endsWith('.bak')), [])
+    // Two upgrades: two copies, the first left as it was.
+    lower(dir)
+    openDatabase(dir).close()
+    const firstCopy = fs.readFileSync(path.join(dir, `${DB_FILE}.before-schema-${SCHEMA_VERSION}.bak`))
+    lower(dir)
+    const db = openDatabase(dir)
+    assert.equal(db.byId(kept.id).name, 'orders')
+    db.close()
+    assert.ok(fs.existsSync(path.join(dir, `${DB_FILE}.before-schema-${SCHEMA_VERSION}-2.bak`)))
+    assert.ok(firstCopy.equals(fs.readFileSync(path.join(dir, `${DB_FILE}.before-schema-${SCHEMA_VERSION}.bak`))))
+  })
+
+  test('migrations only add: no step drops, renames or empties anything', () => {
+    const src = fs.readFileSync(path.join(__dirname, 'index.cjs'), 'utf8')
+    const steps = src.slice(src.indexOf('const MIGRATIONS = ['), src.indexOf('/** OpenMetadata quotes'))
+    assert.ok(steps.includes('CREATE TABLE entity'))
+    assert.doesNotMatch(steps, /\b(DROP|DELETE|RENAME|TRUNCATE|UPDATE)\b/i)
   })
 
   test('records keep the newest ones', () => {

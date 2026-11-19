@@ -26,7 +26,7 @@ describe('global backup settings', () => {
     await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 2, unit: 'day', keep: 3, items: { flashcards: false } })
     const g = await globalLib.readGlobal(userData)
     assert.equal(g.enabled, true)
-    assert.deepEqual(g.items, { 'jira-plus': true, flashcards: false, notes: true, flows: true })
+    assert.deepEqual(g.items, { 'jira-plus': true, flashcards: false, notes: true, flows: true, 'local-database': true })
     for (const p of globalLib.PAGES) assert.equal(globalLib.pageRoot(g, p.id), join(root, p.id))
     assert.throws(() => globalLib.pageRoot(g, 'nope'))
     // Settings stay in AppData, next to nothing else.
@@ -108,7 +108,7 @@ describe('global backup schedule', () => {
 
   it('excluded pages are not scheduled', async () => {
     const { userData, root, svc } = setup()
-    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false, flows: false } })
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false, flows: false, 'local-database': false } })
     await svc.tick()
     const st = await svc.status()
     for (const p of st.pages.filter((x) => x.id !== 'github-plus')) assert.equal(p.nextDueAt, null)
@@ -161,7 +161,7 @@ describe('back up before updating', () => {
     const { decks } = seed(userData)
     const root = tmp('bk-root-')
     const svc = createGlobalBackups(userData)
-    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false, flows: false } })
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2, items: { 'jira-plus': false, flashcards: false, notes: false, flows: false, 'local-database': false } })
     const r = await svc.runBeforeUpdate('1.4.120')
     assert.equal(r.ok, true)
     assert.equal(r.folder, join(root, 'before-update'))
@@ -193,5 +193,31 @@ describe('back up before updating', () => {
     assert.match(bad.items.find((i) => i.id === 'flashcards').error, /damaged/)
     assert.equal(bad.items.find((i) => i.id === 'jira-plus').ok, true)
     assert.equal((await svc.status()).lastBeforeUpdate.ok, false)
+  })
+
+  it('backs up the local database before an update as a whole copy, and leaves it as it is', async () => {
+    const localdb = require('../localdb/index.cjs')
+    const userData = tmp('bk-user-')
+    const db = localdb.openDatabase(join(userData, localdb.FOLDER))
+    const kept = db.put('glossary', { name: 'Business' })
+    db.putRecord('pipelineStatus', 'p', 'r1', 1, { ok: true })
+    const root = tmp('bk-root-')
+    const svc = createGlobalBackups(userData)
+    await globalLib.writeGlobal(userData, { enabled: true, folder: root, times: 1, unit: 'day', keep: 2 })
+    // Written while the app still has the database open (WAL not checkpointed).
+    const r = await svc.runBeforeUpdate('2.0.1')
+    assert.equal(r.ok, true)
+    const item = r.items.find((i) => i.id === 'local-database')
+    assert.match(item.file, /local-database-.*-before-2\.0\.1\.sqlite3$/)
+    const copy = localdb.openDatabase(join(root, 'before-update'), { file: item.file.split(/[\\/]/).pop() })
+    assert.equal(copy.byId(kept.id).name, 'Business')
+    assert.equal(copy.records('pipelineStatus', 'p').length, 1)
+    copy.close()
+    assert.equal(db.byId(kept.id).name, 'Business')
+    db.close()
+    // Scheduled backups go to <folder>/local-database/.
+    const run = await svc.run('local-database')
+    assert.equal(run.ok, true)
+    assert.ok(run.file.startsWith(join(root, 'local-database')))
   })
 })

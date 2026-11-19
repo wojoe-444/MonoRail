@@ -16,6 +16,13 @@
 // database, or one made by a newer MonoRail, is never overwritten: opening
 // throws and the page shows the error. No Electron here, so tests and the MCP
 // server can use it.
+//
+// Updates keep the data. A schema upgrade only ever adds (a step in MIGRATIONS
+// must never drop, rename or empty a table or column holding user data), and
+// before an existing database with rows is upgraded, a whole copy is written
+// next to it (`local.sqlite3.before-schema-<n>.bak`, never overwritten). If
+// that copy cannot be made, the upgrade does not run and the file is left as
+// it was.
 
 const fs = require('node:fs')
 const path = require('node:path')
@@ -93,6 +100,7 @@ function openDatabase(dir, { file = DB_FILE } = {}) {
     db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;')
     const current = db.prepare('PRAGMA user_version').get().user_version
     if (current > SCHEMA_VERSION) throw new Error(`MonoRail's local database was made by a newer version of MonoRail (schema ${current}). Update MonoRail to use it; it was left as it is.`)
+    if (current > 0 && current < SCHEMA_VERSION) backupBeforeUpgrade(db, where, SCHEMA_VERSION)
     for (let v = current; v < SCHEMA_VERSION; v++) {
       db.exec('BEGIN')
       try {
@@ -115,6 +123,39 @@ function openDatabase(dir, { file = DB_FILE } = {}) {
     throw e
   }
   return createEntityStore(db)
+}
+
+const sqlString = (s) => `'${String(s).replace(/'/g, "''")}'`
+
+/**
+ * A whole, consistent copy of the database (WAL included) at
+ * `<file>.before-schema-<to>.bak`, made before its schema is upgraded. An
+ * empty database needs none. An existing copy is never overwritten (another
+ * one gets a number). Throws, leaving the database as it is, when it fails.
+ */
+function backupBeforeUpgrade(db, where, to) {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('entity', 'record', 'lineage')").all()
+  if (!tables.some(({ name }) => db.prepare(`SELECT 1 FROM ${name} LIMIT 1`).get())) return undefined
+  let target = `${where}.before-schema-${to}.bak`
+  for (let n = 2; fs.existsSync(target); n++) target = `${where}.before-schema-${to}-${n}.bak`
+  try {
+    db.exec(`VACUUM INTO ${sqlString(target)}`)
+  } catch (e) {
+    fs.rmSync(target, { force: true })
+    throw new Error(`MonoRail could not copy its local database before upgrading it, so it was left as it is (${e?.message ?? e}).`)
+  }
+  return target
+}
+
+/** Write a whole, consistent copy of the database file `source` to `target` (backups). Only reads `source`. */
+function copyDatabase(source, target) {
+  const { DatabaseSync } = require('node:sqlite')
+  const db = new DatabaseSync(source, { readOnly: true, timeout: 5000 })
+  try {
+    db.exec(`VACUUM INTO ${sqlString(target)}`)
+  } finally {
+    db.close()
+  }
 }
 
 const round1 = (n) => Math.round(n * 10) / 10
@@ -510,4 +551,4 @@ function mirrorDbExists() {
   }
 }
 
-module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH, SEARCH_MAX }
+module.exports = { openDatabase, copyDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH, SEARCH_MAX }
