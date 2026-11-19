@@ -32,6 +32,8 @@ everything; [private data stays local](private-data.md) explains it.
 - **Let agents help themselves.** [Agent access](agents/agent-access.md) lets
   an agent read what MonoRail knows, and, only with your OK, write a few
   things back.
+- **Find anything.** Press Ctrl+K on any page to [search](search.md) pages,
+  settings, chats, the wiki and the catalog at once.
 - **See everything in one place.** [Explore](explore.md) lists everything
   MonoRail knows about, sorted by the kinds of thing in the
   [MonoRail standard](../standard/README.md).

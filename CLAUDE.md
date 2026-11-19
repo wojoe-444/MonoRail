@@ -733,10 +733,25 @@ broken; read on start, on focus (at most once a minute), every 5 minutes and
 on `refreshSettingsAlerts()`. Search (`search.ts`) finds every Settings page
 by title and description plus the entries in `SEARCH_ENTRIES` (cards and
 options, with an element id to scroll to); add one when you add a card or an
-option to a Settings page. Ctrl+K focuses it. Connections is a table (one row
+option to a Settings page. Ctrl+K opens the command palette on its Settings
+scope (below). Connections is a table (one row
 per connector, subconnectors indented under their parent; columns drop out
 as the card narrows via container queries) whose rows open to show the
 check's details, actions and running sign-ins.
+
+**Command palette** (`src/components/search/`, guide `docs/guide/search.md`):
+Ctrl+K anywhere in the hub (not in full-screen apps), or the top bar's search
+field (`data-tour="search"`), opens one search over Pages, Catalog, Chats,
+Settings and Wiki (scope chips; Tab cycles). `store.ts` holds open state
+(`openSearch({ scope, section, query })`); `sources.ts` is the index
+(`usePageIndex`, shared with Home's search; `searchTypes` over the standard's
+entity types; wiki pages lazy-imported; Chat's `listSessions` read on each
+open, archived left out). Empty, it shows the last five opened results
+(`monorail.search.recent` in `prefs`, targets only, never a path) and the
+standard's sections as tiles; a section lists its types by category. A type
+opens Explore at it through `openInExplore` (`modules/explore/handoff.ts`, in
+memory). On a Settings page it opens on the Settings scope. Nothing else is
+stored or cached.
 
 Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
 module nests under an item with `nav.parent: '<path>'`. They never expand inside
@@ -1392,7 +1407,8 @@ font if `font-mono` ever needs replacing. Use the primitives in
   The rail stays narrow on hover, keyboard focus, and while a subpage panel
   is open.
 - **Top bar.** Drawer toggle, a divider, a `Section > Page` breadcrumb, and
-  on the right the full screen toggle (F11). Color scheme and light/dark mode
+  on the right the search field (opens the command palette, Ctrl+K; an icon
+  below md) and the full screen toggle (F11). Color scheme and light/dark mode
   are only in Settings > Appearance. Nothing else lives there unless it is
   page-wide status (the Bot Dashboard puts live pills there).
 - **Navigation.** Items grouped into sections with dividers and names shown

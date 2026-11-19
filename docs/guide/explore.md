@@ -28,6 +28,10 @@ field means and a link to the type's page in the standard.
 
 ## Searching
 
+To jump to one kind of thing from any page, press Ctrl+K and type its name
+(for example "table" or "subagent"): [search](search.md) opens Explore at
+that kind.
+
 The search box looks through names, field names and values at once. The menu
 beside it narrows the list to one category. **Clear filters** resets both,
 and **Refresh** reads every source again.

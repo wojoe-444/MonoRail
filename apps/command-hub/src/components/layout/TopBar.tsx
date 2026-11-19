@@ -1,8 +1,11 @@
-import { ChevronRight, Maximize, Minimize } from 'lucide-react'
+import { ChevronRight, Maximize, Minimize, Search } from 'lucide-react'
 
 import { DevTopBarItems } from '@/components/dev/TestProfileBar'
+import { isSettingsPath } from '@/components/search/sources'
+import { openSearch } from '@/components/search/store'
 import { Button } from '@/components/ui/button'
 import { useFullScreen } from '@/lib/fullscreen'
+import { currentPath } from '@/lib/router'
 
 interface TopBarProps {
   /** Nav section of the current page, e.g. "Workspace", linked to the section's first page. Home has none. */
@@ -14,7 +17,8 @@ interface TopBarProps {
 }
 
 /**
- * 40px app bar, always visible: a section > page breadcrumb and the full screen toggle on the right (with
+ * 40px app bar, always visible: a section > page breadcrumb, the search field
+ * (opens the command palette) and the full screen toggle on the right (with
  * Developer Mode's inspect button and test-profile chip before it). The
  * color scheme and light / dark mode live in Settings > Appearance only.
  */
@@ -59,10 +63,41 @@ export function TopBar({ section, parent, onNavigate, title }: TopBarProps) {
           {title}
         </span>
       </nav>
+      <TopBarSearch />
       <DevTopBarItems />
       <Button variant="ghost" size="icon" className="-mr-1 size-7" onClick={toggle} data-tour="fullscreen" aria-label={fsLabel} title={fsLabel}>
         {fullScreen ? <Minimize /> : <Maximize />}
       </Button>
     </header>
+  )
+}
+
+/**
+ * The top bar's search field: looks like an input and opens the command
+ * palette (the same as Ctrl+K), on the Settings scope on a Settings page.
+ * Typing a letter while it has focus opens the palette with that letter.
+ * On narrow windows it shrinks to an icon button.
+ */
+function TopBarSearch() {
+  const start = (query = '') => openSearch({ query, ...(isSettingsPath(currentPath()) ? { scope: 'settings' as const } : {}) })
+  return (
+    <button
+      type="button"
+      data-tour="search"
+      onClick={() => start()}
+      onKeyDown={(e) => {
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ') {
+          e.preventDefault()
+          start(e.key)
+        }
+      }}
+      aria-label="Search MonoRail (Ctrl+K)"
+      title="Search MonoRail (Ctrl+K)"
+      className="flex h-7 shrink-0 items-center gap-2 rounded-md border border-input bg-card px-2 text-xs text-muted-foreground transition-colors outline-none hover:border-ring/60 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 md:w-64 lg:w-80"
+    >
+      <Search className="size-3.5 shrink-0" aria-hidden />
+      <span className="hidden flex-1 truncate text-left md:inline">Search or browse the catalog</span>
+      <kbd className="hidden shrink-0 rounded border bg-muted px-1.5 font-mono text-[10px] md:inline">Ctrl K</kbd>
+    </button>
   )
 }

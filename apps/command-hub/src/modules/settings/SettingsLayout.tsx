@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Search, X } from 'lucide-react'
 
 import { SETTINGS_PATH, SETTINGS_SECTION } from '@/components/layout/nav'
@@ -37,7 +37,8 @@ function groupPages(pages: ModuleDefinition[]): { heading: string; pages: Module
 /**
  * The frame of every Settings page: a menu of the pages (grouped, with the
  * alert count on General) and a search box above it, beside the page. Search
- * results replace the menu while there is a query; Ctrl+K focuses the box.
+ * results replace the menu while there is a query. Ctrl+K opens the command
+ * palette on its Settings scope instead (components/search).
  */
 export function SettingsLayout({ path, children }: { path: string; children: ReactNode }) {
   const pages = useSettingsPages()
@@ -46,18 +47,6 @@ export function SettingsLayout({ path, children }: { path: string; children: Rea
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const hits = useMemo(() => searchSettings(query, pages), [query, pages])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        input.current?.focus()
-        input.current?.select()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   function open(hit: SearchHit) {
     setQuery('')
@@ -91,7 +80,7 @@ export function SettingsLayout({ path, children }: { path: string; children: Rea
             aria-label="Search settings"
             className="h-9 w-full rounded-md border border-input bg-card pr-14 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
           />
-          {query ? (
+          {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
@@ -100,10 +89,6 @@ export function SettingsLayout({ path, children }: { path: string; children: Rea
             >
               <X className="size-4" />
             </button>
-          ) : (
-            <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
-              Ctrl K
-            </kbd>
           )}
         </div>
 

@@ -62,6 +62,7 @@ example one OneDrive already syncs. It takes a minute:
 
 ## Where next
 
+- Lost? Press **Ctrl+K** on any page to [find anything](search.md) by name.
 - Make a helper of your own: [create an agent](agents/create-an-agent.md).
 - Let Claude Code use what MonoRail knows: [agent access](agents/agent-access.md).
 - Everything else, by area: [agents](agents/README.md),
