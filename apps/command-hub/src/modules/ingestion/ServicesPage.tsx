@@ -535,17 +535,18 @@ function copyText(copy?: ServiceCopy) {
 /**
  * Ingestion for a service whose ingestion is the connection itself (BigQuery
  * metadata): no pipelines, only the copy MonoRail keeps on this PC and how
- * fresh it is, with Sync now and Full refresh.
+ * fresh it is, with Sync now (changes since the last sync only). A rebuild
+ * is offered only on the OpenMetadata page, behind a confirmation.
  */
 function ConnectedIngestion({ kind, copy, act }: { kind: string; copy?: ServiceCopy; act: DetailProps['act'] }) {
-  const [syncing, setSyncing] = useState<'now' | 'full'>()
-  const busy = !!syncing || !!copy?.running
-  const sync = async (full: boolean) => {
-    setSyncing(full ? 'full' : 'now')
+  const [syncing, setSyncing] = useState(false)
+  const busy = syncing || !!copy?.running
+  const sync = async () => {
+    setSyncing(true)
     try {
-      await act(full ? 'Downloaded everything again from BigQuery.' : 'The copy is up to date with BigQuery.', () => call('syncConnected', { kind, full }))
+      await act('SQLite is up to date with BigQuery.', () => call('syncConnected', { kind }))
     } finally {
-      setSyncing(undefined)
+      setSyncing(false)
     }
   }
   const failed = copy?.last && !copy.last.ok ? copy.last : undefined
@@ -558,29 +559,26 @@ function ConnectedIngestion({ kind, copy, act }: { kind: string; copy?: ServiceC
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
           <p>
-            Something outside MonoRail keeps <span className="font-medium">{copy?.source ?? 'the dataset'}</span> up to date. MonoRail only reads it, and keeps a copy on this PC that the OpenMetadata page reads, refreshed {EVERY_TEXT[copy?.syncEvery ?? '1h']} while MonoRail is open.
+            The OpenMetadata page reads the SQLite database on this PC. Something outside MonoRail keeps <span className="font-medium">{copy?.source ?? 'the dataset'}</span> up to date, and MonoRail asks it only for rows changed since the last sync, {EVERY_TEXT[copy?.syncEvery ?? '1h']} while MonoRail is open.
           </p>
           <p className="text-muted-foreground">
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="size-3.5 animate-spin" /> {syncing === 'full' ? 'Downloading everything again…' : 'Syncing…'}
+                <Loader2 className="size-3.5 animate-spin" /> Syncing…
               </span>
             ) : copy?.last?.ok ? (
               <>
-                Last synced {when(copy.last.at)}{copy.last.mode === 'full' ? ' (everything downloaded)' : ''}.{copy.nextAt ? ` Next ${when(copy.nextAt)}.` : ''}
+                Last synced {when(copy.last.at)}{copy.last.mode === 'full' ? (copy.last.reason === 'asked' ? ' (rebuilt)' : ' (first copy)') : ''}.{copy.nextAt ? ` Next ${when(copy.nextAt)}.` : ''}
               </>
             ) : !copy?.synced ? (
-              'Not copied yet. The first sync downloads everything, which is free in BigQuery.'
+              'Not copied yet. The first sync reads the dataset once into SQLite, which is free in BigQuery; after that, only changes.'
             ) : null}
           </p>
           {(failed || copy?.error) && <p role="alert" className="mt-1 rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">{failed?.error ?? copy?.error}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(false)}>
-            {syncing === 'now' ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sync now
-          </Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void sync(true)} title="Download every row again. Free in BigQuery, but slower on a large dataset.">
-            Full refresh
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync()}>
+            {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sync now
           </Button>
         </div>
       </Card>

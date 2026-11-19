@@ -21,13 +21,14 @@ function bytes(n: number | undefined) {
 
 function summary(last: BqSync) {
   const changed = (last.entities ?? 0) + (last.removed ?? 0) + (last.lineage ?? 0) + (last.lineageRemoved ?? 0)
-  if (last.mode === 'full') return `downloaded ${formatCount(last.entities ?? 0)} entities${last.lineage ? ` and ${formatCount(last.lineage)} lineage edges` : ''} (free in BigQuery)`
+  if (last.mode === 'full') return `${last.reason === 'asked' ? 'rebuilt' : 'first copy:'} ${formatCount(last.entities ?? 0)} entities${last.lineage ? ` and ${formatCount(last.lineage)} lineage edges` : ''} (free in BigQuery)`
+  if (last.seeded?.length) return `${formatCount(changed)} ${changed === 1 ? 'change' : 'changes'}, plus the new ${last.seeded.join(', ')} table read once (free), ${bytes(last.bytesProcessed)} scanned`
   return changed ? `${formatCount(changed)} ${changed === 1 ? 'change' : 'changes'}, ${bytes(last.bytesProcessed)} scanned` : `no changes, ${bytes(last.bytesProcessed)} scanned`
 }
 
 /**
  * Shown while the page reads the BigQuery copy: which dataset is the source
- * of truth, how fresh the copy is, and Sync now / Full refresh / Setup SQL.
+ * feeds SQLite, how fresh SQLite is, and Sync now / Rebuild / Setup SQL.
  */
 export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChanged: () => void }) {
   const [syncing, setSyncing] = useState<'now' | 'full'>()
@@ -61,12 +62,12 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
         <p>
-          <span className="font-medium">BigQuery {status.source ?? 'metadata'}</span> is the source of truth. MonoRail reads a copy on this PC, so browsing runs no BigQuery queries. It changes nothing in BigQuery, except creating the default METADATA dataset with empty tables when it does not exist yet.
+          This page reads the SQLite database on this PC, fed by <span className="font-medium">BigQuery {status.source ?? 'metadata'}</span>. Each sync asks BigQuery only for rows changed since the second the last sync started; browsing runs no BigQuery queries. MonoRail changes nothing in BigQuery, except creating the default METADATA dataset with empty tables when it does not exist yet.
         </p>
         <p className="text-muted-foreground">
           {busy ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 className="size-3.5 animate-spin" /> {syncing === 'full' || status.running?.full ? 'Downloading everything again…' : status.synced ? 'Bringing the copy up to date…' : 'Making the first copy…'}
+              <Loader2 className="size-3.5 animate-spin" /> {syncing === 'full' || status.running?.full ? 'Rebuilding from BigQuery…' : status.synced ? 'Fetching changes since the last sync…' : 'Making the first copy…'}
             </span>
           ) : last?.ok ? (
             <>
@@ -74,7 +75,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
               {status.nextAt ? ` Next ${formatRelative(status.nextAt)}.` : status.syncEvery === 'manual' ? ' Refreshed only when you press Sync now.' : ''}
             </>
           ) : !status.synced ? (
-            `Not copied yet. The first sync downloads everything, which is free in BigQuery${status.syncEvery && status.syncEvery !== 'manual' ? `; after that, only what changed, ${EVERY[status.syncEvery]}` : ''}.`
+            `Not copied yet. The first sync reads the dataset once into SQLite, which is free in BigQuery${status.syncEvery && status.syncEvery !== 'manual' ? `; after that, only rows changed since the last sync, ${EVERY[status.syncEvery]}` : ''}.`
           ) : null}
         </p>
         {(failed || error || status.error) && (
@@ -82,7 +83,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <span>
               {error ?? failed?.error ?? status.error}
-              {failed && !error ? <span className="opacity-80"> ({formatRelative(failed.at)}; the copy keeps what it had.)</span> : null}
+              {failed && !error ? <span className="opacity-80"> ({formatRelative(failed.at)}; SQLite keeps what it had, and the next sync asks from the same second.)</span> : null}
             </span>
           </p>
         )}
@@ -92,7 +93,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
           {syncing === 'now' ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sync now
         </Button>
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmFull(true)}>
-          Full refresh
+          Rebuild…
         </Button>
         <Button variant={failed?.code && SETUP_CODES.has(failed.code) ? 'default' : 'ghost'} size="sm" onClick={() => setShowSql(true)}>
           <FileCode /> Setup SQL
@@ -102,9 +103,9 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
       <Dialog open={confirmFull} onOpenChange={setConfirmFull}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Download everything again?</DialogTitle>
+            <DialogTitle>Rebuild SQLite from BigQuery?</DialogTitle>
             <DialogDescription>
-              MonoRail reads every row of {status.source} again{last?.remote ? ` (${formatCount(last.remote.entities)} entities, about ${bytes(last.remote.bytes)})` : ''} and drops anything BigQuery no longer has. It is free in BigQuery, since it runs no query, but it can take a while on a large dataset. The copy stays usable meanwhile.
+              You do not need this to stay up to date: Sync now already brings every change. A rebuild reads every row of {status.source} again{last?.remote ? ` (${formatCount(last.remote.entities)} entities, about ${bytes(last.remote.bytes)})` : ''} and drops anything deleted outright in BigQuery instead of marked deleted. It is free in BigQuery, since it runs no query, but it can take a while on a large dataset. SQLite stays usable meanwhile.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -117,7 +118,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
                 void sync(true)
               }}
             >
-              Full refresh
+              Rebuild
             </Button>
           </DialogFooter>
         </DialogContent>

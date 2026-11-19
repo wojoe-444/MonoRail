@@ -1,11 +1,14 @@
-// BigQuery as the source of truth for the OpenMetadata page
+// BigQuery feeding the OpenMetadata page's SQLite database
 // (docs/bigquery-metadata.md): runs the sync from localdb/bigquery-mirror.cjs
-// into the copy on this PC (localdb mirrorDb()) and reports on it.
+// into SQLite on this PC (localdb mirrorDb()) and reports on it. SQLite is the
+// database; each sync asks BigQuery only for rows changed since the second
+// the last one started.
 //
 // Opt-in: nothing runs until the user adds the BigQuery metadata connection
 // (hasConnection reads the saved list only). Then the copy is refreshed on the
 // connection's schedule while MonoRail is open (a tick every minute; the first
-// sync for a dataset runs on the next tick), on Sync now, or on Full refresh.
+// sync for a dataset runs on the next tick), on Sync now, or on an explicit
+// Rebuild (the only way to download everything again).
 // One sync runs at a time; a failed one is retried after 15 minutes. The last
 // result is kept in the copy's meta table (bq.last). Status only reads; it
 // never starts a sync or a network call.
@@ -95,7 +98,7 @@ function createBigQuerySource(deps = {}) {
       if (!(await isSetUp())) throw Object.assign(new Error('Set up BigQuery metadata on the Connections page first.'), { code: 'not-set-up' })
       const cfg = await config()
       try {
-        const result = await mirrorLib.syncMirror({ client: bq(), store: store(), config: cfg, full })
+        const result = await mirrorLib.syncMirror({ client: bq(), store: store(), config: cfg, full, now })
         // Removed while it ran: leave nothing behind.
         if (!(await isSetUp())) {
           store().clearAll()
@@ -132,7 +135,7 @@ function createBigQuerySource(deps = {}) {
       {
         id: 'copy',
         title: `BigQuery metadata copy (${s.source})`,
-        description: 'Copies what changed in the BigQuery dataset that is the source of truth into the copy on this PC.',
+        description: 'Brings the rows changed in BigQuery since the last sync into the SQLite database on this PC.',
         group: 'OpenMetadata',
         schedule: EVERY_TEXT[s.syncEvery] ?? '',
         state: s.running ? 'Running' : s.syncEvery === 'manual' ? 'Disabled' : 'Ready',

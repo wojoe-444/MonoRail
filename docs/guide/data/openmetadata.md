@@ -36,17 +36,23 @@ Optional — MonoRail contacts nothing until you add **OpenMetadata** in
 3. Add **OpenMetadata** in [Connections](../setup/connections.md) and paste the
    token ([tokens are encrypted](../private-data.md#passwords-and-tokens-are-encrypted)).
 
-## BigQuery as the source of truth
+## Feeding the catalog from BigQuery
 
 If your team stores metadata in BigQuery (e.g. `project.METADATA.entity`),
-MonoRail can mirror it locally so browsing is instant and works offline:
+MonoRail keeps it in a SQLite database on your PC, so browsing is instant and
+works offline. SQLite is the database the page reads; BigQuery only sends it
+changes:
 
 1. Add **Google Cloud** in [Connections](../setup/connections.md) (`gcloud` login).
 2. Add **BigQuery metadata** underneath with your project and dataset (default
    `METADATA` — if missing, MonoRail creates empty tables for you; for custom
    datasets, run the **Setup SQL** shown on the page).
-3. MonoRail downloads the initial snapshot for free (no query), then syncs
-   changes hourly while open (or on **Sync now** / **Full refresh**).
+3. MonoRail reads the dataset once into SQLite for free (no query). After
+   that, every sync (hourly while open, or **Sync now**) asks BigQuery only
+   for rows changed since the second the last sync started. Nothing is ever
+   downloaded again unless you choose **Rebuild…** and confirm it. Mark
+   removed rows `deleted = TRUE` in BigQuery so the next sync carries the
+   removal.
 
 BigQuery catalogs are read-only in MonoRail (edit upstream and sync). Removing
 the connection clears only the local copy, never BigQuery. See the

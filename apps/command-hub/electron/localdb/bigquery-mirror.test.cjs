@@ -86,7 +86,7 @@ function fakeBigQuery({ tables = {}, missing = false, bytesPerQuery = 1000, part
         return { jobComplete: true, job: { projectId, jobId: 'setup', location }, fields: [], rows: [], totalBytesProcessed: 0 }
       }
       const table = /\.(\w+)`/.exec(query)[1]
-      const since = Number(/TIMESTAMP_MILLIS\((-?\d+)\)/.exec(query)[1])
+      const since = Number(/TIMESTAMP_SECONDS\((-?\d+)\)/.exec(query)[1]) * 1000
       const rows = data[table].filter((r) => r[TIME[table]] >= since)
       const out = {
         entity: (r) => ({ id: r.id, type: r.type, fqn: r.fqn, name: r.name, version: r.version, updated_ms: String(r.updated_at), deleted: !!r.deleted, json: r.json }),
@@ -152,7 +152,7 @@ describe('BigQuery metadata copy', () => {
         record: [{ kind: 'tableProfile', owner: ent(1).id, key: 'p1', at: T0, json: JSON.stringify({ rowCount: 12 }) }],
       },
     })
-    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 5 * MIN + 750 })
     assert.equal(r.mode, 'full')
     assert.equal(r.reason, 'first')
     assert.equal(c.queries.length, 0, 'a full copy runs no query')
@@ -164,43 +164,57 @@ describe('BigQuery metadata copy', () => {
     assert.deepEqual(t2.owners, [{ type: 'user', name: 'ada' }])
     assert.equal(store.versions(ent(2).id).length, 1)
     assert.deepEqual(store.records('tableProfile', ent(1).id), [{ rowCount: 12 }])
-    assert.equal(store.getMeta('bq.watermark.entity'), String(T0))
+    assert.equal(store.getMeta('bq.watermark.entity'), String(T0 + 5 * MIN), 'the next sync asks from the second this one started')
     assert.equal(store.getMeta('bq.source'), 'chicago-transit.METADATA')
   })
 
-  test('later syncs query only what changed (less 10 minutes), and only ever SELECT', async () => {
+  test('later syncs ask only for rows since the second the last sync started, and only ever SELECT', async () => {
     const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
     const c = fakeBigQuery({ tables: { entity: [ent(1, { at: T0 - 20 * MIN }), ent(2)] } })
-    await mirror.syncMirror({ client: c, store, config: CONFIG })
-    c.data.entity = [ent(1, { at: T0 - 20 * MIN }), ent(2, { at: T0 + 30 * MIN, version: 0.2, desc: 'Changed in BigQuery' }), ent(4, { at: T0 + 31 * MIN })]
-    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    const firstAt = T0 + 2 * MIN + 400 // ms past the second are dropped from the filter
+    await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => firstAt })
+    c.listed.length = 0
+    // t3 was written a minute before the first sync started: already in SQLite's past, never asked for again.
+    c.data.entity = [ent(1, { at: T0 - 20 * MIN }), ent(3, { at: T0 + MIN }), ent(2, { at: T0 + 30 * MIN, version: 0.2, desc: 'Changed in BigQuery' }), ent(4, { at: T0 + 31 * MIN })]
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 40 * MIN })
     assert.equal(r.mode, 'incremental')
-    assert.equal(r.entities, 2, 'only the changed and the new row came down (t1 is older than the 10-minute overlap)')
+    assert.deepEqual(r.seeded, [])
+    assert.equal(r.since, new Date(T0 + 2 * MIN).toISOString())
+    assert.equal(r.entities, 2, 'only the rows written since the last sync came down')
     assert.equal(store.get('table', 'svc.db.sch.t2').description, 'Changed in BigQuery')
     assert.ok(store.get('table', 'svc.db.sch.t4'))
+    assert.equal(c.listed.filter((t) => t !== 'meta').length, 0, 'no table is listed: SQLite already holds the catalog')
     const sql = c.queries.find((q) => !q.dryRun).query
-    assert.match(sql, new RegExp(`TIMESTAMP_MILLIS\\(${T0 - mirror.OVERLAP_MS}\\)`))
+    assert.match(sql, new RegExp(`WHERE updated_at >= TIMESTAMP_SECONDS\\(${(T0 + 2 * MIN) / 1000}\\)`))
     assert.match(sql, /FROM `chicago-transit\.METADATA\.entity`/)
     for (const q of c.queries) assert.match(q.query, /^SELECT /, 'the sync never writes to BigQuery')
     assert.ok(c.queries.filter((q) => q.dryRun).length >= 1, 'every query is dry-run first')
-    assert.equal(store.getMeta('bq.watermark.entity'), String(T0 + 31 * MIN))
+    assert.equal(store.getMeta('bq.watermark.entity'), String(T0 + 40 * MIN))
+    // A sync with nothing new brings nothing down and asks from the new second.
+    const again = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 50 * MIN })
+    assert.equal(again.entities, 0)
+    assert.match(c.queries.filter((q) => !q.dryRun).at(-1).query, new RegExp(`TIMESTAMP_SECONDS\\(${(T0 + 40 * MIN) / 1000}\\)`))
   })
 
-  test('entities removed from BigQuery leave the copy', async () => {
+  test('removals arrive as deleted rows; nothing lists the whole table, and only an explicit rebuild drops rows', async () => {
     const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
     const c = fakeBigQuery({ tables: { entity: [ent(1), ent(2), ent(3)] } })
-    await mirror.syncMirror({ client: c, store, config: CONFIG })
-    c.data.entity = [ent(1), ent(3)]
-    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
-    assert.equal(r.removed, 1)
-    assert.equal(store.get('table', 'svc.db.sch.t2'), undefined)
-    assert.ok(c.listed.includes('entity'))
-    // A full refresh drops them too.
-    c.data.entity = [ent(1)]
-    const f = await mirror.syncMirror({ client: c, store, config: CONFIG, full: true })
+    await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + MIN })
+    c.listed.length = 0
+    // t2 marked deleted in BigQuery; t3 removed outright (BigQuery now has fewer rows than SQLite).
+    c.data.entity = [ent(1), ent(2, { at: T0 + 2 * MIN, version: 0.2, deleted: true })]
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 3 * MIN })
+    assert.equal(r.mode, 'incremental')
+    assert.equal(r.entities, 1)
+    assert.equal(r.removed, 0)
+    assert.deepEqual(c.listed.filter((t) => t !== 'meta'), [], 'no id listing of the whole catalog')
+    assert.equal(store.countAll(), 3, 'SQLite keeps its rows; t2 is marked deleted')
+    // Only the user's explicit rebuild reads everything and drops what BigQuery no longer has.
+    const f = await mirror.syncMirror({ client: c, store, config: CONFIG, full: true, now: () => T0 + 4 * MIN })
     assert.equal(f.mode, 'full')
+    assert.equal(f.reason, 'asked')
     assert.equal(f.removed, 1)
-    assert.equal(store.countAll(), 1)
+    assert.equal(store.countAll(), 2)
   })
 
   test('a sync that would scan more than the limit runs nothing and says why', async () => {
@@ -232,6 +246,7 @@ describe('BigQuery metadata copy', () => {
     const other = mirror.configOf({ project: 'chicago-transit', dataset: 'OTHER' })
     const r = await mirror.syncMirror({ client: fakeBigQuery({ tables: { entity: [ent(7)] } }), store, config: other })
     assert.equal(r.mode, 'full')
+    assert.equal(r.reason, 'source')
     assert.equal(store.countAll(), 1)
     assert.ok(store.get('table', 'svc.db.sch.t7'))
   })
@@ -250,12 +265,18 @@ describe('BigQuery metadata copy', () => {
     assert.ok(!c.listed.includes('lineage'))
     assert.equal(store.getMeta('bq.layout'), 'monorail.metadata/1')
     assert.equal(store.getMeta('bq.lineage'), 'no')
-    // The dataset moves to /2: copied in full again, now with its lineage.
+    // The dataset moves to /2: SQLite is not emptied; only the new lineage table is read, once.
     c.data.meta = [{ key: 'layout', value: 'monorail.metadata/2' }]
+    c.listed.length = 0
     const r2 = await mirror.syncMirror({ client: c, store, config: CONFIG })
-    assert.equal(r2.mode, 'full')
+    assert.equal(r2.mode, 'incremental')
+    assert.deepEqual(r2.seeded, ['lineage'])
+    assert.equal(r2.entities, 0, 'entities SQLite holds are not downloaded again')
+    assert.deepEqual(c.listed.filter((t) => t !== 'meta'), ['lineage'])
+    assert.equal(store.countAll(), 2)
     assert.equal(r2.lineage, 1)
     assert.equal(store.getMeta('bq.lineage'), 'yes')
+    assert.equal(store.getMeta('bq.layout'), 'monorail.metadata/2')
     // /2 without the optional lineage table is fine too.
     const noTable = fakeBigQuery({ tables: { entity: [ent(1)] } })
     assert.equal((await mirror.inspectDataset(noTable, CONFIG)).lineage, false)
@@ -268,7 +289,7 @@ describe('BigQuery metadata copy', () => {
     assert.match(m.message, /lineage\.to_id is missing/)
   })
 
-  test('lineage: full copy through tabledata.list, then incremental on updated_at, removals by (from_id, to_id)', async () => {
+  test('lineage: seeded through tabledata.list, then incremental on updated_at; deletions as deleted rows', async () => {
     const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
     const c = fakeBigQuery({
       tables: {
@@ -276,7 +297,7 @@ describe('BigQuery metadata copy', () => {
         lineage: [edge(1, 2, { at: T0 - 30 * MIN, desc: 'old' }), edge(1, 2, { at: T0 }), edge(2, 3), { ...edge(3, 1), json: 'not json' }],
       },
     })
-    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 10 * MIN })
     assert.equal(r.mode, 'full')
     assert.equal(c.queries.length, 0, 'a full copy runs no query')
     assert.equal(store.countLineage(), 2, 'one edge per (from_id, to_id)')
@@ -284,33 +305,35 @@ describe('BigQuery metadata copy', () => {
     const l = store.lineageOf(ent(2).id)
     assert.deepEqual(l.upstreamEdges.map((e) => [e.fromEntity, e.toEntity, e.lineageDetails.sqlQuery]), [[ent(1).id, ent(2).id, 'SELECT new']])
     assert.deepEqual(l.downstreamEdges.map((e) => e.toEntity), [ent(3).id])
-    assert.equal(store.getMeta('bq.watermark.lineage'), String(T0))
+    assert.equal(store.getMeta('bq.watermark.lineage'), String(T0 + 10 * MIN))
 
     // Incremental: a changed edge, a new one and one marked deleted come down by updated_at.
     c.data.lineage = [edge(1, 2, { at: T0 + 20 * MIN, desc: 'changed' }), edge(2, 3, { at: T0 + 21 * MIN, deleted: true }), edge(3, 1, { at: T0 + 22 * MIN })]
-    const r2 = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    const r2 = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 30 * MIN })
     assert.equal(r2.mode, 'incremental')
     assert.equal(r2.lineage, 3)
     const sql = c.queries.find((q) => !q.dryRun && /\.lineage`/.test(q.query)).query
     assert.match(sql, /QUALIFY ROW_NUMBER\(\) OVER \(PARTITION BY from_id, to_id/)
-    assert.match(sql, new RegExp(`TIMESTAMP_MILLIS\\(${T0 - mirror.OVERLAP_MS}\\)`))
+    assert.match(sql, new RegExp(`TIMESTAMP_SECONDS\\(${(T0 + 10 * MIN) / 1000}\\)`))
     assert.ok(c.queries.some((q) => q.dryRun && /\.lineage`/.test(q.query)), 'dry-run first')
     for (const q of c.queries) assert.match(q.query, /^SELECT /)
     const l2 = store.lineageOf(ent(2).id)
     assert.equal(l2.upstreamEdges[0].lineageDetails.sqlQuery, 'SELECT changed')
     assert.deepEqual(l2.downstreamEdges, [], 'a deleted edge is kept in the copy but not shown')
 
-    // Removed outright: the copy has more rows than BigQuery, so the pairs are listed (free) and the rest go.
+    // Removed outright: no listing of every pair runs; SQLite keeps what it has.
     c.data.lineage = [edge(1, 2, { at: T0 + 20 * MIN, desc: 'changed' })]
-    const r3 = await mirror.syncMirror({ client: c, store, config: CONFIG })
-    assert.equal(r3.lineageRemoved, 2)
-    assert.equal(store.countLineage(), 1)
-    assert.ok(c.listed.filter((t) => t === 'lineage').length >= 2)
+    c.listed.length = 0
+    const r3 = await mirror.syncMirror({ client: c, store, config: CONFIG, now: () => T0 + 40 * MIN })
+    assert.equal(r3.lineageRemoved, 0)
+    assert.equal(r3.lineage, 0)
+    assert.equal(store.countLineage(), 3)
+    assert.deepEqual(c.listed.filter((t) => t !== 'meta'), [])
 
-    // Full refresh drops edges no longer there.
+    // Only an explicit rebuild drops edges no longer there.
     c.data.lineage = []
     const f = await mirror.syncMirror({ client: c, store, config: CONFIG, full: true })
-    assert.equal(f.lineageRemoved, 1)
+    assert.equal(f.lineageRemoved, 3)
     assert.equal(store.countLineage(), 0)
   })
 
@@ -350,7 +373,7 @@ describe('BigQuery as the OpenMetadata page source', () => {
     assert.equal((await svc.counts({ types: ['table'] })).table, 2)
     assert.equal((await svc.counts({ source: 'local', types: ['table'] })).table, 1, 'This PC is still there on request')
     const t1 = await svc.get({ type: 'table', fqn: 'svc.db.sch.t1' })
-    await assert.rejects(svc.setDescription({ type: 'table', id: t1.id, description: 'x' }), /source of truth/)
+    await assert.rejects(svc.setDescription({ type: 'table', id: t1.id, description: 'x' }), /fed from BigQuery/)
     state.setUp = false
     assert.equal((await svc.status({ source: 'bigquery' })).source, 'local', 'a saved choice falls back once BigQuery is removed')
   })

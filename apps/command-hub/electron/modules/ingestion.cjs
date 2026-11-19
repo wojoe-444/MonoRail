@@ -588,7 +588,7 @@ function createIngestion({ dataDir, deps = {} }) {
     }
   }
 
-  /** Sync now (or Full refresh) for a connect-only service. */
+  /** Sync now for a connect-only service: changes since the last sync (`full` only when the user explicitly asks to rebuild). */
   async function syncConnected({ kind, full = false } = {}) {
     const svc = await serviceFor(kind)
     if (svc.ingestion !== 'connect') throw new Error('This service is read by its ingestion pipelines. Run one of them instead.')
