@@ -69,12 +69,13 @@ export type WikiNode = { kind: 'page'; page: WikiPage } | { kind: 'folder'; fold
  * not listed follows (pages by title, then folders by title).
  */
 const ORDER: Record<string, string[]> = {
-  guide: ['first-ten-minutes', 'search', 'private-data', 'explore', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
-  'guide/agents': ['chat', 'create-an-agent', 'coordinator', 'flows', 'spend', 'agent-access'],
-  'guide/workspace': ['browse-repos', 'search-code', 'local-issues', 'tasks', 'email', 'browser', 'bigquery', 'sqlx'],
-  'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'extensions', 'spending-limit', 'saving', 'remote-access', 'developer-mode', 'docker', 'semantic', 'malloy'],
+  guide: ['first-ten-minutes', 'search', 'private-data', 'agents', 'workspace', 'data', 'setup', 'glossary', 'faq'],
+  'guide/agents': ['chat', 'create-an-agent', 'catalog', 'coordinator', 'flows', 'spend', 'agent-access', 'mochi-crew'],
+  'guide/workspace': ['browse-repos', 'search-code', 'local-issues', 'tasks', 'tracker', 'notes', 'files', 'email', 'browser', 'flashcards', 'docker', 'storage'],
+  'guide/data': ['explore', 'openmetadata', 'services', 'bigquery', 'sqlx', 'malloy', 'semantic'],
+  'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'spending-limit', 'remote-access', 'extensions', 'saving', 'developer-mode'],
   standard: ['monorail', 'data-assets', 'governance', 'data-contracts', 'ontology', 'teams-and-users', 'data-quality', 'insights', 'collaboration', 'context-center', 'platform'],
-  'standard/monorail': ['agents', 'workspace', 'learning', 'semantic'],
+  'standard/monorail': ['agents', 'workspace', 'learning', 'semantic', 'tracker'],
   'standard/data-assets': ['databases', 'messaging', 'dashboards', 'pipelines', 'ml-models', 'storage', 'search', 'apis', 'drives', 'metrics', 'ai'],
   'standard/data-assets/databases': ['database-service', 'database', 'database-schema', 'table', 'stored-procedure', 'query'],
   'standard/governance': ['domain', 'data-product', 'glossary', 'glossary-term', 'classification', 'tag', 'workflow-definition', 'intake-form'],
@@ -84,7 +85,7 @@ const ORDER: Record<string, string[]> = {
 
 /** Top-level folders in this order; "" is the loose top-level pages, shown as one folder. */
 const TOP_ORDER = ['guide', 'standard', '', 'extensions']
-const ROOT_TITLE = 'Features in depth'
+const ROOT_TITLE = 'Reference'
 
 /** Split "---\nkey: value\n---" off the top of a page. */
 export function frontMatter(text: string): { meta: Record<string, string>; body: string } {
@@ -277,4 +278,16 @@ for (const p of pages) {
 /** The pages that link to a page: its backlinks, shown as "Linked from". */
 export function linksTo(page: WikiPage): WikiPage[] {
   return backlinks.get(page.id) ?? []
+}
+
+/** Top-level section headings (`## `) in a page, for the on-page jump strip. */
+export function headingsOf(page: WikiPage): { id: string; text: string }[] {
+  const md = page.markdown.replace(/```[\s\S]*?```/g, '')
+  const out: { id: string; text: string }[] = []
+  for (const [, raw] of md.matchAll(/^## (.+)$/gm)) {
+    const text = plainText(raw)
+    if (!text || text.toLowerCase() === 'related') continue
+    out.push({ id: slug(raw.replace(/`/g, '')), text })
+  }
+  return out
 }

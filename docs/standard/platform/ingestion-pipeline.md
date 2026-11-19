@@ -15,13 +15,13 @@ A scheduled job that reads metadata, usage, lineage or quality results from a se
 
 ## In MonoRail
 
-**Settings > Services** ([guide](../../guide/setup/services.md),
+**Settings > Services** ([guide](../../guide/data/services.md),
 [reference](../../ingestion.md)) keeps the pipelines that run on this PC in
 this shape, runs them on their cron schedule, and manages the pipelines on
 your own OpenMetadata server. MonoRail's own field goes in `extension`:
 `extension.monorail.runner` is `this-pc` or `server`. The
-[OpenMetadata page](../../guide/openmetadata.md) also lists the server's
-pipelines, and [Explore](../../guide/explore.md) lists the ones on this PC.
+[OpenMetadata page](../../guide/data/openmetadata.md) also lists the server's
+pipelines, and [Explore](../../guide/data/explore.md) lists the ones on this PC.
 
 ## Fields
 

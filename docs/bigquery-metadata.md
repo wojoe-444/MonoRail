@@ -5,11 +5,11 @@ summary: BigQuery as the source of truth for MonoRail's metadata: the dataset la
 
 # BigQuery metadata
 
-People: the [OpenMetadata guide](guide/openmetadata.md#bigquery-as-the-source-of-truth)
+People: the [OpenMetadata guide](guide/data/openmetadata.md#bigquery-as-the-source-of-truth)
 explains it in plain words.
 
 A BigQuery dataset can be the source of truth for the
-[OpenMetadata page](guide/openmetadata.md). Something outside MonoRail keeps
+[OpenMetadata page](guide/data/openmetadata.md). Something outside MonoRail keeps
 the dataset up to date. MonoRail **connects and reads**: for this source,
 ingestion means connecting. It keeps a copy in SQLite on this PC and every
 read goes to the copy, so browsing never runs a BigQuery query.
@@ -72,7 +72,7 @@ optional `lineage` table:
   win over the JSON for the ends' ids and types.
 - **`/1` datasets are still read.** They simply have no lineage; a table named
   `lineage` in a `/1` dataset is not read, and the page's
-  [Lineage tab](guide/openmetadata.md#lineage) says the dataset has no lineage
+  [Lineage tab](guide/data/openmetadata.md#lineage) says the dataset has no lineage
   table. A `/2` dataset without the table is fine too. Running the setup SQL
   on a `/1` dataset adds the empty table but keeps its layout row (the row is
   inserted only when missing); change the row to `monorail.metadata/2` to have
@@ -168,7 +168,7 @@ edges go in the copy's `lineage` table as-is (`putLineageExact`).
 
 ## On Explore
 
-[Explore](guide/explore.md#where-databases-come-from) lists the copy's
+[Explore](guide/data/explore.md#where-databases-come-from) lists the copy's
 entities next to its other sources: `openmetadata.explore` returns every
 entity that is not deleted (`everything()` in the store, by type and full
 name, at most 5,000, with `truncated` and `total`), and the page makes each
@@ -183,7 +183,7 @@ The connector declares `service: { category: 'metadataService', serviceType:
 [metadata service type MonoRail adds](standard/platform/metadata-service.md#service-types)
 to OpenMetadata's list. It is a [connect-only service](ingestion.md#services-and-accounts)
 (`bigquery_metadata`) on the
-[Services page](guide/setup/services.md): no pipelines, the copy's size and
+[Services page](guide/data/services.md): no pipelines, the copy's size and
 freshness, Sync now and Full refresh (`ingestion.syncConnected`, which runs
 the same shared sync as the OpenMetadata page).
 
@@ -203,7 +203,7 @@ and editing the copy would drift from BigQuery. The pencil is hidden
 ## Related
 
 - [Local database](local-database.md): the schema the copy shares.
-- [BigQuery console](guide/workspace/bigquery.md): the same `gcloud` login.
+- [BigQuery console](guide/data/bigquery.md): the same `gcloud` login.
 - [Services and ingestion pipelines](ingestion.md): pipelines that fill This
   PC's catalog.
 - [Caching rules](caching.md): `bigquery.sqlite3` is a declared data file.

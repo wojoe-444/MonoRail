@@ -16,9 +16,9 @@ A service such as S3, GCS or Azure Blob Storage that stores files. It is OpenMet
 ## In MonoRail
 
 MonoRail keeps none itself yet. The
-[OpenMetadata page](../../../guide/openmetadata.md) lists them from your own
+[OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your own
 OpenMetadata server, and
-[Explore](../../../guide/explore.md) lists the type with 0.
+[Explore](../../../guide/data/explore.md) lists the type with 0.
 
 ## Fields
 

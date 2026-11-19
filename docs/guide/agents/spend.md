@@ -1,67 +1,57 @@
 ---
 audience: human
-summary: Claude Stats charts what your agents cost, by day, model and effort, from logs on your computer.
+summary: Claude Stats charts your local agent costs by day, model and effort from logs on your computer.
 ---
 
 # Keep an eye on spending
 
-The **Claude Stats** tab of **Bots > Dashboard** turns the usage logs your agents already write on
-this computer into charts, so you can see where the money goes.
+**Bots > Dashboard > Claude Stats** charts the usage logs your local agents
+already write on disk so you can see where spend goes.
 
 ## What it counts
 
-Claude Code, Gemini CLI and pi each keep a log of every conversation on your
-computer. Claude Stats reads them, works out the cost of each
-[model](../glossary.md#model) call from list prices, and builds a report. It
-refreshes every 15 minutes while MonoRail is open, or when you press
-**Refresh**. The report is a [cache](../glossary.md#cache) MonoRail can
-always rebuild, kept in your [data folder](../private-data.md#where-your-data-lives).
-
-Conversations that run in the cloud (Claude on the web, project threads) keep
-their logs on Anthropic's servers, so they are not counted. The page says so
-too.
+Reads local logs from Claude Code, Gemini CLI and pi, estimates per-call cost
+from list prices, and refreshes every 15 minutes while MonoRail is open (or on
+**Refresh**). The report is a rebuildable [cache](../glossary.md#cache) in your
+[data folder](../private-data.md#where-your-data-lives). Cloud sessions (web
+chats, project threads) are logged on Anthropic's servers and are not included.
 
 ## The headline number
 
-The big figure is **cost per million output [tokens](../glossary.md#token)**:
-what you pay for every million tokens (roughly 750,000 words) your agents
-write. It makes days and models comparable even when you used them very
-differently.
+**Cost per million output [tokens](../glossary.md#token)** (roughly 750,000
+words written) normalizes usage so days and [models](../glossary.md#model) stay
+easy to compare.
 
 ## What the charts show
 
-- **Spend over time**, by model.
-- **Effort**: how hard the models were asked to think
-  ([effort](../glossary.md#effort)), and what that cost.
-- **Thinking share**: how much of the output was the model's own reasoning.
-- **Session partners**: which models work together in the same chat, for
-  example a big model directing smaller [subagents](create-an-agent.md).
+- **Spend over time** by model.
+- **Effort**: reasoning [effort](../glossary.md#effort) levels and cost.
+- **Thinking share**: percentage of output spent on reasoning.
+- **Session partners**: models collaborating in the same chat (e.g. a main model
+  calling [subagents](create-an-agent.md)).
 
-Every chart has a table view beside it.
+Every chart includes a table toggle.
 
 ## Subscription or API?
 
-If you pay a monthly subscription, the costs shown are what the same use
-would have cost at API prices: useful for comparing, not a bill. The badge at
-the top says which kind of login MonoRail thinks you have; change it on the
-[Claude connection](../setup/connections.md#the-connections). Enterprise
-logins are billed at API prices even though you sign in through claude.ai.
+On a monthly subscription, figures represent API-equivalent cost (useful for
+comparison, not your bill). Confirm or adjust your login type on the
+[Claude connection](../setup/connections.md#the-connections). Enterprise logins
+bill at API rates even when signing in via claude.ai.
 
 ## Spending per reply
 
-For a single conversation, switch [Chat](chat.md#plain-or-detailed) to
-**Detailed**: each reply then shows what every model call cost.
+Switch [Chat](chat.md#plain-or-detailed) to **Detailed** to inspect exact
+per-call cost under every reply.
 
 ## Set a limit
 
-To cap what agents started from MonoRail can spend each day or month, turn
-on the [spending limit](../setup/spending-limit.md) in Settings. It is off
-by default, and most useful when your login is billed at API prices.
+Turn on a daily or monthly [spending limit](../setup/spending-limit.md) in
+**Settings > General** to cap MonoRail-run turns (especially helpful on API
+billing).
 
 ## Elsewhere
 
-Home shows a small summary of the same report. Agents can read it too,
-through [agent access](agent-access.md).
-
-For your dbt project's business metrics, charted with MetricFlow, see
-[Semantic](../setup/semantic.md) (the MetricFlow connection).
+Home shows a summary card, and connected agents can read it via
+[agent access](agent-access.md). For dbt business metrics, see
+[Semantic (MetricFlow)](../data/semantic.md).

@@ -8,7 +8,7 @@ summary: MonoRail's own entity types for the workspace: notes, bookmarks, bookma
 Entity types of MonoRail's own for everyday work. OpenMetadata has no words
 for these, so the [MonoRail standard](../README.md) defines them in its style
 (see the [rules](../README.md#rules)). All of them are listed on
-[Explore](../../guide/explore.md) under **Workspace**, next to the rest of
+[Explore](../../guide/data/explore.md) under **Workspace**, next to the rest of
 [your workspace](../../guide/workspace/README.md).
 
 <!-- standard:entities workspace -->
@@ -24,7 +24,7 @@ for these, so the [MonoRail standard](../README.md) defines them in its style
 
 ## Note
 
-A Markdown note kept in Notes' own local git repo ([Notes](../../notes.md)).
+A Markdown note kept in Notes' own local git repo ([Notes](../../guide/workspace/notes.md)).
 Explore shows its summary (title, excerpt, word count), never the whole text.
 
 <!-- standard:fields note -->

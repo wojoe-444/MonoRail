@@ -1,51 +1,48 @@
 ---
 audience: human
-summary: Let Claude Code and other agents read what MonoRail knows, and choose what they may change.
+summary: Connect Claude Code and other agents to MonoRail's MCP server and approve write tools one by one.
 ---
 
 # Let agents use MonoRail
 
-MonoRail can answer questions from your agents: "what did I spend this
-week?", "which of my chats are still open?", "what local issues are in this
-repo?". It does this through an [MCP](../glossary.md#mcp) server, a standard
-way for agents to use outside tools.
+MonoRail includes a built-in [MCP](../glossary.md#mcp) server so external agents
+can query what MonoRail knows ("what did I spend this week?", "which local
+issues are open?") and, with your approval, take limited actions.
 
 ## Connect an agent
 
-Open **Settings > Agent access**. It shows a ready-to-copy command for
-Claude Code, and a snippet for agents that use a settings file (Claude
-Desktop, Cursor and most others), with the right path for your computer. Run
-or paste it once; the agent starts MonoRail's server by itself when it needs
-it, even when the MonoRail window is closed.
+Open **Settings > Agent access** for a copy-paste command for Claude Code or a
+JSON snippet for Claude Desktop, Cursor and other MCP clients. Once configured,
+the agent launches MonoRail's server on demand — even when the MonoRail window
+is closed.
 
 ## Reading is on, writing is up to you
 
-Every connected agent can **read**: [spending](spend.md) summaries, your
-[chat list](chat.md) (allowed folders only),
-[local issues](../workspace/local-issues.md) and [Tasks](../workspace/tasks.md)
-tasks, the metrics of your [dbt project](../setup/semantic.md), and whether your [connections](../setup/connections.md) work. Nothing
-it reads includes passwords or tokens.
-
-**Writing** is off for every agent until you turn it on. On the Agent access
-page each agent gets its own switches, one per write tool, such as "create a
-local issue", "add [flashcards](../../flashcards.md)" or "ask the
-[Coordinator](coordinator.md)". Running a [metrics query](../setup/semantic.md#let-agents-use-it) works the same way: it changes nothing, but it reaches your warehouse, so it needs your OK too. An agent you have never seen before is listed
-the first time it connects, with nothing allowed. That is the same
-[nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)
-rule as everywhere else.
+- **Read tools** are enabled automatically: [spending](spend.md) summaries,
+  [Chat](chat.md) sessions (allowed folders only),
+  [local issues](../workspace/local-issues.md), [Tasks](../workspace/tasks.md),
+  [dbt metrics](../data/semantic.md) and
+  [connection](../setup/connections.md) status. Passwords and tokens are never
+  exposed.
+- **Write tools** start off for every agent. Toggle each tool individually per
+  agent — e.g. creating local issues, adding
+  [flashcards](../workspace/flashcards.md), asking the
+  [Coordinator](coordinator.md), or running warehouse
+  [metrics queries](../data/semantic.md#let-agents-use-it). First-time agents
+  appear with everything off
+  ([nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)).
 
 ## See what happened
 
-**Activity** on the same page lists every call: which agent, which tool,
-whether it worked and how long it took. For writes it adds one line saying
-what was done. It never records what was asked or answered.
+The **Activity** log lists every call (agent, tool, outcome, duration, plus a
+one-line summary for writes) without storing prompt or response bodies.
 
 ## Extensions add tools
 
-An [extension](../setup/extensions.md) may offer tools of its own. Those
-always need your OK, per agent, whether they read or write.
+Tools contributed by an [extension](../setup/extensions.md) always require your
+per-agent approval, whether read or write.
 
 ## For developers
 
-The full list of tools and how the server runs is in
+Full tool list, config paths and server internals:
 [Agent access (MCP server)](../../mcp.md).

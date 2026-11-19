@@ -5,7 +5,7 @@ summary: Reference for the Docker connector and the Docker page: files, commands
 
 # Docker connector and page
 
-People: see the guide, [Docker](guide/setup/docker.md).
+People: see the guide, [Docker](guide/workspace/docker.md).
 
 ## Files
 
@@ -41,5 +41,5 @@ People: see the guide, [Docker](guide/setup/docker.md).
   `not-running` (client answered, `Server` null; `blockDetail` is the CLI's
   first stderr line). The connector maps these to `unavailable` and `error`.
 
-See also [Storage](storage.md) for drive space and the
+See also [Storage](guide/workspace/storage.md) for drive space and the
 [nothing runs until you ask](guide/private-data.md#nothing-runs-until-you-ask) rule.

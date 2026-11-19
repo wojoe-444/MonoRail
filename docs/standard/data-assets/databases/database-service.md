@@ -18,9 +18,9 @@ entity, adopted as it is (see the [rules](../../README.md#rules)).
 
 ## In MonoRail
 
-The [OpenMetadata page](../../../guide/openmetadata.md) lists them from your
+The [OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your
 own OpenMetadata server. Inside MonoRail there are none yet. The [semantic project's](../../../semantic.md) manifest names tables
-but not the service they are on, so [Explore](../../../guide/explore.md) shows
+but not the service they are on, so [Explore](../../../guide/data/explore.md) shows
 this type empty. Its `connection` holds secrets in OpenMetadata; MonoRail will
 never show them, and keeps any it needs in
 [Connections](../../../guide/setup/connections.md).

@@ -35,7 +35,7 @@ export default function McpPage() {
         title="Agent access"
         description="Claude Code and other agents can use MonoRail through its MCP server. The agent starts it when it needs it; writes need your OK."
         actions={
-          <Button variant="outline" onClick={() => openWiki('mcp')}>
+          <Button variant="outline" onClick={() => openWiki('guide/agents/agent-access')}>
             <BookOpen /> How it works
           </Button>
         }

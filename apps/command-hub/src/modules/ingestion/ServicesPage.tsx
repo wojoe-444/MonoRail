@@ -113,7 +113,7 @@ export default function ServicesPage() {
         description="Where your data lives, and the ingestion pipelines that read it into a catalog. Built on OpenMetadata’s services and ingestion pipelines."
         actions={
           <>
-            <Button variant="outline" onClick={() => openWiki('guide/setup/services')}>
+            <Button variant="outline" onClick={() => openWiki('guide/data/services')}>
               How it works
             </Button>
             <Button

@@ -1,84 +1,65 @@
 ---
 audience: human
-summary: Sign MonoRail in to Claude, GitHub, Jira, Google Cloud, pi and more, in one place.
+summary: Manage opt-in logins and integrations for Claude, GitHub, Jira, Google Cloud, pi, Docker and data services in one place.
 ---
 
 # Connect your accounts
 
-**Settings > Connections** is the one place MonoRail signs in to the
-services it works with. Each [connection](../glossary.md#connection) is a
-row in one table: whether it still works, which account it uses, what in
-MonoRail uses it and when it was last checked, with a button to sign in again
-when it doesn't. Click a row to see everything the check found. A connection
-that stops working is also listed at the top of the General settings page (see
-[finding your way around Settings](README.md#finding-your-way-around-settings)).
+**Settings > Connections** manages every external account or local tool MonoRail
+talks to. Each [connection](../glossary.md#connection) row shows status, account,
+dependent pages and last check time — click any row for full check details or
+re-authentication. Broken connections also surface in **Needs attention** on
+General ([Settings overview](README.md#finding-your-way-around-settings)).
 
 ## Nothing runs until you add it
 
-A connection you have not added does nothing at all: no checks, no programs
-started, no network requests. Add only what you use. Checks run when you open
-the page, press **Check**, or come back after signing in. This is MonoRail's
-[nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)
-rule.
+Unconfigured connections run zero checks, commands or network calls
+([nothing runs until you ask](../private-data.md#nothing-runs-until-you-ask)).
+Checks run when you open the page, click **Check**, or finish signing in.
 
 ## The connections
 
-- **Claude**: the login Claude Code uses, which [Chat](../agents/chat.md)
-  runs with. MonoRail also works out whether it is a subscription, an API key
-  or an enterprise login, because that changes what your usage costs in
-  [Claude Stats](../agents/spend.md#subscription-or-api). You can correct it
-  if it guesses wrong. With API prices, a
-  [spending limit](spending-limit.md) can cap what MonoRail spends.
-  Its **Playwright browser** add-on lets the `claude` you run in a terminal
-  work in your own Chrome or Edge tabs, signed in as you, through the
-  Playwright Extension. Saving it adds one server to Claude Code's settings
-  for you; removing it takes that server away again. MonoRail never changes
-  a server of the same name that you added yourself. Chat inside MonoRail
-  does not use it.
-- **GitHub**: your github.com account, used by
-  [GitHub+](../workspace/browse-repos.md#your-github-repositories) to list
-  your repositories and, if you ask, publish
-  [issues](../workspace/local-issues.md#also-on-github-if-you-want). Uses your
-  GitHub CLI login by default, or a token you paste.
-- **Atlassian**: your Jira site, email and API token, used by
+- **Claude**: your Claude Code login used by [Chat](../agents/chat.md), with
+  detected billing type (subscription, API key, Enterprise) for
+  [Claude Stats](../agents/spend.md#subscription-or-api) and
+  [spending limits](spending-limit.md). Its optional **Playwright browser**
+  add-on configures terminal `claude` to use your Chrome/Edge tabs (never
+  overwrites an existing server of the same name; not used by in-app Chat).
+- **GitHub**: GitHub CLI login (default) or pasted token for
+  [GitHub+](../workspace/browse-repos.md#your-github-repositories) and opt-in
+  [issue publishing](../workspace/local-issues.md#also-on-github-if-you-want).
+- **Atlassian**: Jira site, email and API token for
   [Tasks](../workspace/tasks.md#your-teams-jira).
-- **Google Cloud**: your `gcloud` login, used by
-  [BigQuery](../workspace/bigquery.md). Its **BigQuery metadata** add-on makes
-  a BigQuery dataset the
-  [source of truth for the OpenMetadata page](../openmetadata.md#bigquery-as-the-source-of-truth).
-- **pi**: the pi coding agent, its version and which providers it is signed
-  in to, plus the [models](../glossary.md#model) it offers by default.
-  Add-ons under it, like the **Playwright browser**, let pi use your own
-  browser tabs.
-- **OpenAI**: an API key and the Codex command line tool.
-- **git**: your git name and email, a quick check that your
-  [commits](../glossary.md#commit) will carry the name you expect.
-- **Docker**: optional. Your own Docker and, if you have it, lazydocker, for
-  the [Docker](docker.md) page. MonoRail never installs either.
-- **MetricFlow**: optional. Your dbt project folder, for the
-  [Semantic](semantic.md) connection. Running queries is a second switch, off by
-  default. MonoRail never installs Python, dbt or MetricFlow.
-- **OpenMetadata**: optional. Your OpenMetadata server and a bot token (or an
-  email and password), for the [OpenMetadata](../openmetadata.md) page.
+- **Google Cloud**: `gcloud` login for [BigQuery](../data/bigquery.md) and
+  [Malloy](../data/malloy.md), with an add-on for
+  [BigQuery metadata](../data/openmetadata.md#bigquery-as-the-source-of-truth).
+- **pi**: detected pi version, providers, default [models](../glossary.md#model)
+  and browser add-ons.
+- **OpenAI**: API key and Codex CLI (also used by the PR reviewer in
+  [Template Catalog](../agents/catalog.md)).
+- **git**: verifies your git author name and email for
+  [commits](../glossary.md#commit).
+- **Docker**: optional local Docker / WSL engine and lazydocker for
+  [Docker](../workspace/docker.md).
+- **MetricFlow**: optional dbt project folder for
+  [Semantic](../data/semantic.md) (query execution off by default).
+- **OpenMetadata**: optional OpenMetadata server and bot token / login for
+  [OpenMetadata](../data/openmetadata.md).
 
-SQLite, MetricFlow and OpenMetadata are tagged **Data service**: they are data
-sources, and their ingestion pipelines are on
-[Services](services.md).
+SQLite, MetricFlow and OpenMetadata carry the **Data service** badge and manage
+their ingestion pipelines on [Services](../data/services.md).
 
 ## Where secrets go
 
-Tokens you paste are encrypted for your Windows account before they are
-saved, and stay on this computer. Many connections store nothing at all and
-use a login you already have.
-[Passwords and tokens are encrypted](../private-data.md#passwords-and-tokens-are-encrypted)
-explains how.
+Pasted tokens are encrypted for your Windows account on disk; CLI-backed
+connections store no secret at all
+([encryption details](../private-data.md#passwords-and-tokens-are-encrypted)).
 
 ## Agents and connections
 
-Agents connected through [agent access](../agents/agent-access.md) can see
-whether each connection works, never the passwords or tokens behind it.
+Connected agents ([agent access](../agents/agent-access.md)) can check whether
+connections are healthy, never read secrets.
 
 ## Related
 
-- The rest of [setup](README.md).
-- Email has its own sign-in on its setup screen: [Email](../workspace/email.md).
+- [Setup overview](README.md) · [Email sign-in](../workspace/email.md)

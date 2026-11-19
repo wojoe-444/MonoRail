@@ -1,57 +1,40 @@
 ---
 audience: human
 folder: Workspace
-summary: The pages for the work itself: your git repositories, issues, tasks, mail and study cards.
+summary: Everyday local tools: repositories, code search, issues, tasks, tracker, notes, files, mail, browser, flashcards, Docker and storage.
 ---
 
 # Your workspace
 
-Open **Tools** in the menu for GitHub+, Tasks, Tracker, Calendar, Email, Bookmarks,
-Browser, BigQuery, SQLX, Files, Notes and Flashcards. Its overview links to each page, and its flyout lets
-you jump straight to one. Each keeps its data on your computer, as [private data stays
-local](../private-data.md) promises, and they are linked to each other where
-it helps.
-
-- **Explore**, directly below Home in the menu, lets you browse fields from subagents, note summaries, flashcards and the connected [semantic project](../setup/semantic.md). Select a source, entity type, instance or field in Browse estate, search the resulting fields, and select a card to see its value. Other sources are not yet included; warnings identify unavailable or truncated sources.
-- **Code.** [Browse your repos](browse-repos.md) with GitHub+: code, history,
-  branches and comparisons for the git [repositories](../glossary.md#repository)
-  on your computer, plus your repositories on github.com once you
-  [connect GitHub](../setup/connections.md#the-connections).
-  [Search your code](search-code.md) across every repository, including work
-  you have not committed yet and the whole history.
-- **To-dos next to the code.** [Local issues](local-issues.md) live inside a
-  repository, so they travel with it.
-- **Tasks.** [Tasks](tasks.md) (formerly Jira+) keeps private projects on your computer
-  next to your team's real Jira, and links tasks to repositories.
-- **Planning.** [Tracker](tracker.md) plans work for your teams: issues with
-  their own workflow, cycles, projects with milestones and updates, and
-  initiatives above them, all kept on your computer.
-- **Calendar.** Calendar shows your tasks on their expected end dates. Select a date to see its tasks, then open one in Tasks. Team issues follow the Team Jira filter in Tasks.
-- **Scheduled.** Windows Task Scheduler shows schedules, recent results and the next run for this PC's tasks. You can run, stop, enable, disable or delete tasks that run as your Windows account. Other tasks are read-only; Microsoft system tasks are omitted. Open Task Scheduler from the page to create or edit tasks. Hide removes a task from the list until you unhide it; it does not change the task.
-  Its **In-App** page lists the jobs MonoRail runs by itself while it is open:
-  [backups](../setup/backups-and-updates.md), the Claude usage report, update
-  checks, drive space samples, the PR reviewer and the
-  [Remote access](../setup/remote-access.md) check. Each shows its schedule, next
-  and last run and whether the last run worked. **Run now** starts a backup, the
-  usage report or an update check right away; to change a job's schedule or turn
-  it off, open the page that owns it. These jobs stop when MonoRail is closed, and
-  one that came due meanwhile runs when it opens again.
-- **Mail.** [Email](email.md) reads Gmail or the classic Outlook on your PC.
-- **Web.** [Browser](browser.md) is a tabbed web browser inside MonoRail that
-  keeps its own sign-ins, apart from your real Chrome.
-- **Data.** [BigQuery](bigquery.md) browses your BigQuery datasets and runs
-  SQL with your own Google Cloud account, with a cost estimate before you run.
-  [SQLX](sqlx.md) opens Dataform `.sqlx` files with their config as a form,
-  so the SQL has room.
-- **Learning.** [Flashcards](../../flashcards.md) keeps spaced repetition
-  decks; agents can add cards if you [let them](../agents/agent-access.md).
-- **Your files.** [Files](../../files.md), under Tools, is a file explorer
-  with tabs, two panes side by side, previews, pinned folders and color tags.
-  Deleting always goes to the Recycle Bin.
-- **Info dump.** [Notes](../../notes.md), under Tools, takes anything you want
-  to jot down; every note is a file in a git repository on your computer that
-  GitHub+ shows too.
-
-Most of these can be [backed up](../setup/backups-and-updates.md) to a folder
-of your choice on a schedule, and agents can read them through
+Open **Tools** in the sidebar (or jump straight from its flyout) for your local
+workspace tools. Every tool keeps its data on your computer
+([private data stays local](../private-data.md)), and most can be
+[backed up](../setup/backups-and-updates.md) on a schedule or read by agents via
 [agent access](../agents/agent-access.md).
+
+- **Code**: [Browse your repos](browse-repos.md) in GitHub+ (local repos plus
+  github.com once you [connect GitHub](../setup/connections.md#the-connections)),
+  [search your code](search-code.md) including uncommitted edits and full
+  history, and track [local issues](local-issues.md) inside each repo.
+- **Tasks & planning**: [Tasks](tasks.md) puts local private projects next to
+  your team's Jira (and **Calendar** plots them by expected end date);
+  [Tracker](tracker.md) offers Linear-style teams, cycles, projects and
+  initiatives locally.
+- **Notes, files & learning**: [Notes](notes.md) for quick Markdown scraps in a
+  local git repo, [Files](files.md) for a tabbed dual-pane file manager,
+  [Flashcards](flashcards.md) for FSRS spaced repetition, and **Bookmarks** for
+  saved links and paths.
+- **Communication & web**: [Email](email.md) for Gmail or classic Outlook
+  (never saved to disk) and [Browser](browser.md) for isolated in-app tabs.
+- **System & containers**: [Docker](docker.md) for read-only container logs,
+  stats and lazydocker, and [Storage Manager](storage.md) for drive usage and
+  free-space goals.
+- **Scheduled**: under **Workspace > Scheduled**, view and control Windows Task
+  Scheduler jobs running as your user (Microsoft system tasks omitted), plus
+  **In-App** jobs MonoRail runs while open
+  ([backups](../setup/backups-and-updates.md), usage reports, update checks,
+  storage samples, PR reviewer and
+  [Remote access](../setup/remote-access.md) checks) with one-click **Run now**.
+
+For data catalogs, BigQuery, SQLX, Malloy and MetricFlow, see
+[Data & catalog](../data/README.md).

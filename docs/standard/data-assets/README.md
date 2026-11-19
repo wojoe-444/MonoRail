@@ -34,5 +34,5 @@ type's fields are copied from OpenMetadata 2.1 (see the
 
 [Databases](databases/README.md) is the one MonoRail fills today, from your
 [semantic project](../../semantic.md). The
-[OpenMetadata page](../../guide/openmetadata.md) shows every kind from your
+[OpenMetadata page](../../guide/data/openmetadata.md) shows every kind from your
 own OpenMetadata server.

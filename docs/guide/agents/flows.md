@@ -1,77 +1,66 @@
 ---
 audience: human
-summary: Build an agent as a graph of steps on a canvas, try it in the Playground, and bring back any earlier version.
+summary: Build an agent visually as connected steps on a canvas, test it in the Playground, and restore earlier versions.
 ---
 
 # Build a flow
 
-A **flow** is an agent you draw instead of write: a few steps on a canvas,
-joined by lines that carry text from one step to the next. One flow can use
-several [agents](../glossary.md#agent) at once, give one a
-[subagent](../glossary.md#subagent) from your Catalog, and stitch their
-answers together. Open it from **Agents > Flows**.
+A **flow** (**Bots > Flows**) is a visual graph of connected steps — combine
+multiple [agents](../glossary.md#agent), [subagents](../glossary.md#subagent)
+from your [Template Catalog](catalog.md), and prompt templates without writing
+code.
 
 ## Start one
 
-Pick a template on the Flows page (Basic prompt, Agent in a repo, Draft and
-review, Two takes side by side) or **New flow** for an empty canvas. A flow
-keeps its own name and a **Repo** in the top bar: agent steps work inside that
-repo, like a [chat](chat.md). Only the repos Chat may use are offered (see
-[which chats are listed](chat.md#which-chats-are-listed)), so add one in Chat's
-Folders dialog first if the list is empty.
+Pick a starter template (*Basic prompt*, *Agent in a repo*, *Draft and review*,
+*Two takes side by side*) or **New flow**. Choose a **Repo** in the top bar for
+agent steps to work in (uses Chat's
+[allowed folders](chat.md#which-chats-are-listed)).
 
 ## Add and connect steps
 
-Drag a step from the list on the left onto the canvas. Each step is a card:
+Drag steps from the left palette onto the canvas:
 
-| Step | What it does |
+| Step | Purpose |
 | --- | --- |
-| Chat input | What you type in the Playground |
-| Text input | A fixed piece of text, like a rule or a topic |
-| Agent | A Claude or pi agent working in your repo, in **Ask** (read only) or **Agent** mode |
-| Subagent from Catalog | One of your subagents from the [Agent Catalog](../../agent-catalog.md), given a task |
-| Model call | One question, one answer, no tools |
-| Prompt template | Text with `{placeholders}`; each placeholder gets its own dot to connect |
-| Combine text | Joins two pieces of text |
-| Chat output | The flow's answer |
+| **Chat input** | Text you type in the Playground |
+| **Text input** | Fixed text (rules, context, topic) |
+| **Agent** | Claude or pi running in the flow's repo (**Ask** or **Agent** mode) |
+| **Subagent from Catalog** | A subagent from [Template Catalog](catalog.md) |
+| **Model call** | Single prompt-response call, no tools |
+| **Prompt template** | Text with `{placeholders}` — each creates an input handle |
+| **Combine text** | Joins two text inputs |
+| **Chat output** | Final response shown in Playground |
 
-Drag from a dot on the right of a step (what it produces) to a dot on the left
-of another (what it needs). A field that receives a line shows "Receiving
-input"; otherwise type its value straight into the card. Double-click a step's
-name to rename it. Steps that do not depend on each other run at the same time.
-
-To remove a step or a line, click it the way you would a shape on a slide: it
-lights up, and you can press Delete, click the small x that appears on it (in
-the middle of a line, in the corner of a step), or right-click it and choose
-Delete. Right-clicking a step also offers Duplicate step.
+Drag from a right-side output dot to a left-side input dot. Independent branches
+run in parallel. Double-click a step's title to rename it; select any step or
+wire and press **Delete** (or click its × / right-click menu) to remove or
+duplicate it.
 
 ## Try it in the Playground
 
-Type a message in the **Playground** on the right. Each step lights up while it
-runs and shows its time, cost and tool calls when it is done; **Logs** at the
-bottom lists every step with the start of what it produced. **Stop** ends the
-run and any agent still working.
+Send a prompt in the right-hand **Playground**. Active steps highlight while
+running and report duration, cost and tool calls; **Logs** below records every
+step's output preview. **Stop** halts the run and all active agents.
 
-Agent, subagent and model steps are ordinary Chat turns: they follow the same
-permission rules, appear in [Chat](chat.md) as new chats, and count toward your
-[spending limit](../setup/spending-limit.md) and [costs](spend.md).
+Agent, subagent and model steps run as normal [Chat](chat.md) turns — they obey
+the same permissions, appear in Chat, and count toward your
+[spending limit](../setup/spending-limit.md) and [Claude Stats](spend.md).
 
 ## Versions
 
-Every change saves on its own. After a quiet minute, or when you leave the
-flow, the saved state becomes a version. **Versions** lists them; pick one and
-**Bring this version back**. The newer versions stay too, so nothing is lost.
+Edits auto-save and commit as a version after one quiet minute or when leaving
+the flow. Open **Versions** to inspect or **Bring this version back** without
+erasing newer versions.
 
 ## Where flows are kept
 
-Flows live in a local git repository in MonoRail's
-[data folder](../glossary.md#data-folder), never in a repo you push. They are
-part of [backups](../setup/backups-and-updates.md) once you set a backup folder.
-What a run produced is kept only while MonoRail is open; afterwards only the
-time, the outcome and the cost remain. See [private data](../private-data.md).
+Stored in a local git repo inside your [data folder](../glossary.md#data-folder)
+(never pushed), included in [backups](../setup/backups-and-updates.md). Run
+outputs stay in memory only; afterward only timing, status and cost remain
+([private data stays local](../private-data.md)).
 
 ## Related
 
-- [The Coordinator](coordinator.md), the other way to have agents work together
-- [Create an agent](create-an-agent.md), to write the subagents a flow uses
-- [Flows reference](../../flows.md), for developers
+- [The Coordinator](coordinator.md) · [Create an agent](create-an-agent.md) ·
+  [Flows reference](../../flows.md) (for developers)

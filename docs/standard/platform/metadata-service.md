@@ -17,9 +17,9 @@ Another metadata catalog, such as Amundsen or Atlas, read as a source. It is Ope
 
 MonoRail has one of its own: a BigQuery dataset made the
 [source of truth for MonoRail's metadata](../../bigquery-metadata.md), service
-type `BigQuery`, listed on the [Services page](../../guide/setup/services.md)
-and on [Explore](../../guide/explore.md) once it is set up. The
-[OpenMetadata page](../../guide/openmetadata.md) lists the metadata services
+type `BigQuery`, listed on the [Services page](../../guide/data/services.md)
+and on [Explore](../../guide/data/explore.md) once it is set up. The
+[OpenMetadata page](../../guide/data/openmetadata.md) lists the metadata services
 of your own OpenMetadata server.
 
 ## Service types

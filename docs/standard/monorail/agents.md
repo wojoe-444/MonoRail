@@ -8,7 +8,7 @@ summary: MonoRail's own entity types for agents: subagents and flows.
 Entity types of MonoRail's own for working with agents. OpenMetadata has no
 words for these, so the [MonoRail standard](../README.md) defines them in its
 style (see the [rules](../README.md#rules)). All of them are listed on
-[Explore](../../guide/explore.md) under **Agents**.
+[Explore](../../guide/data/explore.md) under **Agents**.
 
 <!-- standard:entities agents -->
 
@@ -23,7 +23,7 @@ style (see the [rules](../README.md#rules)). All of them are listed on
 
 A helper agent defined in a Markdown file with a header, for Claude Code or
 pi. MonoRail reads them from the home folder and Chat's allowed repos, plus its
-built-ins ([Template Catalog](../../agent-catalog.md#where-subagents-come-from);
+built-ins ([Template Catalog](../../guide/agents/catalog.md#where-subagents-come-from);
 how to write one: [Create an agent](../../guide/agents/create-an-agent.md)).
 
 <!-- standard:fields subagent -->

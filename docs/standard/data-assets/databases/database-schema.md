@@ -18,8 +18,8 @@ entity, adopted as it is (see the [rules](../../README.md#rules)).
 
 ## In MonoRail
 
-The [OpenMetadata page](../../../guide/openmetadata.md) lists them from your
-own OpenMetadata server. [Explore](../../../guide/explore.md) lists one schema for each distinct
+The [OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your
+own OpenMetadata server. [Explore](../../../guide/data/explore.md) lists one schema for each distinct
 database and schema among the tables the
 [semantic project's](../../../semantic.md) models are built on, with `name`,
 `fullyQualifiedName`, `database` and the `tables` it holds.

@@ -1,91 +1,73 @@
 ---
 audience: human
-summary: GitHub+ shows the git repositories on your computer in a familiar, GitHub-style view.
+summary: Browse local git repositories in a read-only GitHub-style view with code, history, branches, diffs and issues.
 ---
 
 # Browse your repos
 
-**Tools > GitHub+** is a GitHub-style browser for the git
-[repositories](../glossary.md#repository) on your own computer: the code,
-the README, the history, branches and comparisons, without opening a
-terminal. It only reads; it never changes your files.
+**Tools > GitHub+** is a read-only, GitHub-style browser for local git
+[repositories](../glossary.md#repository): inspect code, READMEs, commit
+history, branches and diffs without touching a terminal.
 
 ## Open a repository
 
-Press **Open repository** and pick a folder. GitHub+ remembers it on its
-home page with its recent activity. Repositories that MonoRail itself keeps,
-like your [Tasks](tasks.md) private projects, are listed there
-automatically.
+Click **Open repository** to pick a folder; GitHub+ remembers it on its home
+page. MonoRail's own internal repos (such as [Tasks](tasks.md) private projects
+and [Notes](notes.md)) appear automatically.
 
 ## The home page
 
-The home page has five views: **Overview**, **Repositories**, **Activity**,
-**Issues** and **Backups**. The search box filters every table at once;
-press **Enter** in it to [search the code](search-code.md) of every
-repository instead.
+Five tabs — **Overview**, **Repositories**, **Activity**, **Issues** and
+**Backups** — with a live filter box (press **Enter** to
+[search code](search-code.md) across every repo):
 
-- A summary row at the top counts your repositories and open issues, and how
-  many have commits that are **not pushed** or files that are **not
-  committed** yet. A failed backup shows there too, with a link to fix it.
-- **Active branches** lists recently changed [branches](../glossary.md#branch)
-  with a small bar showing how far each is behind (red) and ahead (green),
-  and a **Compare** button.
-- **Repositories** shows each one's current branch and its state: ↑ commits
-  not pushed, ↓ commits waiting to be pulled, ● files not committed, or
-  *clean*. The Repositories view adds the folder, issue and task counts, and
-  your repositories on GitHub.
-- **Recent commits** lists the newest [commits](../glossary.md#commit) across
-  every repository and branch.
+- **Summary strip**: repo and open-issue counts, unpushed commits, uncommitted
+  files and backup alerts.
+- **Active branches**: recent [branches](../glossary.md#branch) with
+  behind/ahead bars and **Compare**.
+- **Repositories**: current branch and sync indicators (`↑` unpushed, `↓` to
+  pull, `●` dirty, *clean*), plus folder/issue/task counts and GitHub repos.
+- **Recent commits**: latest [commits](../glossary.md#commit) across all repos.
 
 ## What you can see
 
-Each repository opens with the same strip of facts under its tabs: how far
-the branch is from main, commits not pushed, files not committed, the last
-backup and the newest commit. The branch picker on the right switches the
-branch you are looking at.
+Every repo displays a status strip (distance from main, unpushed/uncommitted
+counts, last backup, latest commit) and a branch switcher:
 
-- **Code**: a file tree on the left to move between folders and files, and the
-  open folder's README beside it. The arrow on the README folds it away;
-  GitHub+ remembers that.
-- **History** and **commits**: every [commit](../glossary.md#commit), with
-  what it changed.
-- **Branches** and **Compare**: how far [branches](../glossary.md#branch)
-  have moved apart, and the difference between any two.
+- **Code**: file tree beside the folder's collapsible README.
+- **History & commits**: commit log and diffs.
+- **Branches & Compare**: divergence between any two
+  [branches](../glossary.md#branch).
 
-The search box in the tab row (press **/**) searches the repository's code,
-files, commits, history and issues, including work you have not committed
-yet; see [search your code](search-code.md). Click a line number in any
-file to see [when that line changed](search-code.md#when-did-this-line-change).
-
-If an agent is working in the repository right now, the **Changes** panel in
-[Chat](../agents/chat.md#side-panels) shows its uncommitted edits.
+Press **/** to [search the repo](search-code.md), or click any line number to
+see [when that line changed](search-code.md#when-did-this-line-change). For live
+uncommitted edits by an agent, see the **Changes** side panel in
+[Chat](../agents/chat.md#side-panels).
 
 ## Issues
 
-The **Issues** tab keeps a to-do list inside the repository itself. See
-[local issues](local-issues.md).
+The **Issues** tab tracks [local issues](local-issues.md) stored right inside
+the repository.
 
 ## Your GitHub repositories
 
 Once you [connect GitHub](../setup/connections.md#the-connections), GitHub+
-also lists your repositories on github.com, including team ones. You can
-clone one into a folder you pick, or open it on github.com. Repositories you
-already have on your computer get a small cloud mark instead. Until then
-GitHub+ makes no requests to GitHub at all.
+lists your personal and team repos on github.com so you can clone or open them
+(local clones show a cloud badge). Without that connection, GitHub+ makes zero
+network calls.
 
 ## Linked tasks
 
-The **Tasks** tab shows [Tasks](tasks.md#tasks-and-repositories) tasks
-linked to the repository, and you can link more from either side.
+The **Tasks** tab shows [Tasks](tasks.md#tasks-and-repositories) linked to the
+repository; link more from either side.
 
 ## Backups
 
-The **Backups** tab copies a repository to a folder of your choice on a
-schedule, or follows the app-wide setting. See
-[backups and updates](../setup/backups-and-updates.md).
+The **Backups** tab backs up the repo as a `.bundle` on its own schedule or
+using the app-wide setting ([backups and updates](../setup/backups-and-updates.md)).
 
 ## Related
 
-- The agents in a repository's `.claude\agents` folder:
-  [create an agent](../agents/create-an-agent.md#where-agents-live).
-- Everything else in [your workspace](README.md).
+- [Search your code](search-code.md) ·
+  [Repo subagents](../agents/create-an-agent.md#where-agents-live) ·
+  [Your workspace](README.md)

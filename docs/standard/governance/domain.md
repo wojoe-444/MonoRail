@@ -16,9 +16,9 @@ A bounded context aligned with a business unit or function, such as Marketing. I
 ## In MonoRail
 
 MonoRail keeps none itself yet. The
-[OpenMetadata page](../../guide/openmetadata.md) lists them from your own
+[OpenMetadata page](../../guide/data/openmetadata.md) lists them from your own
 OpenMetadata server, and
-[Explore](../../guide/explore.md) lists the type with 0.
+[Explore](../../guide/data/explore.md) lists the type with 0.
 
 ## Fields
 

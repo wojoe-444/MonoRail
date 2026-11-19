@@ -1,53 +1,42 @@
 ---
 audience: human
-summary: Choose a color scheme and light or dark mode in Settings.
+summary: Pick a color scheme, frosted backdrop picture, light/dark mode and full-screen view.
 ---
 
 # Make it look right
 
-**Settings > Appearance** is the one place to change how MonoRail looks.
+Customize MonoRail's look in **Settings > Appearance**.
 
 ## Color schemes
 
-Pick a scheme from the cards. Each one sets the main color for buttons and
-the selected menu item, the tint of the grays, and the style of the menu on
-the left:
+Choose from three drawer styles — each sets accent color, neutral tint and
+sidebar tone:
 
-- **Light drawer** schemes, like the default **Sand & Ink**, keep the menu
-  white and calm.
-- **Dark drawer** schemes, like **Indigo Ink**, give the menu a deep color.
-- **Bold** schemes make the menu itself the main color.
+- **Light drawer** (e.g. default **Sand & Ink**): bright, calm sidebar.
+- **Dark drawer** (e.g. **Indigo Ink**): deep-toned sidebar.
+- **Bold**: sidebar tinted with the primary accent color.
 
 ## Pictures
 
-The **Pictures** sets put a drawing behind the whole app (mountains, a
-lagoon, a rainy neon city, a nebula and more) with frosted glass on top, so
-the picture shows through the menu, the top bar and the cards. The
-**Moody** set uses clearer, heavier glass and looks best in dark mode. In
-dark mode the other pictures are dimmed, and a few switch to a night
-version.
-
-Green, amber and red always mean the same thing (good, needs a look,
-problem) whichever scheme you pick, and charts in
-[Claude Stats](../agents/spend.md) keep fixed colors so they read the same
-everywhere.
+**Pictures** adds an illustrated backdrop (mountains, lagoon, neon city, nebula)
+under frosted glass surfaces; **Moody** pairs clearer glass with dark mode.
+Status colors (green/amber/red) and [Claude Stats](../agents/spend.md) chart
+colors stay consistent across every scheme.
 
 ## Light or dark
 
-Choose light or dark mode under the schemes. Every scheme has both. The
-default is light.
+Toggle light (default) or dark mode below the color schemes.
 
 ## Full screen
 
-Press **F11**, or the button at the right of the top bar, to fill the screen.
+Press **F11** or click the full-screen icon at the top right.
 
 ## Remembered here
 
-Your choice is remembered on this computer. It is a setting, not private
-data, but like everything else it stays [on your computer](../private-data.md).
+Your choice saves immediately and stays local on your PC
+([private data stays local](../private-data.md)).
 
 ## Related
 
-- The rest of [setup](README.md).
-- Your agents' little characters have their own colors, called flavors:
-  [the mochi crew](../../mochi-crew.md).
+- [Setup overview](README.md) · [The mochi crew](../agents/mochi-crew.md) ·
+  [Saving your changes](saving.md)

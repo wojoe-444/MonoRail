@@ -49,8 +49,8 @@ types and fields keep OpenMetadata's names.
 
 ## Where MonoRail gets them today
 
-The [OpenMetadata page](../../../guide/openmetadata.md) shows all of them from
-your own OpenMetadata server. Inside MonoRail, [Explore](../../../guide/explore.md)
+The [OpenMetadata page](../../../guide/data/openmetadata.md) shows all of them from
+your own OpenMetadata server. Inside MonoRail, [Explore](../../../guide/data/explore.md)
 fills this category from the [semantic project](../../../semantic.md): each
 [semantic model](../../monorail/semantic.md#semantic-model) names the table it
 is built on (its `relation`), and Explore lists those tables with their

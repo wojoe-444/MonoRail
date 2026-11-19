@@ -22,8 +22,8 @@ first entity MonoRail is building out from
 
 ## In MonoRail
 
-The [OpenMetadata page](../../../guide/openmetadata.md) lists them from your
-own OpenMetadata server. [Explore](../../../guide/explore.md) lists one database for each distinct
+The [OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your
+own OpenMetadata server. [Explore](../../../guide/data/explore.md) lists one database for each distinct
 `database` among the tables the [semantic project's](../../../semantic.md)
 models are built on. It fills `name` and `fullyQualifiedName` and lists the
 schemas it holds in `databaseSchemas`. The manifest does not say which
@@ -32,7 +32,7 @@ service the database is on, so `service` is not set yet.
 ## API
 
 OpenMetadata serves databases at `/v1/databases`. The
-[OpenMetadata page](../../../guide/openmetadata.md) lists and reads them here and
+[OpenMetadata page](../../../guide/data/openmetadata.md) lists and reads them here and
 saves description edits with `PATCH`; the rest is the contract to follow when
 MonoRail does more.
 
