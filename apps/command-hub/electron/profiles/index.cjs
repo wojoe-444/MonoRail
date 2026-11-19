@@ -73,7 +73,6 @@ const SCOPES = Object.freeze({
   'modules/mcp': 'profile', // per-agent consent and the activity log
   'modules/bigquery': 'profile', // Tools > BigQuery; keeps no files (uses the gcloud connection, history is BigQuery's job list)
   'modules/bookmarks': 'profile', // saved links and local paths
-  'modules/browser': 'profile', // Tools > Browser; keeps no files (sign-ins are in Electron's Partitions folder, per profile)
   'modules/notes': 'profile', // the Notes page's local git repo
   'modules/sqlx': 'profile', // Tools > SQLX: the Dataform project folders the user picked
   'modules/files': 'profile', // Files (file explorer); keeps no files, pins and tags are page prefs

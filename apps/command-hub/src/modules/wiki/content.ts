@@ -71,7 +71,7 @@ export type WikiNode = { kind: 'page'; page: WikiPage } | { kind: 'folder'; fold
 const ORDER: Record<string, string[]> = {
   guide: ['first-ten-minutes', 'search', 'private-data', 'agents', 'workspace', 'data', 'setup', 'glossary', 'faq'],
   'guide/agents': ['chat', 'create-an-agent', 'catalog', 'coordinator', 'flows', 'spend', 'agent-access', 'mochi-crew'],
-  'guide/workspace': ['browse-repos', 'search-code', 'local-issues', 'tasks', 'tracker', 'notes', 'files', 'email', 'browser', 'flashcards', 'docker', 'storage'],
+  'guide/workspace': ['browse-repos', 'search-code', 'local-issues', 'tasks', 'tracker', 'notes', 'files', 'email', 'flashcards', 'docker', 'storage'],
   'guide/data': ['explore', 'openmetadata', 'services', 'bigquery', 'sqlx', 'malloy', 'semantic'],
   'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'spending-limit', 'remote-access', 'extensions', 'saving', 'developer-mode'],
   standard: ['monorail', 'data-assets', 'governance', 'data-contracts', 'ontology', 'teams-and-users', 'data-quality', 'insights', 'collaboration', 'context-center', 'platform'],

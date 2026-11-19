@@ -32,8 +32,7 @@ while off, no port opens and Tailscale is never queried.
 
 Actions that belong on the PC show *"Do this on your PC"*:
 
-- Local desktop tools (folder pickers, Explorer, terminals, [Files](../workspace/files.md),
-  [Browser](../workspace/browser.md)).
+- Local desktop tools (folder pickers, Explorer, terminals, [Files](../workspace/files.md)).
 - Sensitive settings: [connections](connections.md),
   [spending limits](spending-limit.md), [agent access](../agents/agent-access.md),
   [extensions](extensions.md), [backups](backups-and-updates.md), updates and

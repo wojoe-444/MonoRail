@@ -5,12 +5,10 @@
 // uses: 'extension:event' (an extension backend's ctx.emit) and
 // 'extension:changed' (installed set or a status changed), plus
 // 'window:fullscreen' (the window entered or left full screen, see
-// electron/window-fullscreen.cjs, which also handles toggleFullScreen) and
-// 'browser:open-tab' (a Browser page tab asked for a new tab, see
-// electron/browser-pane.cjs).
+// electron/window-fullscreen.cjs, which also handles toggleFullScreen).
 const { contextBridge, ipcRenderer } = require('electron')
 
-const PUSH_CHANNELS = new Set(['extension:event', 'extension:changed', 'window:fullscreen', 'browser:open-tab'])
+const PUSH_CHANNELS = new Set(['extension:event', 'extension:changed', 'window:fullscreen'])
 
 contextBridge.exposeInMainWorld('commandHub', {
   platform: process.platform,
