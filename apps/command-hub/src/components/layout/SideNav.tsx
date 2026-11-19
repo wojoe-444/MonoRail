@@ -41,7 +41,7 @@ export function SideNav({ current, onNavigate }: SideNavProps) {
         className="flex h-full w-[60px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
       >
         {/* Brand header: height matches the 40px top bar */}
-        <div className="flex h-10 shrink-0 items-center justify-center border-b border-sidebar-border">
+        <div data-slot="sidebar-brand" className="flex h-10 shrink-0 items-center justify-center border-b border-sidebar-border">
           <BrandTile className="size-7" />
         </div>
 
