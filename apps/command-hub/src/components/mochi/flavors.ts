@@ -60,8 +60,8 @@ export const FLAVORS: readonly [name: string, hue: number, chroma: number, light
   ["White sesame", 80, 0.015, 0.1],
 ]
 
-/** The app icon's own colors, kept exact for the Coordinator. */
-const CLASSIC: MochiPalette = { t0: '#6f9a72', t1: '#3d6b52', b0: '#f8f1e0', b1: '#dccaa4', acc: '#24503a', pop: '#ffcf7a', onacc: '#ffffff' }
+/** The app icon's own colors (Muted Sage), kept exact for the Coordinator. */
+const CLASSIC: MochiPalette = { t0: '#93a68f', t1: '#5c7459', b0: '#f8f1e0', b1: '#dccaa4', acc: '#2f4a33', pop: '#e8d4a8', onacc: '#ffffff' }
 
 export const FLAVOR_NAMES = ['Classic', ...FLAVORS.map((f) => f[0])]
 
