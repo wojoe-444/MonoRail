@@ -41,14 +41,15 @@ function markup(role: MochiRoleId, uid: string, small: boolean): string {
   return (
     `<defs><linearGradient id="t${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--t0)"/><stop offset="1" style="stop-color:var(--t1)"/></linearGradient>` +
     `<radialGradient id="d${uid}" cx=".36" cy=".28" r=".85"><stop offset="0" stop-color="#fff"/><stop offset=".45" style="stop-color:var(--b0)"/><stop offset="1" style="stop-color:var(--b1)"/></radialGradient>` +
+    `<linearGradient id="g${uid}" gradientUnits="userSpaceOnUse" x1="26" y1="120" x2="230" y2="176"><stop offset="0" stop-color="#9a8558"/><stop offset=".22" stop-color="#f7ead0"/><stop offset=".45" stop-color="#cbb58a"/><stop offset=".62" stop-color="#fff8e8"/><stop offset=".82" stop-color="#cbb58a"/><stop offset="1" stop-color="#9a8558"/></linearGradient>` +
     `<filter id="s${uid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>` +
     `<clipPath id="k${uid}"><rect x="12" y="12" width="232" height="232" rx="56"/></clipPath></defs>` +
     `<rect x="12" y="12" width="232" height="232" rx="56" fill="url(#t${uid})"/><g clip-path="url(#k${uid})">` +
-    (small ? '' : (r.tile ?? '')) +
+    (small ? '' : (r.tile ?? '').replaceAll('url(#R)', `url(#g${uid})`)) +
     `<ellipse cx="128" cy="192" rx="58" ry="10" fill="${INK}" opacity=".35" filter="url(#s${uid})"/><path d="${b.path}" fill="url(#d${uid})"/>` +
     eyes(r.eyes, r.body, r.eyeOffset) +
     (r.head ?? '') +
-    (r.front ?? '').replaceAll('url(#D)', `url(#d${uid})`) +
+    (r.front ?? '').replaceAll('url(#D)', `url(#d${uid})`).replaceAll('url(#R)', `url(#g${uid})`) +
     '</g>'
   )
 }

@@ -3,7 +3,8 @@
 // flavor's CSS variables (--t0 --t1 tile, --b0 --b1 dough, --acc deep accent,
 // --pop bright accent, --onacc ink on the accent) plus a few fixed colors for
 // props that stop reading in other colors (hard hats, laurel, cape).
-// `url(#D)` is the dough gradient; MochiAvatar swaps in a per-instance id.
+// `url(#D)` is the dough gradient and `url(#R)` the champagne ring gradient
+// (the Coordinator's halo); MochiAvatar swaps in per-instance ids.
 // Eyes and the body come from BODIES / eye kinds in MochiAvatar.
 
 export type MochiBody = 'gumdrop' | 'tall' | 'squat'
@@ -38,8 +39,8 @@ export const MOCHI_ROLES: Record<MochiRoleId, MochiRole> = {
     flavor: "Classic",
     body: "gumdrop",
     eyes: "dots",
-    tile: "<g transform=\"rotate(-14 128 146)\"><path d=\"M26 146a102 32 0 0 1 204 0\" fill=\"none\" stroke=\"#fbf6e8\" stroke-opacity=\".55\" stroke-width=\"10\" stroke-linecap=\"round\"/></g>",
-    front: "<g transform=\"rotate(-14 128 146)\"><path d=\"M26 146a102 32 0 0 0 204 0\" fill=\"none\" stroke=\"#fbf6e8\" stroke-width=\"10\" stroke-linecap=\"round\"/><circle cx=\"200\" cy=\"168\" r=\"13\" fill=\"#ffcf7a\"/></g>",
+    tile: "<g transform=\"rotate(-14 128 146)\"><path d=\"M26 146a102 32 0 0 1 204 0\" fill=\"none\" stroke=\"url(#R)\" stroke-opacity=\".5\" stroke-width=\"10\" stroke-linecap=\"round\"/></g>",
+    front: "<g transform=\"rotate(-14 128 146)\"><path d=\"M26 146a102 32 0 0 0 204 0\" fill=\"none\" stroke=\"url(#R)\" stroke-width=\"10\" stroke-linecap=\"round\"/><circle cx=\"200\" cy=\"168\" r=\"13\" fill=\"#fff1d0\"/><circle cx=\"196\" cy=\"164\" r=\"4\" fill=\"#fff\" opacity=\".55\"/></g>",
   },
   strategist: {
     label: "Strategist",

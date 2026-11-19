@@ -13,7 +13,7 @@ You'll see them on the **Agents** page next to each subagent definition, in **Ch
 ## A character is a role plus a flavor
 
 - **Role**: what the character is doing. It sets the body shape, the eyes, the headwear, the props it holds and the props on the tile behind it. There are 26 roles, from Coordinator and Planner to Journaler and Dreamer, plus a plain **Agent** for anything that doesn't match.
-- **Flavor**: the colors. There are 42 flavors plus **Classic**, the app icon's own green, which only the Coordinator uses. Every role works in every flavor.
+- **Flavor**: the colors. There are 42 flavors plus **Classic**, the app icon's own muted sage green, which only the Coordinator uses. Every role works in every flavor.
 
 ## How an agent gets its character
 
@@ -28,7 +28,7 @@ Nothing is stored. The character is worked out each time it's drawn, from the na
 
 All of the code is in `src/components/mochi/`.
 
-- `characters.ts`: one entry per role. Each layer is a short piece of SVG on a 256×256 canvas, drawn with the flavor's CSS variables: `--t0`/`--t1` for the tile, `--b0`/`--b1` for the dough, `--acc` for the deep accent, `--pop` for the bright accent and `--onacc` for ink on the accent. A few props keep a fixed color because they stop reading in any other: the two hard hats, the laurel and the cape.
+- `characters.ts`: one entry per role. Each layer is a short piece of SVG on a 256×256 canvas, drawn with the flavor's CSS variables: `--t0`/`--t1` for the tile, `--b0`/`--b1` for the dough, `--acc` for the deep accent, `--pop` for the bright accent and `--onacc` for ink on the accent. A few props keep a fixed color because they stop reading in any other: the two hard hats, the laurel, the cape and the Coordinator's champagne halo (`url(#R)`, a gradient MochiAvatar defines per instance, like the dough's `url(#D)`).
 - `flavors.ts`: each flavor is three numbers (OKLCH hue, chroma and lightness shift), and `expandFlavor()` works out every color from them. The accessory color is darkened step by step until it reaches 3:1 contrast against its own tile. Very dark tiles get a light accessory instead.
 - `MochiAvatar.tsx`: `<MochiAvatar role flavor size />` draws a character, and `<AgentMochi name description />` picks the role and flavor first. Below 40 px the tile props are left out so the character stays readable.
 
