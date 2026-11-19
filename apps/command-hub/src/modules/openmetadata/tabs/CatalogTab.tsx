@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Cable, Database, Workflow } from 'lucide-react'
+import { Cable, Database, Loader2, Workflow } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SearchField } from '@/components/ui/search-field'
 import { prefs } from '@/lib/prefs'
 import { navigate } from '@/lib/router'
 import { call as ingestionCall } from '@/modules/ingestion/api'
@@ -15,8 +17,10 @@ import { EntityList } from '../EntityList'
 import { EntityView } from '../EntityView'
 import { Overview } from '../Overview'
 import { takePendingView } from '../tabs'
+import { TypeTile } from '../parts'
 import { TypeNav } from '../TypeNav'
-import type { View } from '../util'
+import { displayName, type View } from '../util'
+import { fqnOf, useAssetSearch } from './assets'
 import type { OmTabProps } from './types'
 
 const TYPE_KEY = 'monorail.openmetadata.type'
@@ -34,7 +38,9 @@ export default function CatalogTab({ status, counts, source, reload }: OmTabProp
     const type = prefs.getItem(TYPE_KEY) ?? undefined
     return typeInfo(type) ? { type } : {}
   })
+  const [query, setQuery] = useState('')
   const setView = (v: View) => {
+    setQuery('')
     setViewState(v)
     if (v.type) prefs.setItem(TYPE_KEY, v.type)
     else prefs.removeItem(TYPE_KEY)
@@ -54,10 +60,22 @@ export default function CatalogTab({ status, counts, source, reload }: OmTabProp
     <div className="flex flex-col gap-6">
       {source === 'bigquery' && status.bigquery && <BigQueryNote status={status.bigquery} onChanged={reload} />}
       {source === 'local' && <LocalNote serverSetUp={!!status.serverSetUp} empty={!!counts.data && Object.values(counts.data).every((n) => n === 0)} />}
+      <SearchField
+        className="max-w-xl"
+        aria-label="Search tables by name"
+        placeholder="Search tables by name"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setQuery('')
+        }}
+      />
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <TypeNav current={view.type} counts={counts.data} onChoose={(type) => setView(type ? { type } : {})} />
         <div className="min-w-0">
-          {!view.type ? (
+          {query.trim() ? (
+            <TableSearch query={query} onOpen={setView} />
+          ) : !view.type ? (
             <Overview status={status} counts={counts.data} countsError={counts.error} onOpen={setView} />
           ) : view.fqn ? (
             <EntityView key={`${view.type}|${view.fqn}`} type={view.type} fqn={view.fqn} onOpen={setView} />
@@ -67,6 +85,72 @@ export default function CatalogTab({ status, counts, source, reload }: OmTabProp
         </div>
       </div>
     </div>
+  )
+}
+
+const TABLE_TYPES = ['table']
+
+/**
+ * Tables whose name matches, across the whole catalog (the backend's search,
+ * best matches first), shown in place of the current view while there is text
+ * in the Catalog's search field. Opening one clears the search.
+ */
+function TableSearch({ query, onOpen }: { query: string; onOpen: (v: View) => void }) {
+  const search = useAssetSearch(query, TABLE_TYPES, { limit: 100 })
+  const rows = search.rows ?? []
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TypeTile type="table" className="size-7" />
+          <span className="min-w-0 truncate">Tables matching “{query.trim()}”</span>
+          {search.rows && (
+            <Badge variant="secondary" className="tabular-nums">
+              {search.total}
+            </Badge>
+          )}
+          {search.loading && search.rows && <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Searching" />}
+        </CardTitle>
+        <CardDescription>Searches the name of every table in the catalog. Press Esc to go back.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {!search.rows ? (
+          search.error ? (
+            <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">
+              {search.error}
+            </p>
+          ) : (
+            <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Searching…
+            </p>
+          )
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">{search.error ?? 'No table names match.'}</p>
+        ) : (
+          <ul className="flex flex-col divide-y">
+            {rows.map((e) => {
+              const fqn = fqnOf(e)
+              return (
+                <li key={e.id}>
+                  <button type="button" className="flex w-full min-w-0 flex-col rounded-md px-2 py-3 text-left hover:bg-muted/50" onClick={() => onOpen({ type: 'table', fqn })}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-medium">{displayName(e)}</span>
+                      {e.deleted && <Badge variant="outline">Deleted</Badge>}
+                    </span>
+                    <span className="block truncate font-mono text-xs text-muted-foreground">{fqn}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {search.rows && search.total > rows.length && (
+          <p className="text-xs text-muted-foreground tabular-nums">
+            The best {rows.length} of {search.total} matches. Type more of the name to narrow it down.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
