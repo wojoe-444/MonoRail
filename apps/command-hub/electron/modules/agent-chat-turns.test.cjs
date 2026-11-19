@@ -1,6 +1,8 @@
 // Tests for Agent Chat turns and options, with stand-in workers (no SDK, no network).
 const assert = require('node:assert/strict')
 const { spawn } = require('node:child_process')
+const { EventEmitter } = require('node:events')
+const { PassThrough } = require('node:stream')
 const test = require('node:test')
 
 const turns = require('./agent-chat-turns.cjs')
@@ -119,6 +121,37 @@ test('onFinish events (the turn cost) arrive before the status flips', async () 
     return p.status !== 'running' && p
   })
   assert.equal(r.events.find((e) => e.t === 'cost').turnUsd, 0.5)
+})
+
+test('pi books usage exactly once when a turn stops, times out, crashes or finishes', async (t) => {
+  const chat = require('./agent-chat.cjs').methods
+  const spending = require('./agent-chat-spending.cjs')
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'monorail-turn-cost-'))
+  const repo = path.join(dataDir, 'demo')
+  fs.mkdirSync(path.join(repo, '.git'), { recursive: true })
+  fs.writeFileSync(path.join(dataDir, 'folders.json'), JSON.stringify({ reposRoot: dataDir }))
+  t.mock.method(opts, 'findClaudeExecutable', () => undefined)
+  t.mock.method(opts, 'findPiSdk', () => ({ entry: 'fake-pi' }))
+  const startTurn = turns.startTurn
+
+  for (const status of ['stopped', 'timed_out', 'failed', 'done']) {
+    await t.test(status, async (t) => {
+      spending.reset(dataDir)
+      spending.saveSettings(dataDir, { enabled: true, dailyUsd: 10 })
+      const child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stdin: new PassThrough(), exitCode: 0 })
+      t.mock.method(turns, 'startTurn', (args) => startTurn({ ...args, spawnWorker: () => child, timeoutMs: 30 }))
+      const { turnId } = await chat.startTurn({ dataDir }, { ...job, repo, sdk: 'pi' })
+      if (status === 'failed') child.emit('exit', 1)
+      child.stdout.write('{"t":"usage","costUsd":0.25}\n')
+      if (status === 'done') child.stdout.write('{"t":"result","costUsd":0.5}\n')
+      if (status === 'stopped') turns.stopTurn(turnId)
+      if (status === 'timed_out') await waitFor(() => turns.pollTurn(turnId).status !== 'running')
+      child.emit('close', status === 'done' ? 0 : 1)
+      turns.stopTurn(turnId)
+      assert.equal(turns.pollTurn(turnId).status, status)
+      assert.equal(spending.getStatus(dataDir).daily.spent, status === 'done' ? 0.5 : 0.25)
+    })
+  }
 })
 
 // ---------------------------------------------------------------------------

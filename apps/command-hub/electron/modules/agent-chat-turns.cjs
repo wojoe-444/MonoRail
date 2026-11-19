@@ -67,7 +67,8 @@ function startTurn({ chatKey, worker, meta, onFinish, lock, spawnWorker = defaul
   running.set(chatKey, id)
 
   const finish = (status, extra) => {
-    if (turn.endedAt) return
+    if (!turn.finish) return
+    turn.finish = undefined
     if (extra) push(turn, extra)
     // Bookkeeping (e.g. the turn's cost) lands before the status flips, so a
     // poll that sees the end also sees it.
@@ -83,6 +84,7 @@ function startTurn({ chatKey, worker, meta, onFinish, lock, spawnWorker = defaul
     releaseAll(turn)
     log('turn ended', { session: turn.sessionId ?? null, sdk: meta.sdk, model: meta.model, mode: meta.mode, end: status })
   }
+  turn.finish = finish
 
   log('turn started', { session: meta.resume ?? null, sdk: meta.sdk, model: meta.model, mode: meta.mode })
   const child = spawnWorker()
@@ -90,6 +92,7 @@ function startTurn({ chatKey, worker, meta, onFinish, lock, spawnWorker = defaul
   let buf = ''
   child.stdout.setEncoding('utf8')
   child.stdout.on('data', (chunk) => {
+    if (!turn.finish) return
     buf += chunk
     let nl
     while ((nl = buf.indexOf('\n')) !== -1) {
@@ -119,13 +122,15 @@ function startTurn({ chatKey, worker, meta, onFinish, lock, spawnWorker = defaul
         }
       }
       if (event.t === 'result') turn.result = event
+      if (event.t === 'usage' && typeof event.costUsd === 'number') turn.usageCostUsd = (turn.usageCostUsd ?? 0) + event.costUsd
       push(turn, event)
     }
   })
   child.stderr?.resume() // drained, never logged
   child.on('error', (err) => finish('failed', { t: 'error', message: `Could not start the worker: ${err.message}` }))
-  child.on('exit', (code) => {
-    if (turn.endedAt) return
+  // A crashed process can still have usage waiting in its stdout pipe.
+  child.on('close', (code) => {
+    if (!turn.finish) return
     const ok = code === 0 && turn.result && !turn.result.isError
     finish(ok ? 'done' : 'failed', ok || turn.events.some((e) => e.t === 'error') ? undefined : { t: 'error', message: 'The turn ended without a reply.' })
   })
@@ -171,16 +176,9 @@ function pollTurn(turnId, after = 0) {
 
 function stopTurn(turnId) {
   const turn = turns.get(turnId)
-  if (!turn || turn.endedAt) return
+  if (!turn?.finish) return
   killTree(turn.child)
-  // Mark it now; the exit event that follows is ignored.
-  turn.status = 'stopped'
-  turn.endedAt = Date.now()
-  clearTimeout(turn.timer)
-  push(turn, { t: 'stopped' })
-  for (const k of turn.keys) if (running.get(k) === turn.id) running.delete(k)
-  releaseAll(turn)
-  log('turn ended', { session: turn.sessionId ?? null, sdk: turn.meta.sdk, model: turn.meta.model, mode: turn.meta.mode, end: 'stopped' })
+  turn.finish('stopped', { t: 'stopped' })
 }
 
 /** Running turn for a chat, so a reopened page can pick it up again. */
