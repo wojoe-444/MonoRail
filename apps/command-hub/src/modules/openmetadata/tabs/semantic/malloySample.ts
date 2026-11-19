@@ -8,7 +8,7 @@ const ORDERS = `// Lantern Coffee: orders and what is on them.
 import "dimensions.malloy"
 
 #" One row per order placed in a store or online.
-source: orders is duckdb.table('marts/fct_orders.parquet') extend {
+source: orders is bigquery.table('lantern-demo.marts.fct_orders') extend {
   primary_key: order_id
 
   join_one: customers with customer_id
@@ -45,7 +45,7 @@ source: orders is duckdb.table('marts/fct_orders.parquet') extend {
   }
 }
 
-source: order_items is duckdb.table('marts/fct_order_items.parquet') extend {
+source: order_items is bigquery.table('lantern-demo.marts.fct_order_items') extend {
   primary_key: order_item_id
   join_one: products with product_id
 
@@ -69,7 +69,7 @@ query: monthly_kpis is orders -> {
 const DIMENSIONS = `// Shared dimension sources for Lantern Coffee.
 
 #" Everyone who has ordered at least once.
-source: customers is duckdb.table('core/dim_customers.parquet') extend {
+source: customers is bigquery.table('lantern-demo.core.dim_customers') extend {
   primary_key: customer_id
   dimension:
     region is home_region
@@ -78,13 +78,13 @@ source: customers is duckdb.table('core/dim_customers.parquet') extend {
   measure: customer_count is count()
 }
 
-source: stores is duckdb.table('core/dim_stores.parquet') extend {
+source: stores is bigquery.table('lantern-demo.core.dim_stores') extend {
   primary_key: store_id
   dimension: city is store_city, store_format is format
   measure: store_count is count()
 }
 
-source: products is duckdb.table('core/dim_products.parquet') extend {
+source: products is bigquery.table('lantern-demo.core.dim_products') extend {
   primary_key: product_id
   dimension:
     category is product_category

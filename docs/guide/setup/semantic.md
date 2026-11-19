@@ -12,8 +12,8 @@ semantic layer engine, the `mf` command) your agents can query them.
 
 You browse it on the [OpenMetadata](../openmetadata.md#the-tabs) page (the
 shapes icon under **Insights**), in its **Semantic models**, **Metrics** and
-**Query builder** tabs. The **Malloy models** tab shows any Malloy files in
-the same project folder.
+**Query builder** tabs (pick **MetricFlow** in their switch; they start on
+[Malloy](malloy.md)).
 
 ## It is optional, twice
 

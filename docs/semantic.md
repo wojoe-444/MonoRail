@@ -7,10 +7,10 @@ summary: Reference for the MetricFlow connector and its backend: files, what it 
 
 There is no Semantic page of its own: the `/semantic` route shows the
 [OpenMetadata](guide/openmetadata.md#the-tabs) page, whose **Semantic models**,
-**Metrics**, **Query builder** and **Malloy models** tabs
-(`src/modules/openmetadata/tabs/`) call this backend. Explore, Services and
-the MCP server use it too. `malloyModels` lists the `*.malloy` files in the
-project folder for the Malloy tab: relative paths and text, read-only.
+**Metrics** and **Query builder** tabs (`src/modules/openmetadata/tabs/`)
+call this backend when their engine switch is on MetricFlow (Malloy is the
+default; see [malloy.md](malloy.md)). Explore, Services and the MCP server use
+it too.
 
 People: see the guide, [Semantic (MetricFlow)](guide/setup/semantic.md).
 

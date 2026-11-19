@@ -9,14 +9,30 @@ import { takeQueryDraft, type QueryDraft } from './semantic/handoff'
 import { SemanticFrame } from './semantic/project'
 import { useSemanticProject } from './semantic/useSemanticProject'
 import { QueryBuilder } from './semantic/QueryBuilder'
+import { useSemanticEngine } from './semantic/engine'
+import { EngineSwitch } from './semantic/EngineSwitch'
+import { MalloyQueryTab } from './semantic/MalloyQueryBuilder'
 import type { OmTabProps } from './types'
+
+/**
+ * Query builder, on Malloy (default) or MetricFlow; the engine switch is remembered per person.
+ */
+export default function QueryTab(_props: OmTabProps) {
+  const [engine, setEngine] = useSemanticEngine()
+  return (
+    <div className="flex flex-col gap-6">
+      <EngineSwitch engine={engine} onChange={setEngine} />
+      {engine === 'malloy' ? <MalloyQueryTab /> : <MetricFlowQuery />}
+    </div>
+  )
+}
 
 /**
  * Query builder: the semantic layer's metrics through the user's own
  * MetricFlow. A metric, measure or saved query from another tab arrives as a
  * draft (filled in, never run by itself).
  */
-export default function QueryTab(_props: OmTabProps) {
+function MetricFlowQuery() {
   const state = useSemanticProject()
   const [draft, setDraft] = useState<QueryDraft | undefined>(takeQueryDraft)
 

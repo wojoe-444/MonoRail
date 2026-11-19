@@ -614,9 +614,25 @@ verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
 `semantic` (docs: `docs/semantic.md`, guide `docs/guide/setup/semantic.md`) is a
 dbt project's semantic layer, powered by the user's own MetricFlow (`mf`).
 It has no module or nav item of its own: its UI is the OpenMetadata page's
-Semantic models, Metrics, Query builder and Malloy models tabs
-(`src/modules/openmetadata/tabs/`). `malloyModels` lists the `*.malloy`
-files in the project folder (relative paths and text only, read-only).
+Metrics tab and the MetricFlow side of the Semantic models and Query builder
+tabs (`src/modules/openmetadata/tabs/`; their engine switch defaults to
+Malloy, below).
+
+`malloy` (docs: `docs/malloy.md`, guide `docs/guide/setup/malloy.md`) runs
+**real Malloy** (`@malloydata/malloy`, `@malloydata/db-bigquery`) for the
+OpenMetadata page's Semantic models, Query builder and Malloy models tabs.
+Connector `malloy` (`parent: 'gcloud'`: models folder, billing project,
+location, "Run queries on BigQuery" off by default, scan limit 1 GB). All of it
+is in `electron/modules/malloy-lib.cjs` (no Electron): models are the folder's
+`*.malloy` files (relative paths only, real-path checked, links never
+followed, imports through a URL reader with the same checks, never written);
+`compile` returns the compiler's outline or problems (schemas via BigQuery
+`tables.get`, free); `sql` compiles and dry-runs; `run` only with running
+on, only SQL starting SELECT/WITH, dry-run first and refused over the limit,
+`maximumBytesBilled` set, 1000 rows, 2 at a time. Auth is the gcloud
+connector's access token in a `google-auth-library` `OAuth2Client`
+(`authClient`), memory only, refreshed once on a 401, redacted from errors.
+BigQuery is the only connection. Page client: `tabs/semantic/malloyClient.ts`.
 **Opt-in twice:** nothing runs until the user adds the
 **MetricFlow** connector (`connectors/metricflow.cjs`: project folder, and
 "Run queries with MetricFlow", off by default); browsing reads only
@@ -1361,7 +1377,7 @@ the module), shown as chips in a **command bar** in the top bar
 style A; `TopBarSlot.tsx` lets a page take the breadcrumb's place). The shell
 (`OpenMetadataPage.tsx`) owns status, the source switch and Refresh;
 `catalog: true` tabs wait for the catalog and get `OmTabProps`, the semantic
-tabs (MetricFlow, `semantic` backend) render without it. Other tabs open an
+tabs (Malloy and MetricFlow) render without it. Other tabs open an
 entity in Catalog with `openInCatalog({ type, fqn })` (in memory). Catalog
 keeps its place in component state. Connector `openmetadata` (`electron/connections/connectors/`): server
 (https, or http on localhost) plus a bot token, or an email and password

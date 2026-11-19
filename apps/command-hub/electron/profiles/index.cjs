@@ -84,6 +84,7 @@ const SCOPES = Object.freeze({
   'modules/scheduled': 'machine', // Windows tasks; keeps no files
   'modules/docker': 'machine', // this computer's Docker; keeps no files
   'modules/semantic': 'profile', // dbt project and MetricFlow (settings in Connections); keeps no files
+  'modules/malloy': 'profile', // Malloy models folder and BigQuery settings (in Connections); keeps no files
   'modules/remote': 'machine', // Remote access: this PC's server, paired devices, activity
   // App backends (electron/apps)
   'apps/email': 'profile', // accounts and encrypted tokens

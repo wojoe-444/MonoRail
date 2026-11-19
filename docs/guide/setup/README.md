@@ -33,6 +33,8 @@ to them:
   schedule, under **Settings > Services**.
 - [Semantic (MetricFlow)](semantic.md): connect your dbt project's metrics
   and MetricFlow, for Explore, Services and your agents.
+- [Malloy](malloy.md): connect a folder of Malloy models and run their
+  queries on BigQuery from the OpenMetadata page.
 
 Two pages are worth knowing before you change anything:
 

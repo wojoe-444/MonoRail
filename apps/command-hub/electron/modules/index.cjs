@@ -41,6 +41,7 @@ const moduleBackends = [
   require('./docker.cjs'),
   require('./files.cjs'),
   require('./semantic.cjs'),
+  require('./malloy.cjs'),
   require('./flashcards.cjs'),
   require('./flows.cjs'),
   require('./home.cjs'),

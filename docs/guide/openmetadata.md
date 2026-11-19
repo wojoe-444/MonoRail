@@ -107,11 +107,16 @@ forward works, and the source switch (**This PC / BigQuery / Server**) and
 - **Explore**: search and filter the data assets (tables, dashboards,
   pipelines and more) by name, type, service, owner or tag.
 - **Lineage**: pick an asset and see its [lineage](#lineage) as a graph.
-- **Semantic models**, **Metrics** and **Query builder**: your
-  [semantic layer](setup/semantic.md), powered by MetricFlow. They need the
-  MetricFlow connection, not an OpenMetadata catalog.
-- **Malloy models**: the Malloy files in the same project folder, with their
-  sources, joins, dimensions, measures and views. MonoRail only reads them.
+- **Semantic models** and **Query builder**: your semantic layer. By
+  default they show your [Malloy](setup/malloy.md) models: every source with
+  its joins and fields, and a builder that runs queries on BigQuery. A
+  **Malloy / MetricFlow** switch shows your [MetricFlow](setup/semantic.md)
+  project instead.
+- **Metrics**: your MetricFlow metrics, with their definitions and lineage.
+- **Malloy models**: each Malloy file, compiled, with any errors, its sources
+  and fields, and a workbench to run its views or a query you type.
+  These tabs need the Malloy or MetricFlow connection, not an OpenMetadata
+  catalog.
 - **Glossary**, **Classifications** and **Domains**: business terms, tags
   such as PII or Tier, and domains with their data products.
 - **Data quality**: test cases and suites with their latest results.

@@ -14,7 +14,23 @@ import { TYPE_TONE } from './semantic/metricTypes'
 import { Chips, Empty, Overline } from './semantic/parts'
 import { SemanticFrame } from './semantic/project'
 import { useSemanticProject } from './semantic/useSemanticProject'
+import { useSemanticEngine } from './semantic/engine'
+import { EngineSwitch } from './semantic/EngineSwitch'
+import { MalloySemanticModels } from './semantic/MalloySources'
 import type { OmTabProps } from './types'
+
+/**
+ * Semantic models, from Malloy (default) or MetricFlow; the engine switch is remembered per person.
+ */
+export default function SemanticModelsTab(_props: OmTabProps) {
+  const [engine, setEngine] = useSemanticEngine()
+  return (
+    <div className="flex flex-col gap-6">
+      <EngineSwitch engine={engine} onChange={setEngine} />
+      {engine === 'malloy' ? <MalloySemanticModels /> : <MetricFlowSemanticModels />}
+    </div>
+  )
+}
 
 /**
  * The dbt project's semantic models: one card each (table, primary entity,
@@ -22,7 +38,7 @@ import type { OmTabProps } from './types'
  * and the metrics built on it. Shaped after the MonoRail-Metadata app's
  * Semantic models page, read from MetricFlow's semantic manifest.
  */
-export default function SemanticModelsTab(_props: OmTabProps) {
+function MetricFlowSemanticModels() {
   const state = useSemanticProject()
   const [open, setOpen] = useState<string | undefined>(takeSemanticModel)
   return (
