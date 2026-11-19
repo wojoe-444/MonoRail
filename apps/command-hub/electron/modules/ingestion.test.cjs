@@ -229,6 +229,38 @@ describe('ingestion service', () => {
     assert.match(list.lastRun.error, /dbt_project\.yml/)
   })
 
+  test('a scheduled run reserves the pipeline while loading credentials and releases it on failure', async () => {
+    const dir = tmp()
+    let clock = new Date(2026, 10, 18, 10, 0)
+    const connections = fakeConnections({ added: { metricflow: { project: path.join(dir, 'missing') } } })
+    const started = Promise.withResolvers()
+    const credentials = Promise.withResolvers()
+    let credentialReads = 0
+    connections.getCredentials = () => {
+      if (++credentialReads > 1) return Promise.resolve({ project: path.join(dir, 'missing') })
+      started.resolve()
+      return credentials.promise
+    }
+    const svc = createIngestion({ dataDir: dir, deps: { db: newDb(), now: () => clock, connections } })
+    const p = await svc.savePipeline({
+      pipeline: { serviceKind: 'metricflow', pipelineType: 'dbt', name: 'shop_dbt', airflowConfig: { scheduleInterval: '0 * * * *' }, deploy: true },
+    })
+    clock = new Date(2026, 10, 18, 11, 30)
+    const scheduled = svc.tick()
+    await started.promise
+    try {
+      await assert.rejects(svc.run({ id: p.id }), /already running/)
+    } finally {
+      credentials.reject(new Error('Credentials unavailable'))
+      await scheduled
+    }
+    assert.equal(svc._running.has(p.id), false)
+    connections.getCredentials = async () => ({ project: path.join(dir, 'missing') })
+    const { runId } = await svc.run({ id: p.id })
+    await waitIdle(svc)
+    assert.deepEqual((await svc.runs({ id: p.id })).map((r) => r.runId), [runId])
+  })
+
   test('the scheduler runs only deployed, enabled pipelines that are due, once for missed runs', async () => {
     const dir = tmp()
     let clock = new Date(2026, 10, 18, 10, 0)

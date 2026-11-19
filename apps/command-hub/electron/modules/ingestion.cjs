@@ -310,19 +310,28 @@ function createIngestion({ dataDir, deps = {} }) {
   /** Start a run. Returns at once with the run id; the page polls `runs`. */
   async function startRun(p, { trigger = 'manual', attempt = 0 } = {}) {
     if (running.has(p.id)) throw new Error('This pipeline is already running.')
-    const kind = p.extension?.monorail?.serviceKind
-    const creds = await connections().getCredentials(kind)
     const startDate = now().getTime()
     const log = []
     const status = { runId: randomUUID(), pipelineState: 'running', startDate, timestamp: startDate, status: [], log, extension: { monorail: { trigger, attempt } } }
     const control = {}
     const entry = { status, control, killed: false }
     running.set(p.id, entry)
+    const release = () => {
+      if (running.get(p.id) === entry) running.delete(p.id)
+    }
     const addLog = (line, level = 'INFO') => log.push(`${stamp()} ${level.padEnd(5)} ${line}`)
-    addLog(`Starting ${p.name} (${p.pipelineType}, ${trigger}${attempt ? `, retry ${attempt}` : ''})`)
-    await st().saveRun(p.id, { ...status, log: [...log] })
+    let creds
+    try {
+      creds = await connections().getCredentials(p.extension?.monorail?.serviceKind)
+      addLog(`Starting ${p.name} (${p.pipelineType}, ${trigger}${attempt ? `, retry ${attempt}` : ''})`)
+      await st().saveRun(p.id, { ...status, log: [...log] })
+    } catch (e) {
+      release()
+      throw e
+    }
     const finished = (async () => {
       try {
+        if (entry.killed) throw new Error('The run was killed.')
         const steps = await local.runLocal(p, {
           creds,
           log: (l) => addLog(l),
@@ -341,7 +350,6 @@ function createIngestion({ dataDir, deps = {} }) {
       status.endDate = now().getTime()
       status.timestamp = status.endDate
       addLog(`Finished with status ${status.pipelineState}`)
-      running.delete(p.id)
       await st().saveRun(p.id, { ...status, log: [...log] }).catch((e) => console.error('[ingestion] could not save run', e))
       // Scheduled runs retry as OpenMetadata's Airflow tasks do: retries times, retryDelay apart.
       const retries = p.airflowConfig?.retries ?? 0
@@ -357,7 +365,7 @@ function createIngestion({ dataDir, deps = {} }) {
           }, (p.airflowConfig?.retryDelay ?? 300) * 1000),
         )
       }
-    })()
+    })().finally(release)
     entry.finished = finished
     return { runId: status.runId }
   }
