@@ -17,9 +17,9 @@ entity, adopted as it is (see the [rules](../../README.md#rules)).
 
 ## In MonoRail
 
-The [OpenMetadata page](../../../guide/openmetadata.md) lists them from your
+The [OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your
 own OpenMetadata server. Inside MonoRail there are none yet. No MonoRail source has stored procedures, so
-[Explore](../../../guide/explore.md) shows this type empty until one does
+[Explore](../../../guide/data/explore.md) shows this type empty until one does
 ([the hierarchy](README.md#the-hierarchy) shows where it fits).
 
 ## Fields

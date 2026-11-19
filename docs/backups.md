@@ -1,8 +1,9 @@
 ---
-audience: human
+audience: ai
+summary: Technical reference for backup folder layout, per-repo overrides, pre-update backups and scheduling internals.
 ---
 
-# Backups
+# Backups (reference)
 
 MonoRail can copy your local work to a folder on this computer on a schedule,
 for example a folder that OneDrive already syncs. MonoRail itself never uploads

@@ -16,7 +16,7 @@ A reusable prompt for AI agents, with variables, a system prompt and examples. I
 ## In MonoRail
 
 MonoRail's own prompt templates, kept on the Catalog's Prompts page, are
-Prompt Templates. [Explore](../../../guide/explore.md) lists each one in
+Prompt Templates. [Explore](../../../guide/data/explore.md) lists each one in
 OpenMetadata's shape:
 
 | Field | From MonoRail's template |
@@ -28,7 +28,7 @@ OpenMetadata's shape:
 | `updatedAt` | When its newest version was saved |
 | `extension.versions` | Every saved version's number, name and time (MonoRail keeps them all; OpenMetadata has no field for that) |
 
-The [OpenMetadata page](../../../guide/openmetadata.md) shows the ones in
+The [OpenMetadata page](../../../guide/data/openmetadata.md) shows the ones in
 your own OpenMetadata server.
 
 ## Fields

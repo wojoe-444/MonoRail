@@ -10,7 +10,7 @@ The MonoRail standard names every kind of thing MonoRail knows about (an
 [entity](../guide/glossary.md#entity) type: a subagent, a note, a database, a
 user, a glossary term) and the fields each one has. Everything that lists,
 stores or shares those things uses the same names. That includes
-[Explore](../guide/explore.md), the [OpenMetadata page](../guide/openmetadata.md),
+[Explore](../guide/data/explore.md), the [OpenMetadata page](../guide/data/openmetadata.md),
 the [MCP server](../mcp.md) and extensions.
 
 **The standard is OpenMetadata.** It is
@@ -24,7 +24,7 @@ MonoRail adds its own entity types only for things OpenMetadata has no word
 for, such as [subagents](monorail/agents.md), [notes](monorail/workspace.md)
 and [flashcards](monorail/learning.md) ([MonoRail's own types](monorail/README.md)).
 
-Every entity type in the standard shows up on [Explore](../guide/explore.md),
+Every entity type in the standard shows up on [Explore](../guide/data/explore.md),
 even before MonoRail has anything of that type.
 
 ## Entity categories
@@ -66,7 +66,7 @@ has one category per kind of service, as in OpenMetadata's API reference.
 
 [Databases](data-assets/databases/README.md) is the category MonoRail fills
 itself today, starting with the [Database](data-assets/databases/database.md)
-entity. The [OpenMetadata page](../guide/openmetadata.md) shows every
+entity. The [OpenMetadata page](../guide/data/openmetadata.md) shows every
 category from your own OpenMetadata server.
 
 ## What is not an entity type
@@ -94,7 +94,7 @@ types here. They come with the entity they belong to.
    why the semantic layer's metric is `semanticMetric`: OpenMetadata's
    [`metric`](data-assets/metrics/metric.md) is a different entity.
 3. **On Explore.** Every entity type in the standard is listed on
-   [Explore](../guide/explore.md) under its category, with its fields
+   [Explore](../guide/data/explore.md) under its category, with its fields
    described from the standard.
 4. **One definition.** Each entity type has a page here, and its field table
    is generated from the same definition the app reads.

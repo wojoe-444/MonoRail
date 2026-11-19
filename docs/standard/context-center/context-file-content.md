@@ -16,8 +16,8 @@ A stored snapshot of a context file's content. It is OpenMetadata's
 ## In MonoRail
 
 MonoRail keeps none itself, and OpenMetadata serves no list of them, so the
-[OpenMetadata page](../../guide/openmetadata.md) does not show them on their
-own. [Explore](../../guide/explore.md) lists the type with 0.
+[OpenMetadata page](../../guide/data/openmetadata.md) does not show them on their
+own. [Explore](../../guide/data/explore.md) lists the type with 0.
 
 ## Fields
 

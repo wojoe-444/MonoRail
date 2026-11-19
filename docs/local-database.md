@@ -5,14 +5,14 @@ summary: MonoRail's local SQLite database: OpenMetadata entities, versions and r
 
 # The local database
 
-People: the [OpenMetadata guide](guide/openmetadata.md#without-a-server-monorails-local-database)
+People: the [OpenMetadata guide](guide/data/openmetadata.md#without-a-server-monorails-local-database)
 explains it in plain words.
 
 One SQLite file per [profile](profiles.md),
 `<profile data folder>\databases\local.sqlite3` (folder `databases`, profile
 scope in `SCOPES`; files declared in `electron/cache/declared.cjs`). It is the
 home for in-app data kept in the [MonoRail standard](standard/README.md)'s
-OpenMetadata shape, so the [OpenMetadata page](guide/openmetadata.md) can
+OpenMetadata shape, so the [OpenMetadata page](guide/data/openmetadata.md) can
 show MonoRail's own catalog with no server.
 
 ## Engine and cost
@@ -65,13 +65,13 @@ upstreamEdges, downstreamEdges }` with edges as `{ fromEntity: id, toEntity:
 id, lineageDetails }`. An end that is not stored keeps the reference the edge
 carries. Deleted edges are kept (the BigQuery copy) but never walked.
 [dbt ingestion](ingestion.md#runners) writes its edges here; the
-[OpenMetadata page](guide/openmetadata.md#lineage)'s Lineage tab reads them
+[OpenMetadata page](guide/data/openmetadata.md#lineage)'s Lineage tab reads them
 through `openmetadata.getLineage`.
 
 ## Updates keep your data
 
 An update to MonoRail never resets this database or the
-[OpenMetadata](guide/openmetadata.md) entities and [pipelines](ingestion.md) in it:
+[OpenMetadata](guide/data/openmetadata.md) entities and [pipelines](ingestion.md) in it:
 
 - The file stays in the [data folder](profiles.md), which the installer never
   touches (`deleteAppDataOnUninstall` is off) and MonoRail never moves.

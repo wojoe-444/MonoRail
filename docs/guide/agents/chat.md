@@ -1,94 +1,77 @@
 ---
 audience: human
-summary: Read your Claude Code and pi conversations, carry them on, or start new ones.
+summary: Read, continue or start Claude Code and pi conversations across your allowed repos.
 ---
 
 # Chat with your agents
 
-**Agents > Chat** brings the conversations you have had with Claude Code and
-pi on this computer into one list, whichever terminal or editor you had them
-in. Open one to read it, type to carry it on, or start a new
-[chat](../glossary.md#chat).
+**Bots** (the Chat landing page) lists every Claude Code and pi conversation on
+this computer — regardless of which terminal or editor started it. Open any
+[chat](../glossary.md#chat) to read or continue it, or start a new one.
 
 ## Which chats are listed
 
-To keep things tidy and safe, Chat only shows conversations that took place
-in folders you have allowed:
+Chat only shows conversations inside allowed folders:
 
-- any git [repository](../glossary.md#repository) directly inside your
-  `Repos` folder (in your home folder), and
-- any repository you add with **Folders** on the Chat page.
+- git [repositories](../glossary.md#repository) directly under `~/Repos`, and
+- any repository added via **Folders** on the Chat page.
 
-A chat from anywhere else is not listed, opened or continued. The same rule
-covers the [Coordinator](coordinator.md) and the chat list
-[other agents can read](agent-access.md). Chats are read where they are and
-never copied; [private data stays local](../private-data.md#what-monorail-reads-and-leaves-alone)
-says what is kept.
+Chats elsewhere are never listed or opened. The same allowlist applies to the
+[Coordinator](coordinator.md) and [agent access](agent-access.md). Logs are read
+in place and never copied
+([private data stays local](../private-data.md#what-monorail-reads-and-leaves-alone)).
 
 ## Sending a message
 
-Type in the box at the bottom and press Enter. MonoRail runs your own
-installed copy of Claude Code (or pi) to answer, signed in the way you signed
-it in; the [Claude connection](../setup/connections.md#the-connections) shows
-which login that is. Pick the mode in the status bar under the box:
+Type in the composer and press **Enter**. MonoRail runs your installed Claude
+Code or pi binary under your own sign-in
+([Claude connection](../setup/connections.md#the-connections)). Choose the mode
+in the status bar:
 
-- **Ask** (the default): the agent can only read and search files in the
-  chat's folder. Good for questions.
-- **Agent**: the agent works as it normally does, under Claude Code's usual
-  permission rules. Good for getting things done.
+- **Ask** (default): read and search files only. Best for questions.
+- **Agent**: full Claude Code tool use under its usual permission rules.
 
-If the agent asks for permission to do something, MonoRail says no and shows
-the request in the conversation, so nothing happens behind your back.
-**Stop** ends a reply at once. The status bar also picks the
-[model](../glossary.md#model) and the [effort](../glossary.md#effort).
+If an agent prompts for permission, MonoRail declines automatically and shows
+the request inline so nothing runs silently. **Stop** halts a reply immediately.
+The status bar also sets the [model](../glossary.md#model) and
+[effort](../glossary.md#effort).
 
 ## Plain or Detailed
 
-**Plain** (the default) shows the conversation. **Detailed** also shows the
-agent's reasoning and, after each reply, what every model call cost. For the
-bigger picture over weeks, see [keep an eye on spending](spend.md). If you
-turned on a [spending limit](../setup/spending-limit.md#in-chat), the status
-bar also shows how much of it is used.
+**Plain** (default) shows the conversation cleanly. **Detailed** reveals model
+reasoning and per-call cost. For trends over weeks, see
+[Claude Stats](spend.md). If a
+[spending limit](../setup/spending-limit.md#in-chat) is active, the status bar
+displays your current usage.
 
 ## Keeping the list tidy
 
-- Recent chats come first, newest at the top, each with its repository
-  above the title and its branch below it.
-- Two sections sit at the bottom of the list, closed until you click them
-  (the page remembers which you opened):
-  - **Working**: chats with a reply running right now that was sent from
-    MonoRail, on this page or from your phone. Chats the
-    [Coordinator](coordinator.md) messages for you are not counted yet.
-  - **Settled**: chats you have read that have had no activity for two
-    days. A new reply brings a chat back to the top.
-- A dot marks chats with something new since you last looked.
-- Right-click a chat to mark it read or unread, or to archive it.
-- Chats started by scheduled jobs are tagged **Scheduled** and tucked away
-  behind a button, like archived ones.
+- Active chats appear newest first with repository and branch labels; a dot
+  marks unread replies.
+- Two collapsible sections sit at the bottom: **Working** (replies currently
+  running from MonoRail or your phone, excluding Coordinator child turns) and
+  **Settled** (read chats quiet for 2+ days; new replies pull them back up).
+- Right-click any chat to mark read/unread or archive it. Scheduled-job chats
+  carry a **Scheduled** tag behind a toggle.
 
 ## Side panels
 
-- **Changes** shows what the agent changed in the chat's folder, the same
-  view [GitHub+](../workspace/browse-repos.md) gives you for a whole
-  repository.
-- **Browser** shows a web page next to the chat, handy for a local preview.
+- **Changes**: uncommitted edits in the chat's repo, matching
+  [GitHub+](../workspace/browse-repos.md).
+- **Browser**: a side-by-side web view for local previews.
 
 ## Standing instructions
 
-**Prompts** in the page header lets you add your own instructions for
-Claude, pi or the [Coordinator](coordinator.md), applied to every new turn.
-They change what the agent is told, never what it is allowed to do.
+Click **Prompts** in the header to append standing instructions to every new
+Claude, pi or [Coordinator](coordinator.md) turn. They guide behavior without
+expanding permissions.
 
 ## Subagents in a chat
 
-When Claude hands work to a [subagent](create-an-agent.md), the row in the
-conversation shows that subagent's character from the
-[mochi crew](../../mochi-crew.md), so you can follow who is doing what.
+When Claude delegates to a [subagent](create-an-agent.md), its tool row shows
+its [mochi crew](mochi-crew.md) character so multi-agent turns stay scannable.
 
 ## Related
 
-- [Working with agents](README.md) for the whole picture.
-- [Use MonoRail from your phone](../setup/remote-access.md) to read and send
-  chats while away from the PC.
-- [Questions and answers](../faq.md#my-chats-dont-show-up-in-chat) if a chat
-  is missing.
+- [Working with agents](README.md) · [Remote access](../setup/remote-access.md)
+  · [Missing chats FAQ](../faq.md#my-chats-dont-show-up-in-chat)

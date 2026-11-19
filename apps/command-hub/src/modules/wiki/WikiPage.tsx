@@ -54,6 +54,7 @@ import {
   findFolder,
   findPage,
   folderChain,
+  headingsOf,
   isIndex,
   linksFrom,
   linksTo,
@@ -116,7 +117,7 @@ export default function WikiPage() {
       <PageHeader
         eyebrow="Help"
         title={page ? page.title : 'Wiki'}
-        description={page ? page.summary : 'Guides and reference for this version of MonoRail, linked together so you can follow one idea to the next. The same pages are in the repository under docs/.'}
+        description={page ? page.summary : 'Plain-language guides and technical reference for this version of MonoRail, linked like a notebook.'}
         actions={
           page && (
             <Button variant="outline" onClick={() => openExternal(`${REPO_DOCS}${page.id}.md`)}>
@@ -244,14 +245,14 @@ export function AudienceBadges({ audience, className }: { audience: Audience[]; 
 // ---------------------------------------------------------------- page tree
 
 /**
- * The page list as a folder tree, nested to any depth. Top-level folders
- * start open, deeper ones closed; the folders around the open page always
- * open. What the user opens or closes is remembered.
+ * The page list as a folder tree, nested to any depth. Guides starts open
+ * while deeper sections stay collapsed until clicked; the folders around the
+ * open page always open. What the user opens or closes is remembered.
  */
 function PageTree({ audience, current, onOpen }: { audience: AudienceFilter; current?: Page; onOpen: Open }) {
   const stored = useWikiFolders()
   const forced = new Set(current ? openPathsFor(current) : [])
-  const isOpen = (path: string, depth: number) => forced.has(path) || (stored[path] ?? depth === 0)
+  const isOpen = (path: string) => forced.has(path) || (stored[path] ?? path === 'guide')
   return (
     <div className="flex flex-col gap-0.5">
       {tree
@@ -275,10 +276,10 @@ function TreeFolder({
   depth: number
   audience: AudienceFilter
   current?: Page
-  isOpen: (path: string, depth: number) => boolean
+  isOpen: (path: string) => boolean
   onOpen: Open
 }) {
-  const open = isOpen(folder.path, depth)
+  const open = isOpen(folder.path)
   const active = current && folder.index && current.id === folder.index.id
   const visible = (n: WikiNode) =>
     n.kind === 'page' ? shows(audience, n.page) || n.page.id === current?.id : folderShows(audience, n.folder) || (!!current && folderPages(n.folder).includes(current))
@@ -338,24 +339,34 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/README': Sparkles,
   'guide/first-ten-minutes': Compass,
   'guide/private-data': ShieldCheck,
-  'guide/explore': Telescope,
   'guide/search': Search,
+  'guide/glossary': BookA,
+  'guide/faq': CircleHelp,
   'guide/agents': Bot,
   'guide/agents/chat': MessagesSquare,
   'guide/agents/create-an-agent': Plus,
+  'guide/agents/catalog': Shapes,
   'guide/agents/coordinator': Workflow,
   'guide/agents/flows': Workflow,
   'guide/agents/spend': ChartLine,
   'guide/agents/agent-access': KeyRound,
+  'guide/agents/mochi-crew': Sparkles,
   'guide/workspace': FolderGit2,
+  'guide/workspace/flashcards': GraduationCap,
+  'guide/workspace/files': FolderOpen,
+  'guide/data': Database,
+  'guide/data/explore': Telescope,
+  'guide/data/openmetadata': Shapes,
+  'guide/data/services': Workflow,
+  'guide/data/bigquery': Database,
+  'guide/data/sqlx': FileText,
+  'guide/data/malloy': Sigma,
+  'guide/data/semantic': Sigma,
   'guide/setup': Wrench,
   'guide/setup/connections': PlugZap,
-  'guide/setup/services': Workflow,
   'guide/setup/appearance': Palette,
   'guide/setup/backups-and-updates': RefreshCw,
   'guide/setup/extensions': Puzzle,
-  'guide/glossary': BookA,
-  'guide/faq': CircleHelp,
   'standard/README': Shapes,
   'standard/monorail': Sparkles,
   'standard/monorail/agents': Bot,
@@ -382,26 +393,80 @@ function WikiHome({ audience, onOpen }: { audience: AudienceFilter; onOpen: Open
   const guide = findFolder('guide')
   const standard = findFolder('standard')
   const rest = tree.filter((f) => f.path !== 'guide' && f.path !== 'standard' && folderShows(audience, f))
+
+  const guidePages = guide
+    ? [...(guide.index ? [guide.index] : []), ...guide.children.flatMap((c) => (c.kind === 'page' ? [c.page] : []))].filter((p) => shows(audience, p))
+    : []
+  const guideTopics = guide
+    ? guide.children.flatMap((c) => (c.kind === 'folder' && folderShows(audience, c.folder) ? [c.folder] : []))
+    : []
+
   return (
     <div className="flex flex-col gap-8">
-      {guide && folderShows(audience, guide) && (
-        <section className="flex flex-col gap-4">
+      {guidePages.length > 0 && (
+        <section className="flex flex-col gap-3">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">Start here</h2>
-            <p className="text-sm text-muted-foreground">Short guides in plain language. Each one links on to the next thing worth knowing, so pick one and follow the links.</p>
+            <p className="text-sm text-muted-foreground">Short orientation guides in plain language. Follow links as you go.</p>
           </div>
-          <NodeCards folder={guide} audience={audience} onOpen={onOpen} withIndex />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {guidePages.map((p) => {
+              const Icon = iconFor(p.id)
+              return (
+                <button key={p.id} type="button" onClick={() => onOpen(p.id)} className="group flex items-start gap-3.5 rounded-xl bg-card p-4 text-left ring-1 ring-foreground/10 transition-shadow hover:shadow-elevation-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                    <Icon className="size-4.5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{p.title}</span>
+                    <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{p.summary}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </section>
       )}
-      {standard && folderShows(audience, standard) && (
-        <section className="flex flex-col gap-4">
+
+      {guideTopics.length > 0 && (
+        <section className="flex flex-col gap-3">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">The MonoRail standard</h2>
-            <p className="text-sm text-muted-foreground">Every kind of thing MonoRail knows about and the fields it has: OpenMetadata v2.0.x, plus a few kinds of MonoRail's own.</p>
+            <h2 className="text-lg font-semibold tracking-tight">Guides by topic</h2>
+            <p className="text-sm text-muted-foreground">Open a topic overview or jump straight to a guide.</p>
           </div>
-          <NodeCards folder={standard} audience={audience} onOpen={onOpen} withIndex />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {guideTopics.map((f) => {
+              const Icon = iconFor(f.path, Folder)
+              const inside = f.children.flatMap((c) => (c.kind === 'page' && shows(audience, c.page) ? [c.page] : []))
+              return (
+                <div key={f.path} className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
+                  <button type="button" onClick={() => f.index && onOpen(f.index.id)} className="flex items-start gap-3.5 text-left">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-highlight text-highlight-foreground">
+                      <Icon className="size-4.5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">{f.title}</span>
+                      <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{f.index?.summary ?? `${inside.length} pages`}</span>
+                    </span>
+                  </button>
+                  <div className="flex flex-wrap gap-1.5 pl-12.5">
+                    {inside.map((p) => (
+                      <button key={p.id} type="button" onClick={() => onOpen(p.id)} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80 hover:bg-accent hover:text-foreground">
+                        {navLabel(p)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </section>
       )}
+
+      {standard && folderShows(audience, standard) && (
+        <StandardDirectoryCard folder={standard} audience={audience} onOpen={onOpen} />
+      )}
+
       {rest.map((f) => (
         <FolderListCard key={f.path} folder={f} audience={audience} onOpen={onOpen} />
       ))}
@@ -409,23 +474,71 @@ function WikiHome({ audience, onOpen }: { audience: AudienceFilter; onOpen: Open
   )
 }
 
+/** Compact directory card for the MonoRail standard so it stays scannable on Wiki home. */
+function StandardDirectoryCard({ folder, audience, onOpen }: { folder: WikiFolder; audience: AudienceFilter; onOpen: Open }) {
+  const categories = folder.children.filter((n) => (n.kind === 'folder' ? folderShows(audience, n.folder) : shows(audience, n.page)))
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <CardTitle>The MonoRail standard</CardTitle>
+          <CardDescription className="mt-1">Every entity type MonoRail knows and its fields: OpenMetadata 2.1 plus MonoRail's own types.</CardDescription>
+        </div>
+        {folder.index && (
+          <Button variant="outline" size="sm" onClick={() => onOpen(folder.index!.id)}>
+            Overview <ArrowRight className="size-3.5" />
+          </Button>
+        )}
+      </CardHeader>
+      <Separator />
+      <CardContent className="p-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {categories.map((n) => {
+            const id = n.kind === 'folder' ? n.folder.path : n.page.id
+            const target = n.kind === 'folder' ? n.folder.index?.id : n.page.id
+            const title = n.kind === 'folder' ? n.folder.title : n.page.title
+            const count = n.kind === 'folder' ? folderPages(n.folder).filter((p) => shows(audience, p)).length : undefined
+            const Icon = iconFor(id, Shapes)
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => target && onOpen(target)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{title}</span>
+                  {count !== undefined && <span className="block text-xs text-muted-foreground">{count} pages</span>}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** A folder's contents as cards: pages, and subfolders with links to their pages. */
 function NodeCards({ folder, audience, onOpen, withIndex }: { folder: WikiFolder; audience: AudienceFilter; onOpen: Open; withIndex?: boolean }) {
   const nodes: WikiNode[] = [...(withIndex && folder.index ? [{ kind: 'page', page: folder.index } as WikiNode] : []), ...folder.children]
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 2xl:grid-cols-3">
       {nodes.map((n) => {
         if (n.kind === 'page') {
           if (!shows(audience, n.page)) return null
           const Icon = iconFor(n.page.id)
           return (
-            <button key={n.page.id} type="button" onClick={() => onOpen(n.page.id)} className="group flex items-start gap-4 rounded-xl bg-card p-5 text-left ring-1 ring-foreground/10 transition-shadow hover:shadow-elevation-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
-                <Icon className="size-5" />
+            <button key={n.page.id} type="button" onClick={() => onOpen(n.page.id)} className="group flex items-start gap-3.5 rounded-xl bg-card p-4 text-left ring-1 ring-foreground/10 transition-shadow hover:shadow-elevation-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                <Icon className="size-4.5" />
               </span>
               <span className="min-w-0">
-                <span className="block font-medium">{n.page.title}</span>
-                <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">{n.page.summary}</span>
+                <span className="block text-sm font-medium">{n.page.title}</span>
+                <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{n.page.summary}</span>
               </span>
             </button>
           )
@@ -435,17 +548,17 @@ function NodeCards({ folder, audience, onOpen, withIndex }: { folder: WikiFolder
         const Icon = iconFor(f.path, Folder)
         const inside = f.children.flatMap((c) => (c.kind === 'page' && shows(audience, c.page) ? [c.page] : []))
         return (
-          <div key={f.path} className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-foreground/10">
-            <button type="button" onClick={() => f.index && onOpen(f.index.id)} className="flex items-start gap-4 text-left">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-highlight text-highlight-foreground">
-                <Icon className="size-5" />
+          <div key={f.path} className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+            <button type="button" onClick={() => f.index && onOpen(f.index.id)} className="flex items-start gap-3.5 text-left">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-highlight text-highlight-foreground">
+                <Icon className="size-4.5" />
               </span>
               <span className="min-w-0">
-                <span className="block font-medium">{f.title}</span>
-                <span className="mt-1 line-clamp-2 block text-sm text-muted-foreground">{f.index?.summary ?? `${inside.length} pages`}</span>
+                <span className="block text-sm font-medium">{f.title}</span>
+                <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{f.index?.summary ?? `${inside.length} pages`}</span>
               </span>
             </button>
-            <div className="flex flex-wrap gap-1.5 pl-14">
+            <div className="flex flex-wrap gap-1.5 pl-12.5">
               {inside.map((p) => (
                 <button key={p.id} type="button" onClick={() => onOpen(p.id)} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80 hover:bg-accent hover:text-foreground">
                   {navLabel(p)}
@@ -636,6 +749,7 @@ function Article({ page, audience, onOpen }: { page: Page; audience: AudienceFil
   const prev = order[i - 1]
   const next = order[i + 1]
   const folder = isIndex(page) ? findFolder(page.group) : undefined
+  const headings = useMemo(() => headingsOf(page), [page])
 
   const components = useMemo<Components>(() => {
     const heading = (Tag: 'h2' | 'h3' | 'h4') =>
@@ -688,10 +802,25 @@ function Article({ page, audience, onOpen }: { page: Page; audience: AudienceFil
     <div className="flex min-w-0 flex-col gap-6">
       <Card>
         <CardContent className="px-6 py-6 lg:px-8">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <Breadcrumbs page={page} onOpen={onOpen} />
             <AudienceBadges audience={page.audience} />
           </div>
+          {headings.length >= 3 && (
+            <nav aria-label="On this page" className="mb-6 flex flex-wrap items-center gap-1.5 border-b pb-4">
+              <span className="mr-1 text-xs font-medium text-muted-foreground">On this page:</span>
+              {headings.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  onClick={() => document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {h.text}
+                </button>
+              ))}
+            </nav>
+          )}
           <article className="wiki-md">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={components}>
               {page.markdown}
@@ -748,30 +877,31 @@ function Connections({ page, onOpen }: { page: Page; onOpen: Open }) {
 
 function LinkList({ icon: Icon, title, empty, pages: list, onOpen }: { icon: LucideIcon; title: string; empty: string; pages: Page[]; onOpen: Open }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2.5">
       <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
         <Icon className="size-3.5" /> {title} <span className="font-mono font-normal">{list.length}</span>
       </div>
       {list.length === 0 ? (
         <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
-        <ul className="flex flex-col">
+        <div className="flex flex-wrap gap-1.5">
           {list.map((p) => (
-            <li key={p.id}>
-              <HoverCard>
-                <HoverCardTrigger asChild>
-                  <button type="button" onClick={() => onOpen(p.id)} className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent">
-                    <span className="truncate font-medium">{p.title}</span>
-                    <span className="truncate text-xs text-muted-foreground">{folderChain(p).map((f) => f.title).join(' › ')}</span>
-                  </button>
-                </HoverCardTrigger>
-                <HoverCardContent side="top">
-                  <PagePreview page={p} />
-                </HoverCardContent>
-              </HoverCard>
-            </li>
+            <HoverCard key={p.id}>
+              <HoverCardTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onOpen(p.id)}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-muted/70 px-2.5 py-1 text-left text-xs font-medium text-foreground/90 transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <span className="truncate">{navLabel(p)}</span>
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent side="top">
+                <PagePreview page={p} />
+              </HoverCardContent>
+            </HoverCard>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   )

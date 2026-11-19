@@ -1,48 +1,44 @@
 ---
 audience: human
 folder: Agents
-summary: Everything about the agents themselves: talking to them, making your own, what they cost, and what they may touch.
+summary: Talk to your agents, create subagents and flows, track spending, and control what agents may touch.
 ---
 
 # Working with agents
 
-An [agent](../glossary.md#agent) is an AI that does work, not only talks.
-MonoRail does not replace the agents you use; it gives them a home. These
-pages follow the life of working with one:
+An [agent](../glossary.md#agent) is an AI that takes action, not just chats.
+MonoRail brings your local agents together under **Bots**:
 
-1. **Talk to it.** [Chat with your agents](chat.md): read any conversation
-   from this computer, carry it on, or start a new one, in **Ask** or
-   **Agent** mode.
-2. **Give it helpers.** [Create an agent](create-an-agent.md): a
-   [subagent](../glossary.md#subagent) or [skill](../glossary.md#skill) is a
-   few lines of plain text. Each one gets a character from the
-   [mochi crew](../../mochi-crew.md), and the
-   [Agent Catalog](../../agent-catalog.md) explains and edits them.
-3. **Let it run the others.** [The Coordinator](coordinator.md) is a chat that
-   talks to your other chats for you, and a [flow](flows.md) is a team of
-   agents you draw on a canvas.
-4. **Watch the cost.** [Keep an eye on spending](spend.md): where the money
-   goes, by day, [model](../glossary.md#model) and [effort](../glossary.md#effort).
-5. **Decide what it may touch.** [Let agents use MonoRail](agent-access.md):
-   agents may read what MonoRail knows and write only what you allow.
+1. **[Chat with your agents](chat.md)** — browse, continue or start Claude Code
+   and pi sessions in **Ask** or **Agent** mode.
+2. **[Create an agent](create-an-agent.md)** — write a
+   [subagent](../glossary.md#subagent) or [skill](../glossary.md#skill) in a few
+   lines of Markdown.
+3. **[Template Catalog](catalog.md)** — inspect, create, edit and back up
+   subagent templates, built-ins and the PR reviewer.
+4. **[The Coordinator](coordinator.md)** — a chat that reads and delegates to
+   your other chats.
+5. **[Build a flow](flows.md)** — wire agents, subagents and prompts into a
+   graph on a canvas.
+6. **[Keep an eye on spending](spend.md)** — track costs by day,
+   [model](../glossary.md#model) and [effort](../glossary.md#effort).
+7. **[Let agents use MonoRail](agent-access.md)** — connect external agents via
+   MCP and approve write tools one by one.
+8. **[The mochi crew](mochi-crew.md)** — the avatar characters automatically
+   matched to every subagent.
 
-Two ideas hold it together. Agents only see the folders you
-[allow](chat.md#which-chats-are-listed), and anything they could change
-needs your OK first. [Private data stays local](../private-data.md) explains
-why.
-
-New to all this? Start with [your first ten minutes](../first-ten-minutes.md).
+Two rules apply everywhere: agents only see
+[allowed folders](chat.md#which-chats-are-listed), and write actions always need
+your approval ([private data stays local](../private-data.md)). New here? Start
+with [your first ten minutes](../first-ten-minutes.md).
 
 ## Reusable prompts
 
-In **Bots > Catalog > Templates > Prompts**, create a prompt with fields such as
-`{audience}` and `{material}`. Field names start with a letter and can contain
-letters, numbers and underscores. Each distinct name becomes a free-text field;
-repeated names use the same answer. Select a saved prompt, fill in its fields,
-and copy the completed text into [Chat](chat.md) or another tool.
+In **Bots > Catalog > Templates > Prompts**, save prompt templates with
+`{placeholder}` fields (letters, numbers, underscores; starting with a letter).
+Repeated names share one input. Fill in the fields and copy the rendered prompt
+into [Chat](chat.md) or elsewhere.
 
-Each save creates a new version. Select an earlier version to use it, or edit it
-and save a new version without changing the old one. Prompts are stored in your
-[profile](../../profiles.md) on this computer. [Flows](flows.md) also have
-prompt steps with their own inputs; catalog prompts are filled in on the Prompts
-page.
+Every save creates a new version so earlier versions stay intact. Prompts live
+in your local [profile](../../profiles.md). (Unlike [Flows](flows.md) prompt
+steps, catalog prompts are filled in directly on the Prompts page.)

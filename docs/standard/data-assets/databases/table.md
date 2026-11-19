@@ -18,8 +18,8 @@ entity, adopted as it is (see the [rules](../../README.md#rules)).
 
 ## In MonoRail
 
-The [OpenMetadata page](../../../guide/openmetadata.md) lists them from your
-own OpenMetadata server. [Explore](../../../guide/explore.md) lists the tables the
+The [OpenMetadata page](../../../guide/data/openmetadata.md) lists them from your
+own OpenMetadata server. [Explore](../../../guide/data/explore.md) lists the tables the
 [semantic project's](../../../semantic.md) models are built on: each
 [semantic model's](../../monorail/semantic.md#semantic-model) `relation`. It fills
 `name`, `fullyQualifiedName`, `database` and `databaseSchema`. Columns are not

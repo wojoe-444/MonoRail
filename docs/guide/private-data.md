@@ -1,84 +1,75 @@
 ---
 audience: human
-summary: What MonoRail keeps, where it keeps it, and what it never sends anywhere.
+summary: Where MonoRail stores your data, how secrets are encrypted, and what ever leaves your PC.
 ---
 
 # Private data stays local
 
-MonoRail is built around one rule: **your private data stays on your
-computer**. Keys, tokens, settings, chat history and logs live in a folder in
-your Windows user profile, never in the MonoRail repository, and MonoRail
-does not upload them anywhere.
+MonoRail follows one rule: **your private data stays on your computer**. Keys,
+tokens, settings, chat history and logs live in your Windows user profile, never
+in the MonoRail repository, and are never uploaded on their own.
 
 ## Where your data lives
 
-Everything MonoRail keeps is in one folder, its [data
-folder](glossary.md#data-folder):
+Everything MonoRail writes goes inside one [data folder](glossary.md#data-folder):
 
 ```
 %APPDATA%\MonoRail
 ```
 
-Paste that into the Explorer address bar to open it. Older installs may use a
-folder with an earlier name, such as `command-hub`; MonoRail keeps using
-whichever one already holds your data and never moves it.
+Older installs may still use an earlier folder name (such as `command-hub`);
+MonoRail keeps reading whichever folder already holds your data and never moves
+it.
 
-Inside, each page has its own subfolder: settings, caches it can rebuild, and
-encrypted secrets. The `databases` folder holds MonoRail's
-[local database](../local-database.md), where catalog data such as what
-[ingestion pipelines](setup/services.md) read is kept. [Storage](../storage.md) shows how big it has grown, and
-[backups](setup/backups-and-updates.md) can copy the parts worth keeping.
+Inside, each feature has its own subfolder for settings, rebuildable caches and
+encrypted secrets. `databases\` holds MonoRail's
+[local database](../local-database.md) for catalog entities and
+[ingestion pipelines](data/services.md). Check sizes in
+[Storage](workspace/storage.md) and copy what matters with
+[backups](setup/backups-and-updates.md).
 
 ## Passwords and tokens are encrypted
 
-When you paste an API key or token into [Connections](setup/connections.md),
-it is encrypted with Windows' own protection for your user account before it
-is saved. If encryption is not available, MonoRail refuses to save the secret
-instead of writing it in plain text. Pages never see a secret once it is
-saved; only the part of MonoRail that needs it reads it.
+Secrets pasted into [Connections](setup/connections.md) are encrypted with
+Windows' user-account protection before saving. If encryption is unavailable,
+MonoRail refuses to save rather than writing plain text. UI pages never see a
+saved secret again — only the backend that needs it reads it.
 
-Some connections store nothing at all: they use a login you already have,
-such as the GitHub CLI or an entry in Windows Credential Manager, and read it
-each time.
+Many connections store no secret at all, reusing an existing login such as the
+GitHub CLI or Windows Credential Manager.
 
 ## What MonoRail reads, and leaves alone
 
-- **Agent chats** are read where Claude Code and pi keep them.
-  [Chat](agents/chat.md) does not copy them or keep a cache of what was said.
-  It only keeps small flags per chat (read or unread, archived) and running
+- **Agent chats** are read in place from Claude Code and pi;
+  [Chat](agents/chat.md) stores only small per-chat flags (read/archived) and
   cost totals.
-- **Email** is fetched when you open it and never written to disk; see
-  [Email](workspace/email.md).
-- **Your folders** are measured, browsed or backed up only when you ask.
-  MonoRail never deletes, moves or renames them on its own. That is why
-  [Storage](../storage.md) only looks, [GitHub+](workspace/browse-repos.md)
-  only reads, and [Files](../files.md) changes a file only when you press the
-  button for it (and deletes only to the Recycle Bin).
+- **Email** is fetched on demand and never written to disk
+  ([Email](workspace/email.md)).
+- **Your folders** are never moved, renamed or deleted automatically.
+  [Storage](workspace/storage.md) and [GitHub+](workspace/browse-repos.md) are
+  read-only, and [Files](workspace/files.md) changes files only when you act
+  (deleting only to the Recycle Bin).
 
 ## Nothing runs until you ask
 
-[Connections](setup/connections.md), account checks and tools stay off until
-you set them up. A fresh MonoRail does not go looking for accounts or
-programs on your computer. Agents get the same treatment: an agent that
-connects to MonoRail can read, but [may write nothing](agents/agent-access.md#reading-is-on-writing-is-up-to-you)
-until you allow it, tool by tool.
+[Connections](setup/connections.md), account checks and optional tools stay off
+until you add them. Connected agents can read what MonoRail knows, but
+[write tools stay off](agents/agent-access.md#reading-is-on-writing-is-up-to-you)
+until you allow each one per agent.
 
 ## What does leave your computer
 
-Only what you ask for: a message you send in [Chat](agents/chat.md) goes to
-that agent's provider, an issue you choose to publish goes to GitHub (see
-[local issues](workspace/local-issues.md)), a team ticket is fetched from
-[Jira](workspace/tasks.md). MonoRail itself checks GitHub for [new
-versions](setup/backups-and-updates.md#updates) of the app, and that is all.
+Only requests you explicitly trigger: messages sent in [Chat](agents/chat.md),
+[local issues](workspace/local-issues.md) you choose to publish to GitHub, team
+tickets fetched from [Jira](workspace/tasks.md), and periodic GitHub checks for
+[app updates](setup/backups-and-updates.md#updates).
 
-If you turn on [Remote access](setup/remote-access.md), your own paired
-phone can open MonoRail over your private Tailscale network. It is never
-put on the public internet.
-
-An [extension](setup/extensions.md) can only reach the websites you approved
-when you installed it.
+If you opt into [Remote access](setup/remote-access.md), only your paired phones
+over private Tailscale can connect — never the public internet.
+[Extensions](setup/extensions.md) can contact only the hosts you approve at
+install time.
 
 ## For the curious
 
-The exact rules for caches and files are in [Caching in
-MonoRail](../caching.md), written for developers and agents.
+Exact file policies and cache contracts live in
+[Caching in MonoRail](../caching.md).

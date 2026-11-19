@@ -1,5 +1,6 @@
 ---
-audience: human, ai
+audience: ai
+summary: Technical reference for MonoRail's MCP server: CLI config, read/write tools, consent, activity log and troubleshooting.
 ---
 
 # Agent access (MCP server)

@@ -7,9 +7,9 @@ summary: MonoRail's own entity types for a dbt project's semantic layer: semanti
 
 Entity types of MonoRail's own for a dbt project's semantic layer, read from
 its MetricFlow manifest ([Semantic](../../semantic.md), guide:
-[Set up Semantic](../../guide/setup/semantic.md)). They are defined by the
+[Set up Semantic](../../guide/data/semantic.md)). They are defined by the
 [MonoRail standard](../README.md) in its style (see the
-[rules](../README.md#rules)) and listed on [Explore](../../guide/explore.md) under
+[rules](../README.md#rules)) and listed on [Explore](../../guide/data/explore.md) under
 **Semantic**.
 
 <!-- standard:entities semantic -->

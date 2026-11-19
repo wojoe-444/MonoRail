@@ -6,9 +6,9 @@ summary: MonoRail's own entity types for learning: flashcard decks and cards.
 # Learning
 
 Entity types of MonoRail's own for spaced repetition study
-([Flashcards](../../flashcards.md)). OpenMetadata has no words for these, so the
+([Flashcards](../../guide/workspace/flashcards.md)). OpenMetadata has no words for these, so the
 [MonoRail standard](../README.md) defines them in its style (see the
-[rules](../README.md#rules)). Both are listed on [Explore](../../guide/explore.md)
+[rules](../README.md#rules)). Both are listed on [Explore](../../guide/data/explore.md)
 under **Learning**.
 
 <!-- standard:entities learning -->
@@ -23,7 +23,7 @@ under **Learning**.
 ## Flashcard deck
 
 A deck of cards with its own daily limit for new cards and target recall
-([Decks and cards](../../flashcards.md#decks-and-cards)).
+([Decks and cards](../../guide/workspace/flashcards.md#decks-and-cards)).
 
 <!-- standard:fields flashcardDeck -->
 
@@ -43,7 +43,7 @@ A deck of cards with its own daily limit for new cards and target recall
 ## Flashcard
 
 One card in a [deck](#flashcard-deck): a Markdown front and back, scheduled
-with FSRS-5 ([How the schedule works](../../flashcards.md#how-the-schedule-works)).
+with FSRS-5 ([How the schedule works](../../guide/workspace/flashcards.md#how-the-schedule-works)).
 
 <!-- standard:fields flashcard -->
 

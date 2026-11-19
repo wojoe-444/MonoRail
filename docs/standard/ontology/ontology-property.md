@@ -16,9 +16,9 @@ A formal object, data or annotation property owned by an ontology. It is OpenMet
 ## In MonoRail
 
 MonoRail keeps none itself yet. The
-[OpenMetadata page](../../guide/openmetadata.md) lists them from your own
+[OpenMetadata page](../../guide/data/openmetadata.md) lists them from your own
 OpenMetadata server (they are new in 2.1, so an older server has none), and
-[Explore](../../guide/explore.md) lists the type with 0.
+[Explore](../../guide/data/explore.md) lists the type with 0.
 
 ## Fields
 

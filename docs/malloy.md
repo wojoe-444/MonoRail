@@ -7,11 +7,11 @@ summary: Reference for MonoRail's built-in Malloy backend and its settings: comp
 
 MonoRail compiles Malloy models with `@malloydata/malloy` and runs them on
 BigQuery with `@malloydata/db-bigquery`, for the
-[OpenMetadata](guide/openmetadata.md#the-tabs) page's **Semantic models**,
+[OpenMetadata](guide/data/openmetadata.md#the-tabs) page's **Semantic models**,
 **Query builder** and **Malloy models** tabs. Malloy ships with MonoRail:
 it is not a connection. Only BigQuery access comes from Connections (the
 Google Cloud connection). People: see the guide,
-[Malloy](guide/setup/malloy.md). The MetricFlow semantic layer is separate:
+[Malloy](guide/data/malloy.md). The MetricFlow semantic layer is separate:
 [semantic.md](semantic.md).
 
 ## Files

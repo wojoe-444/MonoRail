@@ -28,6 +28,6 @@ and meanings, copied from OpenMetadata 2.1 (see the
 ## In MonoRail
 
 MonoRail keeps none of these itself yet. The
-[OpenMetadata page](../../../guide/openmetadata.md) shows them from your own
-OpenMetadata server, and [Explore](../../../guide/explore.md) lists each type
+[OpenMetadata page](../../../guide/data/openmetadata.md) shows them from your own
+OpenMetadata server, and [Explore](../../../guide/data/explore.md) lists each type
 with 0 until a source inside MonoRail has some.

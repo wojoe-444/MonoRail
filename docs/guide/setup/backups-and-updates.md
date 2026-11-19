@@ -1,82 +1,73 @@
 ---
 audience: human
-summary: Copy your local work to a safe folder on a schedule, and keep MonoRail itself up to date.
+summary: Schedule automatic local backups to a synced folder, restore any item, and keep MonoRail up to date safely.
 ---
 
 # Backups and updates
 
 ## Backups
 
-MonoRail can copy your local work into a folder on a schedule. Pick a folder
-that is already backed up or synced, such as a OneDrive folder, and your work
-goes wherever that folder goes. MonoRail never uploads anything itself.
+Copy your local MonoRail data into a folder on a schedule (for example, a folder
+synced by OneDrive). MonoRail writes only to the folder you pick and never
+uploads anything itself.
 
 1. Open **Settings > Backups**.
-2. Choose a folder, how often ("3 times a day") and how many copies to keep.
-3. Turn it on, then press **Save** on the [Save bar](saving.md) at the
-   bottom of the card. It says "Saved. Safe to leave." once your settings
-   are written.
+2. Pick a folder, frequency (e.g. *3 times a day*) and how many copies to keep.
+3. Enable backups and press **Save** on the [Save bar](saving.md).
 
-Each page gets its own subfolder:
+Each feature writes into its own subfolder, and **Back up now** runs
+immediately:
 
-- [GitHub+](../workspace/browse-repos.md#backups) repositories, with their
-  [local issues](../workspace/local-issues.md);
-- your [Tasks](../workspace/tasks.md#private-projects) private projects;
-- your [Flashcards](../../flashcards.md) decks;
-- your [Notes](../../notes.md);
-- your [flows](../agents/flows.md#versions), with every version;
-- your [OpenMetadata](../openmetadata.md) catalog on this PC and your
-  [ingestion pipelines](services.md) (the local database).
+- [GitHub+](../workspace/browse-repos.md#backups) repos (with
+  [local issues](../workspace/local-issues.md)) — per-repo settings override the
+  global folder/schedule;
+- [Tasks](../workspace/tasks.md#private-projects) private projects;
+- [Flashcards](../workspace/flashcards.md) decks;
+- [Notes](../workspace/notes.md);
+- [Flows](../agents/flows.md#versions) with full version history;
+- [OpenMetadata](../data/openmetadata.md) local catalog,
+  [Tracker](../workspace/tracker.md) and [pipelines](../data/services.md) (the
+  local database).
 
-**Back up now** runs a backup right away. A repository can also have its own
-folder or schedule on GitHub+'s **Backups** tab; its own settings win over
-the global ones.
+Missed backups catch up when MonoRail opens. Changing the backup folder applies
+only to future backups — old copies are never moved or deleted
+([private data stays local](../private-data.md#what-monorail-reads-and-leaves-alone)).
 
-If MonoRail was closed when a backup was due, it runs once when you open the
-app. Changing the folder only affects future backups; old ones stay where
-they are, because MonoRail [never moves your
-files](../private-data.md#what-monorail-reads-and-leaves-alone).
+## Restoring from a backup
 
-How to restore, and every detail: [Backups](../../backups.md).
+Close MonoRail first, then restore the file from your backup subfolder:
+
+| Item | Backup format | How to restore |
+| --- | --- | --- |
+| GitHub+ repo | `github-plus\<repo>\*.bundle` | `git clone "<file>" <name>` |
+| Tasks private projects | `jira-plus\*.bundle` | `git clone "<file>"` and replace `apps\jira-plus\local-repo` in your data folder |
+| Flashcards | `flashcards\*.json` | Copy over `modules\flashcards\decks.json` |
+| Notes | `notes\*.bundle` | `git clone "<file>" repo` and replace `modules\notes\repo` |
+| Flows | `flows\*.bundle` | `git clone "<file>" repo` and replace `modules\flows\repo` |
+| Local database | `local-database\*.sqlite3` | Replace `databases\local.sqlite3` and remove any `local.sqlite3-wal` / `-shm` next to it |
 
 ## Updates
 
-An update never resets your data. Everything you made stays where it is,
-including your [OpenMetadata](../openmetadata.md) entities and
-[pipelines](services.md) on this PC. When an update needs to change how the
-local database is laid out, MonoRail first saves a complete copy of it next
-to the original. If it can't make that copy, it leaves the database alone.
-[Details](../../local-database.md#updates-keep-your-data).
+Updates never reset your data. Before any local-database schema migration,
+MonoRail writes a full copy beside the original and aborts if copying fails
+([local database details](../../local-database.md#updates-keep-your-data)).
 
-MonoRail updates itself. Half a minute after it starts, and every four hours
-after that, it checks for a new version. When there is one, a small pop-up in
-the lower right offers:
+MonoRail checks for releases 30 seconds after launch and every 4 hours (or via
+**Settings > General > Check for updates**). When an update is available, a
+pop-up shows **what's new** (full version-grouped history lives in **Settings >
+General**) with **Download and Restart**, **Ignore for six hours** or **×**.
 
-- **Download and Restart**: installs the update and reopens MonoRail.
-- **Ignore for six hours**: asks again later.
-- **X**: hides it until the next check.
+**Automatic pre-update backup:** when a backup folder is configured, MonoRail
+backs up Tasks private projects, Notes, Flashcards, Flows and the local database
+into `before-update\` (keeping the last 5 of each) right before installing. If
+a pre-update backup fails, installation pauses so you can **Try again** or
+**Update without a backup**. Disable via **Back up before updating** in
+**Settings > Backups**.
 
-The pop-up also lists **what's new**: the newest few changes since the
-version you have. **Settings > General** shows the whole list, every change in every
-update you skipped, grouped by version. The notes come from the changes that
-went into each update, written for people using the app.
-
-**Your data is backed up first.** When you have a backup folder set (see
-[Backups](#backups) above), MonoRail backs up your Tasks private projects,
-Notes, Flashcards, flows and local database into a `before-update` subfolder right before an update
-installs, and keeps the last five of each. This is on by default; you can turn
-it off with **Back up before updating** in **Settings > Backups**. If that
-backup fails, nothing is installed: the pop-up says what went wrong and lets
-you **Try again** or **Update without a backup**. Without a backup folder the
-update simply goes ahead, and the pop-up suggests setting one up. Details:
-[Back up before updating](../../backups.md#back-up-before-updating).
-
-You can also check at any time with **Settings > General > Check for updates**. Your
-data and settings stay as they are across updates, in the same [data
-folder](../private-data.md#where-your-data-lives). If the installer
-complains, see the [questions and answers](../faq.md#the-installer-says-failed-to-uninstall-old-application-files).
+If the installer reports locked files, see the
+[installer FAQ](../faq.md#the-installer-says-failed-to-uninstall-old-application-files).
 
 ## Related
 
-- The rest of [setup](README.md).
-- How much space backups and caches take: [Storage](../../storage.md).
+- [Setup overview](README.md) · [Storage](../workspace/storage.md) ·
+  [Backups reference](../../backups.md) (for developers)

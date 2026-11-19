@@ -5,7 +5,7 @@ summary: Reference for Settings > Services: data sources as OpenMetadata service
 
 # Services and ingestion pipelines
 
-People: see the guide, [Services and ingestion pipelines](guide/setup/services.md).
+People: see the guide, [Services and ingestion pipelines](guide/data/services.md).
 
 MonoRail adopts OpenMetadata's model for data sources: a **service** (an
 entity of a `*Service` type, e.g. `databaseService`) and its
@@ -66,7 +66,7 @@ Only names, types and counts leave the worker. dbt reads
 `target/manifest.json` (64 MB limit): models, seeds, snapshots (not
 ephemeral) and sources, columns, descriptions (`dbtUpdateDescriptions`),
 tags (`includeTags`) and `depends_on` lineage. Results merge into
-the local database as `databaseService`, `database`, `databaseSchema` and `table` entities (`extension.monorail.catalog = true`), so the [OpenMetadata page](guide/openmetadata.md) shows them: `markDeletedTables` keeps vanished tables
+the local database as `databaseService`, `database`, `databaseSchema` and `table` entities (`extension.monorail.catalog = true`), so the [OpenMetadata page](guide/data/openmetadata.md) shows them: `markDeletedTables` keeps vanished tables
 marked `deleted`, profiles survive a metadata run. Filters follow
 OpenMetadata: regex anchored at the start, case-insensitive, includes then
 excludes.
@@ -133,7 +133,7 @@ at the service (`local_sqlite.main.main.notes`). The catalog's `lineage` per
 service comes from the lineage table (or the older field, see
 [dbt lineage](#runners)); Explore lists a table's neighbours by full name in
 its `extension.lineage.upstream` and `downstream`. The edges themselves, with
-their source, are on the [OpenMetadata page](guide/openmetadata.md#lineage)'s
+their source, are on the [OpenMetadata page](guide/data/openmetadata.md#lineage)'s
 Lineage tab.
 
 ## Related

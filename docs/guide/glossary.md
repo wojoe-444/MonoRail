@@ -1,143 +1,107 @@
 ---
 audience: human
-summary: The words used around MonoRail and AI agents, in plain language, each with a link to where it matters.
+summary: Plain-language definitions of the words used across MonoRail and AI agents.
 ---
 
 # Glossary
 
-Plain explanations of the words used across this wiki. Each one links to the
-page where it matters most.
+Plain definitions of MonoRail and AI-agent terms, linked to where each matters
+most.
 
 ## Agent
-
-An AI program that can do work for you, not only chat: read files, run
-commands, make changes. Claude Code and pi are agents. You talk to them in
-[Chat](agents/chat.md).
+An AI program that acts rather than only chatting: reads files, runs commands
+and edits code (such as Claude Code or pi). See [Chat](agents/chat.md).
 
 ## Subagent
-
-A helper agent with its own instructions and tools that a main agent hands a
-task to. [Create an agent](agents/create-an-agent.md) shows how to write one,
-and the [mochi crew](../mochi-crew.md) gives each one a face.
+A helper agent with its own instructions and tool limits that a main agent
+delegates to. See [Create an agent](agents/create-an-agent.md) and the
+[mochi crew](agents/mochi-crew.md).
 
 ## Skill
-
-A set of written instructions an agent follows when the task fits, without
-tools of its own. See [skills](agents/create-an-agent.md#skills).
+Written instructions an agent follows when relevant, without separate tool
+limits. See [skills](agents/create-an-agent.md#skills).
 
 ## Coordinator
-
-A special chat that talks to your other chats for you. See
-[the Coordinator](agents/coordinator.md).
+A special chat pinned in Chat that reads and delegates to your other chats. See
+[The Coordinator](agents/coordinator.md).
 
 ## Flow
-
-An agent drawn as steps joined by lines on a canvas: inputs, agents,
-subagents, prompts and an output. See [Build a flow](agents/flows.md).
+An agent built as connected steps on a canvas: inputs, agents, subagents,
+prompts and output. See [Build a flow](agents/flows.md).
 
 ## Chat
-
-One conversation with an agent, from first message to last. Also called a
-session. See [Chat with your agents](agents/chat.md).
+One conversation (session) with an agent. See [Chat with your agents](agents/chat.md).
 
 ## Model
-
-The AI that does the thinking, such as Claude Opus, Sonnet or Haiku. Bigger
-models are smarter and cost more. [Keep an eye on spending](agents/spend.md)
-compares them.
+The underlying AI (such as Claude Opus, Sonnet or Haiku). Larger models cost
+more. See [Keep an eye on spending](agents/spend.md).
 
 ## Token
-
-The unit models read and write in, roughly three quarters of a word. Prices
-are per million tokens, which is why [Claude Stats](agents/spend.md#the-headline-number)
-measures cost per million output tokens.
+The unit models read and write (roughly ¾ of a word). Pricing is per million
+tokens ([headline cost](agents/spend.md#the-headline-number)).
 
 ## Input and output
-
-What is sent to the model, and what it writes back. Output costs more per
-token.
+Text sent to the model (input) and generated back (output, priced higher per
+token).
 
 ## Cache
-
-Text a model has seen recently is kept for a while, so sending it again is
-cheaper. MonoRail also keeps caches of its own, such as the spending report,
-and can always rebuild them; see [Caching in MonoRail](../caching.md).
+Recently seen prompt text kept temporarily for cheaper reuse — or a local
+rebuildable summary MonoRail stores ([Caching in MonoRail](../caching.md)).
 
 ## Effort
-
-How long the model reasons before it answers, also called thinking. More
-effort is usually better and costs more. Chat lets you pick it, and
-[Claude Stats](agents/spend.md#what-the-charts-show) shows what it cost.
+How long a model reasons before answering ("thinking"). Higher effort costs
+more ([Claude Stats](agents/spend.md#what-the-charts-show)).
 
 ## MCP
-
-Model Context Protocol: a standard way for agents to use outside tools.
-MonoRail offers one; see [let agents use MonoRail](agents/agent-access.md).
+Model Context Protocol: the standard way agents call external tools. See
+[Let agents use MonoRail](agents/agent-access.md).
 
 ## Repository
-
-A folder tracked by git, with its whole history. Also called a repo.
-[GitHub+](workspace/browse-repos.md) shows them.
+A folder tracked by git with its full history ("repo"). Browsed in
+[GitHub+](workspace/browse-repos.md).
 
 ## Commit
-
-One saved change in a repository's history.
+One saved snapshot in a repository's git history.
 
 ## Branch
-
-A separate line of changes in a repository. GitHub+ can
-[compare](workspace/browse-repos.md#what-you-can-see) them.
+An independent line of commits in a repository
+([comparing branches](workspace/browse-repos.md#what-you-can-see)).
 
 ## Issue
-
-A to-do or bug report. MonoRail keeps [local issues](workspace/local-issues.md)
-inside a repository and tasks in [Tasks](workspace/tasks.md).
+A to-do or bug: [local issues](workspace/local-issues.md) inside a repo,
+[Tasks](workspace/tasks.md), or [Tracker](workspace/tracker.md).
 
 ## Connection
-
-An account MonoRail is signed in to. See [connect your accounts](setup/connections.md).
-Connections that are data sources are also [services](#service).
+An account or tool MonoRail signs in to ([Connections](setup/connections.md)).
+Data-source connections are also [services](#service).
 
 ## Local database
-
-MonoRail's own SQLite file in your [data folder](#data-folder), where it keeps
-catalog data the way OpenMetadata does. The
-[OpenMetadata page](openmetadata.md) shows it when no server is connected. See
-[the local database](../local-database.md).
+MonoRail's SQLite file in your [data folder](#data-folder) storing OpenMetadata
+entities, lineage and Tracker data locally
+([OpenMetadata](data/openmetadata.md), [reference](../local-database.md)).
 
 ## Service
-
-A data source, such as a SQLite database, a dbt project or a warehouse on
-your OpenMetadata server. Its **ingestion pipelines** read it into a catalog
-on a schedule. See [services and ingestion pipelines](setup/services.md).
+A data source (SQLite database, dbt project or OpenMetadata warehouse) read into
+the catalog by **ingestion pipelines**
+([Services & ingestion](data/services.md)).
 
 ## Extension
-
-An add-on page, app or tool built outside MonoRail. See
-[add extensions](setup/extensions.md).
+An add-on page, full-screen app or agent tool built outside MonoRail
+([Add extensions](setup/extensions.md)).
 
 ## Data folder
-
-The folder in your user profile where MonoRail keeps everything private,
-`%APPDATA%\MonoRail`. See [private data stays local](private-data.md).
+Where MonoRail keeps all local state: `%APPDATA%\MonoRail`
+([private data stays local](private-data.md)).
 
 ## Profile
-
-One person's settings and data inside MonoRail: appearance, connections,
-backups and so on. There is one profile today; Developer Mode adds a hidden,
-always-empty **New User** profile for testing. See
-[Developer Mode](setup/developer-mode.md) and, for the details,
-[Profiles](../profiles.md).
+One person's settings and data inside MonoRail. Developer Mode adds an empty
+**New User** test profile ([Developer Mode](setup/developer-mode.md),
+[Profiles](../profiles.md)).
 
 ## Entity
-
-One kind of thing MonoRail knows about, such as a subagent, a note, a
-database or a table, with a fixed set of fields. The
-[MonoRail standard](../standard/README.md) lists them all, and
-[Explore](explore.md) shows them.
+A typed object in the [MonoRail standard](../standard/README.md) (subagent,
+note, table, database, etc.), browsable in [Explore](data/explore.md).
 
 ## For people and for agents
-
-The tags on every wiki page. *For people* pages are plain guides; *for
-agents* pages are exact reference for agents and developers. See [how to read
-this wiki](README.md#how-to-read-this-wiki).
+Audience tags on every wiki page: *For people* = plain guides; *For agents* =
+technical reference ([how to read this wiki](README.md#how-to-read-this-wiki)).

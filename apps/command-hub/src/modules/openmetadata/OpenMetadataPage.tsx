@@ -71,7 +71,7 @@ export default function OpenMetadataPage() {
         description={tab.description}
         actions={
           <>
-            <IconAction label="Guide" onClick={() => openWiki('guide/openmetadata')}>
+            <IconAction label="Guide" onClick={() => openWiki('guide/data/openmetadata')}>
               <BookOpen />
             </IconAction>
             <IconAction

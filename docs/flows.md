@@ -43,7 +43,7 @@ Prompt placeholders `{name}` become input ports `var:<name>`. Port types are
 
 ## Versions
 
-Like [Notes](notes.md): a save writes the file, commits are batched (60 s of
+Like [Notes](guide/workspace/notes.md): a save writes the file, commits are batched (60 s of
 quiet, `flush` when the editor closes, and at the next start). `history` and
 `version` read git; restoring is a normal save of the old content. The repo
 never gets a remote. It is the global backup item `flows` (bundle), see
@@ -62,7 +62,7 @@ whose sources are done, at most 4 at once, with a 30-minute limit.
   So allowed folders, Ask/Agent, system prompts, `assertNoBypass`, the turn
   lock and the [spending limit](guide/setup/spending-limit.md) all apply; each
   turn is a new chat marked started-here. A subagent step reads the subagent
-  through the [Agent Catalog](agent-catalog.md) backend (by its id) and sends
+  through the [Agent Catalog](guide/agents/catalog.md) backend (by its id) and sends
   its instructions plus the task; its `model` line maps to Chat's model ids.
   A model call is an Ask turn told not to use tools.
 - A failing step fails the run and stops running turns; `stopRun` stops all.

@@ -391,7 +391,7 @@ are left out. Quick launch and "Open" hand over to Chat with
 handed-over prompt is prefilled in the composer, never sent by itself.
 
 **Agent Catalog** (`agent-catalog`, Agents > Catalog, docs:
-`docs/agent-catalog.md`): Claude Code subagents (`~/.claude/agents`,
+`docs/guide/agents/catalog.md`): Claude Code subagents (`~/.claude/agents`,
 `<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
 `<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
 folder and Chat's allowed repos, plus the built-in coordinator (read-only,
@@ -408,7 +408,7 @@ it was opened and never touch a linked file; unknown header fields are kept.
 Every edit or delete first copies the file to `backups/` in the module's data
 folder (newest 200). Nothing is cached.
 
-**Mochi crew** (`src/components/mochi/`, docs: `docs/mochi-crew.md`): agent
+**Mochi crew** (`src/components/mochi/`, docs: `docs/guide/agents/mochi-crew.md`): agent
 characters in the K1 Mochi app-icon family (dough body, dot eyes, never a
 mouth, never a robot). A character is a role (layers of static SVG in
 `characters.ts`: body, eyes, headwear, held props, tile props) times a flavor
@@ -577,7 +577,7 @@ method that changes accounts, secrets, permissions or MonoRail itself goes in
 `REMOTE_DENY`. Tests: `electron/remote/remote.test.cjs`.
 
 `storage` (**Storage**, a **Tools** subpage) is the Storage
-Manager (docs: `docs/storage.md`): free/used space per drive (`fs.statfs`,
+Manager (docs: `docs/guide/workspace/storage.md`): free/used space per drive (`fs.statfs`,
 read on open) and the size of known folders (MonoRail's data, older data
 folders, install and updater cache; Claude Code, Claude desktop, pi, Repos;
 npm/pnpm/Yarn/Bun/pip/Playwright/Electron caches; Temp, Downloads,
@@ -597,7 +597,7 @@ storage settings. Any future cleanup must be explicit, confirmed per item, and
 limited to caches marked safe.
 
 `docker` (**Docker**, a **Tools** subpage; docs: `docs/docker.md`, guide
-`docs/guide/setup/docker.md`) is a lazydocker-style, read-only look at the
+`docs/guide/workspace/docker.md`) is a lazydocker-style, read-only look at the
 user's own Docker: engine strip, KPI tiles, containers grouped by compose
 project with Logs (last 500, Follow re-reads every 3 s), Stats (one
 `docker stats --no-stream` every 5 s while open, in memory only) and Info
@@ -611,14 +611,14 @@ docker calls go through `electron/modules/docker-cli.cjs` (no shell, fixed
 read-only arguments, container ids checked as hex; a test fails on write
 verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
 
-`semantic` (docs: `docs/semantic.md`, guide `docs/guide/setup/semantic.md`) is a
+`semantic` (docs: `docs/semantic.md`, guide `docs/guide/data/semantic.md`) is a
 dbt project's semantic layer, powered by the user's own MetricFlow (`mf`).
 It has no module or nav item of its own: its UI is the OpenMetadata page's
 Metrics tab and the MetricFlow side of the Semantic models and Query builder
 tabs (`src/modules/openmetadata/tabs/`; their engine switch defaults to
 Malloy, below).
 
-`malloy` (docs: `docs/malloy.md`, guide `docs/guide/setup/malloy.md`) runs
+`malloy` (docs: `docs/malloy.md`, guide `docs/guide/data/malloy.md`) runs
 **real Malloy** (`@malloydata/malloy`, `@malloydata/db-bigquery`) for the
 OpenMetadata page's Semantic models, Query builder and Malloy models tabs.
 Malloy ships with MonoRail: it is **not a connector**. Its settings (models
@@ -653,7 +653,7 @@ folder deleted at once; nothing is cached or kept, and the page never gets the
 project's full path. MonoRail never installs Python, dbt or MetricFlow.
 
 `ingestion` (**Services**, Settings group "Data", `/services`; docs:
-`docs/ingestion.md`, guide `docs/guide/setup/services.md`) adopts
+`docs/ingestion.md`, guide `docs/guide/data/services.md`) adopts
 OpenMetadata's services and ingestion pipelines; where the Connections model
 disagrees, OpenMetadata's shape wins. A connector with `service: { category,
 serviceType }` is a **data source** (today `sqlite`, `metricflow`,
@@ -692,7 +692,7 @@ never overwritten); if the copy fails, the upgrade does not run. It is also a
 global backup item (`local-database`, included before updates). Other modules keep their own stores; moving one in is a separate,
 never-automatic change that leaves old data in place.
 
-`flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
+`flashcards` (**Flashcards**, under Workspace; docs: `docs/guide/workspace/flashcards.md`) keeps
 spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
 `ChatMarkdown`) and per-day study counts (90 days) live in one file,
 `decks.json` in its data folder; nothing is cached or sent anywhere.
@@ -706,7 +706,7 @@ cards per day (default 20); the page shows each rating's next interval from
 style it after any other product. MCP: `list_flashcard_decks`,
 `list_flashcards` (read) and `add_flashcards` (write, consent per agent).
 
-`notes` (**Notes**, a subpage of Tools; docs: `docs/notes.md`) is an
+`notes` (**Notes**, a subpage of Tools; docs: `docs/guide/workspace/notes.md`) is an
 unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
 line = title) in a local git repo in its data folder (`repo/`), via
 isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
@@ -716,7 +716,7 @@ follows its title only until its first commit. The repo never gets a remote.
 GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
 item (`notes`, bundle).
 
-`files` (**Files**, a subpage of Tools; docs: `docs/files.md`) is a file
+`files` (**Files**, a subpage of Tools; docs: `docs/guide/workspace/files.md`) is a file
 explorer for this PC: tabs and split panes (tabs, pins, color tags, recent
 folders and view options are prefs `monorail.files.*`, never backend files),
 Details / Grid (Windows shell thumbnails via
@@ -802,7 +802,7 @@ plain Chrome user agent, only fullscreen/clipboard-write permissions); new
 tabs come over the `browser:open-tab` push channel, sized popups (sign-in
 flows) open as sandboxed windows in the same session. `clearData` is in
 `REMOTE_DENY`; the page only runs in the desktop window.
-**BigQuery** (`bigquery`, `layout: 'full'`, guide `docs/guide/workspace/bigquery.md`)
+**BigQuery** (`bigquery`, `layout: 'full'`, guide `docs/guide/data/bigquery.md`)
 is a BigQuery console: explorer (starred projects > datasets > tables),
 editor tabs with a debounced free dry run for the bytes estimate, results
 (grid, JSON, job information, execution details from `queryPlan`, chart),
@@ -815,7 +815,7 @@ Electron) calls only `bigquery.googleapis.com` with fixed URL shapes and
 validated ids; rows are converted by schema (INT64/NUMERIC stay strings).
 Nothing is written to disk; tabs and starred projects live in `prefs`
 (`monorail.bigquery.*`). Queries run with the user's own permissions.
-**SQLX** (`sqlx`, guide `docs/guide/workspace/sqlx.md`) opens Dataform
+**SQLX** (`sqlx`, guide `docs/guide/data/sqlx.md`) opens Dataform
 `.sqlx` files: file list left, the open file in tabs right. The `config { }`
 block is never shown as code outside the last tab: Query (SQL and its refs),
 Settings (`ConfigForm.tsx` limited to Target/About/Run/BigQuery/More; field
@@ -1383,7 +1383,7 @@ entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
   MonoRail, starting with Database.
 
 **OpenMetadata** (`openmetadata` module, in the Insights slot the Semantic
-page had, `nav: { section: 'Insights' }`, `/semantic` redirects here; guide `docs/guide/openmetadata.md`) is that
+page had, `nav: { section: 'Insights' }`, `/semantic` redirects here; guide `docs/guide/data/openmetadata.md`) is that
 app's UI side, reading **MonoRail's local database by default** and a connected
 server on request (`createLocalService` / `createServerService` behind
 `createService` in `openmetadata.cjs`; every method takes `source: 'local' |
