@@ -143,6 +143,9 @@ context, platform), with how many your server holds. Kinds with none are
 greyed out but still there, so you can see what OpenMetadata could hold. A
 server older than 2.1 has no ontology kinds, so those stay greyed out.
 
+- **Search tables by name** in the box above the list, wherever you are in
+  Catalog: it looks through every table in the catalog, best matches first.
+  Click one to open it, or press Esc to go back to what you were looking at.
 - **Overview** shows the totals, which server you are connected to, and what
   changed most recently.
 - **Pick a kind** to list its entities, with their owners and tags. Type in
@@ -153,7 +156,8 @@ server older than 2.1 has no ontology kinds, so those stay greyed out.
   the other entities it points to, its [lineage](#lineage), its earlier
   versions, and the raw data OpenMetadata sent. For the kinds MonoRail has adopted into the standard,
   like tables and databases, each field also says what it means, with a link
-  to the kind's page in the standard.
+  to the kind's page in the standard. On **Relationships**, a long list (a
+  schema's tables, say) has its own box to search it by name.
 
 ## Lineage
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { SearchField } from '@/components/ui/search-field'
 import { Segmented } from '@/components/ui/segmented'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -354,23 +355,42 @@ function Relationships({ refs, onOpen }: { refs: [string, OmRef[]][]; onOpen: (v
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {refs.map(([k, list]) => (
-        <Card key={k}>
-          <CardHeader>
-            <CardTitle>{humanize(k)}</CardTitle>
-            <CardDescription>
-              {list.length} {list.length === 1 ? 'reference' : 'references'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-col divide-y">
-              {list.map((r) => (
-                <RefRow key={`${r.type}:${r.id}`} r={r} onOpen={onOpen} />
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <RefList key={k} field={k} list={list} onOpen={onOpen} />
       ))}
     </div>
+  )
+}
+
+/** Long lists (a schema's tables) get a name filter. */
+const FILTER_FROM = 8
+
+function RefList({ field, list, onOpen }: { field: string; list: OmRef[]; onOpen: (v: View) => void }) {
+  const [filter, setFilter] = useState('')
+  const f = filter.trim().toLowerCase()
+  const shown = f ? list.filter((r) => [r.name, r.displayName, r.fullyQualifiedName].some((s) => s?.toLowerCase().includes(f))) : list
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{humanize(field)}</CardTitle>
+        <CardDescription>
+          {f ? `${shown.length} of ${list.length}` : list.length} {list.length === 1 ? 'reference' : 'references'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {list.length >= FILTER_FROM && (
+          <SearchField size="sm" aria-label={`Search ${humanize(field).toLowerCase()} by name`} placeholder="Search by name" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        )}
+        {shown.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">No names match.</p>
+        ) : (
+          <ul className="flex flex-col divide-y">
+            {shown.map((r) => (
+              <RefRow key={`${r.type}:${r.id}`} r={r} onOpen={onOpen} />
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
