@@ -13,9 +13,9 @@ import { useCall } from '../api'
 import { typeInfo } from '../catalog'
 import { TypeTile } from '../parts'
 import { openInCatalog } from '../tabs'
-import type { OmLineage, OmLineageEdge, OmRef } from '../types'
+import type { OmEntity, OmLineage, OmLineageEdge, OmRef } from '../types'
 import { displayName } from '../util'
-import { fqnOf, serviceOf, useAssets, type Asset } from './assets'
+import { ASSET_TYPES, assetTypesIn, fqnOf, serviceOf, useAssetSearch, type Asset } from './assets'
 import { EmptyNote, ErrorNote, Loading } from './assets-parts'
 import type { OmTabProps } from './types'
 
@@ -50,7 +50,7 @@ interface Picked {
 
 /** Pick an asset and see where its data comes from and where it goes, as a graph. */
 export default function LineageTab({ counts }: OmTabProps) {
-  const assets = useAssets(counts)
+  const types = useMemo(() => (counts.data ? assetTypesIn(counts.data) : null), [counts.data])
   const [picked, setPicked] = useState<Picked>()
   const [up, setUp] = useState<Depth>('2')
   const [down, setDown] = useState<Depth>('2')
@@ -60,7 +60,7 @@ export default function LineageTab({ counts }: OmTabProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-4">
-        <AssetPicker assets={assets.data?.assets} loading={assets.loading} picked={picked} onPick={(a) => pick({ ...a, type: a.assetType })} />
+        <AssetPicker types={types} picked={picked} onPick={(a) => pick({ ...a, type: a.assetType })} />
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Upstream steps</span>
           <Segmented aria-label="Upstream steps" value={up} onChange={setUp} options={DEPTHS} />
@@ -71,7 +71,7 @@ export default function LineageTab({ counts }: OmTabProps) {
         </div>
       </div>
       {!picked ? (
-        <Suggestions assets={assets.data?.assets} loading={assets.loading} onPick={(a) => pick({ ...a, type: a.assetType })} />
+        <Suggestions none={types?.length === 0} onPick={(a) => pick({ ...a, type: a.assetType })} />
       ) : (
         <LineageView key={`${picked.type}|${picked.id}`} picked={picked} up={Number(up)} down={Number(down)} onRecenter={pick} />
       )}
@@ -79,16 +79,13 @@ export default function LineageTab({ counts }: OmTabProps) {
   )
 }
 
-/** A search box over the data assets that picks one. */
-function AssetPicker({ assets, loading, picked, onPick }: { assets: Asset[] | undefined; loading: boolean; picked?: Picked; onPick: (a: Asset) => void }) {
+/** A search box over the data assets that picks one: searches the whole catalog in the backend. */
+function AssetPicker({ types, picked, onPick }: { types: string[] | null; picked?: Picked; onPick: (a: Asset) => void }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
-  const hits = useMemo(() => {
-    const f = q.trim().toLowerCase()
-    const list = assets ?? []
-    const matched = f ? list.filter((e) => [e.name, e.displayName, e.fullyQualifiedName].some((s) => s?.toLowerCase().includes(f))) : list
-    return matched.slice(0, 12)
-  }, [assets, q])
+  const search = useAssetSearch(q, open ? types : null, { limit: 12 })
+  const hits = search.rows ?? []
+  const loading = open && search.rows === undefined
   return (
     <div className="relative w-full max-w-md">
       <Label htmlFor="om-lineage-pick" className="mb-1 block text-xs font-normal text-muted-foreground">
@@ -130,18 +127,22 @@ function AssetPicker({ assets, loading, picked, onPick }: { assets: Asset[] | un
               </button>
             </li>
           ))}
-          {!hits.length && <li className="px-2 py-3 text-center text-sm text-muted-foreground">{loading ? 'Still reading…' : 'No assets match.'}</li>}
+          {!hits.length && <li className="px-2 py-3 text-center text-sm text-muted-foreground">{loading || search.loading ? 'Searching…' : (search.error ?? 'No assets match.')}</li>}
+          {search.total > hits.length && <li className="px-2 py-1.5 text-center text-xs text-muted-foreground">{search.total - hits.length} more match: type more of the name</li>}
         </ul>
       )}
     </div>
   )
 }
 
-/** Before an asset is picked: a few to start from. */
-function Suggestions({ assets, loading, onPick }: { assets: Asset[] | undefined; loading: boolean; onPick: (a: Asset) => void }) {
-  if (loading && !assets) return <Loading>Reading the data assets…</Loading>
-  if (!assets?.length) return <EmptyNote title="No data assets yet">Lineage is drawn between data assets. Once ingestion has added some, pick one here.</EmptyNote>
-  const start = [...assets].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)).slice(0, 6)
+/** Before an asset is picked: a few changed lately to start from. */
+function Suggestions({ none, onPick }: { none: boolean; onPick: (a: Asset) => void }) {
+  const recent = useCall<(OmEntity & { entityType: string })[]>('recent', { size: 50 })
+  const isAsset = (t: string) => (ASSET_TYPES as readonly string[]).includes(t)
+  const start: Asset[] = (recent.data ?? []).filter((e) => isAsset(e.entityType)).slice(0, 6).map((e) => ({ ...e, assetType: e.entityType }))
+  if (!recent.data && !recent.error && !none) return <Loading>Reading the data assets…</Loading>
+  if (!none && !start.length) return <EmptyNote title="Pick an asset">Search above for the table, dashboard or pipeline to start from.</EmptyNote>
+  if (none) return <EmptyNote title="No data assets yet">Lineage is drawn between data assets. Once ingestion has added some, pick one here.</EmptyNote>
   return (
     <Card>
       <CardHeader>

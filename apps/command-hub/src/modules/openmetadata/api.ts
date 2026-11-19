@@ -5,9 +5,10 @@ import { invokeModule, isDesktop } from '@/modules/client'
 import { sampleInvoke } from './sample'
 
 /**
- * Which catalog the page reads: MonoRail's local database, the copy of the
- * BigQuery dataset that is the source of truth, or the OpenMetadata server.
- * Unset: the backend's default.
+ * Which catalog answered the page's status call: the copy on this PC of the
+ * BigQuery dataset (while BigQuery metadata is set up), the OpenMetadata
+ * server, or MonoRail's local database. The backend picks it; the page has no
+ * switch. Every later call names the same one so a page never mixes two.
  */
 export type Source = 'local' | 'bigquery' | 'server'
 let source: Source | undefined

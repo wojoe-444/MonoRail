@@ -1353,8 +1353,12 @@ app's UI side, reading **MonoRail's local database by default** and a connected
 server on request (`createLocalService` / `createServerService` behind
 `createService` in `openmetadata.cjs`; every method takes `source: 'local' |
 'bigquery' | 'server'`, default BigQuery while it is set up, then the server
-once its connection is set up, local until then; the page shows a This PC /
-BigQuery / Server switch, pref `monorail.openmetadata.source`):
+once its connection is set up, local until then; the page has **no source
+switch**: once BigQuery sync is set up everything is served from its local
+copy, the sync only keeps it fresh. Search (Explore, Lineage picker, Catalog
+list filter) goes through the backend's `search` (local: SQL over every
+entity, `localdb` `search()`; server: `/search/query`), never a filter
+over a capped load (`useAssetSearch` in `tabs/assets.ts`)):
 every OpenMetadata 2.1 entity type that has a REST collection
 (90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
 rows take their wording from the standard) on one page, read live from the

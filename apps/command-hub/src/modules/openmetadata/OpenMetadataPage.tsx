@@ -5,23 +5,15 @@ import { PageCommandBar } from '@/components/layout/PageCommandBar'
 import { PageTabs } from '@/components/layout/PageTabs'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Segmented } from '@/components/ui/segmented'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { prefs } from '@/lib/prefs'
 import { navigate, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { openWiki } from '@/modules/wiki/store'
 
-import { call, refreshData, setSource, useCall, type Source } from './api'
+import { call, refreshData, setSource, useCall } from './api'
 import { OM_TABS, tabFromPath, tabPath } from './tabs'
 import type { OmTabProps } from './tabs/types'
 import type { BqStatus, OmCounts, OmStatus } from './types'
-
-const SOURCE_KEY = 'monorail.openmetadata.source'
-const savedSource = (): Source | undefined => {
-  const v = prefs.getItem(SOURCE_KEY)
-  return v === 'local' || v === 'server' || v === 'bigquery' ? v : undefined
-}
 
 const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
   home: lazy(() => import('./tabs/HomeTab')),
@@ -44,28 +36,24 @@ const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
 /**
  * OpenMetadata: a metadata platform in one page, after the MonoRail-Metadata
  * app. Its tabs (src/modules/openmetadata/tabs.ts) sit in a command bar in
- * the top bar; each is its own route. Catalog tabs read MonoRail's local
- * database, the copy of the BigQuery dataset that is the source of truth, or
- * a connected OpenMetadata server (the source switch), through
- * electron/modules/openmetadata.cjs; no server is contacted until the
- * OpenMetadata connection is set up. The semantic-layer tabs read the
+ * the top bar; each is its own route. Catalog tabs read one catalog, picked
+ * by the backend (electron/modules/openmetadata.cjs) and never by the page:
+ * the copy on this PC of the BigQuery dataset that is the source of truth
+ * while that is set up (the sync only keeps the copy fresh), else a connected
+ * OpenMetadata server, else MonoRail's local database. There is no switch;
+ * no server is contacted until the OpenMetadata connection is set up. The semantic-layer tabs read the
  * MetricFlow project (electron/modules/semantic.cjs).
  */
 export default function OpenMetadataPage() {
   const [path] = useRoute()
   const tab = tabFromPath(path)
-  const [chosen, setChosen] = useState<Source | undefined>(savedSource)
-  const status = useCall<OmStatus>('status', chosen ? { source: chosen } : {})
+  const status = useCall<OmStatus>('status', {})
   // Every call below names the catalog that answered status, and the content remounts when it changes.
   const source = status.data?.source
   setSource(source)
   const ready = !!status.data && !status.data.block
   const counts = useCall<OmCounts>('counts', ready ? { source } : null)
   const [refresh, setRefresh] = useState(0)
-  const choose = (s: Source) => {
-    setChosen(s)
-    prefs.setItem(SOURCE_KEY, s)
-  }
   const reload = () => {
     status.reload()
     counts.reload()
@@ -82,19 +70,6 @@ export default function OpenMetadataPage() {
         description={tab.description}
         actions={
           <>
-            {tab.catalog && (status.data?.serverSetUp || status.data?.bigquerySetUp) && (
-              <Segmented
-                aria-label="Catalog"
-                className="min-h-0 p-0.5"
-                value={source ?? 'local'}
-                onChange={choose}
-                options={[
-                  { value: 'local' as const, label: 'This PC' },
-                  ...(status.data.bigquerySetUp ? [{ value: 'bigquery' as const, label: 'BigQuery', title: 'The source of truth: a copy on this PC of your BigQuery dataset' }] : []),
-                  ...(status.data.serverSetUp ? [{ value: 'server' as const, label: 'Server' }] : []),
-                ]}
-              />
-            )}
             <IconAction label="Guide" onClick={() => openWiki('guide/openmetadata')}>
               <BookOpen />
             </IconAction>

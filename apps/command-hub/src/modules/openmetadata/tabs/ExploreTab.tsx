@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils'
 
 import { typeInfo } from '../catalog'
 import { displayName, isTier, tierOf } from '../util'
-import { clearExploreQuery, peekExploreQuery, serviceOf, tierLabel, useAssets, type Asset } from './assets'
-import { AssetRow, EmptyNote, ErrorNote, LoadNotes, Loading } from './assets-parts'
+import { assetTypesIn, clearExploreQuery, peekExploreQuery, serviceOf, tierLabel, useAssetSearch, type Asset } from './assets'
+import { AssetRow, EmptyNote, ErrorNote, Loading } from './assets-parts'
 import type { OmTabProps } from './types'
 
 const NONE = '\u0000none'
@@ -36,34 +36,35 @@ const FACETS: Facet[] = [
 ]
 
 type Filters = Record<string, string[]>
-type Sort = 'name' | 'updated'
+type Sort = 'best' | 'name' | 'updated'
 const PAGE = 25
-
-function matchesQuery(e: Asset, q: string) {
-  if (!q) return true
-  const hay = [e.name, e.displayName, e.fullyQualifiedName, e.description, serviceOf(e), ...(e.owners ?? []).map((o) => displayName(o)), ...(e.tags ?? []).map((t) => t.tagFQN)]
-  return q.split(/\s+/).every((word) => hay.some((s) => s?.toLowerCase().includes(word)))
-}
 
 const passes = (e: Asset, filters: Filters, skip?: string) =>
   FACETS.every((f) => f.id === skip || !filters[f.id]?.length || f.values(e).some((v) => filters[f.id].includes(v)))
 
-/** Search and filter the data assets, with facets on the left. The assets are listed from the catalog and filtered here. */
+/**
+ * Search and filter the data assets, with facets on the left. The search runs
+ * over the whole catalog in the backend (every table, however many there
+ * are); the best matches come back and the facets filter those here.
+ */
 export default function ExploreTab({ counts }: OmTabProps) {
-  const assets = useAssets(counts)
   const [q, setQ] = useState(() => peekExploreQuery() ?? '')
   useEffect(() => clearExploreQuery(), [])
-  const query = useDeferredValue(q.trim().toLowerCase())
+  const query = useDeferredValue(q.trim())
+  const types = useMemo(() => (counts.data ? assetTypesIn(counts.data) : null), [counts.data])
+  const search = useAssetSearch(query, types)
   const [filters, setFilters] = useState<Filters>({})
-  const [sort, setSort] = useState<Sort>('name')
+  const [sort, setSort] = useState<Sort>('best')
   const [shown, setShown] = useState(PAGE)
 
-  const rows = assets.data?.assets
-  const searched = useMemo(() => (rows ?? []).filter((e) => matchesQuery(e, query)), [rows, query])
+  const searched = useMemo(() => search.rows ?? [], [search.rows])
   const results = useMemo(() => {
     const r = searched.filter((e) => passes(e, filters))
-    return sort === 'name' ? r.sort((a, b) => displayName(a).localeCompare(displayName(b))) : r.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    if (sort === 'name') return r.sort((a, b) => displayName(a).localeCompare(displayName(b)))
+    if (sort === 'updated') return r.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    return r
   }, [searched, filters, sort])
+  const cut = search.total > searched.length
 
   const toggle = (facet: string, value: string) => {
     setShown(PAGE)
@@ -75,14 +76,10 @@ export default function ExploreTab({ counts }: OmTabProps) {
   const active = FACETS.flatMap((f) => (filters[f.id] ?? []).map((v) => ({ f, v })))
 
   if (counts.error && !counts.data) return <ErrorNote>{counts.error}</ErrorNote>
-  if (!rows) return <Loading>Reading the data assets…</Loading>
-  if (!rows.length)
-    return (
-      <div className="flex flex-col gap-4">
-        {assets.data && <LoadNotes load={assets.data} />}
-        <EmptyNote title="No data assets yet">Tables, dashboards, pipelines and the rest arrive through ingestion. Once there are some, search and filter them here.</EmptyNote>
-      </div>
-    )
+  if (search.error && !search.rows) return <ErrorNote>{search.error}</ErrorNote>
+  if (!search.rows) return <Loading>Searching the data assets…</Loading>
+  if (types && !types.length)
+    return <EmptyNote title="No data assets yet">Tables, dashboards, pipelines and the rest arrive through ingestion. Once there are some, search and filter them here.</EmptyNote>
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,12 +99,19 @@ export default function ExploreTab({ counts }: OmTabProps) {
             Sort
           </Label>
           <NativeSelect id="om-explore-sort" className="w-40" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            <option value="best">Best match</option>
             <option value="name">Name</option>
             <option value="updated">Last updated</option>
           </NativeSelect>
         </div>
       </div>
-      {assets.data && <LoadNotes load={assets.data} />}
+      {search.error && <ErrorNote>{search.error}</ErrorNote>}
+      {cut && (
+        <p className="text-xs text-muted-foreground">
+          {query ? `${formatCount(search.total)} assets match. ` : `${formatCount(search.total)} assets in the catalog. `}
+          The best {formatCount(searched.length)} are shown and filtered here; {query ? 'add words' : 'type a name'} to narrow it down.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <Card className="gap-0 py-2">
@@ -118,10 +122,11 @@ export default function ExploreTab({ counts }: OmTabProps) {
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="tabular-nums">
-              {formatCount(results.length)} {results.length === 1 ? 'result' : 'results'}
-              {query ? ` for “${q.trim()}”` : ''}
+            <span className="tabular-nums" aria-live="polite">
+              {formatCount(active.length || !cut ? results.length : search.total)} {(active.length || !cut ? results.length : search.total) === 1 ? 'result' : 'results'}
+              {query ? ` for “${query}”` : ''}
             </span>
+            {search.loading && <span className="text-xs">Searching…</span>}
             {active.map(({ f, v }) => (
               <Button key={`${f.id}:${v}`} variant="secondary" size="sm" className="h-7" onClick={() => toggle(f.id, v)}>
                 {f.label}: {v === NONE ? f.noneLabel : (f.format?.(v) ?? v)}
@@ -135,7 +140,7 @@ export default function ExploreTab({ counts }: OmTabProps) {
             )}
           </div>
           {results.length === 0 ? (
-            <EmptyNote title="Nothing matches">Try fewer words, or clear the filters.</EmptyNote>
+            <EmptyNote title="Nothing matches">{search.loading ? 'Searching…' : 'Try fewer words, or clear the filters.'}</EmptyNote>
           ) : (
             <Card className="gap-0 py-2">
               <CardContent className="px-2">

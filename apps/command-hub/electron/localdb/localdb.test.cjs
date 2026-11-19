@@ -119,6 +119,34 @@ describe('local database', () => {
     db.pruneRecords('pipelineStatus', 'p', 3)
     assert.deepEqual(db.records('pipelineStatus', 'p').map((r) => r.i), [4, 3, 2])
   })
+
+  test('search looks through every entity, not a loaded page, and ranks names first', () => {
+    const db = openDatabase(tmp())
+    db.transaction(() => {
+      for (let i = 0; i < 3000; i++) db.put('table', { name: `stg_table_${String(i).padStart(4, '0')}`, fullyQualifiedName: fqnOf('wh', 'raw', 'staging', `stg_table_${String(i).padStart(4, '0')}`) })
+      db.put('table', { name: 'zz_orders_mart', fullyQualifiedName: fqnOf('wh', 'analytics', 'marts', 'zz_orders_mart'), description: 'Orders, one row per order' })
+      db.put('table', { name: 'orders_mart', fullyQualifiedName: fqnOf('wh', 'analytics', 'marts', 'orders_mart') })
+      db.put('table', { name: 'fct_revenue', fullyQualifiedName: fqnOf('wh', 'analytics', 'marts', 'fct_revenue'), owners: [{ name: 'finance-team', type: 'team' }] })
+      db.put('table', { name: 'old_mart', fullyQualifiedName: fqnOf('wh', 'analytics', 'old', 'old_mart'), deleted: true })
+      db.put('dashboard', { name: 'Orders mart overview', fullyQualifiedName: fqnOf('bi', 'Orders mart overview') })
+    })
+    // Far past any page or cap, sorted last by name: still found.
+    const hits = db.search({ q: 'orders_mart', types: ['table'] })
+    assert.deepEqual(hits.data.map((e) => e.name), ['orders_mart', 'zz_orders_mart'], 'exact name first')
+    assert.equal(hits.total, 2)
+    assert.equal(hits.data[0].entityType, 'table')
+    // Every word must match somewhere: the schema in the full name, a description, an owner.
+    assert.deepEqual(db.search({ q: 'marts revenue' }).data.map((e) => e.name), ['fct_revenue'])
+    assert.deepEqual(db.search({ q: 'one row per' }).data.map((e) => e.name), ['zz_orders_mart'])
+    assert.deepEqual(db.search({ q: 'FINANCE' }).data.map((e) => e.name), ['fct_revenue'], 'case ignored, owners searched')
+    assert.equal(db.search({ q: 'mart' }).total, 4, 'every type when none is named; deleted left out')
+    assert.equal(db.search({ q: 'mart', deleted: true }).total, 5)
+    // The limit caps what comes back, not the count.
+    const many = db.search({ q: 'stg_table', limit: 20 })
+    assert.equal(many.data.length, 20)
+    assert.equal(many.total, 3000)
+    assert.equal(db.search({ q: '%' }).total, 0, 'a % is matched as typed')
+  })
 })
 
 describe('OpenMetadata page on the local database', () => {

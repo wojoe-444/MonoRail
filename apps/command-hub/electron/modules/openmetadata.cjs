@@ -189,6 +189,27 @@ function normalizeLineage(res, { type, id }) {
   return { entity, nodes, upstreamEdges: edges(res?.upstreamEdges), downstreamEdges: edges(res?.downstreamEdges) }
 }
 
+/** The most matches one search returns; the page says how many more there are. */
+const SEARCH_LIMIT = 500
+
+/** What a search result carries: enough for a row (name, owners, tags, service), not columns or definitions. */
+const SEARCH_FIELDS = ['id', 'name', 'displayName', 'fullyQualifiedName', 'description', 'owners', 'tags', 'domains', 'service', 'serviceType', 'tableType', 'updatedAt', 'updatedBy', 'deleted', 'entityType']
+const searchRow = (e) => Object.fromEntries(SEARCH_FIELDS.filter((k) => e[k] !== undefined).map((k) => [k, k === 'description' && typeof e[k] === 'string' ? e[k].slice(0, 500) : e[k]]))
+
+/** A search's arguments, checked: text (at most 200 characters), known types, a limit. */
+function searchArgs({ q, types, limit, deleted } = {}) {
+  if (q !== undefined && q !== null && (typeof q !== 'string' || q.length > 200)) throw new Error('Give a search of at most 200 characters.')
+  const wanted = types === undefined || types === null ? Object.keys(TYPES) : Array.isArray(types) ? types.filter((t) => typeof t === 'string' && Object.hasOwn(TYPES, t)) : []
+  if (!wanted.length) throw new Error('Give at least one entity type to search.')
+  return { q: (q ?? '').trim(), types: wanted, limit: Math.max(1, Math.min(SEARCH_LIMIT, Number(limit) || 50)), deleted: deleted === true }
+}
+
+/** Elasticsearch query_string text for OpenMetadata's search: every word, anywhere in a field. */
+function serverQuery(q) {
+  const words = q.split(/\s+/).filter(Boolean).map((w) => w.replace(/[+\-=&|><!(){}[\]^"~*?:\\/]/g, (c) => `\\${c}`))
+  return words.length ? words.map((w) => '*' + w + '*').join(' AND ') : '*'
+}
+
 function text(v, name, max = 2000) {
   if (typeof v !== 'string' || !v || v.length > max) throw new Error(`Give a ${name}.`)
   return v
@@ -389,6 +410,29 @@ function createServerService(deps = {}) {
       return (res?.hits?.hits ?? []).map((h) => h._source).filter((s) => s && Object.hasOwn(TYPES, s.entityType))
     },
 
+    /**
+     * Search the whole catalog (OpenMetadata's `all` search index), not a
+     * loaded page. Returns { data: [{ ...entity, entityType }], total }.
+     */
+    async search(args = {}) {
+      const c = await guard()
+      const { q, types, limit, deleted } = searchArgs(args)
+      const filter = JSON.stringify({ query: { bool: { filter: [{ terms: { entityType: types } }] } } })
+      const ask = (withFilter) =>
+        c.get(`/search/query${query({ q: serverQuery(q), index: 'all', from: 0, size: limit, deleted, query_filter: withFilter ? filter : undefined })}`)
+      let res
+      try {
+        res = await ask(true)
+      } catch (e) {
+        if (e.status !== 400) throw e
+        res = await ask(false)
+      }
+      const hits = (res?.hits?.hits ?? []).map((h) => h._source).filter((s) => s && types.includes(s.entityType))
+      const t = res?.hits?.total
+      const total = typeof t === 'number' ? t : typeof t?.value === 'number' ? t.value : hits.length
+      return { data: hits.map(searchRow), total: Math.max(total, hits.length) }
+    },
+
     /** Upstream and downstream assets: GET /lineage/{entityType}/{id}?upstreamDepth=&downstreamDepth= (0 to 3 each). */
     async getLineage({ type, id, upstreamDepth, downstreamDepth } = {}) {
       const c = await guard()
@@ -454,6 +498,12 @@ function createLocalService(deps = {}, { readOnly, describe, lineageNote, legacy
     },
     async recent({ size = 30 } = {}) {
       return db().recent(Math.max(1, Math.min(50, Number(size) || 30))).filter((e) => Object.hasOwn(TYPES, e.entityType))
+    },
+    /** Search the whole database (localdb search), not a loaded page. */
+    async search(args = {}) {
+      const { q, types, limit, deleted } = searchArgs(args)
+      const res = db().search({ q, types, limit, deleted })
+      return { data: res.data.map(searchRow), total: res.total }
     },
     /** The lineage table's edges around an entity, in the server's EntityLineage shape. */
     async getLineage({ type, id, upstreamDepth, downstreamDepth } = {}) {
@@ -533,6 +583,7 @@ function createService(deps = {}) {
     get: route('get'),
     versions: route('versions'),
     recent: route('recent'),
+    search: route('search'),
     getLineage: route('getLineage'),
     setDescription: route('setDescription'),
     /** Sync the BigQuery copy now (`full`: download everything again, free in BigQuery). */
@@ -557,6 +608,7 @@ module.exports = {
     get: (_ctx, args) => svc().get(args),
     versions: (_ctx, args) => svc().versions(args),
     recent: (_ctx, args) => svc().recent(args),
+    search: (_ctx, args) => svc().search(args),
     getLineage: (_ctx, args) => svc().getLineage(args),
     setDescription: (_ctx, args) => svc().setDescription(args),
     syncBigQuery: (_ctx, args) => svc().syncBigQuery(args),
@@ -578,5 +630,5 @@ module.exports = {
     setInterval(() => void bq.tick(), TICK_MS).unref?.()
   },
   TYPES,
-  _internal: { createService, createServerService, createLocalService, createClient, collectionOf, normalizeLineage },
+  _internal: { searchArgs, serverQuery, createService, createServerService, createLocalService, createClient, collectionOf, normalizeLineage },
 }

@@ -189,10 +189,12 @@ the same shared sync as the OpenMetadata page).
 
 ## The page
 
-While the connection is set up, `bigquery` is the page's default source,
-before the server and the local database. A saved choice of BigQuery falls
-back to the default once the connection is gone. The header switch offers
-This PC, BigQuery and Server (each only when available). The copy is read
+While the connection is set up, `bigquery` is the page's source, before the
+server and the local database; the page has no switch, so everything it
+shows is read from the copy on this PC and the sync only keeps it fresh. Once
+the connection is gone the page falls back to the server or the local
+database. Search (`search`, SQL over every entity in the copy) never reads
+a capped load. The copy is read
 through the same `createLocalService` as the local database, with
 `setDescription` refused: MonoRail does not write to the source of truth yet,
 and editing the copy would drift from BigQuery. The pencil is hidden

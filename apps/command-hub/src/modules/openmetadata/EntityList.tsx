@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { call, errorText, useCall, useDataVersion } from './api'
 import { typeInfo } from './catalog'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, type View } from './util'
+import { useAssetSearch } from './tabs/assets'
 import type { OmEntity, OmPage } from './types'
 
 /** Every entity of one type, a page at a time, as OpenMetadata lists them. */
@@ -30,8 +31,12 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
   const rows = [...(first.data?.data ?? []), ...(extra?.rows ?? [])]
   const after = extra ? extra.after : first.data?.paging?.after
   const count = first.data?.paging?.total ?? (typeof total === 'number' ? total : undefined)
-  const f = filter.trim().toLowerCase()
-  const shown = f ? rows.filter((e) => [e.name, e.displayName, e.fullyQualifiedName].some((s) => s?.toLowerCase().includes(f))) : rows
+  // A filter searches every entity of the type in the backend, not just the loaded pages.
+  const f = filter.trim()
+  const types = useMemo(() => [type], [type])
+  const search = useAssetSearch(f, f ? types : null, { limit: 100, deleted })
+  const searching = !!f
+  const shown = searching ? (search.rows ?? []) : rows
   const hasOwners = rows.some((e) => 'owners' in e)
   const hasTags = rows.some((e) => 'tags' in e)
 
@@ -74,7 +79,7 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
             className="max-w-sm"
             size="sm"
             aria-label={`Filter ${info?.plural.toLowerCase() ?? 'entities'} by name`}
-            placeholder={after ? 'Filter the loaded rows by name' : 'Filter by name'}
+            placeholder="Search by name"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -95,8 +100,12 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
             <p className="text-sm font-medium">No {info?.plural.toLowerCase() ?? 'entities'}</p>
             <p className="max-w-md text-sm text-muted-foreground">This server has none yet. They arrive through ingestion, the API, or OpenMetadata&apos;s own tools.</p>
           </div>
+        ) : searching && !search.rows ? (
+          <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Searching…
+          </p>
         ) : shown.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No names match{after ? ' among the loaded rows. Load more to look further.' : '.'}</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{search.error ?? 'No names match.'}</p>
         ) : (
           <ul className="flex flex-col divide-y">
             {shown.map((e) => {
@@ -123,8 +132,13 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
             })}
           </ul>
         )}
+        {searching && search.total > shown.length && (
+          <p className="text-xs text-muted-foreground tabular-nums">
+            The best {shown.length} of {search.total} matches. Type more of the name to narrow it down.
+          </p>
+        )}
         {moreError && <p role="alert" className="text-sm text-destructive">{moreError}</p>}
-        {after && (
+        {after && !searching && (
           <div className="flex items-center justify-between gap-4">
             <span className="text-xs text-muted-foreground tabular-nums">
               {rows.length} of {count ?? '?'} loaded
