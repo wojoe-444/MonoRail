@@ -5,6 +5,9 @@
 // work: the CLI's own login (gcloud auth login) and Application Default
 // Credentials, which client libraries use (gcloud auth application-default
 // login). Access tokens printed by the checks are discarded, never returned.
+// credentials() is the one exception: it hands a fresh access token and the
+// default project to another backend in the main process (BigQuery), never
+// to the page and never stored.
 //
 // "Sign in again" runs both logins one after the other. Each opens the
 // browser for Google's consent page and waits for its loopback redirect.
@@ -81,6 +84,23 @@ async function status() {
   return summarize({ list, user, adc, project: project && project !== '(unset)' ? project : undefined })
 }
 
+/**
+ * For other backends in the main process (BigQuery): a short-lived access
+ * token from the user's own gcloud login and the configured default project.
+ * The token goes to the caller only; it is never stored or sent to the page.
+ */
+async function credentials(_conn, { run = runTool } = {}) {
+  const [tok, proj] = await Promise.all([
+    run('gcloud', ['auth', 'print-access-token', '--quiet'], { env: QUIET, timeoutMs: 60_000 }),
+    run('gcloud', ['config', 'get-value', 'project', '--quiet'], { env: QUIET, timeoutMs: 60_000 }),
+  ])
+  if (tok.notFound) throw new Error('The Google Cloud CLI (gcloud) was not found.')
+  const accessToken = tok.code === 0 ? String(tok.stdout).trim().split(/\r?\n/).pop() : ''
+  if (!accessToken) throw new Error(`Google sign-in needs renewing (${firstLine(tok.stderr) || 'gcloud gave no access token'}). Use Sign in again on Connections.`)
+  const project = proj.code === 0 ? String(proj.stdout).trim().split(/\r?\n/).pop() : ''
+  return { accessToken, project: project && project !== '(unset)' ? project : undefined }
+}
+
 const LOGIN_STEPS = [
   { label: 'gcloud auth login', args: ['auth', 'login'] },
   { label: 'gcloud auth application-default login', args: ['auth', 'application-default', 'login'] },
@@ -146,5 +166,6 @@ module.exports = {
     },
   ],
   status,
+  credentials,
   _internal: { summarize, parseAuthList },
 }

@@ -32,6 +32,7 @@ const moduleBackends = [
   require('./agent-chat.cjs'),
   require('./agents.cjs'),
   require('./backups.cjs'),
+  require('./bigquery.cjs'),
   require('./bookmarks.cjs'),
   require('./browser.cjs'),
   require('./claude-stats.cjs'),

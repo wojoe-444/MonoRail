@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { openWiki } from '@/modules/wiki/store'
 import { STANDARD, docsTarget, standardField } from '@/standard'
 
-import { call, errorText, useCall } from './api'
+import { call, canEdit, errorText, useCall } from './api'
 import { adopted, typeInfo } from './catalog'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, formatTime, tierOf, type View } from './util'
@@ -108,16 +108,18 @@ export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; o
       <Card>
         <CardHeader>
           <CardTitle>Description</CardTitle>
-          <CardAction>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Edit description" onClick={() => setEditing(true)}>
-                  <Pencil />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit description</TooltipContent>
-            </Tooltip>
-          </CardAction>
+          {canEdit() && (
+            <CardAction>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Edit description" onClick={() => setEditing(true)}>
+                    <Pencil />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit description</TooltipContent>
+              </Tooltip>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           <Description text={entity.description} />

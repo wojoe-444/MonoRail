@@ -42,7 +42,10 @@ rule.
   GitHub CLI login by default, or a token you paste.
 - **Atlassian**: your Jira site, email and API token, used by
   [Tasks](../workspace/tasks.md#your-teams-jira).
-- **Google Cloud**: your `gcloud` login.
+- **Google Cloud**: your `gcloud` login, used by
+  [BigQuery](../workspace/bigquery.md). Its **BigQuery metadata** add-on makes
+  a BigQuery dataset the
+  [source of truth for the OpenMetadata page](../openmetadata.md#bigquery-as-the-source-of-truth).
 - **pi**: the pi coding agent, its version and which providers it is signed
   in to, plus the [models](../glossary.md#model) it offers by default.
   Add-ons under it, like the **Playwright browser**, let pi use your own

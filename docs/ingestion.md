@@ -32,12 +32,24 @@ OpenMetadata's shape wins, except for the rules under
 A connector in `electron/connections/connectors` that declares
 `service: { category, serviceType }` is a data source; the rest are
 accounts. Today: `sqlite` (`databaseService`, SQLite), `metricflow`
-(`databaseService`, dbt) and `openmetadata` (`metadataService`, also the
-server for server pipelines). Connections still owns them (fields, secrets,
-checks); `describeConnector` passes `service` to the page, which tags those
-rows "Data service". Local services get fixed OpenMetadata names
-(`local_sqlite`, `local_dbt`, `LOCAL_SERVICES` in `ingestion.cjs`) because a
+(`databaseService`, dbt), `openmetadata` (`metadataService`, also the
+server for server pipelines) and `bigquery-metadata` (`metadataService`,
+serviceType `BigQuery`, a value MonoRail adds to OpenMetadata's list: see
+[Metadata Service](standard/platform/metadata-service.md#service-types)).
+Connections still owns them (fields, secrets, checks); `describeConnector`
+passes `service` to the page, which tags those rows "Data service". Local
+services get fixed OpenMetadata names (`local_sqlite`, `local_dbt`,
+`bigquery_metadata`, `LOCAL_SERVICES` in `ingestion.cjs`) because a
 connection kind exists once per profile.
+
+**Connect-only services.** A `LOCAL_SERVICES` entry with `ingestion:
+'connect'` has no pipelines: connecting is its ingestion. So far that is
+[BigQuery metadata](bigquery-metadata.md), whose source something else keeps
+up to date. `overview` adds `copy` (the copy's own state from the shared
+`openmetadata.bigquerySource()`: entities, synced, last, next; no network)
+and `syncConnected({ kind, full })` runs Sync now or Full refresh. The page
+shows "None needed" for its pipelines and an Ingestion card instead of the
+pipeline list.
 
 **Test connection** is the connection's own check (`connections.check(kind,
 { force: true })`), its details shown as OpenMetadata-style steps.

@@ -133,6 +133,16 @@ function createEntityStore(db) {
     prune: q('DELETE FROM record WHERE kind = ? AND owner = ? AND key NOT IN (SELECT key FROM record WHERE kind = ? AND owner = ? ORDER BY at DESC LIMIT ?)'),
     getMeta: q('SELECT value FROM meta WHERE key = ?'),
     setMeta: q('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)'),
+    // A copy of another store (localdb/bigquery-mirror.cjs): rows go in exactly as the source has them.
+    stamp: q('SELECT updated_at FROM entity WHERE id = ?'),
+    sameName: q('SELECT id FROM entity WHERE type = ? AND fqn = ? AND id <> ?'),
+    upsertExact: q(
+      `INSERT INTO entity (id, type, fqn, name, version, updated_at, deleted, json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET type = excluded.type, fqn = excluded.fqn, name = excluded.name, version = excluded.version,
+         updated_at = excluded.updated_at, deleted = excluded.deleted, json = excluded.json`,
+    ),
+    ids: q('SELECT id FROM entity'),
+    countAll: q('SELECT count(*) AS n FROM entity'),
   }
   const parse = (row) => (row ? JSON.parse(row.json) : undefined)
   let depth = 0
@@ -227,6 +237,32 @@ function createEntityStore(db) {
     getMeta: (key) => s.getMeta.get(key)?.value,
     setMeta: (key, value) => void s.setMeta.run(key, String(value)),
 
+    // ---- A copy of another store: no version bump, the source's id, version and time are kept.
+
+    /** updated_at (ms) of an entity, or undefined. */
+    stampOf: (id) => s.stamp.get(id)?.updated_at,
+    /**
+     * Store an entity exactly as the source has it. A different entity with
+     * the same type and full name (the source renamed one) gives way, with
+     * its versions. `entity` is the parsed OpenMetadata JSON; the columns win.
+     */
+    putExact({ id, type, fqn, name, version, updatedAt, deleted, entity }) {
+      store.transaction(() => {
+        for (const other of s.sameName.all(type, fqn, id)) store.remove(other.id)
+        const json = { ...entity, id, fullyQualifiedName: fqn, version, updatedAt, ...(deleted || entity.deleted !== undefined ? { deleted: !!deleted } : {}) }
+        s.upsertExact.run(id, type, fqn, name, version, updatedAt, deleted ? 1 : 0, JSON.stringify(json))
+      })
+    },
+    putVersionExact: (id, version, entity) => void s.version.run(id, version, JSON.stringify(entity)),
+    /** Every entity id (deleted ones too). */
+    ids: () => s.ids.all().map((r) => r.id),
+    /** Every entity, deleted ones too. */
+    countAll: () => s.countAll.get().n,
+    /** Empty every table (a copy whose source changed). */
+    clearAll() {
+      store.transaction(() => db.exec('DELETE FROM entity; DELETE FROM entity_version; DELETE FROM record; DELETE FROM meta;'))
+    },
+
     close: () => db.close(),
   }
   return store
@@ -262,4 +298,36 @@ function localDbExists() {
   }
 }
 
-module.exports = { openDatabase, localDb, localDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, FOLDER, SCHEMA_VERSION }
+// ---------------------------------------------------------------- the BigQuery copy
+
+/**
+ * The local copy of a BigQuery metadata dataset (docs/bigquery-metadata.md):
+ * the same schema in its own file next to the local database, so the two
+ * never mix. It holds only what came from BigQuery and is refilled from there.
+ */
+const MIRROR_FILE = 'bigquery.sqlite3'
+let mirror
+let mirrorFailure
+function mirrorDb() {
+  if (mirror) return mirror
+  if (mirrorFailure) throw mirrorFailure
+  try {
+    mirror = openDatabase(require('../profiles/index.cjs').appLayout().folder(FOLDER), { file: MIRROR_FILE })
+    return mirror
+  } catch (e) {
+    mirrorFailure = e
+    throw e
+  }
+}
+
+/** Whether the BigQuery copy exists yet. Opens nothing, creates nothing. */
+function mirrorDbExists() {
+  if (mirror) return true
+  try {
+    return fs.existsSync(path.join(require('../profiles/index.cjs').appLayout().folder(FOLDER), MIRROR_FILE))
+  } catch {
+    return false
+  }
+}
+
+module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION }

@@ -8,6 +8,7 @@
 //   <!-- standard:entities databases -->   the entity types of one category
 //   <!-- standard:categories -->           every category, by section
 //   <!-- standard:categories data-assets --> the categories of one section
+//   <!-- standard:enum metadataServiceType --> allowed values of an enum MonoRail extends
 //   ...generated...
 //   <!-- /standard -->
 //
@@ -32,8 +33,25 @@ function linkTo(fromFile, docId) {
 function fieldTable(type) {
   const entity = STANDARD.entities.find((e) => e.type === type)
   if (!entity) throw new Error(`No entity type "${type}" in standard.json`)
-  const rows = entity.fields.map((f) => `| \`${f.name}\` | \`${cell(f.type)}\` | ${f.required ? 'Yes' : ''} | ${cell(f.description)} |`)
+  const rows = entity.fields.map((f) => `| \`${f.name}\` | \`${cell(f.type)}\` | ${f.required ? 'Yes' : ''} | ${cell(f.description)}${addedValues(f.type)} |`)
   return ['| Field | Type | Required | Description |', '| --- | --- | --- | --- |', ...rows].join('\n')
+}
+
+/** For a field whose type MonoRail extends: the values it adds, after the description. */
+function addedValues(type) {
+  const e = STANDARD.enums?.[type]
+  return e?.monorail?.length ? ` MonoRail adds ${e.monorail.map((v) => `\`${v.value}\``).join(', ')}.` : ''
+}
+
+/** Every allowed value of an enum type MonoRail extends: OpenMetadata's, then MonoRail's. */
+function enumTable(file, type) {
+  const e = STANDARD.enums?.[type]
+  if (!e) throw new Error(`No enum "${type}" in standard.json's enums`)
+  const rows = [
+    ...e.openMetadata.map((v) => `| \`${v}\` | OpenMetadata ${STANDARD.openMetadata.version} | |`),
+    ...e.monorail.map((v) => `| \`${v.value}\` | MonoRail | ${cell(v.summary)} [More](${linkTo(file, v.docs)}) |`),
+  ]
+  return ['| Value | Defined by | What it is |', '| --- | --- | --- |', ...rows].join('\n')
 }
 
 function entityTable(file, category) {
@@ -70,6 +88,7 @@ function render(file, text) {
       kind === 'fields' ? fieldTable(arg)
       : kind === 'entities' ? entityTable(file, arg)
       : kind === 'categories' ? categoryTable(file, arg)
+      : kind === 'enum' ? enumTable(file, arg)
       : null
     if (body == null) throw new Error(`${path.relative(DOCS, file)}: unknown block "standard:${kind}"`)
     return `${open}\n${body}\n\n${close}`

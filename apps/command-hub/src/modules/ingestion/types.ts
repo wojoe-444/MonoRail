@@ -97,8 +97,24 @@ export interface LocalService {
   added: boolean
   status?: ConnectionStatus
   localTypes: PipelineType[]
+  /** pipelines: read by ingestion pipelines. connect: the connection is the ingestion; MonoRail keeps a copy (BigQuery metadata). */
+  ingestion?: 'pipelines' | 'connect'
   pipelines: number
   catalog?: { databases: number; schemas: number; tables: number; updatedAt?: string }
+  /** A connect-only service's copy on this PC. */
+  copy?: ServiceCopy
+}
+
+export interface ServiceCopy {
+  source?: string
+  entities: number
+  /** The copy holds this dataset (a first sync finished). */
+  synced: boolean
+  syncEvery?: '15m' | '1h' | '6h' | '24h' | 'manual'
+  last?: { at: string; ok: boolean; error?: string; mode?: 'full' | 'incremental'; entities?: number; removed?: number }
+  running?: boolean
+  nextAt?: string
+  error?: string
 }
 
 export interface Overview {

@@ -25,8 +25,11 @@ function fakeFetch(routes) {
   return fn
 }
 
+// BigQuery metadata not set up: these tests are about the server and the local database.
+const NO_BIGQUERY = { isSetUp: async () => false }
+
 const service = (fetch, { setUp = true, creds = TOKEN_CREDS } = {}) =>
-  createService({ fetch, isSetUp: async () => setUp, credentials: async () => creds })
+  createService({ fetch, isSetUp: async () => setUp, credentials: async () => creds, bigquery: NO_BIGQUERY })
 
 describe('OpenMetadata backend', () => {
   test('the page and the backend name the same entity types', () => {
@@ -38,7 +41,7 @@ describe('OpenMetadata backend', () => {
   test('opt-in: nothing is requested before the connection is set up', async () => {
     const fetch = fakeFetch({})
     const svc = service(fetch, { setUp: false })
-    assert.deepEqual(await svc.status({ source: 'server' }), { block: 'not-set-up', source: 'server', serverSetUp: false })
+    assert.deepEqual(await svc.status({ source: 'server' }), { block: 'not-set-up', source: 'server', serverSetUp: false, bigquerySetUp: false })
     for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'setDescription']) {
       await assert.rejects(svc[m]({ source: 'server', type: 'table', fqn: 'a', id: '00000000-0000-4000-8000-000000000001', description: 'x' }), /Set up OpenMetadata/)
     }
@@ -50,7 +53,7 @@ describe('OpenMetadata backend', () => {
       'GET /system/version': () => [200, { version: '2.0.8' }],
       'GET /users/loggedInUser': () => [200, { name: 'ada.park', displayName: 'Ada Park' }],
     })
-    assert.deepEqual(await service(fetch).status(), { source: 'server', url: SERVER, version: '2.0.8', user: 'Ada Park', serverSetUp: true })
+    assert.deepEqual(await service(fetch).status(), { source: 'server', url: SERVER, version: '2.0.8', user: 'Ada Park', serverSetUp: true, bigquerySetUp: false })
     assert.equal(fetch.calls[0].init.headers.Authorization, 'Bearer bot-jwt')
   })
 

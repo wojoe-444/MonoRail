@@ -40,10 +40,16 @@ const LOGGER_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR']
 const TICK_MS = 60_000
 const SERVER_PIPELINE_LIMIT = 500
 
-/** Local services: connection kinds whose connector declares `service`. Their OpenMetadata service name is fixed. */
+/**
+ * Local services: connection kinds whose connector declares `service`. Their
+ * OpenMetadata service name is fixed. `ingestion: 'connect'` marks a service
+ * whose ingestion is the connection itself: no pipelines, MonoRail keeps a
+ * copy of it on this PC (BigQuery metadata, docs/bigquery-metadata.md).
+ */
 const LOCAL_SERVICES = Object.freeze({
   sqlite: { name: 'local_sqlite', label: (v) => baseName(v.file) || 'SQLite' },
   metricflow: { name: 'local_dbt', label: (v) => baseName(v.project) || 'dbt project' },
+  'bigquery-metadata': { name: 'bigquery_metadata', label: (v) => (v.project ? `${String(v.project).trim()}.${String(v.dataset ?? '').trim() || 'METADATA'}` : 'BigQuery metadata'), ingestion: 'connect' },
 })
 
 function baseName(p) {
@@ -143,6 +149,8 @@ function createIngestion({ dataDir, deps = {} }) {
   const om = () => (deps.omClient ??= omLib._internal.createClient(deps.omDeps))
   const isServerSetUp = () => connections().hasConnection('openmetadata')
   const now = () => (deps.now ? deps.now() : new Date())
+  /** The BigQuery copy, shared with the OpenMetadata page so both see the same sync. */
+  const bigquery = () => deps.bigquery ?? require('./openmetadata.cjs').bigquerySource()
 
   /** pipeline id -> { status, control, pipeline } while a run is going. */
   const running = new Map()
@@ -167,6 +175,7 @@ function createIngestion({ dataDir, deps = {} }) {
           added: !!conn,
           status: conn?.status,
           localTypes: local.LOCAL_TYPES[c.kind] ?? [],
+          ingestion: LOCAL_SERVICES[c.kind].ingestion ?? 'pipelines',
         }
       })
   }
@@ -567,11 +576,31 @@ function createIngestion({ dataDir, deps = {} }) {
     return { services: services.filter((s) => s.added).map(({ status: _s, ...s }) => s), pipelines, catalog: catalog.services }
   }
 
+  /** How the copy of a connect-only service stands. Reads the copy's own state; starts nothing. */
+  async function copyOf(s) {
+    if (s.kind !== 'bigquery-metadata' || !s.added) return undefined
+    try {
+      const b = await bigquery().status()
+      if (!b.setUp) return undefined
+      return { source: b.source, entities: b.entities ?? 0, synced: !!b.synced, syncEvery: b.syncEvery, last: b.last, running: !!b.running, nextAt: b.nextAt, error: b.error }
+    } catch (e) {
+      return { entities: 0, synced: false, error: e.message }
+    }
+  }
+
+  /** Sync now (or Full refresh) for a connect-only service. */
+  async function syncConnected({ kind, full = false } = {}) {
+    const svc = await serviceFor(kind)
+    if (svc.ingestion !== 'connect') throw new Error('This service is read by its ingestion pipelines. Run one of them instead.')
+    return bigquery().sync({ full: full === true })
+  }
+
   async function overview() {
     const [services, pipelines, server] = await Promise.all([localServices(), listPipelines(), isServerSetUp()])
     const catalog = mayHavePipelines() ? await later(() => st().catalog()).catch((e) => ({ error: e.message, services: {} })) : { services: {} }
+    const copies = await Promise.all(services.map(copyOf))
     return {
-      services: services.map((s) => ({ ...s, pipelines: pipelines.filter((p) => p.extension?.monorail?.serviceKind === s.kind).length, catalog: catalogCounts(catalog.services[s.name]) })),
+      services: services.map((s, i) => ({ ...s, pipelines: pipelines.filter((p) => p.extension?.monorail?.serviceKind === s.kind).length, catalog: catalogCounts(catalog.services[s.name]), copy: copies[i] })),
       pipelines,
       serverSetUp: server,
       catalogError: catalog.error,
@@ -596,6 +625,7 @@ function createIngestion({ dataDir, deps = {} }) {
     serverLogs,
     serverCreate,
     explore,
+    syncConnected,
     _running: running,
     _db: () => deps.db,
   }
@@ -646,6 +676,7 @@ module.exports = {
   methods: {
     overview: (ctx) => svc(ctx).overview(),
     testConnection: (ctx, args) => svc(ctx).testConnection(args),
+    syncConnected: (ctx, args) => svc(ctx).syncConnected(args),
     listPipelines: (ctx) => svc(ctx).listPipelines(),
     savePipeline: (ctx, args) => svc(ctx).savePipeline(args),
     deletePipeline: (ctx, args) => svc(ctx).deletePipeline(args),

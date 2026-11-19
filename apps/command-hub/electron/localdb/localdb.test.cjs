@@ -11,6 +11,7 @@ const { DATA_FILES } = require('../cache/declared.cjs')
 const { SCOPES } = require('../profiles/index.cjs')
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'monorail-localdb-'))
+const NO_BIGQUERY = { isSetUp: async () => false }
 
 describe('local database', () => {
   test('is declared: profile scope and its files', () => {
@@ -77,7 +78,7 @@ describe('OpenMetadata page on the local database', () => {
     const t = db.put('table', { name: 'notes', fullyQualifiedName: 'local_sqlite.main.main.notes', columns: [] })
     db.putRecord('tableProfile', t.id, '1', 1, { timestamp: 1, rowCount: 3 })
     const fetch = async () => assert.fail('no request may be made')
-    const svc = om._internal.createService({ fetch, isSetUp: async () => false, local: () => db })
+    const svc = om._internal.createService({ fetch, isSetUp: async () => false, local: () => db, bigquery: NO_BIGQUERY })
     const status = await svc.status()
     assert.equal(status.source, 'local')
     assert.equal(status.serverSetUp, false)
@@ -102,7 +103,7 @@ describe('OpenMetadata page on the local database', () => {
       requests++
       return { ok: true, status: 200, statusText: 'OK', text: async () => JSON.stringify({ data: [], paging: { total: 0 } }) }
     }
-    const svc = om._internal.createService({ fetch, isSetUp: async () => true, credentials: async () => ({ url: 'http://localhost:8585', auth: 'token', token: 't' }), local: () => db })
+    const svc = om._internal.createService({ fetch, isSetUp: async () => true, credentials: async () => ({ url: 'http://localhost:8585', auth: 'token', token: 't' }), local: () => db, bigquery: NO_BIGQUERY })
     await svc.list({ type: 'table' })
     assert.equal(requests, 1)
     assert.equal((await svc.status({ source: 'local' })).source, 'local')

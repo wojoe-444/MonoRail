@@ -71,6 +71,7 @@ const SCOPES = Object.freeze({
   'modules/ingestion': 'profile', // Services: local ingestion pipelines, their runs and the local catalog
   'modules/jira': 'profile', // Jira+'s legacy folder (read in place)
   'modules/mcp': 'profile', // per-agent consent and the activity log
+  'modules/bigquery': 'profile', // Tools > BigQuery; keeps no files (uses the gcloud connection, history is BigQuery's job list)
   'modules/bookmarks': 'profile', // saved links and local paths
   'modules/browser': 'profile', // Tools > Browser; keeps no files (sign-ins are in Electron's Partitions folder, per profile)
   'modules/notes': 'profile', // the Notes page's local git repo

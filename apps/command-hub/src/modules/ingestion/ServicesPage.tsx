@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Database, Loader2, MoreHorizontal, Play, Plus, RefreshCw, Server, Square } from 'lucide-react'
+import { ArrowLeft, Database, DatabaseZap, Loader2, MoreHorizontal, Play, Plus, RefreshCw, Server, Square } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +16,7 @@ import { CATEGORY_LABELS, STATE_INFO, TYPE_INFO, call, duration, errorText, when
 import { takeAddIngestion } from './handoff'
 import { PipelineDialog } from './PipelineDialog'
 import { RunsDialog } from './RunsDialog'
-import type { LocalService, Overview, Pipeline, PipelineType, ServerOverview, ServerService, ServiceRef, TestResult } from './types'
+import type { LocalService, Overview, Pipeline, PipelineType, ServerOverview, ServerService, ServiceCopy, ServiceRef, TestResult } from './types'
 
 export default function ServicesPage() {
   const desktop = isDesktop()
@@ -69,7 +69,7 @@ export default function ServicesPage() {
   }, [overview?.serverSetUp, server, serverLoading, loadServer])
 
   // While a local run is going, read the list again every three seconds.
-  const anyRunning = !!overview?.pipelines.some((p) => p.running)
+  const anyRunning = !!overview?.pipelines.some((p) => p.running) || !!overview?.services.some((x) => x.copy?.running)
   useEffect(() => {
     if (!anyRunning) return
     const t = setInterval(() => void load(), 3000)
@@ -243,7 +243,7 @@ function ServiceList({ overview, server, serverLoading, onOpen, onRetryServer }:
       </div>
 
       <section className="flex flex-col gap-3">
-        <SectionHeading icon={<Database className="size-4" />} title="On this PC" note="MonoRail runs these pipelines itself while it is open, into its local database." />
+        <SectionHeading icon={<Database className="size-4" />} title="On this PC" note="MonoRail runs these pipelines itself while it is open, into its local database. BigQuery metadata needs none: connecting is its ingestion, and MonoRail keeps a copy." />
         {added.length ? (
           <Card className="gap-0 overflow-x-auto py-0">
             <table className="w-full text-sm">
@@ -270,8 +270,8 @@ function ServiceList({ overview, server, serverLoading, onOpen, onRetryServer }:
                     <td className="px-4 py-3">
                       <ConnectionBadge state={s.status?.state} />
                     </td>
-                    <td className="px-4 py-3 tabular-nums">{s.pipelines}</td>
-                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{s.catalog ? `${s.catalog.tables} tables, ${s.catalog.schemas} schemas` : 'Nothing yet'}</td>
+                    <td className="px-4 py-3 tabular-nums">{s.ingestion === 'connect' ? <span className="text-muted-foreground">None needed</span> : s.pipelines}</td>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{s.ingestion === 'connect' ? copyText(s.copy) : s.catalog ? `${s.catalog.tables} tables, ${s.catalog.schemas} schemas` : 'Nothing yet'}</td>
                     <td className="px-4 py-3 text-right">
                       <Button size="sm" variant="outline">
                         Open
@@ -283,7 +283,7 @@ function ServiceList({ overview, server, serverLoading, onOpen, onRetryServer }:
             </table>
           </Card>
         ) : (
-          <Card className="px-6 py-5 text-sm text-muted-foreground">No data source is set up yet. Add SQLite or MetricFlow (a dbt project) on Connections to ingest it here.</Card>
+          <Card className="px-6 py-5 text-sm text-muted-foreground">No data source is set up yet. Add SQLite, MetricFlow (a dbt project) or BigQuery metadata on Connections to ingest it here.</Card>
         )}
         {notAdded.length > 0 && (
           <p className="text-sm text-muted-foreground">
@@ -393,6 +393,8 @@ interface DetailProps {
 function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onViewRuns, onDelete, act }: DetailProps) {
   const local = target.where === 'local'
   const s = target.service
+  const connectOnly = local && (s as LocalService).ingestion === 'connect'
+  const copy = connectOnly ? (s as LocalService).copy : undefined
   const [test, setTest] = useState<TestResult>()
   const [testing, setTesting] = useState(false)
   const [testError, setTestError] = useState('')
@@ -428,6 +430,12 @@ function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onVie
                 {(target.service as LocalService).catalog!.updatedAt ? `, updated ${when((target.service as LocalService).catalog!.updatedAt)}` : ''}. Browse them on the OpenMetadata page or Explore.
               </p>
             )}
+            {connectOnly && (
+              <p className="text-sm text-muted-foreground">
+                {copy?.synced ? `${copy.entities.toLocaleString('en-US')} entities in the copy on this PC` : 'Not copied yet'}
+                {copy?.last?.ok ? `, synced ${when(copy.last.at)}` : ''}. Browse them on the OpenMetadata page.
+              </p>
+            )}
             {!local && (target.service as ServerService).description && <p className="line-clamp-2 max-w-3xl text-sm text-muted-foreground">{(target.service as ServerService).description}</p>}
           </div>
         </div>
@@ -442,9 +450,15 @@ function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onVie
               </Button>
             </>
           )}
-          <Button onClick={onAdd} disabled={!canAdd} title={canAdd ? undefined : 'MonoRail cannot create pipelines for this kind of service'}>
-            <Plus /> Add ingestion
-          </Button>
+          {connectOnly ? (
+            <Button onClick={() => navigate('/openmetadata')}>
+              <DatabaseZap /> Open OpenMetadata
+            </Button>
+          ) : (
+            <Button onClick={onAdd} disabled={!canAdd} title={canAdd ? undefined : 'MonoRail cannot create pipelines for this kind of service'}>
+              <Plus /> Add ingestion
+            </Button>
+          )}
         </div>
       </div>
 
@@ -472,35 +486,105 @@ function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onVie
         </Card>
       )}
 
-      <section className="flex flex-col gap-3">
-        <SectionHeading title="Ingestion pipelines" note={local ? 'Deploy a pipeline to start its schedule on this PC.' : 'Deploying hands a pipeline to the server’s Airflow.'} />
-        {pipelines.length ? (
-          <Card className="gap-0 overflow-x-auto py-0">
-            <table className="w-full text-sm">
-              <thead className="text-xs tracking-wide text-muted-foreground uppercase">
-                <tr className="border-b">
-                  <th className="px-4 py-2.5 text-left font-medium">Pipeline</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Type</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Schedule</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Recent runs</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Last run</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {pipelines.map((p) => (
-                  <PipelineRow key={p.id} pipeline={p} local={local} onEdit={() => onEdit(p)} onViewRuns={() => onViewRuns(p)} onDelete={() => onDelete(p)} act={act} />
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        ) : (
-          <Card className="px-6 py-5 text-sm text-muted-foreground">
-            No ingestion pipelines yet. {canAdd ? 'Use Add ingestion to read this service into the catalog.' : 'Add one in OpenMetadata.'}
-          </Card>
-        )}
-      </section>
+      {connectOnly ? (
+        <ConnectedIngestion kind={(s as LocalService).kind} copy={copy} act={act} />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <SectionHeading title="Ingestion pipelines" note={local ? 'Deploy a pipeline to start its schedule on this PC.' : 'Deploying hands a pipeline to the server’s Airflow.'} />
+          {pipelines.length ? (
+            <Card className="gap-0 overflow-x-auto py-0">
+              <table className="w-full text-sm">
+                <thead className="text-xs tracking-wide text-muted-foreground uppercase">
+                  <tr className="border-b">
+                    <th className="px-4 py-2.5 text-left font-medium">Pipeline</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Type</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Schedule</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Recent runs</th>
+                    <th className="px-4 py-2.5 text-left font-medium">Last run</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {pipelines.map((p) => (
+                    <PipelineRow key={p.id} pipeline={p} local={local} onEdit={() => onEdit(p)} onViewRuns={() => onViewRuns(p)} onDelete={() => onDelete(p)} act={act} />
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          ) : (
+            <Card className="px-6 py-5 text-sm text-muted-foreground">
+              No ingestion pipelines yet. {canAdd ? 'Use Add ingestion to read this service into the catalog.' : 'Add one in OpenMetadata.'}
+            </Card>
+          )}
+        </section>
+      )}
     </>
+  )
+}
+
+const EVERY_TEXT: Record<string, string> = { '15m': 'every 15 minutes', '1h': 'every hour', '6h': 'every 6 hours', '24h': 'once a day', manual: 'only when you press Sync now' }
+
+/** The list's "In the catalog" cell for a connect-only service. */
+function copyText(copy?: ServiceCopy) {
+  if (!copy) return 'Nothing yet'
+  if (copy.running && !copy.synced) return 'Making the first copy…'
+  if (!copy.synced) return copy.last && !copy.last.ok ? 'Sync failed' : 'Not copied yet'
+  return `${copy.entities.toLocaleString('en-US')} entities, synced ${copy.last?.ok ? when(copy.last.at) : 'earlier'}`
+}
+
+/**
+ * Ingestion for a service whose ingestion is the connection itself (BigQuery
+ * metadata): no pipelines, only the copy MonoRail keeps on this PC and how
+ * fresh it is, with Sync now and Full refresh.
+ */
+function ConnectedIngestion({ kind, copy, act }: { kind: string; copy?: ServiceCopy; act: DetailProps['act'] }) {
+  const [syncing, setSyncing] = useState<'now' | 'full'>()
+  const busy = !!syncing || !!copy?.running
+  const sync = async (full: boolean) => {
+    setSyncing(full ? 'full' : 'now')
+    try {
+      await act(full ? 'Downloaded everything again from BigQuery.' : 'The copy is up to date with BigQuery.', () => call('syncConnected', { kind, full }))
+    } finally {
+      setSyncing(undefined)
+    }
+  }
+  const failed = copy?.last && !copy.last.ok ? copy.last : undefined
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeading title="Ingestion" note="Connecting is the ingestion: this service needs no pipelines." />
+      <Card className="flex-row flex-wrap items-start gap-4 px-6 py-5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+          <DatabaseZap className="size-4" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+          <p>
+            Something outside MonoRail keeps <span className="font-medium">{copy?.source ?? 'the dataset'}</span> up to date. MonoRail only reads it, and keeps a copy on this PC that the OpenMetadata page reads, refreshed {EVERY_TEXT[copy?.syncEvery ?? '1h']} while MonoRail is open.
+          </p>
+          <p className="text-muted-foreground">
+            {busy ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="size-3.5 animate-spin" /> {syncing === 'full' ? 'Downloading everything again…' : 'Syncing…'}
+              </span>
+            ) : copy?.last?.ok ? (
+              <>
+                Last synced {when(copy.last.at)}{copy.last.mode === 'full' ? ' (everything downloaded)' : ''}.{copy.nextAt ? ` Next ${when(copy.nextAt)}.` : ''}
+              </>
+            ) : !copy?.synced ? (
+              'Not copied yet. The first sync downloads everything, which is free in BigQuery.'
+            ) : null}
+          </p>
+          {(failed || copy?.error) && <p role="alert" className="mt-1 rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">{failed?.error ?? copy?.error}</p>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(false)}>
+            {syncing === 'now' ? <Loader2 className="animate-spin" /> : <RefreshCw />} Sync now
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void sync(true)} title="Download every row again. Free in BigQuery, but slower on a large dataset.">
+            Full refresh
+          </Button>
+        </div>
+      </Card>
+    </section>
   )
 }
 

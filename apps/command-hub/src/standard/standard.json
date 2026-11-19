@@ -1,5 +1,5 @@
 {
-  "$comment": "The MonoRail standard: the entity types MonoRail knows. OpenMetadata v2.1.x (fields from the 2.1.0-rc2 JSON schemas; refresh with node scripts/standard-openmetadata.cjs) plus MonoRail's own. Docs: docs/standard/. Field tables there are generated from this file: node scripts/standard-docs.cjs.",
+  "$comment": "The MonoRail standard: the entity types MonoRail knows. OpenMetadata v2.1.x (fields from the 2.1.0-rc2 JSON schemas; refresh with node scripts/standard-openmetadata.cjs) plus MonoRail's own. Docs: docs/standard/. Field tables there are generated from this file: node scripts/standard-docs.cjs. enums: allowed values of OpenMetadata enum types that MonoRail extends; openMetadata is refreshed from the schemas, monorail lists MonoRail's own additions (docs/standard/README.md, rule 5).",
   "version": 1,
   "openMetadata": {
     "version": "2.1.x",
@@ -16961,5 +16961,27 @@
         }
       ]
     }
-  ]
+  ],
+  "enums": {
+    "metadataServiceType": {
+      "schema": "entity/services/metadataService.json",
+      "definition": "metadataServiceType",
+      "openMetadata": [
+        "Amundsen",
+        "MetadataES",
+        "OpenMetadata",
+        "Atlas",
+        "Alation",
+        "AlationSink",
+        "Collibra"
+      ],
+      "monorail": [
+        {
+          "value": "BigQuery",
+          "summary": "A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/1), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC.",
+          "docs": "bigquery-metadata"
+        }
+      ]
+    }
+  }
 }

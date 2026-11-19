@@ -62,15 +62,53 @@ export interface EntityType {
   fields: StandardField[]
 }
 
+/** A value MonoRail adds to one of OpenMetadata's enum types (rule 5 in docs/standard/README.md). */
+export interface MonoRailEnumValue {
+  value: string
+  summary: string
+  /** Wiki page id that explains it. */
+  docs: string
+}
+
+/**
+ * An OpenMetadata enum type that MonoRail extends: OpenMetadata's own values
+ * (from its schema, refreshed by scripts/standard-openmetadata.cjs) plus
+ * MonoRail's additions. Enum types MonoRail does not extend are not listed.
+ */
+export interface StandardEnum {
+  /** The schema file that defines it, under OpenMetadata's json/schema folder. */
+  schema: string
+  /** Its name under that schema's `definitions`. */
+  definition: string
+  openMetadata: string[]
+  monorail: MonoRailEnumValue[]
+}
+
+export interface AllowedValue {
+  value: string
+  origin: Origin
+  summary?: string
+  docs?: string
+}
+
 interface Standard {
   version: number
   openMetadata: { version: string; pinned: string; docs: string }
   sections: StandardSection[]
   categories: StandardCategory[]
   entities: EntityType[]
+  enums: Record<string, StandardEnum>
 }
 
 export const STANDARD = data as Standard
+export const ENUMS: Record<string, StandardEnum> = STANDARD.enums
+
+/** Every allowed value of an enum type MonoRail extends (OpenMetadata's first), or undefined for any other type. */
+export function allowedValues(type: string): AllowedValue[] | undefined {
+  const e = Object.hasOwn(ENUMS, type) ? ENUMS[type] : undefined
+  if (!e) return undefined
+  return [...e.openMetadata.map((value) => ({ value, origin: 'openmetadata' as const })), ...e.monorail.map((v) => ({ ...v, origin: 'monorail' as const }))]
+}
 export const SECTIONS: StandardSection[] = STANDARD.sections
 export const CATEGORIES: StandardCategory[] = STANDARD.categories
 export const ENTITY_TYPES: EntityType[] = STANDARD.entities

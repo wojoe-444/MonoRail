@@ -65,12 +65,49 @@ export type OmCounts = Record<string, number | { error: string }>
 export interface OmStatus {
   /** not-set-up: no connection yet. rejected: the token was refused. unreachable: no answer. local-error: the local database could not be opened. */
   block?: 'not-set-up' | 'rejected' | 'unreachable' | 'local-error'
-  /** Which catalog answered: MonoRail's local database or the OpenMetadata server. */
-  source?: 'local' | 'server'
-  /** Whether an OpenMetadata server is connected (then the page offers both). */
+  /** Which catalog answered: MonoRail's local database, the BigQuery copy, or the OpenMetadata server. */
+  source?: 'local' | 'bigquery' | 'server'
+  /** Whether an OpenMetadata server is connected (then the page offers it). */
   serverSetUp?: boolean
+  /** Whether a BigQuery dataset is the source of truth (then the page offers it, first). */
+  bigquerySetUp?: boolean
+  /** The BigQuery copy, when source is bigquery. */
+  bigquery?: BqStatus
   url?: string
   version?: string
   user?: string
   error?: string
+}
+
+/** One sync of the BigQuery copy (electron/localdb/bigquery-mirror.cjs). */
+export interface BqSync {
+  at: string
+  ok: boolean
+  error?: string
+  /** missing | empty | foreign | mismatch | newer | denied | over-cap | timeout | no-gcloud */
+  code?: string
+  mode?: 'full' | 'incremental'
+  entities?: number
+  versions?: number
+  records?: number
+  removed?: number
+  skipped?: number
+  bytesProcessed?: number
+  ms?: number
+  remote?: { entities: number; bytes: number; partitioned?: boolean }
+}
+
+/** The BigQuery copy: which dataset, whether it has been copied, the last sync and the next. */
+export interface BqStatus {
+  setUp: boolean
+  error?: string
+  projectId?: string
+  datasetId?: string
+  source?: string
+  syncEvery?: '15m' | '1h' | '6h' | '24h' | 'manual'
+  /** The copy holds this dataset (it has finished a first sync). */
+  synced?: boolean
+  last?: BqSync
+  running?: { full: boolean; startedAt: string }
+  nextAt?: string
 }

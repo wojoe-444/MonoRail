@@ -1,15 +1,21 @@
 // OpenMetadata page backend: browse every entity type, the way OpenMetadata
-// stores them, from one of two sources (createService at the bottom):
+// stores them, from one of three sources (createService at the bottom):
 //
 //   local    MonoRail's local database (electron/localdb): entities kept on
 //            this PC in OpenMetadata's JSON shape. The default until an
-//            OpenMetadata server is connected, and always available.
+//            OpenMetadata server or BigQuery metadata is connected, and
+//            always available.
+//   bigquery a BigQuery dataset the user made the source of truth
+//            (docs/bigquery-metadata.md), read from its copy on this PC
+//            (localdb mirrorDb(), openmetadata-bigquery.cjs). Read-only. The
+//            default whenever it is set up.
 //   server   an OpenMetadata 2.0 or 2.1 server through its REST API.
 //
 // Opt-in for the server: no request is made until the user adds the
 // OpenMetadata connection (hasConnection only reads the saved list); asking
 // for the server before that answers { block: 'not-set-up' } or refuses.
-// There is no start(): nothing runs while the page is closed. Requests go
+// start() only runs the BigQuery copy's schedule, and only once that
+// connection is set up; nothing else runs while the page is closed. Requests go
 // only to the server in the connection, with its token; the page never sees it.
 //
 // The page names an entity type (from TYPES below), never a URL or path: the
@@ -357,7 +363,7 @@ function createServerService(deps = {}) {
  * The same methods over MonoRail's local database (electron/localdb), which
  * keeps entities in OpenMetadata's JSON shape. deps.local is for tests.
  */
-function createLocalService(deps = {}) {
+function createLocalService(deps = {}, { readOnly, describe } = {}) {
   const db = () => (deps.local ? deps.local() : require('../localdb/index.cjs').localDb())
   const withProfile = (type, e) => {
     if (!e || type !== 'table') return e
@@ -368,9 +374,10 @@ function createLocalService(deps = {}) {
     async status() {
       try {
         db()
+        if (describe) return await describe()
         return { source: 'local', url: 'MonoRail local database (this PC)', version: undefined, user: undefined }
       } catch (e) {
-        return { source: 'local', block: 'local-error', error: e.message }
+        return { source: describe ? 'bigquery' : 'local', block: 'local-error', error: e.message }
       }
     },
     async counts({ types } = {}) {
@@ -399,6 +406,7 @@ function createLocalService(deps = {}) {
       return db().recent(Math.max(1, Math.min(50, Number(size) || 30))).filter((e) => Object.hasOwn(TYPES, e.entityType))
     },
     async setDescription({ type, id, description } = {}) {
+      if (readOnly) throw new Error(readOnly)
       collectionOf(type)
       if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give an entity id.')
       if (typeof description !== 'string' || description.length > 100_000) throw new Error('Give the new description.')
@@ -411,19 +419,35 @@ function createLocalService(deps = {}) {
 }
 
 /**
- * The page's backend: the local database or the OpenMetadata server, per
- * call. `source: 'local' | 'server'` picks one; without it the server is used
- * once its connection is set up, the local database until then.
+ * The page's backend: the local database, the BigQuery copy or the
+ * OpenMetadata server, per call. `source: 'local' | 'bigquery' | 'server'`
+ * picks one. Without it, or when BigQuery is asked for but no longer set up,
+ * BigQuery is used while it is set up (it is the source of truth), then the
+ * server once its connection is set up, then the local database.
  */
 function createService(deps = {}) {
   const server = createServerService(deps)
   const local = createLocalService(deps)
+  const bq = deps.bigquery ?? require('./openmetadata-bigquery.cjs').createBigQuerySource(deps.bigqueryDeps)
+  const copy = createLocalService(
+    { local: () => bq.store() },
+    {
+      readOnly: 'BigQuery is the source of truth here, and MonoRail does not write to it yet. Change the description in BigQuery; the next sync brings it here.',
+      describe: async () => {
+        const s = await bq.status()
+        return { source: 'bigquery', url: s.source ? `BigQuery ${s.source}` : 'BigQuery', version: undefined, user: undefined, bigquery: s }
+      },
+    },
+  )
   async function pick(args) {
-    const setUp = await isSetUp(deps)
-    if (args?.source === 'server') return { impl: setUp ? server : undefined, setUp }
-    if (args?.source === 'local') return { impl: local, setUp }
-    return { impl: setUp ? server : local, setUp }
+    const [setUp, bqSetUp] = await Promise.all([isSetUp(deps), bq.isSetUp()])
+    const fallback = bqSetUp ? copy : setUp ? server : local
+    if (args?.source === 'server') return { impl: setUp ? server : undefined, setUp, bqSetUp }
+    if (args?.source === 'bigquery') return { impl: bqSetUp ? copy : fallback, setUp, bqSetUp }
+    if (args?.source === 'local') return { impl: local, setUp, bqSetUp }
+    return { impl: fallback, setUp, bqSetUp }
   }
+  const nameOf = (impl) => (impl === local ? 'local' : impl === copy ? 'bigquery' : 'server')
   const route = (method) => async (args = {}) => {
     const { impl } = await pick(args)
     if (!impl) throw new Error('Set up OpenMetadata on the Connections page first.')
@@ -431,10 +455,10 @@ function createService(deps = {}) {
   }
   return {
     async status(args = {}) {
-      const { impl, setUp } = await pick(args)
-      if (!impl) return { ...NOT_SET_UP, source: 'server', serverSetUp: false }
+      const { impl, setUp, bqSetUp } = await pick(args)
+      if (!impl) return { ...NOT_SET_UP, source: 'server', serverSetUp: false, bigquerySetUp: bqSetUp }
       const s = await impl.status(args)
-      return { source: impl === local ? 'local' : 'server', ...s, serverSetUp: setUp }
+      return { source: nameOf(impl), ...s, serverSetUp: setUp, bigquerySetUp: bqSetUp }
     },
     counts: route('counts'),
     list: route('list'),
@@ -442,6 +466,11 @@ function createService(deps = {}) {
     versions: route('versions'),
     recent: route('recent'),
     setDescription: route('setDescription'),
+    /** Sync the BigQuery copy now (`full`: download everything again, free in BigQuery). */
+    syncBigQuery: (args = {}) => bq.sync({ full: args.full === true }),
+    /** SQL that creates the layout in the connection's dataset; text for the user to run. */
+    bigquerySetupSql: () => bq.setupSql(),
+    bigquery: bq,
   }
 }
 
@@ -458,6 +487,22 @@ module.exports = {
     versions: (_ctx, args) => svc().versions(args),
     recent: (_ctx, args) => svc().recent(args),
     setDescription: (_ctx, args) => svc().setDescription(args),
+    syncBigQuery: (_ctx, args) => svc().syncBigQuery(args),
+    bigquerySetupSql: () => svc().bigquerySetupSql(),
+  },
+  /** The BigQuery copy (one per app), for the Services page. */
+  bigquerySource: () => svc().bigquery,
+  /** Only the BigQuery copy's schedule; it does nothing until that connection is set up. */
+  start() {
+    const bq = svc().bigquery
+    require('../scheduled/in-app.cjs').registerProvider({
+      id: 'openmetadata',
+      list: () => bq.inAppRows(),
+      run: () => bq.sync().then(() => undefined),
+    })
+    const { TICK_MS } = require('./openmetadata-bigquery.cjs')
+    setTimeout(() => void bq.tick(), 30_000).unref?.()
+    setInterval(() => void bq.tick(), TICK_MS).unref?.()
   },
   TYPES,
   _internal: { createService, createServerService, createLocalService, createClient, collectionOf },

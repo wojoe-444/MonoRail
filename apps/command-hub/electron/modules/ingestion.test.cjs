@@ -167,10 +167,34 @@ describe('ingestion service', () => {
     const o = await svc.overview()
     assert.deepEqual(o.pipelines, [])
     assert.equal(o.serverSetUp, false)
-    assert.deepEqual(o.services.map((s) => [s.kind, s.added]).sort(), [['metricflow', false], ['sqlite', false]])
+    assert.deepEqual(o.services.map((s) => [s.kind, s.added]).sort(), [['bigquery-metadata', false], ['metricflow', false], ['sqlite', false]])
     await assert.rejects(svc.savePipeline({ pipeline: { serviceKind: 'sqlite', pipelineType: 'metadata', name: 'x' } }), /Connections page first/)
     assert.equal((await svc.serverOverview()).block, 'not-set-up')
     await assert.rejects(svc.serverAction({ id: '00000000-0000-0000-0000-000000000000', action: 'run' }), /Set up OpenMetadata/)
+  })
+
+  test('BigQuery metadata is a service whose ingestion is the connection: no pipelines, its copy, Sync now', async () => {
+    const calls = []
+    const bigquery = {
+      status: async () => ({ setUp: true, source: 'orbit-analytics.METADATA', entities: 42, synced: true, syncEvery: '1h', last: { at: '2026-11-18T10:00:00.000Z', ok: true, mode: 'incremental' }, nextAt: '2026-11-18T11:00:00.000Z' }),
+      sync: async (a) => (calls.push(a), { ok: true }),
+    }
+    const added = { 'bigquery-metadata': { project: 'orbit-analytics', dataset: 'METADATA' } }
+    const svc = createIngestion({ dataDir: tmp(), deps: { db: newDb(), bigquery, connections: fakeConnections({ added }) } })
+    const s = (await svc.overview()).services.find((x) => x.kind === 'bigquery-metadata')
+    assert.equal(s.name, 'bigquery_metadata')
+    assert.equal(s.displayName, 'orbit-analytics.METADATA')
+    assert.equal(s.category, 'metadataService')
+    assert.equal(s.ingestion, 'connect')
+    assert.deepEqual(s.localTypes, [])
+    assert.equal(s.copy.entities, 42)
+    assert.equal(s.copy.synced, true)
+    await svc.syncConnected({ kind: 'bigquery-metadata', full: true })
+    assert.deepEqual(calls, [{ full: true }])
+    await assert.rejects(svc.savePipeline({ pipeline: { serviceKind: 'bigquery-metadata', pipelineType: 'metadata', name: 'x' } }))
+    const withSqlite = createIngestion({ dataDir: tmp(), deps: { db: newDb(), bigquery, connections: fakeConnections({ added: { sqlite: { file: 'C:\\x.sqlite3' } } }) } })
+    await assert.rejects(withSqlite.syncConnected({ kind: 'sqlite' }), /ingestion pipelines/)
+    await assert.rejects(withSqlite.syncConnected({ kind: 'bigquery-metadata' }), /Connections page first/)
   })
 
   test('validates what is saved', async () => {
@@ -332,7 +356,7 @@ describe('declarations', () => {
     assert.equal(SCOPES['modules/ingestion'], 'profile')
     assert.deepEqual(DATA_FILES['modules/ingestion'], ['pipelines.json', 'runs.json', 'catalog.json'])
     const services = CONNECTORS.filter((c) => c.service).map((c) => c.kind).sort()
-    assert.deepEqual(services, ['metricflow', 'openmetadata', 'sqlite'])
+    assert.deepEqual(services, ['bigquery-metadata', 'metricflow', 'openmetadata', 'sqlite'])
     for (const c of CONNECTORS.filter((x) => x.service)) assert.ok(omLib.TYPES[c.service.category], `${c.kind}: ${c.service.category} is an OpenMetadata service type`)
     for (const cat of Object.keys(SOURCE_TYPES)) assert.ok(omLib.TYPES[cat], cat)
   })
