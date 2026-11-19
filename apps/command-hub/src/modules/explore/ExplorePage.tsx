@@ -11,6 +11,7 @@ import { call as notesCall } from '@/modules/notes/api'
 import { call as cardsCall } from '@/modules/flashcards/api'
 import { call as flowsCall } from '@/modules/flows/api'
 import { openWiki } from '@/modules/wiki/store'
+import { takeExploreHandoff } from './handoff'
 import type { FlowList } from '@/modules/flows/types'
 import { sampleProject } from '@/modules/semantic/sample'
 import type { SemanticProject } from '@/modules/semantic/types'
@@ -186,9 +187,11 @@ export default function ExplorePage() {
   const [query, setQuery] = useState('')
   /** A category id, or '' for all. */
   const [scope, setScope] = useState('')
+  /** The entity type the command palette asked for, if Explore was opened from there. */
+  const [handoff] = useState(() => { const t = takeExploreHandoff(); const def = t ? entityType(t) : undefined; return def ? [def.category, def.type] : undefined })
   /** [category id, entity type, entry index, field name], as deep as chosen. */
-  const [path, setPath] = useState<string[]>([])
-  const [expanded, setExpanded] = useState<string[]>([])
+  const [path, setPath] = useState<string[]>(() => handoff ?? [])
+  const [expanded, setExpanded] = useState<string[]>(() => handoff ? [JSON.stringify([handoff[0]])] : [])
   const [selected, setSelected] = useState('')
   const [page, setPage] = useState(0)
 

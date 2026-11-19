@@ -57,6 +57,7 @@ of the left-hand menu. Settings has its own menu beside the page:
   and **Extensions**.
 
 The search box above that menu finds any page or option by name, for example
-"token", "dark mode" or "backup folder". Press **Ctrl+K** to jump to it, use
-the arrow keys and Enter to open a result, and MonoRail scrolls to the part of
-the page you picked.
+"token", "dark mode" or "backup folder". Use the arrow keys and Enter to open a
+result, and MonoRail scrolls to the part of the page you picked. **Ctrl+K**
+opens the app-wide [search](../search.md) on its Settings results, which
+finds the same options plus pages, chats and the catalog.

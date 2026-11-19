@@ -63,6 +63,13 @@ export const TOUR_STEPS: TourStep[] = [
     body: 'The bar at the top names the section and page you are on. When you are on a subpage, click its parent to go back up.',
   },
   {
+    id: 'search',
+    target: 'search',
+    side: 'bottom',
+    title: 'Find anything',
+    body: 'Search every page, setting, chat and wiki page from here, or browse the kinds of thing MonoRail knows. Ctrl+K opens it from anywhere.',
+  },
+  {
     id: 'fullscreen',
     target: 'fullscreen',
     side: 'bottom',

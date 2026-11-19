@@ -339,6 +339,7 @@ const ICONS: Record<string, LucideIcon> = {
   'guide/first-ten-minutes': Compass,
   'guide/private-data': ShieldCheck,
   'guide/explore': Telescope,
+  'guide/search': Search,
   'guide/agents': Bot,
   'guide/agents/chat': MessagesSquare,
   'guide/agents/create-an-agent': Plus,

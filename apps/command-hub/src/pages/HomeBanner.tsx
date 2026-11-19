@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Bot, CalendarDays, CircleCheck, FolderGit2, MessageSquarePlus } from 'lucide-react'
 
-import { flattenNav, SETTINGS_PATH, useNavSections } from '@/components/layout/nav'
+import { SETTINGS_PATH } from '@/components/layout/nav'
 import { PageBanner } from '@/components/layout/PageBanner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { SearchField } from '@/components/ui/search-field'
-import { allApps } from '@/apps/registry'
-import { useExtensionList } from '@/extensions/store'
 import { formatRelative } from '@/lib/format'
 import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
-import { allModules } from '@/modules/registry'
 import { useSettingsAlerts, type AlertTone, type SettingsAlert } from '@/modules/settings/alerts'
-import { scrollToAnchor, searchSettings } from '@/modules/settings/search'
-import { useSettingsPages } from '@/modules/settings/SettingsLayout'
+import { scrollToAnchor } from '@/modules/settings/search'
+import { usePageIndex, type PageHit } from '@/components/search/sources'
 
 const toneDot: Record<AlertTone, string> = {
   warning: 'bg-warning',
@@ -27,12 +24,7 @@ const TODAY_MAX = 3
 /** How many search results are shown at once. */
 const RESULTS_MAX = 6
 
-interface Hit {
-  label: string
-  detail: string
-  path: string
-  anchor?: string
-}
+type Hit = PageHit
 
 function greeting(hour: number) {
   if (hour < 12) return 'Good morning'
@@ -50,23 +42,11 @@ export function HomeBanner() {
   // Read once per visit: Home remounts whenever it is opened again.
   const [now] = useState(() => new Date())
   const { alerts, loaded } = useSettingsAlerts()
-  const hits = usePageSearch()
+  const { search } = usePageIndex()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
-  const results = useMemo(() => hits(query).slice(0, RESULTS_MAX), [hits, query])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        input.current?.focus()
-        input.current?.select()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  const results = useMemo(() => search(query).slice(0, RESULTS_MAX), [search, query])
 
   function open(hit: Hit) {
     setQuery('')
@@ -95,7 +75,6 @@ export function HomeBanner() {
       <SearchField
         ref={input}
         size="lg"
-        shortcut="Ctrl K"
         placeholder="Search pages and settings…"
         aria-label="Search pages and settings"
         aria-controls="home-search-results"
@@ -149,51 +128,6 @@ export function HomeBanner() {
       )}
     </PageBanner>
   )
-}
-
-/**
- * Search over every page in the drawer (with its module's or app's
- * description) plus the Settings search (pages, cards and options). Settings
- * pages come from the Settings search only, so each is listed once.
- */
-function usePageSearch(): (query: string) => Hit[] {
-  const list = useExtensionList()
-  const sections = useNavSections()
-  const settingsPages = useSettingsPages()
-  return useMemo(() => {
-    const described = new Map<string, string>()
-    for (const m of allModules(list)) described.set(m.path, m.description)
-    for (const a of allApps(list)) described.set(a.path, a.description)
-    const settingsPaths = new Set(settingsPages.map((p) => p.path))
-    const pages: Hit[] = flattenNav(sections)
-      .filter((i) => i.path !== '/' && i.path !== SETTINGS_PATH && !settingsPaths.has(i.path))
-      .map((i) => ({ label: i.label, detail: described.get(i.path) ?? '', path: i.path }))
-
-    return (query: string) => {
-      const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-      if (!words.length) return []
-      // Best first: name starts with the first word, then name contains it,
-      // then a match elsewhere. Pages come before Settings on a tie.
-      const rank = (label: string) => {
-        const l = label.toLowerCase()
-        return l.startsWith(words[0]) ? 0 : l.includes(words[0]) ? 1 : 2
-      }
-      const pageHits = pages
-        .filter((h) => words.every((w) => `${h.label} ${h.detail}`.toLowerCase().includes(w)))
-        .map((h) => ({ h, score: rank(h.label) }))
-      // searchSettings already checks every word and orders its own hits.
-      const settingsHits = searchSettings(query, settingsPages).map((s, i) => ({
-        h: {
-          label: s.label,
-          detail: s.page === s.label ? `Settings · ${s.detail}` : `Settings › ${s.page} · ${s.detail}`,
-          path: s.path,
-          anchor: s.anchor,
-        },
-        score: rank(s.label) + 0.5 + i / 1000,
-      }))
-      return [...pageHits, ...settingsHits].sort((a, b) => a.score - b.score).map((x) => x.h)
-    }
-  }, [list, sections, settingsPages])
 }
 
 function TodayCard({ alerts, loaded }: { alerts: SettingsAlert[]; loaded: boolean }) {

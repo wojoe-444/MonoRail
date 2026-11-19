@@ -69,7 +69,7 @@ export type WikiNode = { kind: 'page'; page: WikiPage } | { kind: 'folder'; fold
  * not listed follows (pages by title, then folders by title).
  */
 const ORDER: Record<string, string[]> = {
-  guide: ['first-ten-minutes', 'private-data', 'explore', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
+  guide: ['first-ten-minutes', 'search', 'private-data', 'explore', 'agents', 'workspace', 'setup', 'glossary', 'faq'],
   'guide/agents': ['chat', 'create-an-agent', 'coordinator', 'flows', 'spend', 'agent-access'],
   'guide/workspace': ['browse-repos', 'local-issues', 'tasks', 'email', 'browser', 'bigquery'],
   'guide/setup': ['connections', 'appearance', 'backups-and-updates', 'extensions', 'spending-limit', 'saving', 'remote-access', 'developer-mode', 'docker', 'semantic'],
