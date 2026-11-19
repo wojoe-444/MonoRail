@@ -20,8 +20,8 @@ function bytes(n: number | undefined) {
 }
 
 function summary(last: BqSync) {
-  const changed = (last.entities ?? 0) + (last.removed ?? 0)
-  if (last.mode === 'full') return `downloaded ${formatCount(last.entities ?? 0)} entities (free in BigQuery)`
+  const changed = (last.entities ?? 0) + (last.removed ?? 0) + (last.lineage ?? 0) + (last.lineageRemoved ?? 0)
+  if (last.mode === 'full') return `downloaded ${formatCount(last.entities ?? 0)} entities${last.lineage ? ` and ${formatCount(last.lineage)} lineage edges` : ''} (free in BigQuery)`
   return changed ? `${formatCount(changed)} ${changed === 1 ? 'change' : 'changes'}, ${bytes(last.bytesProcessed)} scanned` : `no changes, ${bytes(last.bytesProcessed)} scanned`
 }
 

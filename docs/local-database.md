@@ -27,9 +27,9 @@ to the installer. Synchronous calls in the main process; queries are small
 | File | What it does |
 | --- | --- |
 | `electron/localdb/index.cjs` | `openDatabase(dir)`, `localDb()` (the active profile's, main process), `localDbExists()`, `fqnOf`, `stableStringify` |
-| `electron/localdb/localdb.test.cjs` | Tests: versions, paging, damaged and newer files, the OpenMetadata page on it, importing older ingestion files |
+| `electron/localdb/localdb.test.cjs` | Tests: versions, paging, damaged and newer files, lineage and the schema 1 to 2 step, the OpenMetadata page on it, importing older ingestion files |
 
-## Schema (version 1, `PRAGMA user_version`)
+## Schema (version 2, `PRAGMA user_version`)
 
 - `entity`: `id`, `type` (an entity type of the standard), `fqn`, `name`,
   `version`, `updated_at`, `deleted`, `json` (the OpenMetadata entity);
@@ -38,9 +38,35 @@ to the installer. Synchronous calls in the main process; queries are small
 - `record`: JSON documents that are not entities, keyed `(kind, owner,
   key)` with a time `at`: `pipelineStatus`, `pipelineSchedule`,
   `tableProfile`.
+- `lineage` (since version 2): `from_id`, `from_type`, `to_id`, `to_type`,
+  `updated_at`, `deleted`, `json`; keyed `(from_id, to_id)`, indexed on
+  `to_id`. The same columns as the
+  [BigQuery layout's `lineage` table](bigquery-metadata.md#lineage-and-the-layout-versions).
 - `meta`: key/value (`import.ingestion`, `catalog.updatedAt.<service>`).
 
 A schema change adds a step to `MIGRATIONS` and bumps `SCHEMA_VERSION`.
+Version 1 files get the `lineage` table on the next open; their data is left
+as it is. As with every schema bump, an older MonoRail then refuses the file
+as "made by a newer version" and leaves it alone.
+
+## Lineage
+
+OpenMetadata keeps lineage as edges between entities, apart from their JSON
+(its `/api/v1/lineage` API), so the local database does too. One edge per
+upstream/downstream pair; `json` is OpenMetadata's EntitiesEdge
+(`{ fromEntity, toEntity, lineageDetails }`, both ends EntityReferences).
+Store methods: `putLineage(edge)` (checks both ends have an id and a type and
+differ; unchanged content keeps its time), `putLineageExact` (the BigQuery
+copy), `removeLineage`, `removeLineageOf(id)`, `lineageInto` / `lineageFrom`,
+`lineageKeys`, `countLineage` and `lineageOf(id, { upstreamDepth,
+downstreamDepth })`, which walks up to 3 levels each way (OpenMetadata's
+limit) and returns OpenMetadata's EntityLineage shape: `{ entity, nodes,
+upstreamEdges, downstreamEdges }` with edges as `{ fromEntity: id, toEntity:
+id, lineageDetails }`. An end that is not stored keeps the reference the edge
+carries. Deleted edges are kept (the BigQuery copy) but never walked.
+[dbt ingestion](ingestion.md#runners) writes its edges here; the
+[OpenMetadata page](guide/openmetadata.md#lineage)'s Lineage tab reads them
+through `openmetadata.getLineage`.
 
 ## Rules
 
@@ -76,7 +102,8 @@ A schema change adds a step to `MIGRATIONS` and bumps `SCHEMA_VERSION`.
   [reference](ingestion.md)): `ingestionPipeline` entities (`this-pc`), run
   statuses, schedule state, and the catalog as `databaseService`,
   `database`, `databaseSchema` and `table` entities with
-  `extension.monorail.catalog = true`. Older versions' `pipelines.json`,
+  `extension.monorail.catalog = true`, and dbt's table-to-table lineage as
+  `lineage` edges. Older versions' `pipelines.json`,
   `runs.json` and `catalog.json` are copied in once and left in place.
 - **Tracker** (`electron/apps/tracker`, [reference](tracker.md)): teams and
   members as `team` and `user` entities with `extension.tracker`, and its own
@@ -90,7 +117,8 @@ When a BigQuery dataset is the source of truth
 ([BigQuery metadata](bigquery-metadata.md)), its copy is a second file with
 this same schema, `databases\bigquery.sqlite3` (`mirrorDb()`,
 `mirrorDbExists()`). It holds only what came from BigQuery, written with
-`putExact` (BigQuery's id, version and time; no bump), and is emptied when
+`putExact` and `putLineageExact` (BigQuery's ids, versions and times; no
+bump), and is emptied when
 the source changes or the connection is removed. `local.sqlite3` is never
 synced anywhere.
 

@@ -2,7 +2,7 @@
 //
 // The user picks a BigQuery project and dataset (default METADATA) that holds
 // MonoRail's metadata layout: the local database's tables (entity,
-// entity_version, record, meta) as BigQuery tables. Something else keeps that
+// entity_version, record, lineage, meta) as BigQuery tables. Something else keeps that
 // dataset up to date; MonoRail only connects and reads. It keeps a copy in
 // its own SQLite file (localdb mirrorDb(), bigquery.sqlite3) and every page
 // reads the copy, so browsing never runs a BigQuery query.
@@ -17,9 +17,16 @@
 //     after the last one seen, less 10 minutes for late writers. Each query
 //     is dry-run first; when they would scan more than the user's limit,
 //     nothing runs and the error says so (a table partitioned on its time
-//     column keeps this small). Entities removed from BigQuery outright are
-//     found by comparing row counts (free table metadata) and, when the copy
-//     has more, listing BigQuery's ids (tabledata.list, free).
+//     column keeps this small). Entities (and lineage edges) removed from
+//     BigQuery outright are found by comparing row counts (free table
+//     metadata) and, when the copy has more, listing BigQuery's ids, or
+//     from_id/to_id pairs, through tabledata.list (free).
+//
+// Layout versions: /1 has entity, entity_version, record and meta; /2 adds the
+// optional lineage table (OpenMetadata keeps lineage as edges apart from
+// entity JSON). Both are read; a /1 dataset simply has no lineage. A newer
+// number than LAYOUT is refused, so an older MonoRail never misreads one. A
+// dataset ensureDataset() makes is /2, with an empty lineage table.
 //
 // Read-only, with one exception: when the dataset is the default METADATA
 // and it does not exist yet (or exists with no tables), ensureDataset() makes
@@ -30,7 +37,7 @@
 
 const { createClient, _ids } = require('../modules/bigquery-api.cjs')
 
-const LAYOUT = 'monorail.metadata/1'
+const LAYOUT = 'monorail.metadata/2'
 const DEFAULT_DATASET = 'METADATA'
 const DEFAULT_LOCATION = 'US'
 const OVERLAP_MS = 10 * 60_000
@@ -44,15 +51,27 @@ const NUMBER = ['FLOAT', 'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'INTEGER', 'INT64']
 const TIMESTAMP = ['TIMESTAMP']
 const JSON_TYPES = ['JSON', 'STRING']
 
-/** The layout's tables: columns with the BigQuery types allowed, and the time column incremental syncs follow. */
+const BOOL = ['BOOLEAN', 'BOOL']
+
+/**
+ * The layout's tables: columns with the BigQuery types allowed, the time
+ * column incremental syncs follow, and `since`, the first layout version
+ * that has the table (a dataset of an older layout is not read for it).
+ */
 const TABLES = Object.freeze({
   entity: {
     required: true,
     time: 'updated_at',
-    columns: { id: STRING, type: STRING, fqn: STRING, name: STRING, version: NUMBER, updated_at: TIMESTAMP, deleted: ['BOOLEAN', 'BOOL'], json: JSON_TYPES },
+    columns: { id: STRING, type: STRING, fqn: STRING, name: STRING, version: NUMBER, updated_at: TIMESTAMP, deleted: BOOL, json: JSON_TYPES },
   },
   entity_version: { required: false, time: 'updated_at', columns: { id: STRING, version: NUMBER, updated_at: TIMESTAMP, json: JSON_TYPES } },
   record: { required: false, time: 'at', columns: { kind: STRING, owner: STRING, key: STRING, at: TIMESTAMP, json: JSON_TYPES } },
+  lineage: {
+    required: false,
+    since: 2,
+    time: 'updated_at',
+    columns: { from_id: STRING, from_type: STRING, to_id: STRING, to_type: STRING, updated_at: TIMESTAMP, deleted: BOOL, json: JSON_TYPES },
+  },
   meta: { required: true, columns: { key: STRING, value: STRING } },
 })
 
@@ -156,6 +175,22 @@ CREATE TABLE IF NOT EXISTS ${t('record')} (
 PARTITION BY DATE(\`at\`)
 CLUSTER BY kind, owner;
 
+-- Lineage: one row per edge between two entities (optional). json is
+-- OpenMetadata's edge: { "fromEntity": {...}, "toEntity": {...}, "lineageDetails": {...} },
+-- both ends EntityReferences ({ "id", "type", "fullyQualifiedName", ... }).
+-- Keep one row per (from_id, to_id); set deleted to drop an edge, or delete the row.
+CREATE TABLE IF NOT EXISTS ${t('lineage')} (
+  from_id STRING NOT NULL,     -- upstream entity's UUID
+  from_type STRING NOT NULL,   -- its entity type (table, pipeline, dashboard, ...)
+  to_id STRING NOT NULL,       -- downstream entity's UUID
+  to_type STRING NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  deleted BOOL NOT NULL,
+  json JSON NOT NULL
+)
+PARTITION BY DATE(updated_at)
+CLUSTER BY from_id, to_id;
+
 -- Says which layout this dataset holds.
 CREATE TABLE IF NOT EXISTS ${t('meta')} (
   key STRING NOT NULL,
@@ -209,8 +244,7 @@ async function inspectDataset(client, { projectId, datasetId }) {
   }
   const info = {}
   const problems = []
-  for (const [name, spec] of Object.entries(TABLES)) {
-    if (!names.has(name)) continue
+  const checkTable = async (name, spec) => {
     const t = await client.getTable({ projectId, datasetId, tableId: name })
     const types = new Map(t.fields.map((f) => [f.name, String(f.type).toUpperCase()]))
     for (const [col, allowed] of Object.entries(spec.columns)) {
@@ -227,13 +261,18 @@ async function inspectDataset(client, { projectId, datasetId }) {
       fields: t.fields.map((f) => ({ name: f.name })),
     }
   }
-  if (problems.length) return { state: 'mismatch', location, tables: info, message: `${where} does not match MonoRail's layout: ${problems.slice(0, 6).join('; ')}.` }
+  const mismatch = () => ({ state: 'mismatch', location, tables: info, message: `${where} does not match MonoRail's layout: ${problems.slice(0, 6).join('; ')}.` })
+  // Tables every layout version has first; tables added later only once the layout row says the dataset has them.
+  for (const [name, spec] of Object.entries(TABLES)) if (!spec.since && names.has(name)) await checkTable(name, spec)
+  if (problems.length) return mismatch()
   const meta = decodeRows(info.meta.fields, (await client.listTableData({ projectId, datasetId, tableId: 'meta', maxResults: 1000 })).rows)
   const layout = meta.find((r) => r.key === 'layout')?.value
   const v = layoutVersion(layout)
   if (v === undefined) return { state: 'foreign', location, tables: info, message: `${where}.meta has no layout row ('layout' = '${LAYOUT}'), so MonoRail cannot tell it holds its metadata. Add the row if it does.` }
   if (v > layoutVersion(LAYOUT)) return { state: 'newer', location, tables: info, layout, message: `${where} holds a newer layout (${layout}) than this MonoRail understands. Update MonoRail.` }
-  return { state: 'ok', location, tables: info, layout }
+  for (const [name, spec] of Object.entries(TABLES)) if (spec.since && spec.since <= v && names.has(name)) await checkTable(name, spec)
+  if (problems.length) return mismatch()
+  return { state: 'ok', location, tables: info, layout, lineage: !!info.lineage }
 }
 
 /** States in which the default dataset is free for MonoRail to set up: not there, or there with no tables. */
@@ -296,6 +335,8 @@ function parseObject(text) {
   }
 }
 
+/** A lineage edge's key: one edge per (from, to) pair, as OpenMetadata keeps one relationship per pair. */
+const edgeKey = (fromId, toId) => `${fromId}|${toId}`
 const nonEmpty = (v) => typeof v === 'string' && v.length > 0 && v.length <= 4000
 const truthy = (v) => v === true || v === 'true'
 
@@ -315,6 +356,12 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY updated_at DESC, version DES
 FROM ${from}
 WHERE updated_at >= TIMESTAMP_MILLIS(${s})`
   }
+  if (table === 'lineage') {
+    return `SELECT from_id, from_type, to_id, to_type, UNIX_MILLIS(updated_at) AS updated_ms, IFNULL(deleted, FALSE) AS deleted, ${json} AS json
+FROM ${from}
+WHERE updated_at >= TIMESTAMP_MILLIS(${s})
+QUALIFY ROW_NUMBER() OVER (PARTITION BY from_id, to_id ORDER BY updated_at DESC) = 1`
+  }
   return `SELECT kind, owner, key, UNIX_MILLIS(\`at\`) AS at_ms, ${json} AS json
 FROM ${from}
 WHERE \`at\` >= TIMESTAMP_MILLIS(${s})`
@@ -330,9 +377,10 @@ async function syncMirror({ client, store, config, full = false }) {
   const { projectId, datasetId, billingProject, maxBytes, source } = config
   const { check, created } = await ensureDataset(client, config)
   if (check.state !== 'ok') throw fail(check.message, check.state)
-  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, created, entities: 0, versions: 0, records: 0, removed: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned } }
+  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, created, layout: check.layout, entities: 0, versions: 0, records: 0, lineage: 0, removed: 0, lineageRemoved: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned, lineage: check.lineage } }
 
-  if (store.getMeta('bq.source') !== source || store.getMeta('bq.layout') !== LAYOUT) {
+  // bq.layout is the dataset's layout: a dataset moving to a newer layout is copied in full again.
+  if (store.getMeta('bq.source') !== source || store.getMeta('bq.layout') !== check.layout) {
     store.clearAll()
     out.mode = 'full'
     out.reason = 'first'
@@ -376,21 +424,44 @@ async function syncMirror({ client, store, config, full = false }) {
       marks.record = Math.max(marks.record ?? 0, at)
       out.records++
     },
+    lineage(r, seen) {
+      const updatedAt = r.updated_ms !== undefined ? Number(r.updated_ms) : microsToMs(r.updated_at)
+      const edge = parseObject(r.json)
+      if (!nonEmpty(r.from_id) || !nonEmpty(r.to_id) || !nonEmpty(r.from_type) || !nonEmpty(r.to_type) || r.from_id === r.to_id || !Number.isFinite(updatedAt) || !edge) return void out.skipped++
+      if (seen) {
+        const key = edgeKey(r.from_id, r.to_id)
+        const prev = seen.get(key)
+        if (prev !== undefined && prev > updatedAt) return
+        seen.set(key, updatedAt)
+      }
+      store.putLineageExact({ fromId: r.from_id, fromType: r.from_type, toId: r.to_id, toType: r.to_type, updatedAt, deleted: truthy(r.deleted), edge })
+      marks.lineage = Math.max(marks.lineage ?? 0, updatedAt)
+      out.lineage++
+    },
   }
+  const removeEdges = (keep) => {
+    const gone = store.lineageKeys().filter((k) => !keep(edgeKey(k.fromId, k.toId)))
+    store.transaction(() => gone.forEach((k) => store.removeLineage(k.fromId, k.toId)))
+    out.lineageRemoved += gone.length
+  }
+  // A dataset without a lineage table (layout /1, or the table was dropped) has no lineage.
+  if (!check.tables.lineage && store.countLineage() > 0) removeEdges(() => false)
 
   if (out.mode === 'full') {
     for (const name of tables) {
-      const seen = name === 'entity' ? new Map() : undefined
+      const seen = name === 'entity' || name === 'lineage' ? new Map() : undefined
       const fields = check.tables[name].fields
       await eachTablePage(client, { projectId, datasetId, tableId: name }, (rows) => {
         store.transaction(() => {
           for (const r of decodeRows(fields, rows)) apply[name](r, seen)
         })
       })
-      if (seen) {
+      if (name === 'entity') {
         const gone = store.ids().filter((id) => !seen.has(id))
         store.transaction(() => gone.forEach((id) => store.remove(id)))
         out.removed += gone.length
+      } else if (name === 'lineage') {
+        removeEdges((key) => seen.has(key))
       }
     }
   } else {
@@ -423,12 +494,21 @@ async function syncMirror({ client, store, config, full = false }) {
       store.transaction(() => gone.forEach((id) => store.remove(id)))
       out.removed += gone.length
     }
+    // Edges removed outright, the same way: listing only from_id and to_id is free.
+    if (check.tables.lineage && store.countLineage() > check.tables.lineage.rows + check.tables.lineage.streamingRows) {
+      const keys = new Set()
+      await eachTablePage(client, { projectId, datasetId, tableId: 'lineage', selectedFields: ['from_id', 'to_id'], maxResults: ID_PAGE_ROWS }, (rows) => {
+        for (const r of rows) if (r?.f?.[0]?.v && r.f[1]?.v) keys.add(edgeKey(r.f[0].v, r.f[1].v))
+      })
+      removeEdges((key) => keys.has(key))
+    }
   }
 
   store.transaction(() => {
     for (const name of tables) store.setMeta(`bq.watermark.${name}`, String(marks[name] ?? 0))
     store.setMeta('bq.source', source)
-    store.setMeta('bq.layout', LAYOUT)
+    store.setMeta('bq.layout', check.layout)
+    store.setMeta('bq.lineage', check.tables.lineage ? 'yes' : 'no')
   })
   return out
 }

@@ -2,7 +2,7 @@
 // Same shapes as OpenMetadata 2.0.8's REST API, so the page cannot tell the
 // difference. Edits last until the page reloads. Every name here is made up.
 
-import type { OmCounts, OmEntity, OmPage, OmRef, OmStatus, OmTag } from './types'
+import type { OmCounts, OmEntity, OmLineage, OmLineageEdge, OmPage, OmRef, OmStatus, OmTag } from './types'
 import { TYPES } from './catalog'
 
 const DAY = 86_400_000
@@ -84,10 +84,10 @@ const table = (s: OmEntity, name: string, description: string, columns: ReturnTy
     ...extra,
   })
 
-table(staging, 'stg_orders', 'One row per order, cleaned from the shop database.', [col('order_id', 'STRING', 'The order.', [], 'PRIMARY_KEY'), col('customer_id', 'STRING'), col('ordered_at', 'TIMESTAMP'), col('status', 'STRING', 'placed, shipped, delivered or returned.')], { owners: [ref(sam, 'user')], daysAgo: 6 })
-table(staging, 'stg_customers', 'One row per customer.', [col('customer_id', 'STRING', '', [], 'PRIMARY_KEY'), col('email', 'STRING', 'Contact address.', [tag('PII.Sensitive')]), col('created_at', 'TIMESTAMP')], { owners: [ref(sam, 'user')], tags: [tag('PII.Sensitive')], daysAgo: 6 })
+const stgOrders = table(staging, 'stg_orders', 'One row per order, cleaned from the shop database.', [col('order_id', 'STRING', 'The order.', [], 'PRIMARY_KEY'), col('customer_id', 'STRING'), col('ordered_at', 'TIMESTAMP'), col('status', 'STRING', 'placed, shipped, delivered or returned.')], { owners: [ref(sam, 'user')], daysAgo: 6 })
+const stgCustomers = table(staging, 'stg_customers', 'One row per customer.', [col('customer_id', 'STRING', '', [], 'PRIMARY_KEY'), col('email', 'STRING', 'Contact address.', [tag('PII.Sensitive')]), col('created_at', 'TIMESTAMP')], { owners: [ref(sam, 'user')], tags: [tag('PII.Sensitive')], daysAgo: 6 })
 const fct = table(marts, 'fct_orders', 'One row per order with its totals.', [col('order_id', 'STRING', '', [], 'PRIMARY_KEY'), col('customer_id', 'STRING'), col('order_date', 'DATE'), col('gross_revenue', 'NUMERIC', 'Before discounts.', [tag('Business.Revenue', 'Glossary')]), col('net_revenue', 'NUMERIC', 'After discounts.', [tag('Business.Revenue', 'Glossary')])], { owners: [ref(ada, 'user')], tags: [tag('Tier.Tier1')], domains: [ref(sales, 'domain')], daysAgo: 1 })
-table(marts, 'dim_customers', 'One row per customer with first and last order.', [col('customer_id', 'STRING', '', [], 'PRIMARY_KEY'), col('first_order_date', 'DATE'), col('lifetime_orders', 'INT64'), col('address', 'STRUCT', 'Where orders ship.', [tag('PII.Sensitive')])], { owners: [ref(ada, 'user')], tags: [tag('Tier.Tier2')], domains: [ref(sales, 'domain')], daysAgo: 4 })
+const dim = table(marts, 'dim_customers', 'One row per customer with first and last order.', [col('customer_id', 'STRING', '', [], 'PRIMARY_KEY'), col('first_order_date', 'DATE'), col('lifetime_orders', 'INT64'), col('address', 'STRUCT', 'Where orders ship.', [tag('PII.Sensitive')])], { owners: [ref(ada, 'user')], tags: [tag('Tier.Tier2')], domains: [ref(sales, 'domain')], daysAgo: 4 })
 const daily = table(marts, 'daily_revenue', 'Revenue per day, for the executive dashboard.', [col('day', 'DATE', '', [], 'PRIMARY_KEY'), col('orders', 'INT64'), col('net_revenue', 'NUMERIC', '', [tag('Business.Revenue', 'Glossary')])], { tableType: 'View', owners: [ref(team, 'team')], tags: [tag('Tier.Tier1')], domains: [ref(sales, 'domain')], daysAgo: 0.2 })
 add('storedProcedure', 'refresh_daily_revenue', { fqn: 'warehouse.acme-analytics.marts.refresh_daily_revenue', description: 'Rebuilds daily_revenue from fct_orders.', storedProcedureCode: { language: 'SQL', code: 'CREATE OR REPLACE TABLE marts.daily_revenue AS\nSELECT order_date AS day, COUNT(*) AS orders, SUM(net_revenue) AS net_revenue\nFROM marts.fct_orders GROUP BY 1' }, databaseSchema: ref(marts, 'databaseSchema'), database: ref(database, 'database'), service: ref(service, 'databaseService'), daysAgo: 9 })
 add('query', 'top_customers', { description: 'Customers by lifetime revenue.', query: 'SELECT customer_id, SUM(net_revenue) AS revenue FROM marts.fct_orders GROUP BY 1 ORDER BY 2 DESC LIMIT 20', queryUsedIn: [ref(fct, 'table')], users: [ref(sam, 'user')], daysAgo: 2 })
@@ -110,6 +110,52 @@ add('type', 'table', { description: 'The entity type of tables, with its custom 
 history.set(daily.id, [{ ...daily, version: 0.1, description: 'Revenue per day.', updatedAt: now - 3 * DAY, updatedBy: 'ingestion-bot', changeDescription: undefined }])
 daily.version = 0.2
 daily.changeDescription = { fieldsUpdated: [{ name: 'description' }] }
+
+// Lineage edges, kept apart from the entities as OpenMetadata keeps them.
+const edges: { from: OmEntity; to: OmEntity; details?: OmLineageEdge['lineageDetails'] }[] = [
+  { from: stgOrders, to: fct, details: { source: 'DbtLineage' } },
+  { from: stgCustomers, to: dim, details: { source: 'DbtLineage' } },
+  { from: fct, to: dim, details: { source: 'DbtLineage' } },
+  { from: fct, to: daily, details: { source: 'QueryLineage', sqlQuery: 'SELECT order_date AS day, COUNT(*) AS orders, SUM(net_revenue) AS net_revenue FROM marts.fct_orders GROUP BY 1' } },
+]
+
+function typeOfEntity(e: OmEntity): string {
+  for (const [type, items] of byType) if (items.includes(e)) return type
+  return 'table'
+}
+
+/** The same walk as the local database's: up to 3 levels each way. */
+function lineage(id: string, up: number, down: number): OmLineage {
+  const all = [...byType].flatMap(([type, items]) => items.map((e) => ({ type, e })))
+  const center = all.find((x) => x.e.id === id)
+  if (!center) throw new Error('Not found')
+  const nodes = new Map<string, OmRef>()
+  const walk = (depth: number, upstream: boolean) => {
+    const out: OmLineageEdge[] = []
+    let frontier = [id]
+    const seen = new Set(frontier)
+    for (let d = 0; d < Math.min(3, depth) && frontier.length; d++) {
+      const next: string[] = []
+      for (const at of frontier) {
+        for (const x of edges.filter((x) => (upstream ? x.to.id : x.from.id) === at)) {
+          out.push({ fromEntity: x.from.id, toEntity: x.to.id, ...(x.details ? { lineageDetails: x.details } : {}) })
+          const other = upstream ? x.from : x.to
+          nodes.set(other.id, ref(other, typeOfEntity(other)))
+          if (!seen.has(other.id)) {
+            seen.add(other.id)
+            next.push(other.id)
+          }
+        }
+      }
+      frontier = next
+    }
+    return out
+  }
+  const upstreamEdges = walk(up, true)
+  const downstreamEdges = walk(down, false)
+  nodes.delete(id)
+  return { entity: ref(center.e, center.type), nodes: [...nodes.values()], upstreamEdges, downstreamEdges }
+}
 
 function list(type: string): OmEntity[] {
   const items = byType.get(type)
@@ -143,6 +189,7 @@ const methods: Record<string, (args: Record<string, unknown>) => unknown> = {
     TYPES.flatMap((x) => list(x.type).map((e) => ({ ...e, entityType: x.type })))
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
       .slice(0, 30),
+  getLineage: ({ id, upstreamDepth, downstreamDepth }) => lineage(String(id), Number(upstreamDepth ?? 1), Number(downstreamDepth ?? 1)),
   setDescription: ({ type, id, description }) => {
     const items = list(String(type))
     const i = items.findIndex((x) => x.id === id)

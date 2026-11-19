@@ -71,6 +71,9 @@ function createBigQuerySource(deps = {}) {
       syncEvery: cfg.syncEvery,
       synced: current,
       entities: current ? Object.values(store().counts()).reduce((n, c) => n + c, 0) : 0,
+      /** The dataset's layout, and whether it has a lineage table (layout /2 and the table made). */
+      layout: current ? store().getMeta('bq.layout') : undefined,
+      lineage: current ? store().getMeta('bq.lineage') === 'yes' : undefined,
       last: lastForThis,
       running: running ? { full: running.full, startedAt: new Date(running.startedAt).toISOString() } : undefined,
       nextAt: nextAt(cfg, lastForThis, current),

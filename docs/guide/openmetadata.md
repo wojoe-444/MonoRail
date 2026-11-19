@@ -1,6 +1,6 @@
 ---
 audience: human
-summary: One page for every kind of entity, from MonoRail's local database or your OpenMetadata server, with every field, relationship and version.
+summary: One page for every kind of entity, from MonoRail's local database or your OpenMetadata server, with every field, relationship, lineage link and version.
 ---
 
 # Browse your OpenMetadata server
@@ -110,10 +110,40 @@ server older than 2.1 has no ontology kinds, so those stay greyed out.
   see deleted ones too.
 - **Pick an entity** to see everything about it: owners, tags and domains,
   its description, every other field, its columns (for tables and the like),
-  the other entities it points to, its earlier versions, and the raw data
-  OpenMetadata sent. For the kinds MonoRail has adopted into the standard,
+  the other entities it points to, its [lineage](#lineage), its earlier
+  versions, and the raw data OpenMetadata sent. For the kinds MonoRail has adopted into the standard,
   like tables and databases, each field also says what it means, with a link
   to the kind's page in the standard.
+
+## Lineage
+
+Lineage shows where data comes from and where it goes. Open a table (or a
+dashboard, pipeline, model or other data asset) and pick the **Lineage** tab:
+
+- **Upstream** lists what this one is made from, for example the staging
+  table a report table is built on.
+- **Downstream** lists what is made from it.
+
+It starts with the direct neighbours. Pick **2 steps** or **3 steps** to follow
+the chain further; each row then says how many steps away it is, and where
+the link came from (dbt, a query, a pipeline). Click a row to open that
+entity. If nothing is recorded, the tab says so.
+
+Where it comes from depends on what you are looking at:
+
+- **This PC**: a [dbt pipeline](setup/services.md) records which models are
+  built from which, each time it runs.
+- **Your OpenMetadata server**: whatever lineage the server keeps.
+- **[BigQuery](#bigquery-as-the-source-of-truth)**: the dataset's lineage
+  table. A dataset MonoRail creates for you has one. Older datasets don't, and
+  the tab tells you so; the
+  [layout reference](../bigquery-metadata.md#lineage-and-the-layout-versions)
+  says how to add it.
+
+[Explore](explore.md) also lists a table's neighbours. The
+[layout reference](../bigquery-metadata.md#lineage-and-the-layout-versions)
+and the [local database](../local-database.md#lineage) describe how lineage
+is stored.
 
 ## Editing
 

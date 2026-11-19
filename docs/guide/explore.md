@@ -48,7 +48,7 @@ explains each type.
 
 [Ingestion pipelines](setup/services.md) that run on your PC add more: the
 tables, views and columns of a SQLite database, row counts from a profiler
-run, and the models, sources and lineage of a dbt project. Their full names
+run, and the models, sources and [lineage](openmetadata.md#lineage) of a dbt project. Their full names
 start with the service, such as `local_sqlite.main.main.notes`.
 
 When a BigQuery dataset is

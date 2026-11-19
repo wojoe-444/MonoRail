@@ -13,6 +13,15 @@
 //   records 'tableProfile'       profiler results per table, newest PROFILES_KEPT,
 //                                kept apart from the table as OpenMetadata keeps
 //                                profiles apart from entity versions
+//   lineage edges                dbt's table-to-table lineage in the database's
+//                                lineage table (OpenMetadata's edge shape,
+//                                lineageDetails.source 'DbtLineage'), resolved
+//                                to the catalog's table entities
+//
+// Older versions kept lineage as { from, to } table keys in
+// databaseService.extension.monorail.lineage. That field is still read
+// (legacyLineage, and readCatalog when a service has no edges in the table)
+// but no longer written: the next catalog write moves it into the table.
 //
 // Older versions kept pipelines.json, runs.json and catalog.json in the
 // module's data folder. They are copied in once (meta 'import.ingestion') and
@@ -37,6 +46,39 @@ const IMPORT_KEY = 'import.ingestion'
 
 const ref = (e, type) => ({ id: e.id, type, name: e.name, fullyQualifiedName: e.fullyQualifiedName })
 const strip = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
+
+const isCatalog = (e) => e.extension?.monorail?.catalog === true
+/** A catalog table's key inside its service, as the runners name tables: database.schema.table. */
+const tableKeyOf = (t) => [t.database?.name, t.databaseSchema?.name, t.name].join('.')
+/** One dbt lineage edge in OpenMetadata's EntitiesEdge shape. */
+const dbtEdge = (from, to) => ({ fromEntity: ref(from, 'table'), toEntity: ref(to, 'table'), lineageDetails: { source: 'DbtLineage' } })
+
+/** A service's catalog tables by key. */
+function catalogTables(db, service) {
+  const map = new Map()
+  for (const t of db.all('table')) if (isCatalog(t) && t.service?.fullyQualifiedName === service.fullyQualifiedName) map.set(tableKeyOf(t), t)
+  return map
+}
+
+/**
+ * Edges older versions kept in databaseService.extension.monorail.lineage
+ * ({ from, to } table keys), resolved to the catalog's table entities, as
+ * [{ fromId, toId, edge }]. Reads only; pairs that no longer resolve are left out.
+ */
+function legacyLineage(db) {
+  const out = []
+  for (const s of db.all('databaseService')) {
+    const pairs = isCatalog(s) ? s.extension.monorail.lineage : undefined
+    if (!Array.isArray(pairs) || !pairs.length) continue
+    const tables = catalogTables(db, s)
+    for (const p of pairs) {
+      const from = tables.get(p?.from)
+      const to = tables.get(p?.to)
+      if (from && to && from.id !== to.id) out.push({ fromId: from.id, toId: to.id, edge: dbtEdge(from, to) })
+    }
+  }
+  return out
+}
 
 function createStore({ db, legacyDir } = {}) {
   if (!db) throw new Error('The ingestion store needs the local database.')
@@ -108,12 +150,21 @@ function createStore({ db, legacyDir } = {}) {
   // ---------- catalog
 
   /** The nested catalog per service, as the runners read it: { [service]: { serviceType, updatedAt, databases, lineage } }. */
+  /** A service's lineage as { from, to } table keys: the lineage table's edges between its tables, else the older field. */
+  function serviceLineage(service) {
+    const keyOf = new Map([...catalogTables(db, service)].map(([key, t]) => [t.id, key]))
+    const pairs = []
+    for (const [id, to] of keyOf) for (const e of db.lineageInto(id)) if (keyOf.has(e.fromId)) pairs.push({ from: keyOf.get(e.fromId), to })
+    if (pairs.length) return pairs
+    const legacy = service.extension?.monorail?.lineage
+    return Array.isArray(legacy) && legacy.length ? legacy : undefined
+  }
+
   function readCatalog() {
-    const isCatalog = (e) => e.extension?.monorail?.catalog === true
     const services = {}
     const byFqn = new Map()
     for (const s of db.all('databaseService').filter(isCatalog)) {
-      services[s.name] = strip({ serviceType: s.serviceType, updatedAt: db.getMeta(`catalog.updatedAt.${s.name}`), lineage: s.extension.monorail.lineage, databases: [] })
+      services[s.name] = strip({ serviceType: s.serviceType, updatedAt: db.getMeta(`catalog.updatedAt.${s.name}`), lineage: serviceLineage(s), databases: [] })
       byFqn.set(s.fullyQualifiedName, services[s.name])
     }
     const dbs = new Map()
@@ -153,14 +204,22 @@ function createStore({ db, legacyDir } = {}) {
     return services
   }
 
-  /** Write the nested catalog back as entities; entities of a service that are no longer in it are removed. */
+  /**
+   * Write the nested catalog back as entities; entities of a service that are
+   * no longer in it are removed, with their lineage. `svc.lineage` ({ from, to }
+   * table keys), when given, replaces the edges between the service's tables.
+   */
   function writeCatalog(services) {
     for (const [svcName, svc] of Object.entries(services)) {
       const keep = new Set()
       const mark = (e) => (keep.add(e.id), e)
+      const tablesByKey = new Map()
       const prev = db.get('databaseService', fqnOf(svcName))
+      // The older lineage field is not written again (it lives in the lineage table now); kept only while
+      // this write brings no lineage of its own, so data a newer runner has not rewritten yet still reads.
+      const legacy = Array.isArray(svc.lineage) ? undefined : prev?.extension?.monorail?.lineage
       const service = mark(
-        db.put('databaseService', strip({ name: svcName, fullyQualifiedName: fqnOf(svcName), serviceType: svc.serviceType, description: prev?.description, extension: { monorail: strip({ catalog: true, lineage: svc.lineage?.length ? svc.lineage : undefined }) } })),
+        db.put('databaseService', strip({ name: svcName, fullyQualifiedName: fqnOf(svcName), serviceType: svc.serviceType, description: prev?.description, extension: { monorail: strip({ catalog: true, lineage: legacy }) } })),
       )
       if (svc.updatedAt) db.setMeta(`catalog.updatedAt.${svcName}`, svc.updatedAt)
       for (const d of svc.databases ?? []) {
@@ -189,6 +248,7 @@ function createStore({ db, legacyDir } = {}) {
                 }),
               ),
             )
+            tablesByKey.set([d.name, s.name, t.name].join('.'), stored)
             const [last] = db.records('tableProfile', stored.id, 1)
             if (t.profile && t.profile.timestamp !== last?.timestamp) {
               db.putRecord('tableProfile', stored.id, String(t.profile.timestamp), Number(t.profile.timestamp) || 0, t.profile)
@@ -201,11 +261,34 @@ function createStore({ db, legacyDir } = {}) {
         for (const e of db.all(type)) {
           if (e.extension?.monorail?.catalog === true && e.service?.fullyQualifiedName === service.fullyQualifiedName && !keep.has(e.id)) {
             db.deleteRecords('tableProfile', e.id)
+            db.removeLineageOf(e.id)
             db.remove(e.id)
           }
         }
       }
+      if (Array.isArray(svc.lineage)) writeLineage(tablesByKey, svc.lineage)
     }
+  }
+
+  /**
+   * Replace the edges between a service's tables with `pairs` ({ from, to }
+   * table keys), each resolved to the stored table entities; a pair whose
+   * table is not in the catalog (filtered out, say) is left out. Unchanged
+   * edges keep their time. Returns how many edges were written.
+   */
+  function writeLineage(tablesByKey, pairs) {
+    const wanted = new Map()
+    for (const p of pairs) {
+      const from = tablesByKey.get(p?.from)
+      const to = tablesByKey.get(p?.to)
+      if (from && to && from.id !== to.id) wanted.set(`${from.id}|${to.id}`, dbtEdge(from, to))
+    }
+    const ids = new Set([...tablesByKey.values()].map((t) => t.id))
+    for (const t of tablesByKey.values()) {
+      for (const e of db.lineageInto(t.id)) if (ids.has(e.fromId) && !wanted.has(`${e.fromId}|${e.toId}`)) db.removeLineage(e.fromId, e.toId)
+    }
+    for (const edge of wanted.values()) db.putLineage(edge)
+    return wanted.size
   }
 
   return {
@@ -235,4 +318,4 @@ function createStore({ db, legacyDir } = {}) {
   }
 }
 
-module.exports = { createStore, PIPELINES_FILE, RUNS_FILE, CATALOG_FILE, RUNS_KEPT, LOG_LINES }
+module.exports = { createStore, legacyLineage, PIPELINES_FILE, RUNS_FILE, CATALOG_FILE, RUNS_KEPT, LOG_LINES }

@@ -42,7 +42,7 @@ describe('OpenMetadata backend', () => {
     const fetch = fakeFetch({})
     const svc = service(fetch, { setUp: false })
     assert.deepEqual(await svc.status({ source: 'server' }), { block: 'not-set-up', source: 'server', serverSetUp: false, bigquerySetUp: false })
-    for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'setDescription']) {
+    for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'getLineage', 'setDescription']) {
       await assert.rejects(svc[m]({ source: 'server', type: 'table', fqn: 'a', id: '00000000-0000-4000-8000-000000000001', description: 'x' }), /Set up OpenMetadata/)
     }
     assert.equal(fetch.calls.length, 0)
@@ -144,6 +144,43 @@ describe('OpenMetadata backend', () => {
       'GET /search/query': () => [200, { hits: { hits: [{ _source: { entityType: 'tableColumn', id: 'c' } }, { _source: { entityType: 'table', id: 't' } }] } }],
     })
     assert.deepEqual((await service(fetch).recent()).map((e) => e.id), ['t'])
+  })
+
+  test("lineage: GET /lineage/{type}/{id} with depths capped at 3, in the same shape as the local database's", async () => {
+    const id = '00000000-0000-4000-8000-000000000002'
+    const up = '00000000-0000-4000-8000-000000000001'
+    const down = '00000000-0000-4000-8000-000000000003'
+    const fetch = fakeFetch({
+      'GET /lineage/table/': () => [200, {
+        entity: { id, type: 'table', name: 'stg', fullyQualifiedName: 'svc.db.sch.stg', href: 'http://x' },
+        nodes: [{ id: up, type: 'table', name: 'raw', fullyQualifiedName: 'svc.db.sch.raw' }, { id: down, type: 'dashboard', name: 'Revenue', fullyQualifiedName: 'bi.Revenue' }],
+        upstreamEdges: [{ fromEntity: up, toEntity: id, lineageDetails: { source: 'QueryLineage', sqlQuery: 'INSERT ...' } }],
+        downstreamEdges: [{ fromEntity: { id, type: 'table' }, toEntity: { id: down, type: 'dashboard' } }, { fromEntity: id }],
+      }],
+    })
+    const svc = service(fetch)
+    const l = await svc.getLineage({ type: 'table', id, upstreamDepth: 2, downstreamDepth: 9 })
+    assert.equal(fetch.calls[0].rel, `/lineage/table/${id}?upstreamDepth=2&downstreamDepth=3`)
+    assert.deepEqual(l.entity, { id, type: 'table', name: 'stg', fullyQualifiedName: 'svc.db.sch.stg' })
+    assert.deepEqual(l.upstreamEdges, [{ fromEntity: up, toEntity: id, lineageDetails: { source: 'QueryLineage', sqlQuery: 'INSERT ...' } }])
+    assert.deepEqual(l.downstreamEdges, [{ fromEntity: id, toEntity: down }], 'references become ids; an edge without both ends is dropped')
+    assert.deepEqual(l.nodes.map((n) => n.type), ['table', 'dashboard'])
+    await svc.getLineage({ type: 'table', id })
+    assert.equal(fetch.calls[1].rel, `/lineage/table/${id}?upstreamDepth=1&downstreamDepth=1`, 'depth 1 by default')
+    await assert.rejects(svc.getLineage({ type: 'table', id: '../tables' }), /entity id/)
+    await assert.rejects(svc.getLineage({ type: 'nope', id }), /no entity type/)
+    assert.equal(fetch.calls.length, 2)
+
+    // The local database answers the same keys.
+    const { openDatabase } = require('../localdb/index.cjs')
+    const db = openDatabase(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'monorail-om-')))
+    const a = db.put('table', { name: 'raw', fullyQualifiedName: 'svc.db.sch.raw' })
+    const b = db.put('table', { name: 'stg', fullyQualifiedName: 'svc.db.sch.stg' })
+    db.putLineage({ fromEntity: { id: a.id, type: 'table' }, toEntity: { id: b.id, type: 'table' } })
+    const local = await createService({ fetch, isSetUp: async () => true, credentials: async () => TOKEN_CREDS, local: () => db, bigquery: NO_BIGQUERY }).getLineage({ source: 'local', type: 'table', id: b.id })
+    assert.deepEqual(Object.keys(local).sort(), Object.keys(l).sort())
+    assert.deepEqual(local.upstreamEdges, [{ fromEntity: a.id, toEntity: b.id }])
+    assert.equal(fetch.calls.length, 2, 'the local source makes no request')
   })
 
   test('the one write: a JSON Patch on /description only', async () => {

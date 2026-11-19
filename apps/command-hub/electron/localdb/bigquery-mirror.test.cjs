@@ -19,9 +19,10 @@ const FIELDS = {
   entity: [['id', 'STRING'], ['type', 'STRING'], ['fqn', 'STRING'], ['name', 'STRING'], ['version', 'FLOAT'], ['updated_at', 'TIMESTAMP'], ['deleted', 'BOOLEAN'], ['json', 'JSON']],
   entity_version: [['id', 'STRING'], ['version', 'FLOAT'], ['updated_at', 'TIMESTAMP'], ['json', 'JSON']],
   record: [['kind', 'STRING'], ['owner', 'STRING'], ['key', 'STRING'], ['at', 'TIMESTAMP'], ['json', 'JSON']],
+  lineage: [['from_id', 'STRING'], ['from_type', 'STRING'], ['to_id', 'STRING'], ['to_type', 'STRING'], ['updated_at', 'TIMESTAMP'], ['deleted', 'BOOLEAN'], ['json', 'JSON']],
   meta: [['key', 'STRING'], ['value', 'STRING']],
 }
-const TIME = { entity: 'updated_at', entity_version: 'updated_at', record: 'at' }
+const TIME = { entity: 'updated_at', entity_version: 'updated_at', record: 'at', lineage: 'updated_at' }
 
 const ent = (n, { at = T0, version = 0.1, deleted = false, type = 'table', desc } = {}) => ({
   id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
@@ -33,6 +34,12 @@ const ent = (n, { at = T0, version = 0.1, deleted = false, type = 'table', desc 
   deleted,
   json: JSON.stringify({ name: `t${n}`, description: desc ?? `Table ${n}`, owners: [{ type: 'user', name: 'ada' }], columns: [{ name: 'id', dataType: 'STRING' }] }),
 })
+
+/** A lineage row from table t<a> to table t<b>, json in OpenMetadata's edge shape. */
+const edge = (a, b, { at = T0, deleted = false, desc } = {}) => {
+  const end = (n) => ({ id: ent(n).id, type: 'table', fullyQualifiedName: ent(n).fqn })
+  return { from_id: ent(a).id, from_type: 'table', to_id: ent(b).id, to_type: 'table', updated_at: at, deleted, json: JSON.stringify({ fromEntity: end(a), toEntity: end(b), lineageDetails: { source: 'QueryLineage', sqlQuery: `SELECT ${desc ?? 'new'}` } }) }
+}
 
 /**
  * An in-memory BigQuery with the client methods the sync uses. Every query
@@ -73,7 +80,7 @@ function fakeBigQuery({ tables = {}, missing = false, bytesPerQuery = 1000, part
       if (query.includes('CREATE SCHEMA IF NOT EXISTS')) {
         if (client.refuseCreate) throw Object.assign(new Error('Access Denied'), { status: 403 })
         client.missing = false
-        for (const t of ['entity', 'entity_version', 'record']) data[t] ??= []
+        for (const t of ['entity', 'entity_version', 'record', 'lineage']) data[t] ??= []
         data.meta ??= []
         if (!data.meta.some((r) => r.key === 'layout')) data.meta.push({ key: 'layout', value: mirror.LAYOUT })
         return { jobComplete: true, job: { projectId, jobId: 'setup', location }, fields: [], rows: [], totalBytesProcessed: 0 }
@@ -85,6 +92,7 @@ function fakeBigQuery({ tables = {}, missing = false, bytesPerQuery = 1000, part
         entity: (r) => ({ id: r.id, type: r.type, fqn: r.fqn, name: r.name, version: r.version, updated_ms: String(r.updated_at), deleted: !!r.deleted, json: r.json }),
         entity_version: (r) => ({ id: r.id, version: r.version, updated_ms: String(r.updated_at), json: r.json }),
         record: (r) => ({ kind: r.kind, owner: r.owner, key: r.key, at_ms: String(r.at), json: r.json }),
+        lineage: (r) => ({ from_id: r.from_id, from_type: r.from_type, to_id: r.to_id, to_type: r.to_type, updated_ms: String(r.updated_at), deleted: !!r.deleted, json: r.json }),
       }[table]
       const objs = rows.map(out)
       const names = objs.length ? Object.keys(objs[0]) : []
@@ -228,10 +236,89 @@ describe('BigQuery metadata copy', () => {
     assert.ok(store.get('table', 'svc.db.sch.t7'))
   })
 
+  test('layout /2 is current; a /1 dataset is still read and simply has no lineage', async () => {
+    assert.equal(mirror.LAYOUT, 'monorail.metadata/2')
+    const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
+    // A /1 dataset that happens to hold a table named lineage: /1 has no such table, so it is not read.
+    const c = fakeBigQuery({ tables: { meta: [{ key: 'layout', value: 'monorail.metadata/1' }], entity: [ent(1), ent(2)], lineage: [edge(1, 2)] } })
+    const check = await mirror.inspectDataset(c, CONFIG)
+    assert.equal(check.state, 'ok')
+    assert.equal(check.lineage, false)
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    assert.equal(r.entities, 2)
+    assert.equal(r.lineage, 0)
+    assert.ok(!c.listed.includes('lineage'))
+    assert.equal(store.getMeta('bq.layout'), 'monorail.metadata/1')
+    assert.equal(store.getMeta('bq.lineage'), 'no')
+    // The dataset moves to /2: copied in full again, now with its lineage.
+    c.data.meta = [{ key: 'layout', value: 'monorail.metadata/2' }]
+    const r2 = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    assert.equal(r2.mode, 'full')
+    assert.equal(r2.lineage, 1)
+    assert.equal(store.getMeta('bq.lineage'), 'yes')
+    // /2 without the optional lineage table is fine too.
+    const noTable = fakeBigQuery({ tables: { entity: [ent(1)] } })
+    assert.equal((await mirror.inspectDataset(noTable, CONFIG)).lineage, false)
+    // A /2 lineage table with the wrong columns is a mismatch.
+    const bad = fakeBigQuery({ tables: { entity: [ent(1)], lineage: [] } })
+    const getTable = bad.getTable
+    bad.getTable = async (a) => (a.tableId === 'lineage' ? { ...(await getTable(a)), fields: [{ name: 'from_id', type: 'STRING' }] } : getTable(a))
+    const m = await mirror.inspectDataset(bad, CONFIG)
+    assert.equal(m.state, 'mismatch')
+    assert.match(m.message, /lineage\.to_id is missing/)
+  })
+
+  test('lineage: full copy through tabledata.list, then incremental on updated_at, removals by (from_id, to_id)', async () => {
+    const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
+    const c = fakeBigQuery({
+      tables: {
+        entity: [ent(1), ent(2), ent(3)],
+        lineage: [edge(1, 2, { at: T0 - 30 * MIN, desc: 'old' }), edge(1, 2, { at: T0 }), edge(2, 3), { ...edge(3, 1), json: 'not json' }],
+      },
+    })
+    const r = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    assert.equal(r.mode, 'full')
+    assert.equal(c.queries.length, 0, 'a full copy runs no query')
+    assert.equal(store.countLineage(), 2, 'one edge per (from_id, to_id)')
+    assert.equal(r.skipped, 1)
+    const l = store.lineageOf(ent(2).id)
+    assert.deepEqual(l.upstreamEdges.map((e) => [e.fromEntity, e.toEntity, e.lineageDetails.sqlQuery]), [[ent(1).id, ent(2).id, 'SELECT new']])
+    assert.deepEqual(l.downstreamEdges.map((e) => e.toEntity), [ent(3).id])
+    assert.equal(store.getMeta('bq.watermark.lineage'), String(T0))
+
+    // Incremental: a changed edge, a new one and one marked deleted come down by updated_at.
+    c.data.lineage = [edge(1, 2, { at: T0 + 20 * MIN, desc: 'changed' }), edge(2, 3, { at: T0 + 21 * MIN, deleted: true }), edge(3, 1, { at: T0 + 22 * MIN })]
+    const r2 = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    assert.equal(r2.mode, 'incremental')
+    assert.equal(r2.lineage, 3)
+    const sql = c.queries.find((q) => !q.dryRun && /\.lineage`/.test(q.query)).query
+    assert.match(sql, /QUALIFY ROW_NUMBER\(\) OVER \(PARTITION BY from_id, to_id/)
+    assert.match(sql, new RegExp(`TIMESTAMP_MILLIS\\(${T0 - mirror.OVERLAP_MS}\\)`))
+    assert.ok(c.queries.some((q) => q.dryRun && /\.lineage`/.test(q.query)), 'dry-run first')
+    for (const q of c.queries) assert.match(q.query, /^SELECT /)
+    const l2 = store.lineageOf(ent(2).id)
+    assert.equal(l2.upstreamEdges[0].lineageDetails.sqlQuery, 'SELECT changed')
+    assert.deepEqual(l2.downstreamEdges, [], 'a deleted edge is kept in the copy but not shown')
+
+    // Removed outright: the copy has more rows than BigQuery, so the pairs are listed (free) and the rest go.
+    c.data.lineage = [edge(1, 2, { at: T0 + 20 * MIN, desc: 'changed' })]
+    const r3 = await mirror.syncMirror({ client: c, store, config: CONFIG })
+    assert.equal(r3.lineageRemoved, 2)
+    assert.equal(store.countLineage(), 1)
+    assert.ok(c.listed.filter((t) => t === 'lineage').length >= 2)
+
+    // Full refresh drops edges no longer there.
+    c.data.lineage = []
+    const f = await mirror.syncMirror({ client: c, store, config: CONFIG, full: true })
+    assert.equal(f.lineageRemoved, 1)
+    assert.equal(store.countLineage(), 0)
+  })
+
   test('the setup SQL creates the layout and marks it; the sync code holds no write statement', () => {
     const sql = mirror.setupSql('chicago-transit', 'METADATA')
-    for (const t of ['entity', 'entity_version', 'record', 'meta']) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS \`chicago-transit\\.METADATA\\.${t}\``))
+    for (const t of ['entity', 'entity_version', 'record', 'lineage', 'meta']) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS \`chicago-transit\\.METADATA\\.${t}\``))
     assert.match(sql, /PARTITION BY DATE\(updated_at\)/)
+    assert.match(sql, /from_id STRING NOT NULL[\s\S]*to_type STRING NOT NULL[\s\S]*PARTITION BY DATE\(updated_at\)\s+CLUSTER BY from_id, to_id;/)
     assert.match(sql, new RegExp(`'layout', '${mirror.LAYOUT.replace(/[./]/g, '\\$&')}'`))
     // Only setupSql (text for the user) may contain write statements.
     const src = fs.readFileSync(path.join(__dirname, 'bigquery-mirror.cjs'), 'utf8')
@@ -266,6 +353,29 @@ describe('BigQuery as the OpenMetadata page source', () => {
     await assert.rejects(svc.setDescription({ type: 'table', id: t1.id, description: 'x' }), /source of truth/)
     state.setUp = false
     assert.equal((await svc.status({ source: 'bigquery' })).source, 'local', 'a saved choice falls back once BigQuery is removed')
+  })
+
+  test("lineage from the copy has the local database's shape; a /1 dataset says it has no lineage table", async () => {
+    const client = fakeBigQuery({ tables: { entity: [ent(1), ent(2), ent(3)], lineage: [edge(1, 2), edge(2, 3)] } })
+    const { bq } = setup({ client })
+    const local = openDatabase(tmp())
+    const svc = om._internal.createService({ isSetUp: async () => false, local: () => local, bigquery: bq })
+    await bq.sync()
+    const l = await svc.getLineage({ type: 'table', id: ent(2).id })
+    assert.deepEqual(Object.keys(l).sort(), ['downstreamEdges', 'entity', 'nodes', 'upstreamEdges'])
+    assert.deepEqual(l.entity, { id: ent(2).id, type: 'table', name: 't2', fullyQualifiedName: 'svc.db.sch.t2', description: 'Table 2' })
+    assert.deepEqual(l.nodes.map((n) => n.name).sort(), ['t1', 't3'])
+    assert.deepEqual(l.upstreamEdges.map((e) => [e.fromEntity, e.toEntity]), [[ent(1).id, ent(2).id]])
+    assert.equal((await svc.getLineage({ type: 'table', id: ent(1).id, downstreamDepth: 2 })).downstreamEdges.length, 2)
+    assert.equal((await bq.status()).lineage, true)
+
+    const old = setup({ client: fakeBigQuery({ tables: { meta: [{ key: 'layout', value: 'monorail.metadata/1' }], entity: [ent(1)] } }) })
+    const svc1 = om._internal.createService({ isSetUp: async () => false, local: () => local, bigquery: old.bq })
+    await old.bq.sync()
+    const none = await svc1.getLineage({ type: 'table', id: ent(1).id })
+    assert.equal(none.missing, 'no-lineage-table')
+    assert.equal(none.layout, 'monorail.metadata/1')
+    assert.deepEqual(none.upstreamEdges, [])
   })
 
   test('the schedule: due at once for a new dataset, then on the interval; failures retry in 15 minutes', async () => {
@@ -353,6 +463,8 @@ describe('creating the default METADATA dataset', () => {
     assert.equal(run.location, 'EU')
     assert.match(run.query, /CREATE SCHEMA IF NOT EXISTS `chicago-transit\.METADATA` OPTIONS \(location = 'EU'\)/)
     assert.equal(store.getMeta('bq.source'), 'chicago-transit.METADATA')
+    assert.equal(store.getMeta('bq.layout'), mirror.LAYOUT, 'a new dataset is made in the current layout')
+    assert.equal(store.getMeta('bq.lineage'), 'yes', 'with its (empty) lineage table')
     // Next time it exists: nothing is created again.
     await mirror.syncMirror({ client: c, store, config })
     assert.equal(setupRuns(c).length, 1)
