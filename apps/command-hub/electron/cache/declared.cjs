@@ -136,6 +136,7 @@ const DATA_FILES = Object.freeze({
   'modules/flashcards': ['decks.json', 'decks.json.lock'],
   'modules/notes': ['repo/'],
   'modules/bookmarks': ['bookmarks.json'],
+  'modules/sqlx': ['projects.json'],
   'modules/flows': ['repo/', 'runs.json'],
   'modules/storage': ['goals.json'],
   'modules/ingestion': ['pipelines.json', 'runs.json', 'catalog.json'], // older versions only: copied into the local database once, then left as they are
@@ -163,6 +164,7 @@ const NOT_CACHED = Object.freeze({
   'modules/ingestion': 'Older versions kept ingestion pipelines, runs and the local catalog here (pipelines.json, runs.json, catalog.json). They are copied into the local database once and then left as they are; nothing writes them any more.',
   databases: 'The local database of MonoRail (local.sqlite3, plus the SQLite -wal, -shm and -journal files while it is open): OpenMetadata entities the user or local ingestion pipelines made (services, databases, schemas, tables with column names, types, descriptions, lineage and row and null counts; never row data), every version of each, ingestion pipelines that run on this PC and their newest 30 run statuses with up to 200 log lines. It is the source of truth, not a cache; it never leaves the PC. bigquery.sqlite3 (same schema, only while the BigQuery metadata connection is set up) is a copy of the BigQuery dataset the user chose as the source of truth: the entities, versions and records found there, refilled from BigQuery on a schedule or on request and emptied when the connection is removed. MonoRail never writes it back.',
   'modules/files': 'Files reads folders and files in place on every call and keeps nothing: no listing, preview, thumbnail or search result is written to disk. Pins, tags, tabs and view choices are the person\'s page preferences.',
+  'modules/sqlx': 'SQLX files are the user\'s own files in the Dataform project folders they picked, read in place on every call and never cached or copied. projects.json keeps only those folders (id, name, path).',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })
 

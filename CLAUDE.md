@@ -762,7 +762,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Tracker, Calendar, Email, Bookmarks, Browser, BigQuery, Files, Notes and Flashcards behind one rail button.
+Tracker, Calendar, Email, Bookmarks, Browser, BigQuery, SQLX, Files, Notes and Flashcards behind one rail button.
 **Browser** (`browser`, guide `docs/guide/workspace/browser.md`) is a tabbed
 `<webview>` browser with its own sign-ins per profile (`persist:browser`,
 `persist:browser-<id>`, in memory for New User; Electron's `Partitions`
@@ -786,6 +786,22 @@ Electron) calls only `bigquery.googleapis.com` with fixed URL shapes and
 validated ids; rows are converted by schema (INT64/NUMERIC stay strings).
 Nothing is written to disk; tabs and starred projects live in `prefs`
 (`monorail.bigquery.*`). Queries run with the user's own permissions.
+**SQLX** (`sqlx`, guide `docs/guide/workspace/sqlx.md`) opens Dataform
+`.sqlx` files: file list left, SQL in the middle, the `config { }` block as a
+form on the right (`ConfigForm.tsx`, field specs in `fields.ts`: core 3 puts
+BigQuery options at the top, core 2 under `bigquery`), `js` / `pre_operations`
+/ `post_operations` as folding panels, and a Source view of the whole file.
+`parse.ts` splits a file into block and text pieces whose `raw` joins back byte
+for byte (line endings kept), and reads the config's object literal into
+values; anything else (variables, calls) stays as source text and is written
+back unchanged. Only an edited block is rewritten. Backend
+`electron/modules/sqlx.cjs`: projects are folders picked in the system dialog
+(`addProject`, desktop only; `projects.json` keeps id, name, path; the page
+never gets a path), files are named by project id plus a relative `.sqlx` path
+re-resolved (real path) inside the folder on every call, listing skips links,
+dot folders and `node_modules`, and `saveFile` refuses a file whose mtime
+changed since it was read and writes through a temp file. Nothing is cached.
+Dropped or pasted files open as scratch: copy, never save.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their
