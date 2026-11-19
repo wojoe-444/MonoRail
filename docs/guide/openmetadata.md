@@ -58,8 +58,9 @@ If your team keeps its metadata in BigQuery, you can make one BigQuery
 dataset the source of truth: for example the `METADATA` dataset in your
 `chicago-transit` project, where `chicago-transit.METADATA.entity` holds one
 row per entity. Keeping that dataset up to date is up to you or your team's
-pipelines. MonoRail only connects to it and reads it. It never writes to
-BigQuery.
+pipelines. MonoRail only connects to it and reads it. The one exception: if
+you use the default `METADATA` dataset and it doesn't exist yet, MonoRail
+creates it for you, with empty tables.
 
 To avoid running BigQuery queries every time you open the page, MonoRail
 keeps a **copy on your PC** and reads that. The first sync downloads
@@ -73,21 +74,25 @@ everything again.
 1. Add the **Google Cloud** connection on [Connections](setup/connections.md):
    MonoRail reads BigQuery with your own `gcloud` login.
 2. Add **BigQuery metadata** under it: your project, and the dataset
-   (`METADATA` unless you choose another one). You can also choose how often
-   the copy is refreshed and the most a refresh may scan.
+   (`METADATA` unless you choose another one). If `METADATA` doesn't exist
+   yet, MonoRail creates it when you save, in the location you pick (`US`
+   unless you change it). Your Google account needs permission to create
+   datasets in that project. You can also choose how often the copy is
+   refreshed and the most a refresh may scan.
 3. Open this page. It switches to **BigQuery** by itself, and the first copy
    is made within a minute. The **This PC / BigQuery** switch in the header
    still lets you look at your local database.
 
-If the dataset doesn't exist yet, or is empty, **Setup SQL** on the page
-shows the statements that create MonoRail's tables in it. Run them yourself
-in the BigQuery console, then fill the tables from your own pipeline. The
-[layout reference](../bigquery-metadata.md) describes every table and column.
+If you chose another dataset and it doesn't exist yet, or is empty,
+**Setup SQL** on the page shows the statements that create MonoRail's tables
+in it. Run them yourself in the BigQuery console. Either way, fill the tables
+from your own pipeline. The [layout reference](../bigquery-metadata.md)
+describes every table and column.
 
 Descriptions can't be edited while you look at BigQuery, because MonoRail
 doesn't write to it yet. Change them in BigQuery and the next sync brings
 them in. Removing the connection empties the copy on your PC. Your BigQuery
-dataset is never touched.
+dataset stays as it is.
 
 ## Find your way around
 

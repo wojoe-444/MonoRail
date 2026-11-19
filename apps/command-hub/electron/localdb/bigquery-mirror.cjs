@@ -21,14 +21,18 @@
 //     found by comparing row counts (free table metadata) and, when the copy
 //     has more, listing BigQuery's ids (tabledata.list, free).
 //
-// Read-only: this file never writes to BigQuery (no DML, no DDL). setupSql()
-// only returns text for the user to run themselves. No Electron here, so
-// tests run it with a fake client.
+// Read-only, with one exception: when the dataset is the default METADATA
+// and it does not exist yet (or exists with no tables), ensureDataset() makes
+// it by running setupSql() as one script: the dataset, the empty layout tables
+// and the meta row, all IF NOT EXISTS. Any other dataset is only reported
+// (setupSql() is then text for the user to run). Nothing else here writes to
+// BigQuery. No Electron here, so tests run it with a fake client.
 
 const { createClient, _ids } = require('../modules/bigquery-api.cjs')
 
 const LAYOUT = 'monorail.metadata/1'
 const DEFAULT_DATASET = 'METADATA'
+const DEFAULT_LOCATION = 'US'
 const OVERLAP_MS = 10 * 60_000
 const PAGE_ROWS = 2000
 const ID_PAGE_ROWS = 10_000
@@ -73,16 +77,26 @@ function checkDataset(v) {
   return s
 }
 
+const LOCATION_RE = /^[A-Za-z][A-Za-z0-9-]{0,39}$/
+function checkLocation(v) {
+  const s = String(v ?? '').trim() || DEFAULT_LOCATION
+  if (!LOCATION_RE.test(s)) throw fail(`Not a valid BigQuery location: ${s.slice(0, 40)}. Use one such as US, EU or europe-west2.`, 'config')
+  return s
+}
+
 /** The connection's values as the sync needs them. Throws a readable message on a bad value. */
 function configOf(values = {}) {
   const projectId = checkProject(values.project)
   const datasetId = checkDataset(values.dataset)
+  const location = checkLocation(values.location)
   const billing = String(values.billingProject ?? '').trim()
   const every = Object.hasOwn(SYNC_EVERY, values.syncEvery) ? values.syncEvery : '1h'
   const gb = MAX_SCAN_GB.includes(String(values.maxScanGb)) ? Number(values.maxScanGb) : 1
   return {
     projectId,
     datasetId,
+    /** Where MonoRail creates the default dataset when it does not exist. */
+    location,
     billingProject: billing ? checkProject(billing, 'billing project id') : projectId,
     syncEvery: every,
     everyMs: SYNC_EVERY[every],
@@ -91,15 +105,21 @@ function configOf(values = {}) {
   }
 }
 
-/** SQL the user can run to make an empty dataset in the layout. Text only; MonoRail never runs it. */
-function setupSql(projectId, datasetId = DEFAULT_DATASET) {
+/**
+ * SQL that makes an empty dataset in the layout. Safe to run again: every
+ * statement is IF NOT EXISTS, and the layout row is added only when missing.
+ * The page shows it for the user to run; ensureDataset() runs it for the
+ * default dataset only.
+ */
+function setupSql(projectId, datasetId = DEFAULT_DATASET, location = DEFAULT_LOCATION) {
   const p = checkProject(projectId)
   const d = checkDataset(datasetId)
+  const l = checkLocation(location)
   const t = (name) => `\`${p}.${d}.${name}\``
   return `-- MonoRail metadata layout (${LAYOUT}) in ${p}.${d}.
--- Run it in the BigQuery console. Add OPTIONS (location = '...') to the
--- first line to choose where the data lives.
-CREATE SCHEMA IF NOT EXISTS \`${p}.${d}\`;
+-- Safe to run again: nothing that exists is changed. The location only
+-- applies when the dataset is created.
+CREATE SCHEMA IF NOT EXISTS \`${p}.${d}\` OPTIONS (location = '${l}');
 
 -- One row per entity: OpenMetadata's JSON with owners, tags and columns inside.
 CREATE TABLE IF NOT EXISTS ${t('entity')} (
@@ -141,7 +161,10 @@ CREATE TABLE IF NOT EXISTS ${t('meta')} (
   key STRING NOT NULL,
   value STRING NOT NULL
 );
-INSERT INTO ${t('meta')} (key, value) VALUES ('layout', '${LAYOUT}');
+INSERT INTO ${t('meta')} (key, value)
+SELECT 'layout', '${LAYOUT}'
+FROM (SELECT 1)
+WHERE NOT EXISTS (SELECT 1 FROM ${t('meta')} WHERE key = 'layout');
 `
 }
 
@@ -211,6 +234,28 @@ async function inspectDataset(client, { projectId, datasetId }) {
   if (v === undefined) return { state: 'foreign', location, tables: info, message: `${where}.meta has no layout row ('layout' = '${LAYOUT}'), so MonoRail cannot tell it holds its metadata. Add the row if it does.` }
   if (v > layoutVersion(LAYOUT)) return { state: 'newer', location, tables: info, layout, message: `${where} holds a newer layout (${layout}) than this MonoRail understands. Update MonoRail.` }
   return { state: 'ok', location, tables: info, layout }
+}
+
+/** States in which the default dataset is free for MonoRail to set up: not there, or there with no tables. */
+const FREE_STATES = new Set(['missing', 'empty'])
+
+/**
+ * Inspect the dataset; when it is the default METADATA and free (missing, or
+ * there with no tables), make it first: setupSql() as one script job in the
+ * billing project at the chosen location. DDL is not billed; the layout
+ * row's check reads the empty meta table. Returns { check, created }. Any
+ * other dataset, or a default one that holds something, is never touched.
+ */
+async function ensureDataset(client, config) {
+  const { projectId, datasetId, billingProject, location } = config
+  const check = await inspectDataset(client, { projectId, datasetId })
+  if (datasetId !== DEFAULT_DATASET || !FREE_STATES.has(check.state)) return { check, created: false }
+  try {
+    await eachQueryPage(client, { projectId: billingProject, location: check.location ?? location, query: setupSql(projectId, datasetId, location) }, () => {})
+  } catch (e) {
+    throw fail(`Could not create ${projectId}.${datasetId}: ${e.message}${e.status === 403 ? ' Your Google account needs permission to create datasets in that project (BigQuery Data Editor or Admin).' : ''}`, 'create-failed')
+  }
+  return { check: await inspectDataset(client, { projectId, datasetId }), created: true }
 }
 
 /** Every page of a table through tabledata.list (free). */
@@ -283,9 +328,9 @@ WHERE at >= TIMESTAMP_MILLIS(${s})`
  */
 async function syncMirror({ client, store, config, full = false }) {
   const { projectId, datasetId, billingProject, maxBytes, source } = config
-  const check = await inspectDataset(client, { projectId, datasetId })
+  const { check, created } = await ensureDataset(client, config)
   if (check.state !== 'ok') throw fail(check.message, check.state)
-  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, entities: 0, versions: 0, records: 0, removed: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned } }
+  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, created, entities: 0, versions: 0, records: 0, removed: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned } }
 
   if (store.getMeta('bq.source') !== source || store.getMeta('bq.layout') !== LAYOUT) {
     store.clearAll()
@@ -409,4 +454,4 @@ function gcloudClient({ getCredentials, hasConnection, fetch } = {}) {
   })
 }
 
-module.exports = { LAYOUT, DEFAULT_DATASET, TABLES, SYNC_EVERY, MAX_SCAN_GB, OVERLAP_MS, configOf, setupSql, inspectDataset, syncMirror, gcloudClient, incrementalSql, _internal: { decodeRows, layoutVersion } }
+module.exports = { LAYOUT, DEFAULT_DATASET, DEFAULT_LOCATION, TABLES, SYNC_EVERY, MAX_SCAN_GB, OVERLAP_MS, configOf, setupSql, inspectDataset, ensureDataset, syncMirror, gcloudClient, incrementalSql, _internal: { decodeRows, layoutVersion } }

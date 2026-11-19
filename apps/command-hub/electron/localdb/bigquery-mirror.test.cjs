@@ -48,8 +48,9 @@ function fakeBigQuery({ tables = {}, missing = false, bytesPerQuery = 1000, part
     data,
     queries,
     listed,
+    missing,
     async getDataset() {
-      if (missing) throw Object.assign(new Error('Not found: Dataset'), { status: 404 })
+      if (client.missing) throw Object.assign(new Error('Not found: Dataset'), { status: 404 })
       return { location: 'US' }
     },
     async listTables() {
@@ -65,9 +66,18 @@ function fakeBigQuery({ tables = {}, missing = false, bytesPerQuery = 1000, part
       const page = data[tableId].slice(start, start + maxResults)
       return { rows: page.map((r) => ({ f: cols.map((c) => ({ v: cell(tableId, c, r[c]) })) })), pageToken: start + maxResults < data[tableId].length ? String(start + maxResults) : undefined }
     },
-    async runQuery({ query, dryRun, projectId }) {
-      queries.push({ query, dryRun, projectId })
+    async runQuery({ query, dryRun, projectId, location }) {
+      queries.push({ query, dryRun, projectId, location })
       if (dryRun) return { totalBytesProcessed: bytesPerQuery, rows: [], fields: [] }
+      // The setup script: the dataset, the empty layout tables, the layout row.
+      if (query.includes('CREATE SCHEMA IF NOT EXISTS')) {
+        if (client.refuseCreate) throw Object.assign(new Error('Access Denied'), { status: 403 })
+        client.missing = false
+        for (const t of ['entity', 'entity_version', 'record']) data[t] ??= []
+        data.meta ??= []
+        if (!data.meta.some((r) => r.key === 'layout')) data.meta.push({ key: 'layout', value: mirror.LAYOUT })
+        return { jobComplete: true, job: { projectId, jobId: 'setup', location }, fields: [], rows: [], totalBytesProcessed: 0 }
+      }
       const table = /\.(\w+)`/.exec(query)[1]
       const since = Number(/TIMESTAMP_MILLIS\((-?\d+)\)/.exec(query)[1])
       const rows = data[table].filter((r) => r[TIME[table]] >= since)
@@ -297,5 +307,83 @@ describe('BigQuery as the OpenMetadata page source', () => {
     assert.equal(client.queries.length, 0)
     const missing = await connector.status(conn, { hasConnection: async () => true, bigqueryClient: fakeBigQuery({ missing: true }) })
     assert.equal(missing.state, 'needs-setup')
+  })
+})
+
+describe('creating the default METADATA dataset', () => {
+  const setupRuns = (c) => c.queries.filter((q) => !q.dryRun && q.query.includes('CREATE SCHEMA IF NOT EXISTS'))
+
+  test('a missing METADATA dataset is created with empty tables at the chosen location, then copied', async () => {
+    const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
+    const c = fakeBigQuery({ missing: true })
+    const config = mirror.configOf({ project: 'chicago-transit', location: 'EU', billingProject: 'my-billing' })
+    const r = await mirror.syncMirror({ client: c, store, config })
+    assert.equal(r.created, true)
+    assert.equal(r.mode, 'full')
+    assert.equal(r.entities, 0)
+    const [run] = setupRuns(c)
+    assert.ok(run, 'the setup script ran')
+    assert.equal(run.projectId, 'my-billing', 'billed to the billing project')
+    assert.equal(run.location, 'EU')
+    assert.match(run.query, /CREATE SCHEMA IF NOT EXISTS `chicago-transit\.METADATA` OPTIONS \(location = 'EU'\)/)
+    assert.equal(store.getMeta('bq.source'), 'chicago-transit.METADATA')
+    // Next time it exists: nothing is created again.
+    await mirror.syncMirror({ client: c, store, config })
+    assert.equal(setupRuns(c).length, 1)
+  })
+
+  test('an existing METADATA dataset with no tables gets the layout too', async () => {
+    const c = fakeBigQuery()
+    delete c.data.meta
+    delete c.data.entity
+    const { created, check } = await mirror.ensureDataset(c, CONFIG)
+    assert.equal(created, true)
+    assert.equal(check.state, 'ok')
+  })
+
+  test('any other dataset, or a METADATA that holds something else, is never touched', async () => {
+    const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
+    const other = fakeBigQuery({ missing: true })
+    await assert.rejects(mirror.syncMirror({ client: other, store, config: mirror.configOf({ project: 'chicago-transit', dataset: 'CATALOG' }) }), (e) => e.code === 'missing')
+    assert.equal(other.queries.length, 0)
+    const foreign = fakeBigQuery({ tables: { trips: [] } })
+    delete foreign.data.meta
+    delete foreign.data.entity
+    await assert.rejects(mirror.syncMirror({ client: foreign, store, config: CONFIG }), (e) => e.code === 'foreign')
+    assert.equal(setupRuns(foreign).length, 0)
+  })
+
+  test('a refused create says why, and the check tells the user MonoRail will create it', async () => {
+    const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
+    const c = fakeBigQuery({ missing: true })
+    c.refuseCreate = true
+    await assert.rejects(mirror.syncMirror({ client: c, store, config: CONFIG }), (e) => e.code === 'create-failed' && /permission to create datasets/.test(e.message))
+    const s = await connector.status({ values: { project: 'chicago-transit' } }, { hasConnection: async () => true, bigqueryClient: fakeBigQuery({ missing: true }) })
+    assert.equal(s.state, 'needs-setup')
+    assert.match(s.summary, /does not exist yet\. MonoRail creates it/)
+    const other = await connector.status({ values: { project: 'chicago-transit', dataset: 'CATALOG' } }, { hasConnection: async () => true, bigqueryClient: fakeBigQuery({ missing: true }) })
+    assert.match(other.summary, /setup SQL/)
+  })
+
+  test('saving the connection creates METADATA at once, and never fails the save', async () => {
+    const c = fakeBigQuery({ missing: true })
+    await connector.afterSave({ values: { project: 'chicago-transit' } }, { hasConnection: async () => true, bigqueryClient: c })
+    assert.equal(setupRuns(c).length, 1)
+    const other = fakeBigQuery({ missing: true })
+    await connector.afterSave({ values: { project: 'chicago-transit', dataset: 'CATALOG' } }, { hasConnection: async () => true, bigqueryClient: other })
+    assert.equal(other.queries.length, 0)
+    const noGcloud = fakeBigQuery({ missing: true })
+    await connector.afterSave({ values: { project: 'chicago-transit' } }, { hasConnection: async () => false, bigqueryClient: noGcloud })
+    assert.equal(noGcloud.queries.length, 0)
+    const refused = fakeBigQuery({ missing: true })
+    refused.refuseCreate = true
+    await connector.afterSave({ values: { project: 'chicago-transit' } }, { hasConnection: async () => true, bigqueryClient: refused })
+  })
+
+  test('the setup SQL can run twice: the layout row is added only when missing', () => {
+    const sql = mirror.setupSql('chicago-transit')
+    assert.match(sql, /WHERE NOT EXISTS \(SELECT 1 FROM `chicago-transit\.METADATA\.meta` WHERE key = 'layout'\)/)
+    assert.match(sql, /OPTIONS \(location = 'US'\)/)
+    assert.throws(() => mirror.configOf({ project: 'chicago-transit', location: "US'; DROP" }), /location/)
   })
 })
