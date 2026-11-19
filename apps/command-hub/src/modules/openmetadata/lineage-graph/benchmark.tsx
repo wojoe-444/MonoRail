@@ -50,6 +50,7 @@ async function checkComponent() {
   await until(() => painted(3), 'Force mode did not start with the root and its direct neighbours')
   const canvas = host.querySelector('canvas')!
   const ctx = canvas.getContext('2d')!
+  if (!ctx.getContextAttributes().alpha) throw new Error('The lineage canvas must support transparent palettes')
   const backgroundPixel = () => [...ctx.getImageData(0, 0, 1, 1).data].join(',')
   const light = backgroundPixel()
   const page = document.documentElement
@@ -296,8 +297,54 @@ async function runForceBenchmark(ctx: CanvasRenderingContext2D, width: number, h
   return reports
 }
 
+async function checkRendering(dpr: number) {
+  const nodes = [{ id: 'source', type: 'table', name: 'source' }, { id: 'report', type: 'table', name: 'report' }]
+  const { layout } = await workerLayout({ nodeIds: nodes.map((node) => node.id), edges: [{ fromEntity: 'source', toEntity: 'report' }] })
+  const canvas = document.createElement('canvas')
+  const width = 640
+  const height = 360
+  sizeCanvas(canvas, width, height, dpr)
+  host.append(canvas)
+  const ctx = canvas.getContext('2d')!
+  const palettes = ['indigo-ink', 'lagoon', 'ocean-night']
+  let checked = 0
+  try {
+    for (const palette of palettes) {
+      for (const dark of [false, true]) {
+        const theme = tokens(findPalette(palette), dark)
+        for (const [key, value] of Object.entries(theme)) canvas.style.setProperty('--' + key, value)
+        // Also exercise a translucent fill, which must not accumulate opacity.
+        for (const background of [theme.background, 'oklch(0.6 0.05 160 / 0.35)']) {
+          canvas.style.setProperty('--background', background)
+          const renderer = new LineageRenderer(layout, nodes, 0, readTheme(canvas))
+          const camera = fitCamera(layout, width, height)
+          renderer.draw(ctx, camera, width, height, dpr)
+          const moved = { x: camera.x + 93, y: camera.y + 47, scale: camera.scale * 0.7 }
+          renderer.draw(ctx, moved, width, height, dpr)
+          renderer.draw(ctx, moved, width, height, dpr)
+          const repainted = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+          ctx.resetTransform()
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          renderer.draw(ctx, moved, width, height, dpr)
+          const fresh = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+          if (repainted.some((value, i) => value !== fresh[i])) throw new Error(`Canvas retained an old frame: ${palette}, dark=${dark}, background=${background}`)
+          if (background === 'transparent' && fresh[3] !== 0) throw new Error('Transparent canvas background became opaque')
+          checked++
+        }
+      }
+    }
+  } finally {
+    canvas.remove()
+  }
+  return { repaintCases: checked, dpr }
+}
+
+async function runChecks(dpr: number) {
+  return { rendering: await checkRendering(dpr), component: await checkComponent() }
+}
+
 async function runBenchmark(dpr: number) {
-  const component = await checkComponent()
+  const checks = await runChecks(dpr)
   await document.fonts.load('600 17px "Inter Variable"')
   const request = { nodeIds: data.nodes.map((node) => node.id), edges: data.edges }
   const { layout, elapsed, roundTrip } = await workerLayout(request)
@@ -320,7 +367,7 @@ async function runBenchmark(dpr: number) {
   canvas.style.width = width + 'px'
   canvas.style.height = height + 'px'
   host.append(canvas)
-  const ctx = canvas.getContext('2d', { alpha: false })!
+  const ctx = canvas.getContext('2d')!
   const selected = request.nodeIds.indexOf(data.rootId)
   const renderer = new LineageRenderer(layout, data.nodes, selected, readTheme(canvas))
   renderer.select(selected)
@@ -365,8 +412,8 @@ async function runBenchmark(dpr: number) {
   return {
     nodes: data.nodes.length, edges: layout.from.length, width, height, dpr, framesPerStage: count,
     generationMs, workerMs: elapsed, workerRoundTripMs: roundTrip,
-    expansionWorkerMs: expanded.elapsed, expansionRoundTripMs: expanded.roundTrip, timing, force, component,
+    expansionWorkerMs: expanded.elapsed, expansionRoundTripMs: expanded.roundTrip, timing, force, ...checks,
   }
 }
 
-Object.assign(window, { runLineageBenchmark: runBenchmark })
+Object.assign(window, { runLineageBenchmark: runBenchmark, runLineageChecks: runChecks })

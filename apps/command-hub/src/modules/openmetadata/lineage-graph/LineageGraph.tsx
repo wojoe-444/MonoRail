@@ -74,7 +74,7 @@ export function LineageGraph({ nodes, edges, rootId, onOpen, className, layout =
       const moving = force?.advance(now)
       const spawns = force?.spawns
       const dpr = sizeCanvas(canvas, width, height, window.devicePixelRatio, force?.bulkAnimating)
-      const ctx = canvas.getContext('2d', { alpha: false })
+      const ctx = canvas.getContext('2d')
       if (ctx) renderer.draw(ctx, cameraRef.current, width, height, dpr, undefined, spawns)
       const count = String(force?.exploration.visible.length ?? renderer.nodes.length)
       if (canvas.dataset.visibleAssets !== count) canvas.dataset.visibleAssets = count
