@@ -31,6 +31,8 @@ probably don't need it.
      the limit resets. A reply that is already running is never cut off.
    - **Only warn**: replies still run, and Chat shows that the limit is
      reached.
+5. Press **Save** on the [Save bar](saving.md) at the bottom of the card.
+   Nothing changes until you do, including turning the limit on or off.
 
 The card shows what has been spent today and this month.
 

@@ -13,7 +13,9 @@ goes wherever that folder goes. MonoRail never uploads anything itself.
 
 1. Open **Settings > Backups**.
 2. Choose a folder, how often ("3 times a day") and how many copies to keep.
-3. Turn it on.
+3. Turn it on, then press **Save** on the [Save bar](saving.md) at the
+   bottom of the card. It says "Saved. Safe to leave." once your settings
+   are written.
 
 Each page gets its own subfolder:
 

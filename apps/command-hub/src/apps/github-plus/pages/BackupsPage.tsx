@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRepo } from '../RepoContext'
 import { api } from '../api'
 import { navigate } from '@/lib/router'
+import { SaveBar } from '@/components/ui/save-bar'
+import { countChanges, savedNow } from '@/lib/changes'
 import type { BackupSchedule, BackupState, BackupUnit } from '../types'
 import { formatSize, fullDate, timeAgo } from '../util'
 
@@ -28,6 +30,8 @@ export default function BackupsPage() {
   const [busy, setBusy] = useState<'save' | 'run' | 'remove' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string>()
+  const [savedAt, setSavedAt] = useState<number>()
 
   const load = useCallback(async (resetForm: boolean) => {
     try {
@@ -46,15 +50,17 @@ export default function BackupsPage() {
     return () => clearInterval(t)
   }, [load])
 
-  const act = async (kind: 'save' | 'run' | 'remove', fn: () => Promise<BackupState>, done: string) => {
-    setBusy(kind); setError(null); setNotice(null)
+  const act = async (kind: 'save' | 'run' | 'remove', fn: () => Promise<BackupState>, done?: string) => {
+    setBusy(kind); setError(null); setSaveError(undefined); setNotice(null)
     try {
       const s = await fn()
       setState(s)
       if (kind !== 'run') setForm(s.schedule ?? defaultsFor(s))
-      setNotice(done)
+      if (kind === 'save') setSavedAt(savedNow())
+      setNotice(done ?? null)
     } catch (e) {
-      setError((e as Error).message)
+      if (kind === 'save') setSaveError((e as Error).message)
+      else setError((e as Error).message)
       void load(false)
     } finally {
       setBusy(null)
@@ -75,7 +81,16 @@ export default function BackupsPage() {
   const ownFolder = !form.useGlobalFolder
   const ownFrequency = !form.useGlobalFrequency
   const target = form.useGlobalFolder ? (state?.globalFolder ?? '') : form.destination
-  const canSave = dirty && (form.useGlobalFolder ? globalOn : !!form.destination) && (ownFrequency || globalOn)
+  const valid = (form.useGlobalFolder ? globalOn : !!form.destination) && (ownFrequency || globalOn)
+  const canSave = dirty && valid
+  // Unsaved changes are counted against the saved schedule, or for a new one
+  // against the defaults the page started with (the defaults alone are saved
+  // with the "Save schedule" button instead).
+  const base = saved ?? (state ? defaultsFor(state) : DEFAULTS)
+  const changes = sameSchedule(base, form) ? 0 : Math.max(1, countChanges(base, form))
+  const blocked = canSave ? (busy === 'run' || busy === 'remove' ? 'Wait for the backup to finish' : undefined)
+    : !form.useGlobalFolder && !form.destination ? 'Choose a folder first'
+    : 'Turn on the global backup folder first'
 
   return (
     <div>
@@ -170,10 +185,12 @@ export default function BackupsPage() {
           {state?.problem && <div className="flash warn" style={{ margin: 0 }}>{state.problem}</div>}
 
           <div className="form-actions">
-            <button className="btn primary" disabled={!canSave || !!busy}
-              onClick={() => act('save', () => api.saveBackup(rp, form), form.enabled ? 'Saved. Backups will run in MonoRail while it is open, and catch up when it next opens.' : 'Saved. Automatic backups are off.')}>
-              {busy === 'save' ? 'Saving…' : 'Save'}
-            </button>
+            {!saved && changes === 0 && (
+              <button className="btn primary" disabled={!valid || !!busy} title={valid ? undefined : 'Choose a folder first'}
+                onClick={() => act('save', () => api.saveBackup(rp, form))}>
+                {busy === 'save' ? 'Saving…' : 'Save schedule'}
+              </button>
+            )}
             <button className="btn" disabled={!saved || dirty || !!busy || state?.running || !!state?.problem}
               title={dirty ? 'Save your changes first' : undefined}
               onClick={() => act('run', () => api.runBackup(rp), 'Backup complete.')}>
@@ -189,6 +206,23 @@ export default function BackupsPage() {
           </div>
         </div>
       </div>
+
+      {/* Outside the box: .box clips, which would stop the bar from sticking. */}
+      <SaveBar
+        className="mb-4"
+        label="Backup schedule"
+        changes={changes}
+        saving={busy === 'save'}
+        error={saveError}
+        savedAt={savedAt}
+        blocked={blocked}
+        savedNote={saved?.enabled ? 'Backups will run in MonoRail while it is open, and catch up when it next opens.' : 'Automatic backups are off.'}
+        onSave={() => void act('save', () => api.saveBackup(rp, form))}
+        onDiscard={() => {
+          setForm(base)
+          setSaveError(undefined)
+        }}
+      />
 
       {saved && (
         <div className="box">
