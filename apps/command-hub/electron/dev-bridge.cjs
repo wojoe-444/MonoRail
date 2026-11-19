@@ -42,8 +42,9 @@ const { createBridgeServer, tokenMatches } = require('./bridge/server.cjs')
 app.on('window-all-closed', () => {})
 
 app.whenReady().then(() => {
+  const invoke = startModuleBackends()
   const server = createBridgeServer({
-    invoke: startModuleBackends(),
+    invoke: (moduleId, method, args) => invoke(moduleId, method, args),
     authorize: (req) => tokenMatches(req.headers['x-monorail-bridge-token'], TOKEN),
     allowedOrigins: ALLOWED_ORIGINS,
     subscribe: onBroadcast,

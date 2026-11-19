@@ -729,7 +729,7 @@ async function startTurn(ctx, args = {}) {
   const systemPrompt = prompts.promptForTurn(prompts.readPrompts(ctx.dataDir), { sdk, coordinator })
   const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator, systemPrompt })
   // A turn from a paired phone (Remote access) carries its limits; they only ever restrict.
-  if (args.remoteLimits?.askOnly) {
+  if (ctx.remoteLimits?.askOnly) {
     if (coordinator) throw new Error('From the phone, the coordinator needs "Agent mode from the phone" (Settings > Remote access on your PC), because it can start chats that edit files.')
     if (job.mode !== 'ask') throw new Error('Agent mode from the phone is off. Use Ask, or turn it on in Settings > Remote access on your PC.')
   }

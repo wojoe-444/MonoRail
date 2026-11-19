@@ -569,10 +569,10 @@ exists), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
 machine-scope `modules/remote`; metadata only, damaged files never
 overwritten) and `tailscale.cjs` (status checks every 5 minutes while on; the
 one write is the user's "Set it up": `tailscale serve --bg`; a Funnel on the
-address stops the server). Phone turns get `remoteLimits.askOnly` from the
+address stops the server). Phone calls get `ctx.remoteLimits.askOnly` from the
 server unless "Agent mode from the phone" is on (`startTurn` refuses Agent
-mode and the coordinator otherwise). While on, closing the window keeps
-MonoRail in the tray; turning it off revokes every device. A new backend
+mode and the coordinator in Chat and Flows otherwise). While on, closing the
+window keeps MonoRail in the tray; turning it off revokes every device. A new backend
 method that changes accounts, secrets, permissions or MonoRail itself goes in
 `REMOTE_DENY`. Tests: `electron/remote/remote.test.cjs`.
 

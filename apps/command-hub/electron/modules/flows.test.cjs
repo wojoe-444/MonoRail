@@ -172,6 +172,29 @@ describe('flows runner', () => {
     assert.ok(Math.abs(r.costUsd - 0.03) < 1e-9)
   })
 
+  test('a saved flow cannot start an Agent turn from an Ask-only phone', async () => {
+    const rootDir = tmp()
+    const ctx = { rootDir, dataDir: path.join(rootDir, 'modules', 'flows'), remoteLimits: { askOnly: true } }
+    const chatDir = path.join(rootDir, 'modules', 'agent-chat')
+    const demo = path.join(rootDir, 'demo')
+    fs.mkdirSync(path.join(demo, '.git'), { recursive: true })
+    fs.mkdirSync(chatDir, { recursive: true })
+    fs.writeFileSync(path.join(chatDir, 'folders.json'), JSON.stringify({ reposRoot: rootDir }))
+    const flows = require('./flows.cjs').methods
+    const { flow } = await flows.create(ctx, {
+      flow: {
+        folder: 'demo',
+        nodes: [node('in', 'chat-input'), node('agent', 'agent', { mode: 'agent' }), node('out', 'chat-output')],
+        edges: [edge('e1', 'in', 'message', 'agent', 'input'), edge('e2', 'agent', 'reply', 'out', 'input')],
+      },
+    })
+    const { runId } = await flows.run(ctx, { id: flow.id, input: 'hello' })
+    const run = await finished(runId)
+    assert.equal(run.status, 'failed')
+    assert.match(run.error, /Agent mode from the phone is off/)
+    assert.equal(run.steps.find((s) => s.nodeId === 'agent').turnId, undefined)
+  })
+
   test('a subagent step runs its instructions with a matching model', async () => {
     const flow = graph.cleanFlow({
       folder: 'demo',

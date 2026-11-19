@@ -58,10 +58,10 @@ logs:
 
 A test fails when a `REMOTE_DENY` entry names a method that does not exist.
 
-`agent-chat.startTurn` from a phone always gets
-`remoteLimits: { askOnly: !agentFromPhone }`, set by the server so the page
-can't lift it. `startTurn` then refuses Agent mode and coordinator turns
-unless the person turned on Agent mode from the phone. The
+Phone requests get `remoteLimits: { askOnly: !agentFromPhone }` in their
+server-supplied context. Chat and Flows both pass that context to `startTurn`,
+which refuses Agent mode and coordinator turns unless the person turned on
+Agent mode from the phone. The
 [spending limit](guide/setup/spending-limit.md) applies as everywhere.
 
 ## Funnel and the address

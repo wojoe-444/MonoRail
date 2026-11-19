@@ -57,8 +57,8 @@ async function start({ agentFromPhone = false } = {}) {
     store,
     state: () => ({ settings, dnsName: HOST }),
     pairing,
-    invoke: async (moduleId, method, args) => {
-      calls.push([moduleId, method, args])
+    invoke: async (moduleId, method, args, remoteLimits) => {
+      calls.push([moduleId, method, args, remoteLimits])
       return { ok: true }
     },
     isDesktopOnly: (m, method) => m === 'backups' && method === 'pickFolder',
@@ -175,7 +175,7 @@ test('refused: wrong host, no login, wrong login, no cookie, wrong cookie, wrong
   }
 })
 
-test('desktop-only and denied methods are refused and logged; startTurn gets Ask-only limits', async () => {
+test('desktop-only and denied methods are refused and logged; remote calls get trusted Ask-only context', async () => {
   const t = await start()
   try {
     const key = keyFrom(await pairDevice(t))
@@ -190,8 +190,13 @@ test('desktop-only and denied methods are refused and logged; startTurn gets Ask
     assert.equal(ext.ok, false)
     assert.equal(t.calls.length, 0)
 
-    await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args: { prompt: 'hi', remoteLimits: { askOnly: false } } })
-    assert.deepEqual(t.calls[0][2].remoteLimits, { askOnly: true }, 'the page cannot lift the limit')
+    const args = { prompt: 'hi', remoteLimits: { askOnly: false } }
+    await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args })
+    await invoke(t, key, { moduleId: 'flows', method: 'run', args })
+    assert.deepEqual(t.calls, [
+      ['agent-chat', 'startTurn', args, { askOnly: true }],
+      ['flows', 'run', args, { askOnly: true }],
+    ])
 
     // Give the fire-and-forget audit writes a moment.
     await new Promise((r) => setTimeout(r, 50))
@@ -211,7 +216,7 @@ test('Agent mode from the phone lifts only the Ask-only limit', async () => {
   try {
     const key = keyFrom(await pairDevice(t))
     await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args: {} })
-    assert.deepEqual(t.calls[0][2].remoteLimits, { askOnly: false })
+    assert.deepEqual(t.calls[0][3], { askOnly: false })
   } finally {
     await t.close()
   }
