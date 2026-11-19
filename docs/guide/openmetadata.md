@@ -158,16 +158,29 @@ server older than 2.1 has no ontology kinds, so those stay greyed out.
 ## Lineage
 
 Lineage shows where data comes from and where it goes. Open a table (or a
-dashboard, pipeline, model or other data asset) and pick the **Lineage** tab:
+dashboard, pipeline, model or other data asset) and pick the **Lineage** tab.
+
+**Graph** (the default) draws the asset in the middle with its direct
+neighbours: what it is made from on the left, what is made from it on the
+right. A **+N** badge on a card says how many more neighbours it has; click the
+card and they spring out from it. **Collapse branch** hides them again, and
+**Expand all** shows everything that was loaded. Drag to move around, scroll to
+zoom: far out, assets become dots, closer in they get names, then full cards.
+Clicking an asset also highlights everything it feeds and is fed by. Open an
+asset with **Open asset** in its controls (or press Enter once nothing is
+hidden). **Layered** in the graph's toolbar lines everything up in columns
+instead.
+
+**List** shows the same assets as rows:
 
 - **Upstream** lists what this one is made from, for example the staging
   table a report table is built on.
 - **Downstream** lists what is made from it.
 
-It starts with the direct neighbours. Pick **2 steps** or **3 steps** to follow
-the chain further; each row then says how many steps away it is, and where
-the link came from (dbt, a query, a pipeline). Click a row to open that
-entity. If nothing is recorded, the tab says so.
+The tab loads up to **3 steps** in each direction; pick **1 step** or
+**2 steps** to load less. In the list each row says how many steps away it is
+and where the link came from (dbt, a query, a pipeline). Click a row to open
+that entity. If nothing is recorded, the tab says so.
 
 Where it comes from depends on what you are looking at:
 
