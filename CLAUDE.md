@@ -858,9 +858,9 @@ status strip of counts (no KPI tiles) and dense tables (`.ghp-table`);
 the repo frame (`RepoLayout.tsx`) has the same header, the tabs as a
 segmented control, the branch picker for ref-following pages and a status
 strip. Code and file pages show a lazy file tree (`components/FileTree.tsx`,
-listings memoized in memory by commit); the folder listing and README cards
-collapse, remembered per person with `prefs`
-(`commandHub.githubPlus.collapsed.*`).
+listings memoized in memory by commit); the README card collapses,
+remembered per person with `prefs` (`commandHub.githubPlus.collapsed.*`).
+The Code page has no folder-listing table: the tree is the navigation.
 
 **GitHub repos and GitHub issues** (`github.cjs`, tests `github.test.cjs`):
 once the user has added the GitHub connection on Connections (never before;
@@ -1374,7 +1374,10 @@ Clean, quiet components: cards rest flat on a hairline ring
 (`ring-1 ring-foreground/10`, no shadow), generous radius (`--radius` 10px),
 subtle focus rings, restrained typography. Type is Inter Variable (bundled
 via `@fontsource-variable`, so it works offline in the .exe), code and
-numbers in JetBrains Mono Variable (`font-mono`). Use the primitives in
+numbers in Cascadia Mono (`font-mono`, a Windows system font with Consolas
+as fallback, nothing bundled). **JetBrains Mono is banned app-wide**: never use
+it, bundle it or name it in a font stack, SVG or extension theme; pick another
+font if `font-mono` ever needs replacing. Use the primitives in
 `components/ui/` rather than hand-rolled one-off styles.
 
 ### Layout, spacing, hierarchy
