@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { SearchField } from '@/components/ui/search-field'
 import { Switch } from '@/components/ui/switch'
 
-import { call, errorText, useCall } from './api'
+import { call, errorText, useCall, useDataVersion } from './api'
 import { typeInfo } from './catalog'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, type View } from './util'
@@ -24,7 +24,8 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
   const [moreError, setMoreError] = useState<string>()
   const [filter, setFilter] = useState('')
 
-  const key = String(deleted)
+  // Pages loaded with "Load more" are dropped when the data changes (a sync finished).
+  const key = `${deleted}|${useDataVersion()}`
   const extra = more?.key === key ? more : undefined
   const rows = [...(first.data?.data ?? []), ...(extra?.rows ?? [])]
   const after = extra ? extra.after : first.data?.paging?.after

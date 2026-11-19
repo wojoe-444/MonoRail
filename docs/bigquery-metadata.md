@@ -161,6 +161,10 @@ edges go in the copy's `lineage` table as-is (`putLineageExact`).
   failure retries after 15 minutes (or sooner on a 15-minute interval).
   Manual never runs by itself. One sync runs at a time; Sync now joins a
   running one. It shows on Scheduled > In-App (provider `openmetadata`).
+- **Page refresh**: while the page reads the copy it re-reads `status` (meta
+  only, no sync, no request) every 30 s, every 5 s while a sync runs, and not
+  while the window is hidden. When `last.at` changes, `refreshData()` in
+  `src/modules/openmetadata/api.ts` makes every `useCall` reload in place.
 
 ## On Explore
 
