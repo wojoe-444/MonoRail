@@ -34,7 +34,6 @@ const moduleBackends = [
   require('./backups.cjs'),
   require('./bigquery.cjs'),
   require('./bookmarks.cjs'),
-  require('./browser.cjs'),
   require('./claude-stats.cjs'),
   require('./connections.cjs'),
   require('./developer.cjs'),

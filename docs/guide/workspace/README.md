@@ -1,7 +1,7 @@
 ---
 audience: human
 folder: Workspace
-summary: Everyday local tools: repositories, code search, issues, tasks, tracker, notes, files, mail, browser, flashcards, Docker and storage.
+summary: Everyday local tools: repositories, code search, issues, tasks, tracker, notes, files, mail, flashcards, Docker and storage.
 ---
 
 # Your workspace
@@ -24,8 +24,8 @@ workspace tools. Every tool keeps its data on your computer
   local git repo, [Files](files.md) for a tabbed dual-pane file manager,
   [Flashcards](flashcards.md) for FSRS spaced repetition, and **Bookmarks** for
   saved links and paths.
-- **Communication & web**: [Email](email.md) for Gmail or classic Outlook
-  (never saved to disk) and [Browser](browser.md) for isolated in-app tabs.
+- **Communication**: [Email](email.md) for Gmail or classic Outlook
+  (never saved to disk).
 - **System & containers**: [Docker](docker.md) for read-only container logs,
   stats and lazydocker, and [Storage Manager](storage.md) for drive usage and
   free-space goals.

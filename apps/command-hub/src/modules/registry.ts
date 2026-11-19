@@ -3,7 +3,6 @@ import { ingestionModule } from './ingestion'
 import { openMetadataModule } from './openmetadata'
 import { bookmarksModule } from './bookmarks'
 import { bigQueryModule } from './bigquery'
-import { browserModule } from './browser'
 import { agentCatalogModule } from './agent-catalog'
 import { inAppSchedulerModule, scheduledModule, windowsSchedulerModule } from './scheduled'
 import { agentChatModule } from './agent-chat'
@@ -28,7 +27,7 @@ import type { ExtensionList } from '@/extensions/types'
 import type { ModuleDefinition } from './types'
 
 /** Every module in the app, in nav order. Add new modules here. */
-export const modules: ModuleDefinition[] = [exploreModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, browserModule, bigQueryModule, notesModule, sqlxModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, openMetadataModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsModule, appearanceModule, backupsModule, wikiModule]
+export const modules: ModuleDefinition[] = [exploreModule, scheduledModule, windowsSchedulerModule, inAppSchedulerModule, bookmarksModule, bigQueryModule, notesModule, sqlxModule, filesModule, agentCatalogModule, flowsModule, agentChatModule, flashcardsModule, claudeStatsModule, openMetadataModule, ingestionModule, connectionsModule, storageModule, dockerModule, mcpModule, remoteModule, extensionsModule, settingsModule, appearanceModule, backupsModule, wikiModule]
 
 const ids = new Set<string>()
 const paths = new Set<string>()
