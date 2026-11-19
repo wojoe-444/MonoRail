@@ -57,6 +57,19 @@ export default function SettingsPage() {
     return () => clearInterval(t)
   }, [downloading])
 
+  // An update was found but the release list (every version's notes) is still
+  // being read: ask again a few times so "What's new" fills in without a click.
+  const notesPending = status?.state === 'available' && !status.changes
+  useEffect(() => {
+    if (!desktop || !notesPending) return
+    let tries = 0
+    const t = setInterval(() => {
+      if (++tries > 10) return clearInterval(t)
+      invokeModule<AppStatus>(MODULE_ID, 'getStatus').then(setLive, () => {})
+    }, 3000)
+    return () => clearInterval(t)
+  }, [desktop, notesPending])
+
   async function call(method: string) {
     setBusy(true)
     setCallError(undefined)

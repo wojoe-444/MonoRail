@@ -63,7 +63,14 @@ function getUpdater() {
   autoUpdater.on('checking-for-update', () => set({ state: 'checking', error: undefined }))
   autoUpdater.on('update-available', (info) => {
     set({ state: 'available', ...fromInfo(info), ...(info?.version !== changesFor ? { changes: undefined } : {}) })
-    loadChanges(info?.version).catch(() => {})
+    const loading = loadChanges(info?.version)
+      .catch(() => {
+        changesFor = undefined // network error: try again on the next check
+      })
+      .finally(() => {
+        if (changesLoading === loading) changesLoading = undefined
+      })
+    changesLoading = loading
   })
   autoUpdater.on('update-not-available', (info) => set({ state: 'not-available', ...fromInfo(info) }))
   autoUpdater.on('download-progress', (p) =>
@@ -128,6 +135,17 @@ function fromInfo(info) {
 
 // The release list is public; one request per new version found, kept in memory.
 let changesFor
+// While the list is being read, answers wait for it (briefly). Without this
+// the check's answer carried only the latest release's raw notes, and the
+// page showed every release's notes only once it asked again (on download).
+let changesLoading
+const CHANGES_WAIT_MS = 8000
+async function waitForChanges() {
+  if (!changesLoading) return
+  let timer
+  await Promise.race([changesLoading, new Promise((resolve) => (timer = setTimeout(resolve, CHANGES_WAIT_MS)))])
+  clearTimeout(timer)
+}
 async function loadChanges(latest) {
   if (!latest || changesFor === latest) return
   changesFor = latest
@@ -157,6 +175,7 @@ function message(err) {
 }
 
 async function snapshot() {
+  await waitForChanges()
   const support = updateSupport()
   let backupBeforeUpdate = 'no-folder'
   try {
