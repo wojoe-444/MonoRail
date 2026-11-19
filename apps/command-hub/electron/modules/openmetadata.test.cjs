@@ -162,7 +162,7 @@ describe('OpenMetadata backend', () => {
     await assert.rejects(service(fetch).search({ q: 'x', types: ['nope'] }), /at least one entity type/)
   })
 
-  test("lineage: GET /lineage/{type}/{id} with depths capped at 3, in the same shape as the local database's", async () => {
+  test("lineage: GET /lineage/{type}/{id}, at most 3 levels a request, in the same shape as the local database's", async () => {
     const id = '00000000-0000-4000-8000-000000000002'
     const up = '00000000-0000-4000-8000-000000000001'
     const down = '00000000-0000-4000-8000-000000000003'
@@ -197,6 +197,39 @@ describe('OpenMetadata backend', () => {
     assert.deepEqual(Object.keys(local).sort(), Object.keys(l).sort())
     assert.deepEqual(local.upstreamEdges, [{ fromEntity: a.id, toEntity: b.id }])
     assert.equal(fetch.calls.length, 2, 'the local source makes no request')
+  })
+
+  test('lineage past 3 levels walks on from the edge, one request per asset there, until the graph ends', async () => {
+    // A chain t0 -> t1 -> ... -> t7; the server answers at most 3 levels per request.
+    const ids = Array.from({ length: 8 }, (_, i) => `00000000-0000-4000-8000-00000000000${i}`)
+    const ref = (i) => ({ id: ids[i], type: 'table', name: `t${i}`, fullyQualifiedName: `s.d.c.t${i}` })
+    const fetch = fakeFetch({
+      'GET /lineage/table/': (rel) => {
+        const u = new URL(rel, 'http://x')
+        const at = ids.indexOf(u.pathname.split('/').pop())
+        const up = Number(u.searchParams.get('upstreamDepth'))
+        const down = Number(u.searchParams.get('downstreamDepth'))
+        assert.ok(up <= 3 && down <= 3, 'never more than the server allows')
+        const nodes = []
+        const upstreamEdges = []
+        const downstreamEdges = []
+        for (let d = 1; d <= up && at - d >= 0; d++) { nodes.push(ref(at - d)); upstreamEdges.push({ fromEntity: ids[at - d], toEntity: ids[at - d + 1] }) }
+        for (let d = 1; d <= down && at + d < 8; d++) { nodes.push(ref(at + d)); downstreamEdges.push({ fromEntity: ids[at + d - 1], toEntity: ids[at + d] }) }
+        return [200, { entity: ref(at), nodes, upstreamEdges, downstreamEdges }]
+      },
+    })
+    const all = await service(fetch).getLineage({ type: 'table', id: ids[0], upstreamDepth: 0, downstreamDepth: 'all' })
+    assert.deepEqual(all.downstreamEdges.map((e) => e.toEntity), ids.slice(1))
+    assert.deepEqual(all.nodes.map((n) => n.name), ['t1', 't2', 't3', 't4', 't5', 't6', 't7'])
+    assert.equal(all.truncated, undefined)
+    assert.deepEqual(fetch.calls.map((c) => c.rel.split('/').pop()), [
+      `${ids[0]}?upstreamDepth=0&downstreamDepth=3`,
+      `${ids[3]}?upstreamDepth=0&downstreamDepth=3`,
+      `${ids[6]}?upstreamDepth=0&downstreamDepth=3`,
+    ])
+    const five = await service(fetch).getLineage({ type: 'table', id: ids[7], upstreamDepth: 5, downstreamDepth: 1 })
+    assert.equal(five.upstreamEdges.length, 5)
+    assert.equal(fetch.calls.at(-1).rel.split('/').pop(), `${ids[4]}?upstreamDepth=2&downstreamDepth=0`, 'the last request asks only for the levels left')
   })
 
   test('the one write: a JSON Patch on /description only', async () => {

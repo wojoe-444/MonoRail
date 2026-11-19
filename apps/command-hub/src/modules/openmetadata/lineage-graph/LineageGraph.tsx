@@ -227,8 +227,9 @@ export function LineageGraph({ nodes, edges, rootId, onOpen, className, layout =
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-palette', 'data-theme'] })
 
     const wheel = (event: WheelEvent) => {
-      if (!rendererRef.current || gesture.current) return
+      // Never scroll the page from inside the graph, even mid-drag.
       event.preventDefault()
+      if (!rendererRef.current || gesture.current) return
       const bounds = canvas.getBoundingClientRect()
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? size.current.height : 1
       const delta = Math.max(-240, Math.min(240, event.deltaY * unit))

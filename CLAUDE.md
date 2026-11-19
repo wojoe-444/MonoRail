@@ -681,7 +681,8 @@ bundled). The home for in-app data in the standard's OpenMetadata shape:
 bumps `version` by 0.1 only on a real change, keeping every version),
 `record` (non-entity JSON: pipeline statuses, schedules, table profiles),
 `lineage` (schema 2: edges keyed by from/to id, OpenMetadata's EntitiesEdge in
-`json`; dbt ingestion writes them, `lineageOf` walks up to 3 levels) and
+`json`; dbt ingestion writes them, `lineageOf` walks any number of levels,
+`'all'` to the ends, 10,000 assets a side at most) and
 `meta`. Created on first use (OpenMetadata page, saving a pipeline); the
 scheduler and read-only views never create it (`localDbExists`). A damaged
 file or a newer schema is refused and never overwritten; secrets never go in
@@ -1393,7 +1394,11 @@ one type's list (owners, tags, include deleted, load more) and one entity
 (owners, tier, tags, domains, Markdown description, every field, custom
 properties, columns or fields, references, lineage (data and AI assets;
 `getLineage`: `GET /lineage/{type}/{id}` on the server, the lineage table for
-local and BigQuery, one EntityLineage shape), versions, raw JSON) follow. Field
+local and BigQuery, one EntityLineage shape; depths are any number or `'all'`,
+the server read 3 levels a request with `deepLineage` walking on from the edge,
+at most 120 requests, then `truncated`; `lineage.ts` holds the depth options and
+`endProducts`, the downstream sinks an entity's page lists under its header as
+**Downstream end products**), versions, raw JSON) follow. Field
 descriptions come from the standard for adopted types. **Tabs**: the page is
 a set of tabs after the MonoRail-Metadata app's drawer (`tabs.ts` `OM_TABS`:
 Home, Catalog (the every-type browser above, `tabs/CatalogTab.tsx`), Explore,

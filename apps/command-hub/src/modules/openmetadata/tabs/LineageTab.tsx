@@ -14,18 +14,13 @@ import { typeInfo } from '../catalog'
 import { TypeTile } from '../parts'
 import { openInCatalog } from '../tabs'
 import type { OmEntity, OmLineage, OmLineageEdge, OmRef } from '../types'
+import { LineageGraph } from '../lineage-graph/LineageGraph'
+import { LINEAGE_DEPTHS, depthArg, type LineageDepth } from '../lineage'
 import { displayName } from '../util'
 import { ASSET_TYPES, assetTypesIn, fqnOf, serviceOf, useAssetSearch, type Asset } from './assets'
 import { EmptyNote, ErrorNote, Loading } from './assets-parts'
 import type { OmTabProps } from './types'
 
-type Depth = '0' | '1' | '2' | '3'
-const DEPTHS: { value: Depth; label: string }[] = [
-  { value: '0', label: '0' },
-  { value: '1', label: '1' },
-  { value: '2', label: '2' },
-  { value: '3', label: '3' },
-]
 
 /** How OpenMetadata names where an edge came from (LineageSource), in plain words. */
 const LINEAGE_SOURCE: Record<string, string> = {
@@ -52,8 +47,8 @@ interface Picked {
 export default function LineageTab({ counts }: OmTabProps) {
   const types = useMemo(() => (counts.data ? assetTypesIn(counts.data) : null), [counts.data])
   const [picked, setPicked] = useState<Picked>()
-  const [up, setUp] = useState<Depth>('2')
-  const [down, setDown] = useState<Depth>('2')
+  const [up, setUp] = useState<LineageDepth>('2')
+  const [down, setDown] = useState<LineageDepth>('2')
   const pick = (r: { type: string; id: string; fullyQualifiedName?: string; name?: string; displayName?: string }) =>
     setPicked({ type: r.type, id: r.id, fqn: fqnOf(r), name: displayName(r) })
 
@@ -63,17 +58,17 @@ export default function LineageTab({ counts }: OmTabProps) {
         <AssetPicker types={types} picked={picked} onPick={(a) => pick({ ...a, type: a.assetType })} />
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Upstream steps</span>
-          <Segmented aria-label="Upstream steps" value={up} onChange={setUp} options={DEPTHS} />
+          <Segmented aria-label="Upstream steps" value={up} onChange={setUp} options={LINEAGE_DEPTHS} />
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Downstream steps</span>
-          <Segmented aria-label="Downstream steps" value={down} onChange={setDown} options={DEPTHS} />
+          <Segmented aria-label="Downstream steps" value={down} onChange={setDown} options={LINEAGE_DEPTHS} />
         </div>
       </div>
       {!picked ? (
         <Suggestions none={types?.length === 0} onPick={(a) => pick({ ...a, type: a.assetType })} />
       ) : (
-        <LineageView key={`${picked.type}|${picked.id}`} picked={picked} up={Number(up)} down={Number(down)} onRecenter={pick} />
+        <LineageView key={`${picked.type}|${picked.id}`} picked={picked} up={depthArg(up)} down={depthArg(down)} onRecenter={pick} />
       )}
     </div>
   )
@@ -172,7 +167,7 @@ function Suggestions({ none, onPick }: { none: boolean; onPick: (a: Asset) => vo
   )
 }
 
-function LineageView({ picked, up, down, onRecenter }: { picked: Picked; up: number; down: number; onRecenter: (r: OmRef) => void }) {
+function LineageView({ picked, up, down, onRecenter }: { picked: Picked; up: number | 'all'; down: number | 'all'; onRecenter: (r: OmRef) => void }) {
   const q = useCall<OmLineage>('getLineage', { type: picked.type, id: picked.id, upstreamDepth: up, downstreamDepth: down })
   if (q.error) return <ErrorNote>{q.error}</ErrorNote>
   if (!q.data) return <Loading>Loading lineage…</Loading>
@@ -188,7 +183,39 @@ function LineageView({ picked, up, down, onRecenter }: { picked: Picked; up: num
         {up === 0 && down === 0 ? 'Both depths are 0: raise one to follow the lineage.' : `Nothing is recorded as feeding this ${typeInfo(picked.type)?.name.toLowerCase() ?? 'asset'} or made from it.`}
       </EmptyNote>
     )
-  return <Graph data={q.data} onRecenter={onRecenter} />
+  const truncated = q.data.truncated && (
+    <p className="text-xs text-muted-foreground">This lineage is very large: MonoRail stopped following it, so there may be more beyond what is drawn.</p>
+  )
+  // Cards and curves in the page are clear up to a few hundred assets; past that the canvas graph stays fast.
+  if (q.data.nodes.length > BIG_GRAPH)
+    return (
+      <div className="flex flex-col gap-3">
+        <BigGraph data={q.data} />
+        {truncated}
+      </div>
+    )
+  return (
+    <div className="flex flex-col gap-3">
+      <Graph data={q.data} onRecenter={onRecenter} />
+      {truncated}
+    </div>
+  )
+}
+
+/** More assets than this are drawn by the canvas graph (as on an entity's Lineage tab). */
+const BIG_GRAPH = 250
+
+function BigGraph({ data }: { data: OmLineage }) {
+  const nodes = useMemo(() => [data.entity, ...data.nodes], [data])
+  const edges = useMemo(() => [...data.upstreamEdges, ...data.downstreamEdges], [data])
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-muted-foreground">
+        {data.nodes.length.toLocaleString()} assets: drawn in rank order. Drag to pan, scroll to zoom, click an asset to trace it, and open it from its controls.
+      </p>
+      <LineageGraph nodes={nodes} edges={edges} rootId={data.entity.id} layout="layered" className="h-[min(72vh,760px)]" onOpen={(ref) => typeInfo(ref.type) && openInCatalog({ type: ref.type, fqn: fqnOf(ref) })} />
+    </div>
+  )
 }
 
 // ---------- The graph ----------

@@ -1,5 +1,5 @@
 import { Exploration, hiddenNode } from './exploration'
-import type { ForceOptions, ForceRun } from './force'
+import { rankColumns, type ForceOptions, type ForceRun } from './force'
 import ForceWorker from './force.worker?worker&inline'
 import type { ForceRequest, ForceResponse, ForceTiming } from './force.worker'
 import { writeEdgeBounds, writeNodeBounds, type LineageLayout } from './layout'
@@ -11,6 +11,7 @@ export class ForceView {
   readonly exploration: Exploration
   readonly layout: LineageLayout
   private readonly worker: Worker
+  private readonly columns: Float32Array
   private readonly x: Float32Array
   private readonly y: Float32Array
   private readonly spawnOrigins: Uint32Array
@@ -31,6 +32,7 @@ export class ForceView {
   constructor(topology: Topology, root: number, redraw: () => void, error: (message: string) => void, ready?: () => void) {
     const count = topology.incoming.length
     const { ranks, feedbackEdges } = rankTopology(topology)
+    this.columns = rankColumns(ranks).x
     this.exploration = new Exploration(topology, root)
     this.x = new Float32Array(count)
     this.y = new Float32Array(count)
@@ -88,6 +90,14 @@ export class ForceView {
       this.settled[node] = previous.settled[old]
       this.x[node] = previous.x[old]
       this.y[node] = previous.y[old]
+    }
+    // A new snapshot (another depth) can change ranks: an asset no longer in
+    // its rank's column moves again, so lineage keeps reading left to right.
+    const root = this.exploration.root
+    if (root < 0 || !this.known[root]) return
+    for (const node of this.exploration.visible) {
+      const column = this.x[root] + this.columns[node] - this.columns[root]
+      if (this.known[node] && Math.abs(this.x[node] - column) > 1) this.settled[node] = 0
     }
   }
 

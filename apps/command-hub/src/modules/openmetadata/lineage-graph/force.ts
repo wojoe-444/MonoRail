@@ -3,7 +3,42 @@ import { QuadTree } from './quadtree'
 
 const spacingX = nodeWidth + 16
 const spacingY = nodeHeight + 16
-const localPitch = 1.75
+/** Card widths between two tracks of one rank, and the extra gap between ranks (room for the curves). */
+const trackPitch = 1.12
+const rankGap = 0.33
+/** A rank with more assets than this wraps into side-by-side tracks, so a huge rank is not one endless column. */
+const trackRows = 30
+
+/**
+ * Where each asset sits across, in world pixels from rank 0, and its row slot
+ * in its track. Ranks run left to right (upstream always left of downstream),
+ * each as wide as it needs: ceil(assets / trackRows) tracks, an asset's track
+ * by its order in the rank. Worked out from the whole snapshot, so nothing
+ * moves sideways as branches open.
+ */
+export function rankColumns(ranks: Uint32Array) {
+  const count = ranks.length
+  let maxRank = 0
+  for (let i = 0; i < count; i++) maxRank = Math.max(maxRank, ranks[i])
+  const perRank = new Uint32Array(maxRank + 1)
+  for (let i = 0; i < count; i++) perRank[ranks[i]]++
+  const tracks = Array.from(perRank, (n) => Math.max(1, Math.ceil(n / trackRows)))
+  const start = new Float64Array(maxRank + 1)
+  for (let r = 1; r <= maxRank; r++) start[r] = start[r - 1] + tracks[r - 1] * trackPitch + rankGap
+  const seen = new Uint32Array(maxRank + 1)
+  const x = new Float32Array(count)
+  const slot = new Float32Array(count)
+  const rows = new Float32Array(count)
+  for (let i = 0; i < count; i++) {
+    const r = ranks[i]
+    const ordinal = seen[r]++
+    const t = tracks[r]
+    x[i] = (start[r] + (ordinal % t) * trackPitch) * spacingX
+    slot[i] = Math.floor(ordinal / t)
+    rows[i] = Math.ceil(perRank[r] / t)
+  }
+  return { x, slot, rows }
+}
 const decay = 0.89
 const minAlpha = 0.016
 
@@ -45,20 +80,17 @@ export class ForceSimulation {
   private readonly tree: QuadTree
   private readonly stack = new Int32Array(64)
   private readonly weights: Float32Array
-  private readonly rank: Uint32Array
   private readonly visible: Uint32Array
   private readonly moving: Uint32Array
   private readonly edges: Uint32Array
   private readonly exact: boolean
-  private readonly pitch: number
-  private readonly rankStrength: number
   private alpha = 1
 
   constructor(input: ForceInput, run: ForceRun) {
     this.input = input
     const { ranks, from, to, root } = input
     const count = ranks.length
-    const { visible, positions, edges, parents, options } = run
+    const { visible, positions, edges, options } = run
     this.visible = visible
     this.moving = options?.reheatAll ? visible.filter((node) => node !== root) : run.moving
     this.edges = edges
@@ -72,7 +104,6 @@ export class ForceSimulation {
     this.pinned = new Uint8Array(count).fill(1)
     for (const node of this.moving) this.pinned[node] = 0
     this.tree = new QuadTree(count)
-    this.rank = ranks
     this.degree = new Uint32Array(count)
     this.weights = new Float32Array(from.length)
     for (const edge of edges) {
@@ -85,47 +116,33 @@ export class ForceSimulation {
 
     const rootX = positions[root] / spacingX
     const rootY = positions[root + count] / spacingY
-    const rootRank = ranks[root]
+    const columns = rankColumns(ranks)
     const bulk = this.moving.length >= 256
     const byRank = new Map<number, number[]>()
     for (const node of visible) {
       const anchorX = positions[node] / spacingX
       const anchorY = positions[node + count] / spacingY
+      // x is fixed to the rank's column, so lineage always reads left to right.
+      // Only y is simulated. A settled (pinned) asset keeps where it is.
+      const column = rootX + (columns.x[node] - columns.x[root]) / spacingX
+      this.targetX[node] = this.pinned[node] ? anchorX : column
+      this.x[node] = this.targetX[node]
       // Break symmetry on the first physics tick. The renderer starts at the exact parent position.
       const angle = node * 2.399963229728653
-      this.x[node] = anchorX + (this.pinned[node] ? 0 : Math.cos(angle) * 0.3)
       this.y[node] = anchorY + (this.pinned[node] ? 0 : Math.sin(angle) * 0.3)
       this.targetY[node] = anchorY
-      if (!bulk) {
-        const parent = parents[node]
-        const delta = parent < 0 ? 0 : ranks[node] - ranks[parent]
-        const parentX = parent < 0 ? anchorX : positions[parent] / spacingX
-        this.targetX[node] = parentX + Math.max(-2, Math.min(2, delta)) * localPitch
-        continue
-      }
+      if (!bulk || this.pinned[node]) continue
       let band = byRank.get(ranks[node])
       if (!band) byRank.set(ranks[node], band = [])
       band.push(node)
     }
-    const tracks = bulk ? Math.max(3, Math.ceil(Math.sqrt(visible.length) / Math.sqrt(byRank.size) / 3)) : 1
-    this.pitch = bulk ? tracks * 1.38 + 0.65 : localPitch
-    this.rankStrength = bulk ? 0.05 : 0.085
-    for (const [rank, band] of byRank) {
-      const cx = rootX + (rank - rootRank) * this.pitch
-      band.sort((a, b) => a - b)
-      for (let i = 0; i < band.length; i++) {
-        const node = band[i]
-        this.targetX[node] = cx
-        if (this.pinned[node]) continue
-        const rows = Math.ceil(band.length / tracks)
-        const sx = cx + (i % tracks - (tracks - 1) / 2) * 1.28 + Math.sin(i * 3.13 + rank) * 0.18
-        const sy = rootY + (Math.floor(i / tracks) - (rows - 1) / 2) * 1.18 + Math.cos(i * 2.39 + rank) * 0.24
-        this.targetX[node] = cx * 0.4 + sx * 0.6
+    // A large reveal starts each track as an evenly spaced stack around the
+    // root's row, so thousands of coincident seeds do not overwhelm collision.
+    for (const band of byRank.values()) {
+      for (const node of band) {
+        const sy = rootY + (columns.slot[node] - (columns.rows[node] - 1) / 2) * 1.12
         this.targetY[node] = sy
-        if (!options?.coldStart) {
-          this.x[node] = sx
-          this.y[node] = sy
-        }
+        if (!options?.coldStart) this.y[node] = sy
       }
     }
   }
@@ -136,7 +153,6 @@ export class ForceSimulation {
     const { x, y, vx, vy, targetX, targetY, visible, moving, pinned, exact, tree } = this
     if (!exact) tree.build(visible, x, y)
     for (const node of moving) {
-      vx[node] += (targetX[node] - x[node]) * this.rankStrength * alpha
       vy[node] += (targetY[node] - y[node]) * 0.012 * alpha
       this.repel(node, alpha)
     }
@@ -145,27 +161,17 @@ export class ForceSimulation {
       const source = from[edge]
       const target = to[edge]
       if (pinned[source] && pinned[target]) continue
-      const rankDelta = this.rank[target] - this.rank[source]
-      const preferredX = Math.max(-2, Math.min(2, rankDelta)) * this.pitch
-      const dx = Math.max(-6, Math.min(6, x[target] - x[source] - preferredX)) * 0.12
+      // Connected assets pull toward the same row, which keeps edges short and flat.
       const dy = Math.max(-6, Math.min(6, y[target] - y[source])) * 0.115
       const gain = this.weights[edge] * alpha
       const total = this.degree[source] + this.degree[target]
-      if (!pinned[source]) {
-        const share = (pinned[target] ? 1 : this.degree[target] / total) * gain
-        vx[source] += dx * share
-        vy[source] += dy * share
-      }
-      if (!pinned[target]) {
-        const share = (pinned[source] ? 1 : this.degree[source] / total) * gain
-        vx[target] -= dx * share
-        vy[target] -= dy * share
-      }
+      if (!pinned[source]) vy[source] += dy * (pinned[target] ? 1 : this.degree[target] / total) * gain
+      if (!pinned[target]) vy[target] -= dy * (pinned[source] ? 1 : this.degree[source] / total) * gain
     }
     for (const node of moving) {
-      vx[node] = Math.max(-2.3, Math.min(2.3, vx[node] * 0.64))
+      vx[node] = 0
       vy[node] = Math.max(-2.3, Math.min(2.3, vy[node] * 0.64))
-      x[node] += vx[node]
+      x[node] = targetX[node]
       y[node] += vy[node]
     }
     if (alpha > minAlpha) return false
@@ -268,14 +274,11 @@ export class ForceSimulation {
       const px = x[node]
       const py = y[node]
       let moved = free(px, py)
+      // Only along y: an asset never leaves its rank's column.
       for (let ring = 1; !moved; ring++) {
-        for (let i = 0; i < ring * 8; i++) {
-          // Start along y (a smaller shift in world space) to preserve rank.
-          const angle = Math.PI / 2 + (i + (node & 1) * 4 * ring) * Math.PI / (4 * ring)
-          const nx = px + Math.cos(angle) * ring * 0.28
-          const ny = py + Math.sin(angle) * ring * 0.28
-          if (!free(nx, ny)) continue
-          x[node] = nx
+        for (const side of node & 1 ? [1, -1] : [-1, 1]) {
+          const ny = py + side * ring * 0.28
+          if (!free(px, ny)) continue
           y[node] = ny
           moved = true
           break

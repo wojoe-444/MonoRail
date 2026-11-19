@@ -32,8 +32,12 @@ const DB_FILE = 'local.sqlite3'
 const FOLDER = 'databases'
 /** Bump with a new step in MIGRATIONS. */
 const SCHEMA_VERSION = 2
-/** OpenMetadata's lineage API answers at most 3 levels each way; local reads keep the same limit. */
-const MAX_LINEAGE_DEPTH = 3
+/**
+ * Lineage reads follow any number of levels ('all' or Infinity: to the ends of
+ * the graph). A walk stops after this many assets per side and says so
+ * (`truncated`).
+ */
+const MAX_LINEAGE_ASSETS = 10_000
 /** The most matches one search returns; the page says how many more there are. */
 const SEARCH_MAX = 500
 
@@ -160,7 +164,8 @@ function copyDatabase(source, target) {
 
 const round1 = (n) => Math.round(n * 10) / 10
 const strip = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
-const clampDepth = (n) => Math.max(0, Math.min(MAX_LINEAGE_DEPTH, Math.floor(Number(n)) || 0))
+/** A lineage depth: a whole number of levels, or 'all' / Infinity for every level. */
+const clampDepth = (n) => (n === 'all' || n === Infinity ? Infinity : Math.max(0, Math.floor(Number(n)) || 0))
 
 /** An EntityReference for a stored entity, as OpenMetadata's lineage API lists nodes. */
 const refOf = (type, e) => strip({ id: e.id, type, name: e.name, fullyQualifiedName: e.fullyQualifiedName, displayName: e.displayName, description: e.description, deleted: e.deleted || undefined })
@@ -436,8 +441,10 @@ function createEntityStore(db) {
     /**
      * An entity's lineage in OpenMetadata's EntityLineage shape:
      * { entity, nodes, upstreamEdges, downstreamEdges }, edges as
-     * { fromEntity: id, toEntity: id, lineageDetails? }, up to
-     * MAX_LINEAGE_DEPTH levels each way. Undefined when the entity is not here.
+     * { fromEntity: id, toEntity: id, lineageDetails? }, any number of levels
+     * each way ('all' follows the graph to its ends; a cycle is walked once),
+     * at most MAX_LINEAGE_ASSETS assets per side, then `truncated: true`.
+     * Undefined when the entity is not here.
      * `extra` edges ([{ fromId, toId, edge }], e.g. from an older field) are
      * walked too; the table's own edge wins for the same pair.
      */
@@ -451,12 +458,18 @@ function createEntityStore(db) {
         // An end that is not stored here keeps the reference the edge carries.
         refs.set(ref.id, row ? refOf(row.type, JSON.parse(row.json)) : strip({ id: ref.id, type: ref.type, name: ref.name, fullyQualifiedName: ref.fullyQualifiedName, displayName: ref.displayName }))
       }
+      let truncated = false
       const walk = (depth, next, far) => {
         const edges = []
         const seen = new Set()
         const visited = new Set([id])
         let frontier = [id]
-        for (let d = 0; d < clampDepth(depth) && frontier.length; d++) {
+        const levels = clampDepth(depth)
+        for (let d = 0; d < levels && frontier.length; d++) {
+          if (visited.size > MAX_LINEAGE_ASSETS) {
+            truncated = true
+            break
+          }
           const after = []
           for (const at of frontier) {
             for (const e of next(at)) {
@@ -476,12 +489,21 @@ function createEntityStore(db) {
         }
         return edges
       }
-      const into = extra.length ? (at) => [...store.lineageInto(at), ...extra.filter((e) => e.toId === at)] : store.lineageInto
-      const from = extra.length ? (at) => [...store.lineageFrom(at), ...extra.filter((e) => e.fromId === at)] : store.lineageFrom
+      // Index the extra edges once: a deep walk asks for every asset's edges.
+      const byEnd = (key) => {
+        const m = new Map()
+        for (const e of extra) m.set(e[key], [...(m.get(e[key]) ?? []), e])
+        return m
+      }
+      const extraInto = byEnd('toId')
+      const extraFrom = byEnd('fromId')
+      const into = extra.length ? (at) => [...store.lineageInto(at), ...(extraInto.get(at) ?? [])] : store.lineageInto
+      const from = extra.length ? (at) => [...store.lineageFrom(at), ...(extraFrom.get(at) ?? [])] : store.lineageFrom
       const upstreamEdges = walk(upstreamDepth, into, 'fromEntity')
       const downstreamEdges = walk(downstreamDepth, from, 'toEntity')
       refs.delete(id)
-      return { entity: refOf(center.type, JSON.parse(center.json)), nodes: [...refs.values()], upstreamEdges, downstreamEdges }
+      const out = { entity: refOf(center.type, JSON.parse(center.json)), nodes: [...refs.values()], upstreamEdges, downstreamEdges }
+      return truncated ? { ...out, truncated } : out
     },
 
     close: () => db.close(),
@@ -551,4 +573,4 @@ function mirrorDbExists() {
   }
 }
 
-module.exports = { openDatabase, copyDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH, SEARCH_MAX }
+module.exports = { openDatabase, copyDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_ASSETS, SEARCH_MAX }
