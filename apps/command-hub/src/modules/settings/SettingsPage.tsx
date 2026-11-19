@@ -158,7 +158,7 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
     <>
       <div className="flex flex-wrap items-center gap-4">
         <StatusIcon status={status} checking={checking} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-60">
           <div className="font-medium">{headline(status, checking)}</div>
           <div className="text-sm text-muted-foreground">
             {status.updatesSupported
@@ -166,7 +166,7 @@ function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {
               : status.unsupportedReason}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {state === 'available' && (
             <Button onClick={() => onCall('downloadUpdate')} disabled={busy}>
               <Download /> Download and restart
