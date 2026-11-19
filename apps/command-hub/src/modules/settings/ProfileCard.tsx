@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, Laptop, Loader2, UserRound } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Laptop, Loader2, UserRound } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -185,19 +185,20 @@ export function ProfileCard({ className }: { className?: string }) {
 
 function ScopeList({ icon, title, items, tone }: { icon: ReactNode; title: string; items: string[]; tone: string }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <span className={cn('flex size-7 items-center justify-center rounded-md', tone)}>{icon}</span>
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+        <span aria-hidden className={cn('flex size-7 shrink-0 items-center justify-center rounded-md', tone)}>{icon}</span>
         {title}
-      </div>
-      <ul className="flex flex-col divide-y text-sm">
+        <ChevronDown aria-hidden className="ml-auto size-4 shrink-0 text-muted-foreground group-open:rotate-180" />
+      </summary>
+      <ul className="mt-3 flex flex-col divide-y text-sm">
         {items.map((t) => (
           <li key={t} className="py-2 text-muted-foreground first:pt-0 last:pb-0">
             {t}
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   )
 }
 
