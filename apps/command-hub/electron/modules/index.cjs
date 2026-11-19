@@ -47,6 +47,7 @@ const moduleBackends = [
   require('./ingestion.cjs'),
   require('./mcp.cjs'),
   require('./notes.cjs'),
+  require('./sqlx.cjs'),
   require('./openmetadata.cjs'),
   require('./profiles.cjs'),
   require('./remote.cjs'),
