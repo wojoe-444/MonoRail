@@ -90,7 +90,8 @@ export default function App() {
 
   const found = findNavItem(navSections, path)
   const current = found?.item
-  const section = found?.section.heading
+  const sectionHeading = found?.section.heading
+  const section = sectionHeading && found?.section.items[0] ? { label: sectionHeading, path: found.section.items[0].path } : undefined
 
   if (activeApp && !workspaceApp) {
     return (
