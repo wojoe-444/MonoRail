@@ -85,10 +85,11 @@ async function tryLock(file, { staleMs }) {
       if (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES')) return undefined
       if (e.code !== 'EEXIST') throw e
       const held = await lockHolder(file)
-      const age = held ? Date.now() - Date.parse(held.startedAt) : Infinity
+      if (!held) continue // It was released while we looked. Retry exclusive creation.
+      const age = Date.now() - Date.parse(held.startedAt)
       // No pid yet means another holder has just created the file and is
       // still writing it: busy, unless it has stayed that way past staleMs.
-      if (held && (held.pid === undefined || pidAlive(held.pid)) && age < staleMs) return undefined
+      if ((held.pid === undefined || pidAlive(held.pid)) && age < staleMs) return undefined
       await fs.rm(file, { force: true }) // stale: its holder is gone
     }
   }
