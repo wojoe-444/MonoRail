@@ -242,7 +242,7 @@ function typeOfEntity(e: OmEntity): string {
   return 'table'
 }
 
-/** The same walk as the local database's: up to 3 levels each way. */
+/** The same walk as the local database's: any number of levels each way (Infinity: all). */
 function lineage(id: string, up: number, down: number): OmLineage {
   const all = [...byType].flatMap(([type, items]) => items.map((e) => ({ type, e })))
   const center = all.find((x) => x.e.id === id)
@@ -252,7 +252,7 @@ function lineage(id: string, up: number, down: number): OmLineage {
     const out: OmLineageEdge[] = []
     let frontier = [id]
     const seen = new Set(frontier)
-    for (let d = 0; d < Math.min(3, depth) && frontier.length; d++) {
+    for (let d = 0; d < depth && frontier.length; d++) {
       const next: string[] = []
       for (const at of frontier) {
         for (const x of edges.filter((x) => (upstream ? x.to.id : x.from.id) === at)) {
@@ -320,7 +320,10 @@ const methods: Record<string, (args: Record<string, unknown>) => unknown> = {
       .sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name))
     return { data: all.slice(0, Number(limit ?? 50) || 50), total: all.length }
   },
-  getLineage: ({ id, upstreamDepth, downstreamDepth }) => lineage(String(id), Number(upstreamDepth ?? 1), Number(downstreamDepth ?? 1)),
+  getLineage: ({ id, upstreamDepth, downstreamDepth }) => {
+    const depth = (v: unknown) => (v === 'all' ? Infinity : Number(v ?? 1))
+    return lineage(String(id), depth(upstreamDepth), depth(downstreamDepth))
+  },
   setDescription: ({ type, id, description }) => {
     const items = list(String(type))
     const i = items.findIndex((x) => x.id === id)

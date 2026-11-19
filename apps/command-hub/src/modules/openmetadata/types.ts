@@ -89,6 +89,8 @@ export interface OmLineage {
   nodes: OmRef[]
   upstreamEdges: OmLineageEdge[]
   downstreamEdges: OmLineageEdge[]
+  /** The walk stopped at its asset (or, on a server, request) limit before the depth asked for. */
+  truncated?: boolean
   /** BigQuery only: the dataset has no lineage table (layout monorail.metadata/1, or /2 without the table). */
   missing?: 'no-lineage-table'
   layout?: string

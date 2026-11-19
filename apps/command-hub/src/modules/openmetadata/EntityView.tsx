@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Check, ChevronLeft, Copy, Loader2, Pencil } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Check, ChevronLeft, Copy, Loader2, Pencil, Waypoints } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import { STANDARD, docsTarget, standardField } from '@/standard'
 import { call, canEdit, errorText, useCall } from './api'
 import { GROUPS, adopted, typeInfo } from './catalog'
 import { LineageGraph } from './lineage-graph/LineageGraph'
+import { LINEAGE_DEPTHS, depthArg, endProducts, type LineageDepth } from './lineage'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, formatTime, tierOf, type View } from './util'
 import type { OmColumn, OmEntity, OmLineage, OmLineageEdge, OmRef } from './types'
@@ -111,6 +112,11 @@ export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; o
         </CardContent>
       </Card>
 
+      {LINEAGE_TYPES.has(type) && <DownstreamProducts key={entity.id} type={type} entity={entity} onOpen={onOpen} onShowLineage={() => {
+            setTab('lineage')
+            requestAnimationFrame(() => document.getElementById('om-entity-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+          }} />}
+
       <Card>
         <CardHeader>
           <CardTitle>Description</CardTitle>
@@ -133,7 +139,7 @@ export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; o
       </Card>
       {editing && <DescriptionDialog onClose={() => setEditing(false)} type={type} entity={entity} onSaved={q.reload} />}
 
-      <div className="flex flex-col gap-4">
+      <div id="om-entity-tabs" className="flex scroll-mt-4 flex-col gap-4">
         <Segmented
           className="w-fit max-w-full overflow-x-auto"
           aria-label="What to show"
@@ -424,7 +430,102 @@ function RefRow({ r, onOpen, children }: { r: OmRef; onOpen: (v: View) => void; 
   )
 }
 
-type Depth = '1' | '2' | '3'
+const PRODUCTS_SHOWN = 12
+
+/**
+ * What this asset ends up in: the assets downstream that nothing further is
+ * made from (dashboards, models, reports, ...), following every level, so a
+ * reader sees at a glance who depends on it.
+ */
+function DownstreamProducts({ type, entity, onOpen, onShowLineage }: { type: string; entity: OmEntity; onOpen: (v: View) => void; onShowLineage: () => void }) {
+  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: 0, downstreamDepth: 'all' })
+  const [showAll, setShowAll] = useState(false)
+  const result = useMemo(() => (q.data ? endProducts(q.data) : undefined), [q.data])
+  if (q.data?.missing) return null
+  const kind = typeInfo(type)?.name.toLowerCase() ?? 'asset'
+  const products = result?.products ?? []
+  const byType = new Map<string, number>()
+  for (const p of products) byType.set(p.ref.type, (byType.get(p.ref.type) ?? 0) + 1)
+  const mix = [...byType].map(([t, n]) => `${n} ${(n === 1 ? typeInfo(t)?.name : typeInfo(t)?.plural)?.toLowerCase() ?? t}`).join(' · ')
+  const shown = showAll ? products : products.slice(0, PRODUCTS_SHOWN)
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ArrowDownToLine className="size-4 text-muted-foreground" aria-hidden /> Downstream end products
+          {result && result.total > 0 && (
+            <Badge variant="secondary" className="font-mono">
+              {products.length}
+            </Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          {q.error
+            ? 'Could not follow the lineage.'
+            : !result
+              ? 'Following the lineage downstream…'
+              : !result.total
+                ? `Nothing is recorded as made from this ${kind}.`
+                : `${mix}, reached through ${result.total} ${result.total === 1 ? 'asset' : 'assets'} downstream.`}
+        </CardDescription>
+        {result && result.total > 0 && (
+          <CardAction>
+            <Button variant="ghost" size="sm" onClick={onShowLineage}>
+              <Waypoints /> See lineage
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
+      {(q.error || !result || products.length > 0) && (
+        <CardContent className="flex flex-col gap-3">
+          {q.error && <p className="text-sm text-muted-foreground">{q.error}</p>}
+          {!q.error && !result && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading…
+            </p>
+          )}
+          {products.length > 0 && (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {shown.map(({ ref, steps }) => {
+                const info = typeInfo(ref.type)
+                return (
+                  <li key={ref.id}>
+                    <button
+                      type="button"
+                      disabled={!info}
+                      title={ref.fullyQualifiedName}
+                      onClick={() => onOpen({ type: ref.type, fqn: ref.fullyQualifiedName ?? ref.name ?? ref.id })}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left ring-1 ring-foreground/10 hover:bg-muted/50 disabled:cursor-default disabled:hover:bg-transparent"
+                    >
+                      <TypeTile type={ref.type} className="size-7" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{displayName(ref)}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {info?.name ?? ref.type} · {steps} {steps === 1 ? 'step' : 'steps'} away
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {(products.length > PRODUCTS_SHOWN || q.data?.truncated) && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              {products.length > PRODUCTS_SHOWN && (
+                <Button variant="outline" size="sm" onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? 'Show fewer' : `Show all ${products.length}`}
+                </Button>
+              )}
+              {q.data?.truncated && <span>The lineage is very large: MonoRail stopped following it, so there may be more.</span>}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
 /** How OpenMetadata names where an edge came from (LineageSource), in plain words. */
 const LINEAGE_SOURCE: Record<string, string> = {
   Manual: 'Added by hand',
@@ -442,14 +543,18 @@ const LINEAGE_SOURCE: Record<string, string> = {
 /** One side of the lineage: each entity once, with how many steps away it is and the edge that reached it first. */
 function sideOf(data: OmLineage, upstream: boolean): { ref: OmRef; steps: number; edge: OmLineageEdge }[] {
   const nodes = new Map(data.nodes.map((n) => [n.id, n]))
-  const edges = upstream ? data.upstreamEdges : data.downstreamEdges
+  const byEnd = new Map<string, OmLineageEdge[]>()
+  for (const e of upstream ? data.upstreamEdges : data.downstreamEdges) {
+    const at = upstream ? e.toEntity : e.fromEntity
+    byEnd.set(at, [...(byEnd.get(at) ?? []), e])
+  }
   const out: { ref: OmRef; steps: number; edge: OmLineageEdge }[] = []
   const seen = new Set([data.entity.id])
   let frontier = [data.entity.id]
   for (let steps = 1; frontier.length; steps++) {
     const next: string[] = []
     for (const at of frontier) {
-      for (const e of edges.filter((x) => (upstream ? x.toEntity : x.fromEntity) === at)) {
+      for (const e of byEnd.get(at) ?? []) {
         const id = upstream ? e.fromEntity : e.toEntity
         if (seen.has(id)) continue
         seen.add(id)
@@ -462,16 +567,21 @@ function sideOf(data: OmLineage, upstream: boolean): { ref: OmRef; steps: number
   return out
 }
 
+/** The most rows a side of the List view draws before "Show all". */
+const LIST_SHOWN = 200
+
 /**
  * What the entity is made from (upstream) and what is made from it
- * (downstream), from OpenMetadata's lineage edges. Depth 1 by default; up to
- * 3 levels, OpenMetadata's limit.
+ * (downstream), from OpenMetadata's lineage edges, any number of steps
+ * (a server is read 3 levels a request).
  */
 function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onOpen: (v: View) => void }) {
-  // The graph reveals neighbours as you click, so it loads all 3 steps up front.
-  const [depth, setDepth] = useState<Depth>('3')
+  // The graph reveals neighbours as you click, so it loads 3 steps up front.
+  const [depth, setDepth] = useState<LineageDepth>('3')
   const [shape, setShape] = useState<'graph' | 'list'>('graph')
-  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: Number(depth), downstreamDepth: Number(depth) })
+  const [listAll, setListAll] = useState(false)
+  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: depthArg(depth), downstreamDepth: depthArg(depth) })
+  const sides = useMemo(() => (q.data && !q.data.missing ? { up: sideOf(q.data, true), down: sideOf(q.data, false) } : undefined), [q.data])
   const graphNodes = useMemo(() => (q.data ? [q.data.entity, ...q.data.nodes] : []), [q.data])
   const graphEdges = useMemo(() => (q.data ? [...q.data.upstreamEdges, ...q.data.downstreamEdges] : []), [q.data])
   const depthPicker = (
@@ -491,12 +601,9 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
         aria-label="How many steps to follow"
         value={depth}
         onChange={setDepth}
-        options={[
-          { value: '1', label: '1 step' },
-          { value: '2', label: '2 steps' },
-          { value: '3', label: '3 steps' },
-        ]}
+        options={LINEAGE_DEPTHS.filter((d) => d.value !== '0').map((d) => ({ value: d.value, label: d.value === 'all' ? 'All steps' : d.value === '1' ? '1 step' : `${d.label} steps` }))}
       />
+      {q.data?.truncated && <span className="text-xs text-muted-foreground">Very large: MonoRail stopped following it, so there may be more.</span>}
     </div>
   )
   if (q.error) return <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">{q.error}</p>
@@ -512,8 +619,7 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
         This BigQuery dataset has no lineage table{q.data.layout ? ` (layout ${q.data.layout})` : ''}, so there is no lineage to show. Add it with Setup SQL at the top of the page and set the dataset's layout row to monorail.metadata/2; the next sync brings its edges here.
       </p>
     )
-  const up = sideOf(q.data, true)
-  const down = sideOf(q.data, false)
+  const { up, down } = sides ?? { up: [], down: [] }
   if (!up.length && !down.length)
     return (
       <div className="flex flex-col gap-4">
@@ -549,7 +655,7 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
       <CardContent>
         {rows.length ? (
           <ul className="flex flex-col divide-y">
-            {rows.map(({ ref, steps, edge }) => {
+            {(listAll ? rows : rows.slice(0, LIST_SHOWN)).map(({ ref, steps, edge }) => {
               const source = edge.lineageDetails?.source
               return (
                 <RefRow key={ref.id} r={ref} onOpen={onOpen}>
@@ -565,6 +671,11 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">{none}</p>
+        )}
+        {!listAll && rows.length > LIST_SHOWN && (
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => setListAll(true)}>
+            Show all {rows.length}
+          </Button>
         )}
       </CardContent>
     </Card>

@@ -92,18 +92,38 @@ greyed out; pre-2.1 servers omit Ontology).
   **Include deleted**.
 - **Pick an entity**: inspect owners, tags, domains, description, columns,
   relationships (long lists like a schema's tables have their own name filter),
-  [lineage](#lineage), version history, raw JSON and standard field docs.
+  [lineage](#lineage), version history, raw JSON and standard field docs. A
+  data asset's page shows its [downstream end products](#downstream-end-products)
+  right under the header.
+
+## Downstream end products
+
+Every data asset's page (tables, views, dashboards, pipelines, models...) has a
+**Downstream end products** card right below its owners and tags. It follows
+the [lineage](#lineage) downstream to the very end and lists the assets that
+nothing further is made from: usually dashboards, charts, ML models and the
+last tables in a chain. Each shows its type and how many steps away it is;
+click one to open it, or **See lineage** for the whole graph. Dashboards,
+charts and models are listed first. With no lineage recorded, the card says
+so.
 
 ## Lineage
 
 Open any data asset's **Lineage** tab (or the top-level **Lineage** tab) to
-trace upstream inputs and downstream dependents up to **3 steps** (adjustable to
-1 or 2):
+trace upstream inputs and downstream dependents. Pick how many steps to follow
+(1, 2, 3, 5, 10) or **All** to follow the lineage to its ends. A very large
+lineage stops after 10,000 assets and says so. An OpenMetadata server answers
+at most 3 steps per request, so deeper reads take a little longer.
 
 - **Graph** (default): centers the asset with upstream left and downstream
+  right, every asset in the column of its step, so arrows always run left to
   right. Click a **+N** badge to expand neighbours, **Collapse branch** or
   **Expand all** to adjust, drag/zoom (semantic zoom switches dots → labels →
-  cards), or switch to **Layered** layout. Clicking highlights connected paths.
+  cards; zoomed out, the picked and selected assets stay named), or switch to
+  **Layered** layout. Clicking highlights connected paths. A step with very
+  many assets wraps into several side-by-side columns so the whole graph still
+  fits the screen. On the top-level tab, a lineage of more than 250 assets is
+  drawn with this same graph.
 - **List**: flat **Upstream** / **Downstream** tables showing hop distance and
   source (dbt, query, pipeline).
 

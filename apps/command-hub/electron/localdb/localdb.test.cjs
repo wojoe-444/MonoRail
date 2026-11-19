@@ -84,7 +84,9 @@ describe('local database', () => {
     assert.deepEqual(one.nodes.map((n) => n.name).sort(), ['rpt', 'stg'])
     const deep = db.lineageOf(rpt.id, { upstreamDepth: 3, downstreamDepth: 0 })
     assert.deepEqual(deep.upstreamEdges.map((e) => e.fromEntity), [fct.id, stg.id, raw.id])
-    assert.equal(db.lineageOf(rpt.id, { upstreamDepth: 9 }).upstreamEdges.length, 3, 'depth is capped, and the walk ends at the source')
+    assert.equal(db.lineageOf(rpt.id, { upstreamDepth: 9 }).upstreamEdges.length, 3, 'the walk ends at the source')
+    assert.deepEqual(db.lineageOf(raw.id, { upstreamDepth: 0, downstreamDepth: 'all' }).downstreamEdges.map((e) => e.toEntity), [stg.id, fct.id, rpt.id], "'all' follows every level")
+    assert.equal(db.lineageOf(raw.id, { downstreamDepth: Infinity }).truncated, undefined)
     assert.equal(db.lineageOf('00000000-0000-4000-8000-000000000099'), undefined)
 
     // An end that is not stored keeps the reference the edge carries.

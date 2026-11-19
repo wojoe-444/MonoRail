@@ -59,8 +59,9 @@ Store methods: `putLineage(edge)` (checks both ends have an id and a type and
 differ; unchanged content keeps its time), `putLineageExact` (the BigQuery
 copy), `removeLineage`, `removeLineageOf(id)`, `lineageInto` / `lineageFrom`,
 `lineageKeys`, `countLineage` and `lineageOf(id, { upstreamDepth,
-downstreamDepth })`, which walks up to 3 levels each way (OpenMetadata's
-limit) and returns OpenMetadata's EntityLineage shape: `{ entity, nodes,
+downstreamDepth })`, which walks any number of levels each way (`'all'` or
+`Infinity` follows the graph to its ends, a cycle once; at most
+`MAX_LINEAGE_ASSETS`, 10,000, per side, then `truncated: true`) and returns OpenMetadata's EntityLineage shape: `{ entity, nodes,
 upstreamEdges, downstreamEdges }` with edges as `{ fromEntity: id, toEntity:
 id, lineageDetails }`. An end that is not stored keeps the reference the edge
 carries. Deleted edges are kept (the BigQuery copy) but never walked.

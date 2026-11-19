@@ -169,18 +169,21 @@ export class LineageRenderer {
     const { x, y, from, to } = this.layout
     const source = from[edge]
     const target = to[edge]
+    const y1 = y[source] + nodeHeight / 2
+    const y2 = y[target] + nodeHeight / 2
+    if (detail === 0) {
+      // Overview zoom draws each asset as a dot at its card's centre: join the dots.
+      ctx.moveTo(x[source] + nodeWidth / 2, y1)
+      ctx.lineTo(x[target] + nodeWidth / 2, y2)
+      return
+    }
     const forward = x[source] < x[target]
     const x1 = x[source] + (forward ? nodeWidth : 0)
     const x2 = x[target] + (forward ? 0 : nodeWidth)
-    const y1 = y[source] + nodeHeight / 2
-    const y2 = y[target] + nodeHeight / 2
     ctx.moveTo(x1, y1)
-    if (detail === 0) ctx.lineTo(x2, y2)
-    else {
-      const mid = (x1 + x2) / 2
-      ctx.bezierCurveTo(mid, y1, mid, y2, x2, y2)
-    }
-    if (detail >= 1) {
+    const mid = (x1 + x2) / 2
+    ctx.bezierCurveTo(mid, y1, mid, y2, x2, y2)
+    {
       const tip = x2 + (forward ? -2 : 2)
       const tail = tip + (forward ? -8 : 8)
       ctx.moveTo(tail, y2 - 4)
@@ -346,5 +349,34 @@ export class LineageRenderer {
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, x * dpr, y * dpr)
     this.drawEdges(ctx, edges, scale, detail, options.batch)
     this.drawNodes(ctx, nodes, scale, detail)
+    if (!detail) this.drawDotLabels(ctx, camera, dpr)
+  }
+
+  /** At overview zoom only dots are drawn: still name the root and the selection, in screen pixels. */
+  private drawDotLabels(ctx: CanvasRenderingContext2D, camera: Camera, dpr: number) {
+    const { x, y } = this.layout
+    const marked = [this.root, this.selection].filter((node, i, all) => node >= 0 && node < x.length && all.indexOf(node) === i)
+    if (!marked.length || (this.spawns && marked.some((node) => this.spawns![node] !== node))) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.font = `600 12px ${this.theme.font}`
+    ctx.textBaseline = 'middle'
+    for (const node of marked) {
+      const label = assetLabel(this.nodes[node])
+      const text = label.length > 48 ? label.slice(0, 47) + '…' : label
+      const width = ctx.measureText(text).width + 12
+      const sx = (x[node] + nodeWidth / 2) * camera.scale + camera.x + 8
+      const sy = (y[node] + nodeHeight / 2) * camera.scale + camera.y
+      ctx.globalAlpha = 0.92
+      ctx.fillStyle = this.theme.card
+      ctx.strokeStyle = node === this.selection ? this.theme.selected : this.theme.root
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.roundRect(sx, sy - 10, width, 20, 6)
+      ctx.fill()
+      ctx.stroke()
+      ctx.globalAlpha = 1
+      ctx.fillStyle = this.theme.text
+      ctx.fillText(text, sx + 6, sy + 0.5)
+    }
   }
 }

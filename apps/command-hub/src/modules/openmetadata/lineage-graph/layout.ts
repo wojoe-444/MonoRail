@@ -6,6 +6,9 @@ export const nodeWidth = 224
 export const nodeHeight = 72
 const columnPitch = 320
 const rowPitch = 96
+/** A layer with more assets than this wraps into side-by-side tracks, so the graph keeps a shape a screen can fit. */
+const trackRows = 30
+const trackPitch = nodeWidth + 40
 
 export interface LayoutRequest {
   nodeIds: string[]
@@ -69,12 +72,24 @@ export function layoutLineage({ nodeIds, edges, previousOrder }: LayoutRequest):
     }
   }
 
+  // Each layer fills its tracks top to bottom in barycenter order, then the next track to the right.
   const x = new Float32Array(count)
   const y = new Float32Array(count)
-  for (let i = 0; i < count; i++) {
-    x[i] = ranks[i] * columnPitch
-    y[i] = row[i] * rowPitch
-  }
+  const tracks = Array.from(layers, (layer) => Math.max(1, Math.ceil((layer?.length ?? 0) / trackRows)))
+  const rowsOf = Array.from(layers, (layer, r) => Math.ceil((layer?.length ?? 0) / tracks[r]))
+  const tallest = Math.max(0, ...rowsOf)
+  let left = 0
+  let right = 0
+  layers.forEach((layer = [], r) => {
+    if (r > 0) left += (tracks[r - 1] - 1) * trackPitch + columnPitch
+    layer.forEach((node, i) => {
+      const track = Math.floor(i / rowsOf[r])
+      const inTrack = Math.min(rowsOf[r], layer.length - track * rowsOf[r])
+      x[node] = left + track * trackPitch
+      y[node] = (i % rowsOf[r] + (tallest - inTrack) / 2) * rowPitch
+    })
+    right = left + (tracks[r] - 1) * trackPitch + nodeWidth
+  })
 
   const nodeBounds = new Float32Array(count * 4)
   const edgeBounds = new Float32Array(from.length * 4)
@@ -86,8 +101,8 @@ export function layoutLineage({ nodeIds, edges, previousOrder }: LayoutRequest):
     edgeIndex: buildIndex(edgeBounds),
     left: 0,
     top: 0,
-    width: count ? (layers.length - 1) * columnPitch + nodeWidth : 0,
-    height: count ? (maxRows - 1) * rowPitch + nodeHeight : 0,
+    width: count ? right : 0,
+    height: count ? (tallest - 1) * rowPitch + nodeHeight : 0,
     feedbackEdges,
   }
 }
@@ -104,9 +119,9 @@ export function writeEdgeBounds(bounds: Float32Array, x: Float32Array, y: Float3
   const offset = edge * 4
   const source = from[edge]
   const target = to[edge]
-  const forward = x[source] < x[target]
-  const x1 = x[source] + (forward ? nodeWidth : 0)
-  const x2 = x[target] + (forward ? 0 : nodeWidth)
+  // Covers both the card-to-card curve and the overview's centre-to-centre line.
+  const x1 = Math.min(x[source], x[target])
+  const x2 = Math.max(x[source], x[target]) + nodeWidth
   bounds[offset] = Math.min(x1, x2) - 12
   bounds[offset + 1] = Math.min(y[source], y[target]) + nodeHeight / 2 - 5
   bounds[offset + 2] = Math.max(x1, x2) + 12

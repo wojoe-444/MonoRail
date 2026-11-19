@@ -158,11 +158,88 @@ function checkId(id) {
   return id
 }
 
-/** OpenMetadata's lineage API takes 0 to 3 levels each way (@Max(3) on upstreamDepth/downstreamDepth). */
-const MAX_LINEAGE_DEPTH = 3
+/**
+ * A lineage depth from the page: a whole number of levels (1 by default), or
+ * 'all' (Infinity) to follow the graph to its ends.
+ */
 const lineageDepth = (v) => {
+  if (v === 'all' || v === Infinity) return Infinity
   const n = v === undefined || v === null ? 1 : Math.floor(Number(v))
-  return Number.isFinite(n) ? Math.max(0, Math.min(MAX_LINEAGE_DEPTH, n)) : 1
+  return Number.isFinite(n) ? Math.max(0, n) : 1
+}
+
+/** OpenMetadata's lineage API takes 0 to 3 levels each way (@Max(3) on upstreamDepth/downstreamDepth). */
+const SERVER_LINEAGE_STEP = 3
+/** A deeper server read walks on from the assets at the edge, one request each; it stops here and says so. */
+const SERVER_LINEAGE_MAX_REQUESTS = 120
+const SERVER_LINEAGE_MAX_ASSETS = 10_000
+
+/**
+ * Lineage from the server past its 3-level limit: the first request reads up
+ * to 3 levels each way, then every asset exactly at the edge of what is known
+ * is asked for its next 3 levels on that side, until the depth is reached, the
+ * graph ends, or the request/asset limits stop it (`truncated: true`).
+ * `fetchOne(type, id, up, down)` returns one normalized reply.
+ */
+async function deepLineage(fetchOne, { type, id, upstreamDepth, downstreamDepth }) {
+  const first = await fetchOne(type, id, Math.min(SERVER_LINEAGE_STEP, upstreamDepth), Math.min(SERVER_LINEAGE_STEP, downstreamDepth))
+  if (upstreamDepth <= SERVER_LINEAGE_STEP && downstreamDepth <= SERVER_LINEAGE_STEP) return first
+  const nodes = new Map(first.nodes.map((n) => [n.id, n]))
+  const sides = {
+    up: new Map(first.upstreamEdges.map((e) => [`${e.fromEntity}>${e.toEntity}`, e])),
+    down: new Map(first.downstreamEdges.map((e) => [`${e.fromEntity}>${e.toEntity}`, e])),
+  }
+  let requests = 1
+  let truncated = false
+  for (const side of ['up', 'down']) {
+    const depth = side === 'up' ? upstreamDepth : downstreamDepth
+    const edges = sides[side]
+    const asked = new Set([first.entity.id])
+    let reached = Math.min(SERVER_LINEAGE_STEP, depth)
+    while (reached < depth) {
+      // Steps from the asset along this side's edges, over everything known so far.
+      const dist = new Map([[first.entity.id, 0]])
+      let frontier = [first.entity.id]
+      const next = new Map()
+      for (const e of edges.values()) {
+        const [at, far] = side === 'up' ? [e.toEntity, e.fromEntity] : [e.fromEntity, e.toEntity]
+        next.set(at, [...(next.get(at) ?? []), far])
+      }
+      for (let d = 1; frontier.length; d++) {
+        const after = []
+        for (const at of frontier) for (const far of next.get(at) ?? []) if (!dist.has(far)) { dist.set(far, d); after.push(far) }
+        frontier = after
+      }
+      const edge = [...dist].filter(([nid, d]) => d === reached && !asked.has(nid)).map(([nid]) => nid)
+      if (!edge.length) break
+      const step = Math.min(SERVER_LINEAGE_STEP, depth - reached)
+      for (let i = 0; i < edge.length; i += 4) {
+        if (requests >= SERVER_LINEAGE_MAX_REQUESTS || nodes.size >= SERVER_LINEAGE_MAX_ASSETS) {
+          truncated = true
+          break
+        }
+        const batch = edge.slice(i, i + Math.min(4, SERVER_LINEAGE_MAX_REQUESTS - requests))
+        requests += batch.length
+        const replies = await Promise.all(batch.map((nid) => {
+          asked.add(nid)
+          const ref = nodes.get(nid)
+          if (!ref?.type || !Object.hasOwn(TYPES, ref.type)) return null
+          return fetchOne(ref.type, nid, side === 'up' ? step : 0, side === 'down' ? step : 0).catch(() => null)
+        }))
+        for (const r of replies) {
+          if (!r) continue
+          for (const n of r.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n)
+          if (!nodes.has(r.entity.id) && r.entity.id !== first.entity.id) nodes.set(r.entity.id, r.entity)
+          for (const e of side === 'up' ? r.upstreamEdges : r.downstreamEdges) edges.set(`${e.fromEntity}>${e.toEntity}`, e)
+        }
+      }
+      if (truncated) break
+      reached += step
+    }
+  }
+  nodes.delete(first.entity.id)
+  const out = { entity: first.entity, nodes: [...nodes.values()], upstreamEdges: [...sides.up.values()], downstreamEdges: [...sides.down.values()] }
+  return truncated ? { ...out, truncated } : out
 }
 
 const isRefLike = (r) => r && typeof r === 'object' && typeof r.id === 'string' && typeof r.type === 'string'
@@ -433,13 +510,17 @@ function createServerService(deps = {}) {
       return { data: hits.map(searchRow), total: Math.max(total, hits.length) }
     },
 
-    /** Upstream and downstream assets: GET /lineage/{entityType}/{id}?upstreamDepth=&downstreamDepth= (0 to 3 each). */
+    /**
+     * Upstream and downstream assets: GET /lineage/{entityType}/{id}?upstreamDepth=&downstreamDepth=.
+     * The server answers 0 to 3 levels each; deeper (or 'all') walks on from the edge (deepLineage).
+     */
     async getLineage({ type, id, upstreamDepth, downstreamDepth } = {}) {
       const c = await guard()
       collectionOf(type)
       checkId(id)
-      const res = await c.get(`/lineage/${encodeURIComponent(type)}/${id}${query({ upstreamDepth: lineageDepth(upstreamDepth), downstreamDepth: lineageDepth(downstreamDepth) })}`)
-      return normalizeLineage(res, { type, id })
+      const fetchOne = async (t, i, up, down) =>
+        normalizeLineage(await c.get(`/lineage/${encodeURIComponent(t)}/${i}${query({ upstreamDepth: up, downstreamDepth: down })}`), { type: t, id: i })
+      return deepLineage(fetchOne, { type, id, upstreamDepth: lineageDepth(upstreamDepth), downstreamDepth: lineageDepth(downstreamDepth) })
     },
 
     /** Set an entity's description. The one write: OpenMetadata keeps the old text as a version. */
