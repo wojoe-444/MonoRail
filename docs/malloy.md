@@ -1,14 +1,16 @@
 ---
 audience: ai
-summary: Reference for the Malloy connector and backend: compiling models with the Malloy compiler and running them on BigQuery, opt-in and privacy rules.
+summary: Reference for MonoRail's built-in Malloy backend and its settings: compiling models with the Malloy compiler and running them on BigQuery, opt-in and privacy rules.
 ---
 
-# Malloy connector and backend
+# Malloy backend and settings
 
 MonoRail compiles Malloy models with `@malloydata/malloy` and runs them on
 BigQuery with `@malloydata/db-bigquery`, for the
 [OpenMetadata](guide/openmetadata.md#the-tabs) page's **Semantic models**,
-**Query builder** and **Malloy models** tabs. People: see the guide,
+**Query builder** and **Malloy models** tabs. Malloy ships with MonoRail:
+it is not a connection. Only BigQuery access comes from Connections (the
+Google Cloud connection). People: see the guide,
 [Malloy](guide/setup/malloy.md). The MetricFlow semantic layer is separate:
 [semantic.md](semantic.md).
 
@@ -16,11 +18,12 @@ BigQuery with `@malloydata/db-bigquery`, for the
 
 | File | What it does |
 | --- | --- |
-| `electron/connections/connectors/malloy.cjs` | Connector `malloy`, `parent: 'gcloud'`. Fields: `folder`, `project` (billing, optional), `location`, `run` (`off` by default), `maxScanGb` (default 1). `status()` reads the folder (file count) and `hasConnection('gcloud')`; no network. `credentials()` returns `{ folder, project, location, maxBytes, run }`, nothing secret. |
+| `electron/modules/malloy-settings.cjs` | Malloy's settings, no Electron: `settings.json` in the module's data folder with `folder`, `project` (billing, optional), `location`, `run` (`off` by default), `maxScanGb` (default 1). `settingsOf()` gives malloy-lib `{ folder, project, location, maxBytes, run }`, or undefined until a folder is picked. Until `settings.json` exists, a `malloy` entry an older version saved in `connections.json` is read (never changed). A damaged file is never overwritten; `reset()` moves it to `settings.json.damaged.bak`. |
 | `electron/modules/malloy-lib.cjs` | Everything, no Electron. `createMalloy({ settings, credentials, fs?, malloy?, bigquery?, authLibrary? })` returns `status`, `listModels`, `compile`, `sql`, `run`. Also `listFiles`, `resolveModel`, `problemsOf`, `startsWithSelect`. |
-| `electron/modules/malloy.cjs` | Backend module `malloy`: wires the service to `getCredentials('malloy')` and `getCredentials('gcloud')`. No `start()`, no files. |
+| `electron/modules/malloy.cjs` | Backend module `malloy`: wires the service to the settings store and `getCredentials('gcloud')`. Settings methods `getSettings`, `saveSettings` (project, location, run, scan limit, `forgetFolder`; never a path), `pickFolder` (system dialog, `desktopOnly`), `resetSettings`; `saveSettings` and `resetSettings` are in `REMOTE_DENY`. No `start()`. |
 | `electron/modules/malloy.test.cjs` | Offline tests: Malloy's real compiler against a `BigQueryConnection` subclass whose schema, dry-run and run calls are stubbed. |
 | `src/modules/openmetadata/tabs/semantic/malloyClient.ts` | Page client and types (`malloyCall`), with the browser dev server's sample answers. |
+| `src/modules/openmetadata/tabs/semantic/malloySettings.tsx` | The Malloy settings dialog (mounted once by the OpenMetadata page), `openMalloySettings()`, `pickMalloyFolder()` and `useMalloySettingsVersion()`, which the Malloy tabs use to read again after a change. The page sees the folder's name only. |
 
 ## Methods
 
@@ -32,14 +35,15 @@ BigQuery with `@malloydata/db-bigquery`, for the
 | `sql { path, query }` | The SQL a query compiles to and BigQuery's dry-run `estimate.bytes`. Runs nothing. | dry run (free) |
 | `run { path, query }` | Only when `run` is on. Compiles, refuses SQL that does not start with SELECT or WITH, dry-runs, refuses over `maxBytes`, then runs with `rowLimit` 1000 (`maximumBytesBilled` is set on the job too). Returns `fields` (name, type, `isMeasure`), `rows`, `totalRows`, `truncated`, `ms`. At most 2 at a time. | query (billed) |
 
-Blocks the page shows: `not-set-up` (no Malloy connection), `no-folder` /
+Blocks the page shows: `not-set-up` (no models folder picked yet), `no-folder` /
 `no-project`, `no-gcloud`, `run-off`.
 
 ## Rules
 
-- **Opt-in twice.** Nothing is read until the Malloy connection is added
-  (`settings()` returns undefined until then and no method touches the disk);
-  running is a second switch, off by default.
+- **Nothing until a folder is picked.** Malloy is built in, but nothing is
+  read until the user picks a models folder (`settings()` returns undefined
+  until then and no method touches the disk); running is a second switch,
+  off by default.
 - **Auth.** The Google Cloud connector's `credentials()` gives a short-lived
   access token (`gcloud auth print-access-token`); it goes into a
   `google-auth-library` `OAuth2Client` passed to `BigQueryConnection` as

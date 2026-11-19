@@ -1,17 +1,17 @@
 // Malloy on BigQuery, for the OpenMetadata page's Semantic models, Query
 // builder and Malloy models tabs. No Electron here, so tests can drive it.
 //
-// Models are the *.malloy files in the folder the Malloy connection names.
+// Models are the *.malloy files in the folder picked in Malloy settings (malloy-settings.cjs).
 // They compile with the real Malloy compiler (@malloydata/malloy); table
 // schemas and queries go to BigQuery with the user's own gcloud login (the
 // Google Cloud connection's access token, never stored). Rules:
-// - Nothing runs until the Malloy connection is added (createMalloy gets
+// - Nothing runs until a models folder is picked (createMalloy gets
 //   `settings()` returning undefined until then).
 // - Imports and listed files must stay inside the folder (real path), never
 //   follow links or junctions, and the page only ever sees relative paths.
-// - Running a query is a second switch on the connection ("Run queries"),
+// - Running a query is a second switch in the settings ("Run queries"),
 //   off by default. Every run is dry-run first and refused over the
-//   connection's scan limit; BigQuery also gets maximumBytesBilled. Only SQL
+//   scan limit in the settings; BigQuery also gets maximumBytesBilled. Only SQL
 //   that starts with SELECT or WITH is sent.
 // - Results are kept in memory only, capped at ROW_LIMIT rows.
 
@@ -264,7 +264,7 @@ function cellValue(v) {
 
 /**
  * The Malloy service. deps:
- * - settings(): the Malloy connection's settings, or undefined when it is not added
+ * - settings(): Malloy's settings, or undefined until a folder is picked
  *   ({ folder, project?, location?, maxBytes?, run: 'on' | 'off' })
  * - credentials(): the Google Cloud connection's { accessToken, project }
  * - fs, malloy, bigquery, authLibrary: injectable for tests
@@ -297,7 +297,7 @@ function createMalloy(deps = {}) {
   async function connection(s, refresh = false) {
     const t = await accessToken(refresh)
     const project = String(s.project ?? '').trim() || t.project
-    if (!project) throw new Error('Name a BigQuery project on the Malloy connection (or set one in gcloud): queries are billed to it.')
+    if (!project) throw new Error('Name a BigQuery project in Malloy settings (or set one in gcloud): queries are billed to it.')
     const maxBytes = String(Number(s.maxBytes) > 0 ? Math.floor(Number(s.maxBytes)) : DEFAULT_MAX_BYTES_BILLED)
     const key = [t.value, project, s.location ?? '', maxBytes].join('|')
     if (conn?.key === key) return conn.connection
@@ -431,7 +431,7 @@ function createMalloy(deps = {}) {
   async function run({ path: rel, query } = {}) {
     const ctx = await context()
     if (ctx.block) return { ok: false, block: ctx.block, problems: [] }
-    if (ctx.s.run !== 'on') return { ok: false, block: 'run-off', problems: [{ message: 'Running queries is off. Turn on "Run queries on BigQuery" in the Malloy connection.', severity: 'error' }] }
+    if (ctx.s.run !== 'on') return { ok: false, block: 'run-off', problems: [{ message: 'Running queries is off. Turn on "Run queries on BigQuery" in Malloy settings.', severity: 'error' }] }
     if (!String(query ?? '').trim()) return { ok: false, problems: [{ message: 'Write a query first.', severity: 'error' }] }
     if (running >= 2) return { ok: false, problems: [{ message: 'Two Malloy queries are already running. Wait for one to finish.', severity: 'error' }] }
     running++
@@ -445,7 +445,7 @@ function createMalloy(deps = {}) {
         est = { ...(await estimate(c, text)), maxBytesBilled: conn.maxBytes }
         if (est.error) return { ok: false, sql: text, estimate: est, problems: [{ message: `BigQuery's dry run failed: ${est.error}`, severity: 'error' }] }
         if (est.bytes > conn.maxBytes) {
-          return { ok: false, sql: text, estimate: est, problems: [{ message: `This query would scan ${fmtBytes(est.bytes)}, over the ${fmtBytes(conn.maxBytes)} limit on the Malloy connection. Add a filter or raise the limit.`, severity: 'error' }] }
+          return { ok: false, sql: text, estimate: est, problems: [{ message: `This query would scan ${fmtBytes(est.bytes)}, over the ${fmtBytes(conn.maxBytes)} limit in Malloy settings. Add a filter or raise the limit.`, severity: 'error' }] }
         }
         const started = Date.now()
         const result = await q.run({ rowLimit: ROW_LIMIT })

@@ -71,7 +71,7 @@ export function MalloyStrip({ state }: { state: MalloyModelsState }) {
             <span className="size-1.5 rounded-full bg-success" /> Runs on BigQuery
           </Badge>
         ) : (
-          <Badge variant="secondary" title="Turn on “Run queries on BigQuery” in the Malloy connection">
+          <Badge variant="secondary" title="Turn on “Run queries on BigQuery” in Malloy settings">
             Queries off
           </Badge>
         )}

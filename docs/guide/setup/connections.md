@@ -58,9 +58,6 @@ rule.
 - **MetricFlow**: optional. Your dbt project folder, for the
   [Semantic](semantic.md) connection. Running queries is a second switch, off by
   default. MonoRail never installs Python, dbt or MetricFlow.
-- **Malloy**: optional, under Google Cloud. A folder of Malloy models, for
-  the [Malloy](malloy.md) tabs of the OpenMetadata page. Running queries on
-  BigQuery is a second switch, off by default.
 - **OpenMetadata**: optional. Your OpenMetadata server and a bot token (or an
   email and password), for the [OpenMetadata](../openmetadata.md) page.
 

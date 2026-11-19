@@ -19,6 +19,7 @@ const REMOTE_DENY = Object.freeze({
   'agent-chat': ['setSystemPrompts', 'setSpending', 'allowOneMoreTurn', 'resetSpending', 'removeRepo'],
   browser: ['clearData'], // signs out of every site in the PC's in-app browser
   'agent-catalog': ['create', 'update', 'remove'], // subagent definitions change what agents may do
+  malloy: ['saveSettings', 'resetSettings'], // the folder read, the project billed and whether queries run
   extensions: ['confirm', 'cancel', 'uninstall', 'setEnabled', 'approve', 'reload', 'checkUpdates', 'stageUpdate', 'revokeFolder', 'saveSettings'],
   'app:email': ['saveConnectorConfig', 'signIn', 'cancelSignIn', 'removeAccount', 'discover', 'addStores', 'updateAccount'],
   'app:github-plus': ['saveSettings', 'saveBackup', 'removeBackup', 'removeRecent'],

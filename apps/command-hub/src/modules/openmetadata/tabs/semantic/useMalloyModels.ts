@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { parseMalloy, type MalloyModel } from './malloy'
+import { useMalloySettingsVersion } from './malloySettings'
 import { malloyCall, type MalloyCompiled, type MalloyStatus, type OutlineField, type OutlineSource } from './malloyClient'
 import type { MalloyListing } from './malloyTypes'
 
 /**
- * Every Malloy model file in the connection's folder, compiled by the real
+ * Every Malloy model file in the folder picked in Malloy settings, compiled by the real
  * Malloy compiler (at most three files at a time), and the sources they
  * define. A source imported into several files is listed once, under its own
  * file. The last answer is kept in memory so switching tabs paints at once.
@@ -59,6 +60,7 @@ export function useMalloyModels(): MalloyModelsState {
   const [loading, setLoading] = useState(!cache)
   const [compiling, setCompiling] = useState(0)
   const [run, setRun] = useState(0)
+  const settingsVersion = useMalloySettingsVersion()
 
   useEffect(() => {
     let live = true
@@ -101,7 +103,7 @@ export function useMalloyModels(): MalloyModelsState {
     return () => {
       live = false
     }
-  }, [run])
+  }, [run, settingsVersion])
 
   const parsed = useMemo(() => (raw.listing?.files ?? []).filter((f) => f.text !== undefined).map((f) => parseMalloy(f.path, f.text!)), [raw.listing])
 

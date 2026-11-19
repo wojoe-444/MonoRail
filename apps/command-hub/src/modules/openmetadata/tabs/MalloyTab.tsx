@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Box, CheckCircle2, Cloud, Columns3, Database, FileCode2, FileWarning, KeyRound, Loader2, Network, Play, RefreshCw, Sigma, Table2, Tag } from 'lucide-react'
+import { AlertTriangle, Box, Settings2, CheckCircle2, Cloud, Columns3, Database, FileCode2, FileWarning, KeyRound, Loader2, Network, Play, RefreshCw, Sigma, Table2, Tag } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 
 import { findSource, parseMalloy, type MalloyModel } from './semantic/malloy'
 import { MalloyBlockedCard } from './semantic/malloyBlocked'
+import { openMalloySettings, useMalloySettingsVersion } from './semantic/malloySettings'
 import { malloyCall, malloyName, type MalloyCompiled, type MalloyProblem, type MalloyStatus } from './semantic/malloyClient'
 import { MalloyCode } from './semantic/MalloyCode'
 import { malloyStarterQuery, malloyViewModel, type MalloyViewField, type MalloyViewModel, type MalloyViewSource } from './semantic/malloyOutline'
@@ -22,13 +23,13 @@ import { Empty, Overline } from './semantic/parts'
 import type { OmTabProps } from './types'
 
 /**
- * The Malloy models in the Malloy connection's folder, compiled by the real
+ * The Malloy models in the folder picked in Malloy settings, compiled by the real
  * Malloy compiler (backend module `malloy`) and run on BigQuery with the
  * user's gcloud login. The compiler's outline is the authority for sources,
  * fields, types and joins; a small tolerant reader supplies each field's
  * definition text and stands in while compiling or when compiling fails.
- * Read-only: no file is ever written. Nothing is read until the Malloy
- * connection is added, and nothing runs unless "Run queries" is on.
+ * Read-only: no file is ever written. Malloy ships with MonoRail: nothing is
+ * read until a models folder is picked, and nothing runs unless "Run queries" is on.
  */
 export default function MalloyTab(_props: OmTabProps) {
   const [data, setData] = useState<{ status: MalloyStatus; listing: MalloyListing }>()
@@ -36,6 +37,7 @@ export default function MalloyTab(_props: OmTabProps) {
   const [fetching, setFetching] = useState(true)
   const [gen, setGen] = useState(0)
   const bench = useMalloyBench()
+  const settingsVersion = useMalloySettingsVersion()
 
   useEffect(() => {
     let live = true
@@ -50,7 +52,7 @@ export default function MalloyTab(_props: OmTabProps) {
     return () => {
       live = false
     }
-  }, [gen])
+  }, [gen, settingsVersion])
 
   const reload = () => {
     setFetching(true)
@@ -160,11 +162,14 @@ function MalloyBrowser({ status, listing, fetching, onReload, bench }: { status:
               <span className="size-1.5 rounded-full bg-success" /> Queries on
             </Badge>
           ) : (
-            <Badge variant="secondary" title="Turn on “Run queries on BigQuery” in the Malloy connection">
+            <Badge variant="secondary" title="Turn on “Run queries on BigQuery” in Malloy settings">
               Queries off
             </Badge>
           )}
           <span>Read {formatRelative(listing.readAt)}</span>
+          <Button variant="ghost" size="sm" onClick={openMalloySettings} title="Models folder, billing project, running queries and the scan limit">
+            <Settings2 /> Settings
+          </Button>
           <Button variant="ghost" size="sm" disabled={fetching} onClick={onReload} title="Read the folder and compile again">
             {fetching ? <Loader2 className="animate-spin" /> : <RefreshCw />} Reload
           </Button>
@@ -180,7 +185,7 @@ function MalloyBrowser({ status, listing, fetching, onReload, bench }: { status:
       {!listing.files.length ? (
         <Card>
           <Empty icon={FileCode2} title={`No Malloy files in ${listing.folderName ?? 'the models folder'}`}>
-            .malloy files anywhere in the Malloy connection&apos;s folder show up here (folders starting with a dot, node_modules and target are skipped).
+            .malloy files anywhere in the models folder show up here (folders starting with a dot, node_modules and target are skipped).
           </Empty>
         </Card>
       ) : (

@@ -12,6 +12,7 @@ import { openWiki } from '@/modules/wiki/store'
 
 import { call, refreshData, setSource, useCall } from './api'
 import { OM_TABS, tabFromPath, tabPath } from './tabs'
+import { MalloySettingsDialog } from './tabs/semantic/malloySettings'
 import type { OmTabProps } from './tabs/types'
 import type { BqStatus, OmCounts, OmStatus } from './types'
 
@@ -106,6 +107,7 @@ export default function OpenMetadataPage() {
           <Tab key={`${tab.id}|${source ?? 'default'}|${refresh}`} {...props} />
         </Suspense>
       )}
+      <MalloySettingsDialog />
     </div>
   )
 }

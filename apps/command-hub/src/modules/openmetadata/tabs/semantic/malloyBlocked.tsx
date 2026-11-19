@@ -1,22 +1,26 @@
-import { Cable, Cloud, FolderOpen, PlugZap, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
+import { Cable, Cloud, FolderOpen, Loader2, RefreshCw, Settings2, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
+import { hasLocalScreen } from '@/modules/client'
 
-/** Why the Malloy tabs cannot read models yet, each pointing to Connections. */
+import { openMalloySettings, pickMalloyFolder } from './malloySettings'
+
+/** Why the Malloy tabs cannot read models yet. Malloy ships with MonoRail; only Google Cloud is a connection. */
 export type MalloyBlockedReason = 'not-set-up' | 'no-folder' | 'no-gcloud'
 
-const BLOCKS: Record<MalloyBlockedReason, { title: string; body: string; icon: typeof PlugZap; warn?: boolean }> = {
+const BLOCKS: Record<MalloyBlockedReason, { title: string; body: string; icon: typeof Sparkles; warn?: boolean }> = {
   'not-set-up': {
-    title: 'Malloy is not set up in MonoRail',
-    body: 'Malloy models (.malloy files) are compiled by the real Malloy compiler and run on BigQuery with your Google Cloud login. It is optional: on Connections, open Google Cloud and add Malloy, then pick the folder with your .malloy files. Until then MonoRail looks at nothing. Running queries stays off until you turn it on in that connection.',
-    icon: PlugZap,
+    title: 'Pick your Malloy models folder',
+    body: 'Malloy comes with MonoRail: it compiles your .malloy files with the real Malloy compiler and runs their queries on BigQuery with your Google Cloud login. Choose the folder that holds them; MonoRail only reads it. Running queries stays off until you turn it on in Malloy settings.',
+    icon: Sparkles,
   },
   'no-folder': {
     title: 'The Malloy models folder was not found',
-    body: 'The folder in the Malloy connection is missing or was moved. Edit the Malloy connection (under Google Cloud on Connections) and pick the folder again.',
+    body: 'The folder in Malloy settings is missing or was moved. Choose it again.',
     icon: FolderOpen,
     warn: true,
   },
@@ -30,6 +34,15 @@ const BLOCKS: Record<MalloyBlockedReason, { title: string; body: string; icon: t
 
 export function MalloyBlockedCard({ reason, onRetry, compact }: { reason: MalloyBlockedReason; onRetry?: () => void; compact?: boolean }) {
   const b = BLOCKS[reason]
+  const [busy, setBusy] = useState(false)
+  const pick = async () => {
+    setBusy(true)
+    try {
+      await pickMalloyFolder()
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Card className={cn('items-start gap-4 px-6', compact ? 'py-4 sm:flex-row sm:items-center' : 'py-8')}>
       <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', b.warn ? 'bg-warning-soft text-warning-soft-foreground' : 'bg-primary-soft text-primary-soft-foreground')}>
@@ -39,10 +52,21 @@ export function MalloyBlockedCard({ reason, onRetry, compact }: { reason: Malloy
         <h2 className={cn('font-semibold', compact ? 'text-base' : 'text-lg')}>{b.title}</h2>
         <p className="text-sm text-muted-foreground">{b.body}</p>
       </div>
-      <div className={cn('flex gap-2', compact && 'sm:ml-auto')}>
-        <Button onClick={() => navigate('/connections')}>
-          <Cable /> {reason === 'not-set-up' ? 'Set up on Connections' : 'Open Connections'}
-        </Button>
+      <div className={cn('flex flex-wrap gap-2', compact && 'sm:ml-auto')}>
+        {reason === 'no-gcloud' ? (
+          <Button onClick={() => navigate('/connections')}>
+            <Cable /> Open Connections
+          </Button>
+        ) : hasLocalScreen() ? (
+          <Button disabled={busy} onClick={pick}>
+            {busy ? <Loader2 className="animate-spin" /> : <FolderOpen />} Choose folder
+          </Button>
+        ) : null}
+        {reason !== 'no-gcloud' && (
+          <Button variant="outline" onClick={openMalloySettings}>
+            <Settings2 /> Malloy settings
+          </Button>
+        )}
         {onRetry && (
           <Button variant="outline" onClick={onRetry}>
             <RefreshCw /> Check again

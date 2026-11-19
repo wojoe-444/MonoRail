@@ -621,8 +621,14 @@ Malloy, below).
 `malloy` (docs: `docs/malloy.md`, guide `docs/guide/setup/malloy.md`) runs
 **real Malloy** (`@malloydata/malloy`, `@malloydata/db-bigquery`) for the
 OpenMetadata page's Semantic models, Query builder and Malloy models tabs.
-Connector `malloy` (`parent: 'gcloud'`: models folder, billing project,
-location, "Run queries on BigQuery" off by default, scan limit 1 GB). All of it
+Malloy ships with MonoRail: it is **not a connector**. Its settings (models
+folder picked in the system dialog via `pickFolder`, billing project,
+location, "Run queries on BigQuery" off by default, scan limit 1 GB) are
+`settings.json` in its data folder (`malloy-settings.cjs`; read from an older
+version's `malloy` connection entry until first saved, never changing it),
+edited in the page's Malloy settings dialog (`tabs/semantic/malloySettings.tsx`);
+nothing is read until a folder is picked. Only BigQuery access comes from
+Connections (gcloud). All of it
 is in `electron/modules/malloy-lib.cjs` (no Electron): models are the folder's
 `*.malloy` files (relative paths only, real-path checked, links never
 followed, imports through a URL reader with the same checks, never written);

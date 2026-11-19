@@ -1,22 +1,22 @@
-import { Cable, FileCode2, Loader2, Play, RotateCcw, Table2 } from 'lucide-react'
+import { FileCode2, Settings2, Loader2, Play, RotateCcw, Table2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { formatBytes } from '@/lib/format'
-import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 
 import type { MalloyBench } from './malloyBench'
 import { malloyName, type MalloySql, type MalloyStatus } from './malloyClient'
 import { malloyScanText } from './malloyFormat'
+import { openMalloySettings } from './malloySettings'
 import { MalloyProblems, MalloyResults } from './MalloyResults'
 import type { MalloyViewModel } from './malloyOutline'
 
 /*
  * The Malloy tab's workbench: one query editor per model with Show SQL
  * (compile + BigQuery dry run, runs nothing) and Run (only with "Run queries
- * on BigQuery" on in the Malloy connection). Queries live in memory only.
+ * on BigQuery" on in Malloy settings). Queries live in memory only.
  */
 
 export function MalloyWorkbench({ path, model, status, bench, starter }: { path: string; model: MalloyViewModel; status?: MalloyStatus; bench: MalloyBench; starter: string }) {
@@ -86,7 +86,7 @@ export function MalloyWorkbench({ path, model, status, bench, starter }: { path:
             <Button variant="outline" size="sm" disabled={!query.trim() || !!state.busy} onClick={() => go('sql')} title="Compile the query and dry-run it on BigQuery. Runs nothing.">
               {state.busy === 'sql' ? <Loader2 className="animate-spin" /> : <FileCode2 />} Show SQL
             </Button>
-            <Button size="sm" disabled={!canRun || !query.trim() || !!state.busy} onClick={() => go('run')} title={canRun ? 'Run on BigQuery (Ctrl+Enter)' : 'Turn on Run queries in the Malloy connection'}>
+            <Button size="sm" disabled={!canRun || !query.trim() || !!state.busy} onClick={() => go('run')} title={canRun ? 'Run on BigQuery (Ctrl+Enter)' : 'Turn on Run queries in Malloy settings'}>
               {state.busy === 'run' ? <Loader2 className="animate-spin" /> : <Play />} Run
             </Button>
             {query !== starter && (
@@ -96,10 +96,10 @@ export function MalloyWorkbench({ path, model, status, bench, starter }: { path:
             )}
             <span className="ml-auto text-xs text-muted-foreground">
               {canRun ? (
-                <>Ctrl+Enter runs · at most {status?.maxBytesBilled ? formatBytes(status.maxBytesBilled) : 'the connection’s limit'} scanned per query</>
+                <>Ctrl+Enter runs · at most {status?.maxBytesBilled ? formatBytes(status.maxBytesBilled) : 'the scan limit'} scanned per query</>
               ) : (
-                <button type="button" className="inline-flex items-center gap-1 hover:underline" onClick={() => navigate('/connections')}>
-                  <Cable className="size-3" /> Turn on Run queries in the Malloy connection
+                <button type="button" className="inline-flex items-center gap-1 hover:underline" onClick={openMalloySettings}>
+                  <Settings2 className="size-3" /> Turn on Run queries in Malloy settings
                 </button>
               )}
             </span>

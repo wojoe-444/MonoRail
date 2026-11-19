@@ -132,7 +132,7 @@ function Builder({ state, initial }: { state: MalloyModelsState; initial?: Mallo
   const query = ready ? buildMalloyQuery(spec, fields) : ''
   const orderChoices = outputNames([...dims, ...measures]).map((n) => n.name)
   const status = state.status
-  const runReason = !status?.run ? 'Running queries is off: turn on “Run queries on BigQuery” in the Malloy connection on Connections.' : !ready ? 'Pick a field or a view first.' : undefined
+  const runReason = !status?.run ? 'Running queries is off: turn on “Run queries on BigQuery” in Malloy settings.' : !ready ? 'Pick a field or a view first.' : undefined
 
   const toggle = (f: PickField) => {
     if (f.kind === 'view') {
