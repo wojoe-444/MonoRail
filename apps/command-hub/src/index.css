@@ -286,6 +286,11 @@ html[data-backdrop="panel"] [data-slot="sidebar"] {
   background-origin: border-box;
   text-shadow: 0 1px 3px oklch(0 0 0 / 0.35);
 }
+/* The page sheet's top margin moves the top bar down; the brand header follows so their lines meet. */
+html[data-backdrop="panel"] [data-slot="sidebar-brand"] {
+  height: calc(2.5rem + 0.625rem);
+  padding-top: 0.625rem;
+}
 html[data-backdrop="panel"] [data-slot="app-body"] {
   margin: 0.625rem 0.625rem 0.625rem 0;
   border-radius: calc(var(--radius) + 0.5rem);
