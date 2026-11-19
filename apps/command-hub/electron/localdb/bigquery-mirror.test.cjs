@@ -208,6 +208,16 @@ describe('BigQuery metadata copy', () => {
     assert.equal(c.queries.length, before)
   })
 
+  test('the setup SQL and sync query quote AT, a reserved word in BigQuery', () => {
+    const sql = mirror.setupSql('chicago-transit', 'METADATA')
+    assert.match(sql, /^  `at` TIMESTAMP NOT NULL/m)
+    assert.match(sql, /PARTITION BY DATE\(`at`\)/)
+    assert.doesNotMatch(sql, /^\s*at TIMESTAMP|DATE\(at\)/m)
+    const q = mirror.incrementalSql('record', { projectId: 'p', datasetId: 'd', jsonType: 'JSON', since: 0 })
+    assert.match(q, /UNIX_MILLIS\(`at`\)/)
+    assert.match(q, /WHERE `at` >=/)
+  })
+
   test('a different project or dataset empties the copy first', async () => {
     const store = openDatabase(tmp(), { file: 'bigquery.sqlite3' })
     await mirror.syncMirror({ client: fakeBigQuery({ tables: { entity: [ent(1), ent(2)] } }), store, config: CONFIG })

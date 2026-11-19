@@ -39,7 +39,7 @@ MySQL/Postgres schema (`table_entity` plus `entity_relationship` and
 
 `version` may also be NUMERIC or INT64; `json` may be STRING holding JSON.
 Partition `entity` and `entity_version` on `DATE(updated_at)` and `record` on
-`DATE(at)`. Without partitioning, each incremental sync scans the whole
+``DATE(`at`)`` (`at` is a reserved word in BigQuery, so it is quoted). Without partitioning, each incremental sync scans the whole
 `json` column. `setupSql(project, dataset, location)` in
 `electron/localdb/bigquery-mirror.cjs` returns the DDL: every statement `IF NOT
 EXISTS`, and the layout row inserted only when missing, so it is safe to run
