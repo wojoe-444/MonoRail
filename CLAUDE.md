@@ -1395,7 +1395,11 @@ numbers in Cascadia Mono (`font-mono`, a Windows system font with Consolas
 as fallback, nothing bundled). **JetBrains Mono is banned app-wide**: never use
 it, bundle it or name it in a font stack, SVG or extension theme; pick another
 font if `font-mono` ever needs replacing. Use the primitives in
-`components/ui/` rather than hand-rolled one-off styles.
+`components/ui/` rather than hand-rolled one-off styles. Scrollbars are one
+app-wide floating pill (`::-webkit-scrollbar` rules in `@layer base` of
+`index.css`: no track or arrows, a 6px capsule in `--foreground` ink); never
+set `scrollbar-width` or `scrollbar-color` globally, which makes Chromium
+drop those rules, and don't restyle a page's scrollbar one-off.
 
 ### Layout, spacing, hierarchy
 
