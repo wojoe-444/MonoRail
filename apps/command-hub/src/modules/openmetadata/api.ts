@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { invokeModule, isDesktop } from '@/modules/client'
 
@@ -26,6 +26,23 @@ export function call<T>(method: string, args?: Record<string, unknown>): Promise
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
+/**
+ * Bumped when the catalog's data changed under the page (a BigQuery sync
+ * finished). Every useCall then reloads in place, keeping its data meanwhile,
+ * so open lists and entities refresh without the page losing its place.
+ */
+let dataVersion = 0
+const dataListeners = new Set<() => void>()
+export function refreshData() {
+  dataVersion++
+  for (const l of dataListeners) l()
+}
+const subscribeData = (l: () => void) => {
+  dataListeners.add(l)
+  return () => void dataListeners.delete(l)
+}
+export const useDataVersion = () => useSyncExternalStore(subscribeData, () => dataVersion)
+
 export interface CallState<T> {
   data: T | undefined
   error: string | undefined
@@ -42,6 +59,7 @@ export function useCall<T>(method: string, args: Record<string, unknown> | null)
   const [state, setState] = useState<{ key: string | null; data?: T; error?: string; loading: boolean }>({ key: null, loading: false })
   const [tick, setTick] = useState(0)
   const seq = useRef(0)
+  const version = useDataVersion()
 
   useEffect(() => {
     if (key === null) return
@@ -51,7 +69,7 @@ export function useCall<T>(method: string, args: Record<string, unknown> | null)
       (data) => id === seq.current && setState({ key, data, loading: false }),
       (e: unknown) => id === seq.current && setState({ key, error: errorText(e), loading: false }),
     )
-  }, [method, key, tick])
+  }, [method, key, tick, version])
 
   const reload = useCallback(() => setTick((n) => n + 1), [])
   const current = state.key === key

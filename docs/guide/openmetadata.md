@@ -67,7 +67,8 @@ keeps a **copy on your PC** and reads that. The first sync downloads
 everything, which is free in BigQuery because it runs no query. After that,
 each sync only fetches what changed, by default once an hour while MonoRail
 is open. You can also press **Sync now**, or **Full refresh** to download
-everything again.
+everything again. When a sync finishes while the page is open, whatever
+you are looking at updates by itself.
 
 ### Set it up
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { BookOpen, Cable, Database, Loader2, PlugZap, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react'
 
 import { PageCommandBar } from '@/components/layout/PageCommandBar'
@@ -12,10 +12,10 @@ import { navigate, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { openWiki } from '@/modules/wiki/store'
 
-import { setSource, useCall, type Source } from './api'
+import { call, refreshData, setSource, useCall, type Source } from './api'
 import { OM_TABS, tabFromPath, tabPath } from './tabs'
 import type { OmTabProps } from './tabs/types'
-import type { OmCounts, OmStatus } from './types'
+import type { BqStatus, OmCounts, OmStatus } from './types'
 
 const SOURCE_KEY = 'monorail.openmetadata.source'
 const savedSource = (): Source | undefined => {
@@ -70,6 +70,7 @@ export default function OpenMetadataPage() {
     status.reload()
     counts.reload()
   }
+  useBigQuerySyncWatch(source === 'bigquery' && ready ? status.data?.bigquery : undefined, status.reload)
   const busy = status.loading || counts.loading
   const Tab = TAB_COMPONENTS[tab.id]
   const props: OmTabProps = { status: status.data, counts, source, reload }
@@ -132,6 +133,60 @@ export default function OpenMetadataPage() {
       )}
     </div>
   )
+}
+
+/** How often the page looks at the BigQuery copy's status: while a sync runs, and otherwise. */
+const WATCH_RUNNING_MS = 5_000
+const WATCH_IDLE_MS = 30_000
+
+/**
+ * Keeps the page current with the BigQuery copy: whenever a sync finishes
+ * (Sync now, Full refresh, or the schedule while the page is open), every
+ * open list and entity reloads in place. The status call only reads the
+ * copy's meta table, so looking every 30 seconds starts no sync and no
+ * BigQuery request; it is skipped while the window is hidden.
+ */
+function useBigQuerySyncWatch(bq: BqStatus | undefined, reloadStatus: () => void) {
+  const lastAt = bq?.last?.at
+  const running = !!bq?.running
+  const watching = !!bq
+
+  // A finished sync wrote a new last result (or the first one): reload everything.
+  // null: nothing seen yet for this source, so the first status only sets the mark.
+  const seen = useRef<string | undefined | null>(null)
+  useEffect(() => {
+    if (!watching) {
+      seen.current = null
+      return
+    }
+    if (seen.current !== null && lastAt && seen.current !== lastAt) refreshData()
+    seen.current = lastAt
+  }, [watching, lastAt])
+
+  // Look again quietly; reload the status (and with it the note) only when it moved.
+  const now = useRef({ lastAt, running })
+  useEffect(() => {
+    now.current = { lastAt, running }
+  })
+  useEffect(() => {
+    if (!watching) return
+    let live = true
+    const t = setInterval(() => {
+      if (document.hidden) return
+      call<OmStatus>('status', { source: 'bigquery' }).then(
+        (s) => {
+          if (!live) return
+          const next = s.bigquery
+          if (next?.last?.at !== now.current.lastAt || !!next?.running !== now.current.running) reloadStatus()
+        },
+        () => undefined,
+      )
+    }, running ? WATCH_RUNNING_MS : WATCH_IDLE_MS)
+    return () => {
+      live = false
+      clearInterval(t)
+    }
+  }, [watching, running, reloadStatus])
 }
 
 /** A small icon button for the command bar, named in a tooltip. */

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, Check, Copy, DatabaseZap, FileCode, Loader2, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -37,16 +37,8 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
   const busy = !!syncing || !!status.running
   const last = status.last
 
-  // A sync started by the schedule: look again until it is done.
-  const changed = useRef(onChanged)
-  useEffect(() => {
-    changed.current = onChanged
-  })
-  useEffect(() => {
-    if (!status.running || syncing) return
-    const t = setInterval(() => changed.current(), 5000)
-    return () => clearInterval(t)
-  }, [status.running, syncing])
+  // A sync started by the schedule is followed by the page (useBigQuerySyncWatch),
+  // which also reloads every open list and entity when one finishes.
 
   async function sync(full: boolean) {
     setSyncing(full ? 'full' : 'now')
