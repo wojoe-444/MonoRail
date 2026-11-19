@@ -150,10 +150,10 @@ CREATE TABLE IF NOT EXISTS ${t('record')} (
   kind STRING NOT NULL,        -- tableProfile, pipelineStatus, ...
   owner STRING NOT NULL,       -- the entity id it belongs to
   key STRING NOT NULL,
-  at TIMESTAMP NOT NULL,
+  \`at\` TIMESTAMP NOT NULL,   -- AT is reserved in BigQuery, so quoted
   json JSON NOT NULL
 )
-PARTITION BY DATE(at)
+PARTITION BY DATE(\`at\`)
 CLUSTER BY kind, owner;
 
 -- Says which layout this dataset holds.
@@ -315,9 +315,9 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY updated_at DESC, version DES
 FROM ${from}
 WHERE updated_at >= TIMESTAMP_MILLIS(${s})`
   }
-  return `SELECT kind, owner, key, UNIX_MILLIS(at) AS at_ms, ${json} AS json
+  return `SELECT kind, owner, key, UNIX_MILLIS(\`at\`) AS at_ms, ${json} AS json
 FROM ${from}
-WHERE at >= TIMESTAMP_MILLIS(${s})`
+WHERE \`at\` >= TIMESTAMP_MILLIS(${s})`
 }
 
 /**
