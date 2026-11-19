@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ChevronRight, ClipboardPaste, Copy, ExternalLink, FilePlus2, FolderOpen, FolderPlus, Link2, Loader2, PanelTop, Pencil, Pin, Scissors, Search, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, ClipboardPaste, Copy, ExternalLink, FilePlus2, FolderOpen, FolderPlus, GitBranch, Link2, Loader2, PanelTop, Pencil, Pin, Scissors, Search, Trash2 } from 'lucide-react'
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
@@ -675,7 +675,7 @@ function Column({ entries, ctx, pickedPath, onPick }: { entries: FileEntry[]; ct
 function StatusBar({ listing, entries, selection, loading, search }: { listing: Listing | null; entries: FileEntry[]; selection: FileEntry[]; loading: boolean; search: SearchResult | null }) {
   const selBytes = selection.reduce((s, e) => s + (e.kind === 'file' ? e.size : 0), 0)
   return (
-    <div className="flex h-9 shrink-0 items-center gap-3 border-t px-3 text-xs text-muted-foreground">
+    <div className="flex h-7 shrink-0 items-center gap-3 border-t bg-background px-3 text-xs text-muted-foreground">
       {loading && <Loader2 className="size-3.5 animate-spin" />}
       <span className="tabular-nums">
         {entries.length.toLocaleString()} {entries.length === 1 ? 'item' : 'items'}
@@ -688,9 +688,15 @@ function StatusBar({ listing, entries, selection, loading, search }: { listing: 
       )}
       {!!listing?.hiddenCount && <span>{listing.hiddenCount} hidden</span>}
       {listing?.truncated && <span className="text-warning-soft-foreground">Showing the first 20,000</span>}
+      <span className="ml-auto" />
       {search && !loading && (
-        <span className="ml-auto flex items-center gap-1">
+        <span className="flex items-center gap-1">
           <Search className="size-3" /> {search.visited.toLocaleString()} looked at in {(search.ms / 1000).toFixed(1)} s
+        </span>
+      )}
+      {listing?.git && (
+        <span className="flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 font-medium text-success-soft-foreground" title={listing.git.root}>
+          <GitBranch className="size-3" /> {listing.git.branch}
         </span>
       )}
     </div>

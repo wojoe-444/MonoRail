@@ -14,6 +14,7 @@ export const filesModule: ModuleDefinition = {
   icon: FolderOpen,
   path: '/files',
   nav: { section: 'Workspace', parent: '/tools' },
+  layout: 'full',
   component: lazy(() => import('./FilesPage')),
   dataMethods: ['places', 'list', 'preview', 'thumbnail', 'search', 'folderSize', 'statMany', 'createFolder', 'createFile', 'rename', 'paste', 'trash', 'open', 'reveal'],
 }
