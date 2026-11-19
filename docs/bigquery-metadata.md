@@ -120,6 +120,16 @@ used, so no version is bumped. Sync state lives in the copy's `meta`:
   Manual never runs by itself. One sync runs at a time; Sync now joins a
   running one. It shows on Scheduled > In-App (provider `openmetadata`).
 
+## On Explore
+
+[Explore](guide/explore.md#where-databases-come-from) lists the copy's
+entities next to its other sources: `openmetadata.explore` returns every
+entity that is not deleted (`everything()` in the store, by type and full
+name, at most 5,000, with `truncated` and `total`), and the page makes each
+one an entry of its standard type (types the standard lacks are skipped). It
+only reads the copy: it never syncs and never creates the copy file, so
+nothing shows before the first sync.
+
 ## On the Services page
 
 The connector declares `service: { category: 'metadataService', serviceType:

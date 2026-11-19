@@ -470,6 +470,8 @@ function createService(deps = {}) {
     syncBigQuery: (args = {}) => bq.sync({ full: args.full === true }),
     /** SQL that creates the layout in the connection's dataset; text for the user to run. */
     bigquerySetupSql: () => bq.setupSql(),
+    /** For Explore: the BigQuery copy's entities, when BigQuery metadata is set up and synced. */
+    explore: () => bq.exploreEntities(),
     bigquery: bq,
   }
 }
@@ -489,6 +491,7 @@ module.exports = {
     setDescription: (_ctx, args) => svc().setDescription(args),
     syncBigQuery: (_ctx, args) => svc().syncBigQuery(args),
     bigquerySetupSql: () => svc().bigquerySetupSql(),
+    explore: () => svc().explore(),
   },
   /** The BigQuery copy (one per app), for the Services page. */
   bigquerySource: () => svc().bigquery,
