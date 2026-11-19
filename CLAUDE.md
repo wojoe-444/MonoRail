@@ -613,9 +613,10 @@ verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
 
 `semantic` (docs: `docs/semantic.md`, guide `docs/guide/setup/semantic.md`) is a
 dbt project's semantic layer, powered by the user's own MetricFlow (`mf`).
-**The Semantic page was emptied** (no module, no nav item: the Insights slot
-shows OpenMetadata); the backend, the MetricFlow connector, Explore's use of
-`getProject` and the MCP tools stay, and `query`/`explain` have no page caller.
+It has no module or nav item of its own: its UI is the OpenMetadata page's
+Semantic models, Metrics, Query builder and Malloy models tabs
+(`src/modules/openmetadata/tabs/`). `malloyModels` lists the `*.malloy`
+files in the project folder (relative paths and text only, read-only).
 **Opt-in twice:** nothing runs until the user adds the
 **MetricFlow** connector (`connectors/metricflow.cjs`: project folder, and
 "Run queries with MetricFlow", off by default); browsing reads only
@@ -1348,9 +1349,21 @@ one type's list (owners, tags, include deleted, load more) and one entity
 properties, columns or fields, references, lineage (data and AI assets;
 `getLineage`: `GET /lineage/{type}/{id}` on the server, the lineage table for
 local and BigQuery, one EntityLineage shape), versions, raw JSON) follow. Field
-descriptions come from the standard for adopted types. The page keeps its
-place in component state (module routes match exact paths, so no query
-string). Connector `openmetadata` (`electron/connections/connectors/`): server
+descriptions come from the standard for adopted types. **Tabs**: the page is
+a set of tabs after the MonoRail-Metadata app's drawer (`tabs.ts` `OM_TABS`:
+Home, Catalog (the every-type browser above, `tabs/CatalogTab.tsx`), Explore,
+Lineage, Semantic models, Metrics, Query builder, Malloy models, Glossary,
+Classifications, Domains, Data quality, Insights, Services, Teams and users;
+one file each in `tabs/`). Each tab is its own route, `/openmetadata/<id>`
+(Home is `/openmetadata`; `findModuleByPath` / `findNavItem` map the prefix to
+the module), shown as chips in a **command bar** in the top bar
+(`PageCommandBar` + `PageTabs` in `components/layout/`, monorail-ui's header
+style A; `TopBarSlot.tsx` lets a page take the breadcrumb's place). The shell
+(`OpenMetadataPage.tsx`) owns status, the source switch and Refresh;
+`catalog: true` tabs wait for the catalog and get `OmTabProps`, the semantic
+tabs (MetricFlow, `semantic` backend) render without it. Other tabs open an
+entity in Catalog with `openInCatalog({ type, fqn })` (in memory). Catalog
+keeps its place in component state. Connector `openmetadata` (`electron/connections/connectors/`): server
 (https, or http on localhost) plus a bot token, or an email and password
 exchanged at `POST /api/v1/users/login` (password base64); opt-in like every
 connector. Backend `electron/modules/openmetadata.cjs`: the page sends an

@@ -47,5 +47,7 @@ export function allModules(list: ExtensionList = getExtensionList()): ModuleDefi
 export function findModuleByPath(path: string, list?: ExtensionList): ModuleDefinition | undefined {
   if (path === '/agents/chat') path = '/agents'
   if (path === '/semantic') path = '/openmetadata'
+  // OpenMetadata's tabs are its own routes (src/modules/openmetadata/tabs.ts).
+  if (path.startsWith('/openmetadata/')) path = '/openmetadata'
   return allModules(list).find((m) => m.path === path)
 }

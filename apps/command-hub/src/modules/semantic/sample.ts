@@ -1,4 +1,4 @@
-import type { GroupByDimension, SemanticModel, SemanticProject } from './types'
+import type { ExplainResult, GroupByDimension, QueryRequest, QueryResult, SemanticModel, SemanticProject } from './types'
 
 // Fictional sample data for the browser dev server, which has no backend.
 // "Lantern Coffee" is made up: a small coffee chain's dbt project.
@@ -131,4 +131,62 @@ export const sampleProject: SemanticProject = {
     { name: 'roast_mix', description: 'What sells, by roast.', metrics: ['items_sold'], groupBy: ['product__roast'], where: ["{{ TimeDimension('metric_time', 'day') }} >= '2026-08-01'"] },
   ],
   readAt: new Date().toISOString(),
+}
+
+/** A made-up answer shaped like the request, so the page can be tried in the browser. */
+export function sampleQuery(req: QueryRequest): QueryResult {
+  const time = req.groupBy.find((g) => g.startsWith('metric_time'))
+  const cats = req.groupBy.filter((g) => !g.startsWith('metric_time'))
+  const grain = time?.split('__')[1] ?? 'day'
+  const values: Record<string, string[]> = {
+    order__channel: ['In store', 'App', 'Web'],
+    customer__region: ['North', 'Harbor', 'Old Town', 'Hillside'],
+    customer__segment: ['Regular', 'Occasional', 'New'],
+    store__city: ['Brackenford', 'Lowmere', 'Ashby Cross'],
+    store__store_format: ['Cafe', 'Kiosk', 'Roastery'],
+    product__category: ['Espresso drinks', 'Filter', 'Beans', 'Pastry'],
+    product__roast: ['Light', 'Medium', 'Dark'],
+    order__order_status: ['completed', 'refunded'],
+    order__is_first_order: ['false', 'true'],
+  }
+  const steps = time ? 12 : 1
+  const stepDays = { day: 1, week: 7, month: 30, quarter: 91, year: 365 }[grain] ?? 7
+  const start = new Date('2026-08-03T00:00:00Z')
+  const catLists = cats.map((c) => values[c] ?? ['A', 'B'])
+  const combos: string[][] = catLists.reduce<string[][]>((acc, list) => acc.flatMap((a) => list.map((v) => [...a, v])), [[]])
+  const rows: (string | number | null)[][] = []
+  let seed = 7
+  const rand = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280)
+  for (let i = 0; i < steps; i++) {
+    const d = new Date(start.getTime() + i * stepDays * 86400000).toISOString().slice(0, 10)
+    combos.forEach((combo, ci) => {
+      const share = 1 / (ci + 1.4)
+      const row: (string | number | null)[] = []
+      if (time) row.push(d)
+      row.push(...combo)
+      for (const m of req.metrics) {
+        const base = { revenue: 18400, orders: 2100, items_sold: 3900, item_revenue: 17100, discounts: 920, new_customers: 140 }[m] ?? 1000
+        const scale = (stepDays / 7) * share * (1 + i * 0.025) * (0.9 + rand() * 0.2)
+        if (m === 'average_order_value') row.push(Math.round((8.4 + rand() * 0.8) * 100) / 100)
+        else if (m === 'discount_rate' || m === 'revenue_growth_mom') row.push(Math.round((0.03 + rand() * 0.04) * 1000) / 1000)
+        else row.push(Math.round(base * scale))
+      }
+      rows.push(row)
+    })
+  }
+  return { columns: [...(time ? [time] : []), ...cats, ...req.metrics], rows: rows.slice(0, req.limit ?? 1000), ms: 1840 }
+}
+
+export function sampleExplain(req: QueryRequest): ExplainResult {
+  const time = req.groupBy.find((g) => g.startsWith('metric_time'))
+  return {
+    sql: `-- Compiled by MetricFlow (sample)
+SELECT
+  ${time ? `DATE_TRUNC('${time.split('__')[1] ?? 'day'}', orders_src.ordered_at) AS ${time},\n  ` : ''}${req.groupBy.filter((g) => g !== time).map((g) => `${g.split('__')[0]}_src.${g.split('__')[1]} AS ${g}`).join(',\n  ')}${req.groupBy.length > (time ? 1 : 0) ? ',\n  ' : ''}${req.metrics.map((m) => `SUM(orders_src.${m === 'orders' ? 'order_count' : 'order_total'}) AS ${m}`).join(',\n  ')}
+FROM analytics.fct_orders orders_src
+LEFT OUTER JOIN analytics.dim_customers customer_src
+  ON orders_src.customer_id = customer_src.customer_id
+GROUP BY ${req.groupBy.map((_, i) => i + 1).join(', ') || '1'}
+${req.limit ? `LIMIT ${req.limit}` : ''}`,
+  }
 }

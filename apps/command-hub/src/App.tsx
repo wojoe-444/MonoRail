@@ -7,6 +7,7 @@ import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
+import { TopBarSlotProvider } from '@/components/layout/TopBarSlot'
 import { HeaderRevealProvider, HeaderRevealTrigger } from '@/components/layout/HeaderReveal'
 import { Inspector } from '@/components/dev/Inspector'
 import { CommandPalette } from '@/components/search/CommandPalette'
@@ -106,6 +107,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
+      <TopBarSlotProvider>
       <div className="flex h-full overflow-hidden">
         <SideNav
           current={current?.path ?? path}
@@ -149,6 +151,7 @@ export default function App() {
           )}
         </div></HeaderRevealProvider>
       </div>
+      </TopBarSlotProvider>
       <CommandPalette />
       <UpdateToast />
       <TourHost />
