@@ -294,6 +294,22 @@ describe('BigQuery as the OpenMetadata page source', () => {
     assert.equal(row.where.path, '/openmetadata')
   })
 
+  test('Explore gets the copy: entities that are not deleted, with their type; nothing before a sync', async () => {
+    const { bq, client } = setup({ client: fakeBigQuery({ tables: { entity: [ent(1), ent(2), ent(3, { deleted: true }), ent(4, { type: 'dataProduct' })] } }) })
+    const before = await bq.exploreEntities()
+    assert.equal(before.synced, false)
+    assert.deepEqual(before.entities, [])
+    assert.equal(client.listed.length, 0, 'Explore never starts a sync')
+    await bq.sync()
+    const after = await bq.exploreEntities()
+    assert.equal(after.synced, true)
+    assert.equal(after.source, 'chicago-transit.METADATA')
+    assert.deepEqual(after.entities.map((e) => [e.entityType, e.fullyQualifiedName]), [['dataProduct', 'svc.db.sch.t4'], ['table', 'svc.db.sch.t1'], ['table', 'svc.db.sch.t2']])
+    assert.equal(after.total, 3)
+    assert.equal(after.truncated, false)
+    assert.deepEqual(await setup({ setUp: false }).bq.exploreEntities(), { setUp: false, source: undefined, synced: false, entities: [], total: 0 })
+  })
+
   test('nothing runs while it is not set up, or when refreshing is manual', async () => {
     const off = setup({ setUp: false })
     await off.bq.tick()

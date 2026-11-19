@@ -16,6 +16,8 @@ const mirrorLib = require('../localdb/bigquery-mirror.cjs')
 const KIND = 'bigquery-metadata'
 const RETRY_MS = 15 * 60_000
 const TICK_MS = 60_000
+/** Explore flattens every field of every entry, so it gets at most this many. */
+const EXPLORE_LIMIT = 5000
 
 const EVERY_TEXT = { '15m': 'Every 15 minutes', '1h': 'Every hour', '6h': 'Every 6 hours', '24h': 'Once a day', manual: 'Only on Sync now' }
 
@@ -140,12 +142,23 @@ function createBigQuerySource(deps = {}) {
     ]
   }
 
+  /**
+   * The copy's entities for Explore (not deleted, at most 5,000). Reads the
+   * copy only: never syncs, never creates the copy file.
+   */
+  async function exploreEntities() {
+    const s = await status()
+    if (!s.setUp || !s.synced || !exists()) return { setUp: s.setUp, source: s.source, synced: false, entities: [], total: 0 }
+    const { entities, total } = store().everything(EXPLORE_LIMIT)
+    return { setUp: true, source: s.source, synced: true, entities, total, truncated: total > entities.length }
+  }
+
   async function setupSql() {
     const cfg = await config()
     return { sql: mirrorLib.setupSql(cfg.projectId, cfg.datasetId), source: cfg.source }
   }
 
-  return { isSetUp, status, sync, tick, inAppRows, setupSql, store, exists }
+  return { isSetUp, status, sync, tick, inAppRows, setupSql, exploreEntities, store, exists }
 }
 
 module.exports = { createBigQuerySource, KIND, TICK_MS }

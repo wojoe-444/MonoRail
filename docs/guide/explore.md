@@ -47,6 +47,14 @@ tables, views and columns of a SQLite database, row counts from a profiler
 run, and the models, sources and lineage of a dbt project. Their full names
 start with the service, such as `local_sqlite.main.main.notes`.
 
+When a BigQuery dataset is
+[the source of truth for your metadata](openmetadata.md#bigquery-as-the-source-of-truth),
+Explore lists everything in it too, from the copy MonoRail keeps on your PC:
+tables, glossary terms, data products, users and every other kind it holds,
+each under its own category. Deleted ones are left out. Explore never syncs
+the copy itself: after a change in BigQuery, press **Sync now** on the
+OpenMetadata page (or wait for the next sync), then **Refresh** here.
+
 To see what is in an OpenMetadata server itself, every kind of entity it
 has, open the [OpenMetadata](openmetadata.md) page.
 

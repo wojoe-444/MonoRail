@@ -125,6 +125,8 @@ function createEntityStore(db) {
     removeVersions: q('DELETE FROM entity_version WHERE id = ?'),
     counts: q('SELECT type, count(*) AS n FROM entity WHERE deleted = 0 GROUP BY type'),
     recent: q('SELECT type, json FROM entity WHERE deleted = 0 ORDER BY updated_at DESC LIMIT ?'),
+    everything: q('SELECT type, json FROM entity WHERE deleted = 0 ORDER BY type, fqn LIMIT ?'),
+    countLive: q('SELECT count(*) AS n FROM entity WHERE deleted = 0'),
     all: q('SELECT json FROM entity WHERE type = ? ORDER BY fqn'),
     putRecord: q('INSERT OR REPLACE INTO record (kind, owner, key, at, json) VALUES (?, ?, ?, ?, ?)'),
     records: q('SELECT json FROM record WHERE kind = ? AND owner = ? ORDER BY at DESC LIMIT ?'),
@@ -221,6 +223,11 @@ function createEntityStore(db) {
     versions: (id) => s.versions.all(id).map(parse),
     /** Latest changes across every type, with `entityType` as on OpenMetadata's search results. */
     recent: (n = 30) => s.recent.all(Math.max(1, Math.min(100, n))).map((r) => ({ ...JSON.parse(r.json), entityType: r.type })),
+    /** Every entity that is not deleted, by type and full name, at most `limit`, with `entityType`; and how many there are. */
+    everything(limit = 5000) {
+      const n = Math.max(1, Math.min(20_000, Number(limit) || 5000))
+      return { entities: s.everything.all(n).map((r) => ({ ...JSON.parse(r.json), entityType: r.type })), total: s.countLive.get().n }
+    },
 
     // Records: small JSON documents that are not entities, newest first by `at`.
     putRecord: (kind, owner, key, at, value) => void s.putRecord.run(kind, owner, key, at, JSON.stringify(value)),

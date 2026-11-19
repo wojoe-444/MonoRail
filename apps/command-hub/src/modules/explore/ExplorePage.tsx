@@ -148,6 +148,26 @@ function ingestionEntries(data?: IngestionExplore): Entry[] {
   return out
 }
 
+type BigQueryEntity = Record<string, unknown> & { entityType: string; name?: string; displayName?: string; fullyQualifiedName?: string; description?: string }
+type BigQueryExplore = { setUp?: boolean; source?: string; synced?: boolean; entities: BigQueryEntity[]; total: number; truncated?: boolean }
+
+/**
+ * Every entity in the copy of the BigQuery metadata dataset (the source of
+ * truth, when it is set up), as OpenMetadata stores it. Types the standard
+ * does not have are left out.
+ */
+function bigQueryEntries(data?: BigQueryExplore): Entry[] {
+  if (!data?.entities.length) return []
+  const out: Entry[] = []
+  for (const { entityType: type, ...json } of data.entities) {
+    if (!entityType(type)) continue
+    const name = json.displayName || json.name || json.fullyQualifiedName || 'Unnamed'
+    const about = typeof json.description === 'string' && json.description.trim() ? json.description.trim().split(/\r?\n/)[0] : `In the BigQuery metadata dataset ${data.source}.`
+    out.push(entry(type, String(name), json, about))
+  }
+  return out
+}
+
 export default function ExplorePage() {
   const catalog = useCatalog()
   const [notes, setNotes] = useState<NoteList>()
@@ -159,6 +179,7 @@ export default function ExplorePage() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([])
   const [project, setProject] = useState<SemanticProject>()
   const [ingestion, setIngestion] = useState<IngestionExplore>()
+  const [bigquery, setBigquery] = useState<BigQueryExplore>()
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
@@ -183,7 +204,8 @@ export default function ExplorePage() {
       isDesktop() ? invokeModule<Prompt[]>('prompt-templates', 'list') : Promise.resolve([]),
       isDesktop() ? invokeModule<{ tasks: ScheduledTask[] }>('scheduled', 'list') : Promise.resolve({ tasks: [] }),
       isDesktop() ? invokeModule<IngestionExplore>('ingestion', 'explore') : Promise.resolve(undefined),
-    ]).then(([n, c, p, b, f, t, s, g]) => {
+      isDesktop() ? invokeModule<BigQueryExplore>('openmetadata', 'explore') : Promise.resolve(undefined),
+    ]).then(([n, c, p, b, f, t, s, g, q]) => {
       if (!live) return
       const failures: string[] = []
       if (n.status === 'fulfilled') setNotes(n.value); else { setNotes(undefined); failures.push(`Notes: ${String(n.reason)}`) }
@@ -194,6 +216,7 @@ export default function ExplorePage() {
       if (t.status === 'fulfilled') setPrompts(t.value); else { setPrompts([]); failures.push('Prompts: ' + String(t.reason)) }
       if (s.status === 'fulfilled') setTasks(s.value.tasks); else { setTasks([]); failures.push('Scheduled tasks: ' + String(s.reason)) }
       if (g.status === 'fulfilled') setIngestion(g.value); else { setIngestion(undefined); failures.push('Services: ' + String(g.reason)) }
+      if (q.status === 'fulfilled') setBigquery(q.value); else { setBigquery(undefined); failures.push('BigQuery metadata: ' + String(q.reason)) }
       setErrors(failures); setLoading(false)
     })
     return () => { live = false }
@@ -213,7 +236,8 @@ export default function ExplorePage() {
     ...(project?.savedQueries ?? []).map((s) => entry('savedQuery', s.name, s, s.description)),
     ...databaseEntries(project),
     ...ingestionEntries(ingestion),
-  ], [catalog.data, notes, decks, cards, project, bookmarks, flows, prompts, tasks, ingestion])
+    ...bigQueryEntries(bigquery),
+  ], [catalog.data, notes, decks, cards, project, bookmarks, flows, prompts, tasks, ingestion, bigquery])
   const fields = useMemo<Field[]>(() => entries.flatMap((e, i) => Object.entries(e.fields).map(([name, value]) => ({ id: `${i}:${name}`, entry: e, name, value }))), [entries])
   const visible = fields.filter((f) => (!scope || f.entry.category === scope) && (!path[0] || f.entry.category === path[0]) && (!path[1] || f.entry.type === path[1]) && (!path[2] || String(entries.indexOf(f.entry)) === path[2]) && (!path[3] || f.name === path[3]) && `${f.entry.category} ${f.entry.type} ${f.entry.name} ${f.name} ${display(f.value)}`.toLowerCase().includes(query.toLowerCase()))
   const pageFields = visible.slice(page * 100, (page + 1) * 100)
@@ -242,7 +266,7 @@ export default function ExplorePage() {
   return <div className="flex flex-col gap-6">
     <PageHeader title="Explore" description="Browse everything MonoRail knows, sorted by the MonoRail standard." actions={<Button variant="outline" onClick={() => { setPath([]); setExpanded([]); setSelected(''); setPage(0); setRevision((n) => n + 1); void catalog.refresh() }}><RefreshCw /> Refresh</Button>} />
     <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4"><Search className="size-4 text-muted-foreground" /><Input className="min-w-48 flex-1" placeholder="Search names, fields and values" aria-label="Search catalog" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} /><select aria-label="Filter by category" className="rounded-md border bg-background px-3 py-2 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPath([]); setPage(0) }}><option value="">All categories</option>{SECTIONS.map((s) => <optgroup key={s.id} label={s.name}>{categoriesIn(s.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}</select><Button variant="ghost" onClick={() => { setQuery(''); setScope(''); setPath([]); setPage(0) }}>Clear filters</Button></div>
-    {(errors.length > 0 || catalog.error || cards.some((c) => c.truncated) || catalog.data?.truncated) && <div role="alert" className="rounded-lg bg-warning-soft p-4 text-sm text-warning-soft-foreground">{[...errors, ...(catalog.error ? [`Agents: ${catalog.error.message}`] : []), ...(cards.some((c) => c.truncated) ? ['Some decks have more than 2,000 cards; only the first 2,000 per deck are shown.'] : []), ...(catalog.data?.truncated ? ['The subagent list is truncated.'] : [])].join(' ')}</div>}
+    {(errors.length > 0 || catalog.error || cards.some((c) => c.truncated) || catalog.data?.truncated || bigquery?.truncated) && <div role="alert" className="rounded-lg bg-warning-soft p-4 text-sm text-warning-soft-foreground">{[...errors, ...(catalog.error ? [`Agents: ${catalog.error.message}`] : []), ...(cards.some((c) => c.truncated) ? ['Some decks have more than 2,000 cards; only the first 2,000 per deck are shown.'] : []), ...(catalog.data?.truncated ? ['The subagent list is truncated.'] : []), ...(bigquery?.truncated ? [`Only the first ${bigquery.entities.length.toLocaleString()} of ${bigquery.total.toLocaleString()} entities from BigQuery are shown; the OpenMetadata page has them all.`] : [])].join(' ')}</div>}
     <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
       <section className="rounded-xl border bg-card p-4" aria-label="Browse estate">
         <div className="mb-1 flex items-center gap-2 font-semibold"><Compass className="size-4 text-primary" /> Browse estate</div>
@@ -260,7 +284,7 @@ export default function ExplorePage() {
             })
           ))}
         </div>)}
-        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: every OpenMetadata {STANDARD.openMetadata.version} entity type plus MonoRail&apos;s own. Databases are the tables your semantic project&apos;s models read and what ingestion pipelines on this PC read (Settings &gt; Services); prompt templates are listed under AI assets. Your OpenMetadata server&apos;s own entities are on the OpenMetadata page. Other MonoRail data is not yet indexed.</p>
+        <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">Sorted by the MonoRail standard: every OpenMetadata {STANDARD.openMetadata.version} entity type plus MonoRail&apos;s own. Databases are the tables your semantic project&apos;s models read and what ingestion pipelines on this PC read (Settings &gt; Services); prompt templates are listed under AI assets. When a BigQuery dataset is the source of truth, its entities are listed too, from the copy on this PC. Your OpenMetadata server&apos;s own entities are on the OpenMetadata page. Other MonoRail data is not yet indexed.</p>
         <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => openWiki('standard/README')}>Read the standard</Button>
         {project?.block && <p className="mt-2 text-xs text-muted-foreground">Semantic project unavailable: {project.block}. Set it up on Connections.</p>}
       </section>

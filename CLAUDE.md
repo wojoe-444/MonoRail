@@ -1347,7 +1347,9 @@ count then a free id listing. Hourly by default while the app runs, retries
 after 15 minutes, one at a time, an In-App row. On Services it is a
 connect-only service (`LOCAL_SERVICES` `ingestion: 'connect'`,
 `bigquery_metadata`, `metadataService` of type `BigQuery`, a value MonoRail
-adds): no pipelines, its copy's state, `syncConnected`. CRUD on the source of
+adds): no pipelines, its copy's state, `syncConnected`. Explore lists the
+copy's entities (`openmetadata.explore`: not deleted, at most 5,000, read
+only, never syncs). CRUD on the source of
 truth is a later goal; the layout is MonoRail's own so it can be plain DML
 with a version check.
 
