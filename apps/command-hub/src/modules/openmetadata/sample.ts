@@ -2,7 +2,7 @@
 // Same shapes as OpenMetadata 2.0.8's REST API, so the page cannot tell the
 // difference. Edits last until the page reloads. Every name here is made up.
 
-import type { OmCounts, OmEntity, OmLineage, OmLineageEdge, OmPage, OmRef, OmStatus, OmTag } from './types'
+import type { OmCounts, OmEntity, OmLineage, OmLineageEdge, OmPage, OmRef, OmSearch, OmStatus, OmTag } from './types'
 import { TYPES } from './catalog'
 
 const DAY = 86_400_000
@@ -307,6 +307,19 @@ const methods: Record<string, (args: Record<string, unknown>) => unknown> = {
     TYPES.flatMap((x) => list(x.type).map((e) => ({ ...e, entityType: x.type })))
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
       .slice(0, 30),
+  search: ({ q, types, limit, deleted }): OmSearch => {
+    const words = String(q ?? '').trim().toLowerCase().split(/s+/).filter(Boolean)
+    const wanted = Array.isArray(types) ? (types as string[]) : TYPES.map((x) => x.type)
+    const all = wanted
+      .flatMap((type) => (byType.get(type) ?? []).map((e) => ({ ...e, entityType: type })))
+      .filter((e) => deleted || !e.deleted)
+      .filter((e) => {
+        const hay = [e.name, e.displayName, e.fullyQualifiedName, e.description, ...(e.owners ?? []).map((o) => o.name), ...(e.tags ?? []).map((t) => t.tagFQN)].join(' ').toLowerCase()
+        return words.every((w) => hay.includes(w))
+      })
+      .sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name))
+    return { data: all.slice(0, Number(limit ?? 50) || 50), total: all.length }
+  },
   getLineage: ({ id, upstreamDepth, downstreamDepth }) => lineage(String(id), Number(upstreamDepth ?? 1), Number(downstreamDepth ?? 1)),
   setDescription: ({ type, id, description }) => {
     const items = list(String(type))

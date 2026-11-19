@@ -94,10 +94,12 @@ through `openmetadata.getLineage`.
 
 - **OpenMetadata page** (`electron/modules/openmetadata.cjs`,
   `createLocalService`): the default source until the OpenMetadata
-  connection is set up; with a server, `source: 'local' | 'server'` picks
-  one per call and the page offers a This PC / Server switch (remembered in
-  the `monorail.openmetadata.source` pref). `setDescription` writes a new
-  version locally.
+  connection is set up (the backend picks the source; the page has no
+  switch). `search` runs SQL over every entity (store `search()`: each
+  word in name, display name, full name, description, owners or tags; exact
+  and prefix name matches first; at most 500 rows plus the total), so search
+  never depends on a capped load. `setDescription` writes a new version
+  locally.
 - **Local ingestion pipelines** (`electron/modules/ingestion-store.cjs`,
   [reference](ingestion.md)): `ingestionPipeline` entities (`this-pc`), run
   statuses, schedule state, and the catalog as `databaseService`,
@@ -105,7 +107,7 @@ through `openmetadata.getLineage`.
   `extension.monorail.catalog = true`, and dbt's table-to-table lineage as
   `lineage` edges. Older versions' `pipelines.json`,
   `runs.json` and `catalog.json` are copied in once and left in place.
-- **Tracker** (`electron/apps/tracker`, [reference](tracker.md)): teams and
+- **Tracker** (`electron/apps/tracker`, [reference](tracker.md)): teams and
   members as `team` and `user` entities with `extension.tracker`, and its own
   types (issues, workflow states, labels, projects, milestones, updates,
   cycles, initiatives, views, comments). Issue history is read from the

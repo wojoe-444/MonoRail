@@ -54,6 +54,12 @@ export interface OmEntity {
   [field: string]: unknown
 }
 
+/** A search over the whole catalog: the best matches (summary rows with `entityType`) and how many matched. */
+export interface OmSearch {
+  data: (OmEntity & { entityType: string })[]
+  total: number
+}
+
 export interface OmPage {
   data: OmEntity[]
   paging?: { total?: number; after?: string }

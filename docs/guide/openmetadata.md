@@ -35,8 +35,9 @@ failed.
 
 Connecting a server is optional, and MonoRail contacts none until you add the
 **OpenMetadata** connection on [Connections](setup/connections.md). Once you
-do, the page shows the server, and a **This PC / Server** switch in the
-header lets you go back to the local database. MonoRail remembers your choice.
+do, the page shows the server instead of the local database. There is no
+switch: the page always shows one catalog, picked for you (BigQuery when
+that is set up, then the server, then this PC).
 
 ### Set it up
 
@@ -80,9 +81,10 @@ you are looking at updates by itself.
    unless you change it). Your Google account needs permission to create
    datasets in that project. You can also choose how often the copy is
    refreshed and the most a refresh may scan.
-3. Open this page. It switches to **BigQuery** by itself, and the first copy
-   is made within a minute. The **This PC / BigQuery** switch in the header
-   still lets you look at your local database.
+3. Open this page. It shows your BigQuery catalog by itself, and the first
+   copy is made within a minute. From then on everything on the page is read
+   from that copy on your PC, so it is fast and works offline; the sync only
+   keeps it fresh.
 
 If you chose another dataset and it doesn't exist yet, or is empty,
 **Setup SQL** on the page shows the statements that create MonoRail's tables
@@ -99,14 +101,16 @@ dataset stays as it is.
 
 The page's sections sit as tabs in the bar at the top of the window, where
 the page title would be. Each tab has its own address, so going back and
-forward works, and the source switch (**This PC / BigQuery / Server**) and
-**Refresh** stay on the right for every tab.
+forward works, and **Guide** and **Refresh** stay on the right for every tab.
 
 - **Home**: totals, what changed lately, and shortcuts to the other tabs.
 - **Catalog**: every kind of entity, described in
   [Find your way around](#find-your-way-around) below.
 - **Explore**: search and filter the data assets (tables, dashboards,
-  pipelines and more) by name, type, service, owner or tag.
+  pipelines and more) by name, type, service, owner or tag. The search looks
+  through the whole catalog, however many thousands of tables it holds, and
+  lists the best matches first (an exact name, then names that start with
+  what you typed).
 - **Lineage**: pick an asset and see its [lineage](#lineage) as a graph.
 - **Semantic models** and **Query builder**: your semantic layer. By
   default they show your [Malloy](setup/malloy.md) models: every source with
@@ -142,8 +146,8 @@ server older than 2.1 has no ontology kinds, so those stay greyed out.
 - **Overview** shows the totals, which server you are connected to, and what
   changed most recently.
 - **Pick a kind** to list its entities, with their owners and tags. Type in
-  the box to narrow the list by name, and switch on **Include deleted** to
-  see deleted ones too.
+  the box to search every entity of that kind by name (not just the rows on
+  screen), and switch on **Include deleted** to see deleted ones too.
 - **Pick an entity** to see everything about it: owners, tags and domains,
   its description, every other field, its columns (for tables and the like),
   the other entities it points to, its [lineage](#lineage), its earlier

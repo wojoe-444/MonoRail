@@ -146,6 +146,22 @@ describe('OpenMetadata backend', () => {
     assert.deepEqual((await service(fetch).recent()).map((e) => e.id), ['t'])
   })
 
+  test("search asks the server's search for the whole catalog, filtered to the types, as summary rows", async () => {
+    const fetch = fakeFetch({
+      'GET /search/query': () => [
+        200,
+        { hits: { total: { value: 1234 }, hits: [{ _source: { entityType: 'table', id: 't', name: 'orders_mart', columns: [{ name: 'id' }] } }, { _source: { entityType: 'tableColumn', id: 'c' } }] } },
+      ],
+    })
+    const res = await service(fetch).search({ q: 'orders mart:x', types: ['table', 'dashboard'], limit: 25 })
+    assert.deepEqual(res, { data: [{ entityType: 'table', id: 't', name: 'orders_mart' }], total: 1234 })
+    const url = new URL(fetch.calls[0].url)
+    assert.equal(url.searchParams.get('q'), '*orders* AND *mart\\:x*')
+    assert.equal(url.searchParams.get('size'), '25')
+    assert.deepEqual(JSON.parse(url.searchParams.get('query_filter')).query.bool.filter[0].terms.entityType, ['table', 'dashboard'])
+    await assert.rejects(service(fetch).search({ q: 'x', types: ['nope'] }), /at least one entity type/)
+  })
+
   test("lineage: GET /lineage/{type}/{id} with depths capped at 3, in the same shape as the local database's", async () => {
     const id = '00000000-0000-4000-8000-000000000002'
     const up = '00000000-0000-4000-8000-000000000001'

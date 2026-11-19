@@ -27,6 +27,8 @@ const FOLDER = 'databases'
 const SCHEMA_VERSION = 2
 /** OpenMetadata's lineage API answers at most 3 levels each way; local reads keep the same limit. */
 const MAX_LINEAGE_DEPTH = 3
+/** The most matches one search returns; the page says how many more there are. */
+const SEARCH_MAX = 500
 
 const MIGRATIONS = [
   // 1: entities, their versions, records
@@ -266,6 +268,48 @@ function createEntityStore(db) {
       return { data: page.map(parse), paging: { total, after: rows.length > n ? page[page.length - 1].fqn : undefined } }
     },
 
+    /**
+     * Search every entity of `types` (all types when none) in the whole
+     * database, not a loaded page: each word must appear in the name, display
+     * name, full name, description, owners or tags (case ignored). The best
+     * `limit` matches come first: exact name, then name starting with the
+     * text, then name containing it, then the rest; shorter names first.
+     * Returns { data: [{ ...entity, entityType }], total } with total the
+     * number of matches.
+     */
+    search({ q = '', types, limit = 50, deleted = false } = {}) {
+      const n = Math.max(1, Math.min(SEARCH_MAX, Number(limit) || 50))
+      const text = String(q ?? '').trim().toLowerCase().slice(0, 200)
+      const words = [...new Set(text.split(/\s+/).filter(Boolean))].slice(0, 8)
+      const where = []
+      const params = []
+      if (!deleted) where.push('deleted = 0')
+      const wanted = Array.isArray(types) ? types.filter((t) => typeof t === 'string' && t) : []
+      if (wanted.length) {
+        where.push(`type IN (${wanted.map(() => '?').join(', ')})`)
+        params.push(...wanted)
+      }
+      // instr, not LIKE: a word with % or _ in it is matched as typed.
+      const hay = `lower(fqn || ' ' || name || ' ' || ifnull(json_extract(json, '$.displayName'), '') || ' ' || ifnull(json_extract(json, '$.description'), '') || ' ' || ifnull(json_extract(json, '$.owners'), '') || ' ' || ifnull(json_extract(json, '$.tags'), ''))`
+      for (const w of words) {
+        where.push(`instr(${hay}, ?) > 0`)
+        params.push(w)
+      }
+      const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
+      const total = db.prepare(`SELECT count(*) AS n FROM entity ${clause}`).get(...params).n
+      // Rank on the name: a display name counts as the name when there is one.
+      const names = `(lower(name) || char(10) || lower(ifnull(json_extract(json, '$.displayName'), '')))`
+      const rank = text
+        ? `CASE WHEN lower(name) = ? OR lower(ifnull(json_extract(json, '$.displayName'), '')) = ? THEN 0
+                WHEN instr(char(10) || ${names}, char(10) || ?) > 0 THEN 1
+                WHEN instr(${names}, ?) > 0 THEN 2
+                WHEN instr(lower(fqn), ?) > 0 THEN 3 ELSE 4 END`
+        : '0'
+      const rankParams = text ? [text, text, text, text, text] : []
+      const rows = db.prepare(`SELECT type, json FROM entity ${clause} ORDER BY ${rank}, length(name), fqn LIMIT ${n}`).all(...params, ...rankParams)
+      return { data: rows.map((r) => ({ ...JSON.parse(r.json), entityType: r.type })), total }
+    },
+
     /** Entities per type (not deleted). */
     counts: () => Object.fromEntries(s.counts.all().map((r) => [r.type, r.n])),
     /** Every version of an entity, newest first. */
@@ -466,4 +510,4 @@ function mirrorDbExists() {
   }
 }
 
-module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH }
+module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH, SEARCH_MAX }

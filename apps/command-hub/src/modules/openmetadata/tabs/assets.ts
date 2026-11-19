@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 
-import { call, errorText, type CallState } from '../api'
+import { call, errorText, useDataVersion, type CallState } from '../api'
 import { typeInfo } from '../catalog'
-import type { OmCounts, OmEntity, OmPage, OmRef } from '../types'
+import type { OmCounts, OmEntity, OmPage, OmRef, OmSearch } from '../types'
 import { countOf, tierOf } from '../util'
 
 /**
@@ -132,4 +132,55 @@ export function setExploreQuery(q: string) {
 export const peekExploreQuery = (): string | undefined => pendingQuery
 export function clearExploreQuery() {
   pendingQuery = undefined
+}
+
+/** The most matches one search brings back (the backend's limit too). */
+export const SEARCH_LIMIT = 500
+
+export interface AssetSearch {
+  /** The best matches, best first; undefined until the first answer. */
+  rows: Asset[] | undefined
+  /** How many entities matched in the whole catalog (may be more than `rows`). */
+  total: number
+  /** A newer search is on its way; `rows` still shows the last answer. */
+  loading: boolean
+  error: string | undefined
+}
+
+/**
+ * Search the whole catalog (the backend's `search`: SQL over every entity on
+ * this PC, or the server's search index), not a capped load. Waits for typing
+ * to pause, and keeps the last answer on screen while the next one loads.
+ * `types` null: wait (counts not in yet); an empty list finds nothing.
+ */
+export function useAssetSearch(q: string, types: string[] | null, { limit = SEARCH_LIMIT, deleted = false, delayMs = 200 } = {}): AssetSearch {
+  const text = q.trim()
+  const key = types === null ? null : JSON.stringify({ q: text, types, limit, deleted })
+  const version = useDataVersion()
+  const [state, setState] = useState<{ key?: string; version?: number; rows?: Asset[]; total: number; error?: string }>({ total: 0 })
+  useEffect(() => {
+    if (key === null) return
+    const args = JSON.parse(key) as { q: string; types: string[]; limit: number; deleted: boolean }
+    if (!args.types.length) {
+      setState({ key, version, rows: [], total: 0 })
+      return
+    }
+    let live = true
+    const t = setTimeout(
+      () => {
+        call<OmSearch>('search', args).then(
+          (res) => live && setState({ key, version, rows: res.data.map((e) => ({ ...e, assetType: e.entityType })), total: res.total }),
+          (e: unknown) => live && setState((s) => ({ ...s, key, version, error: errorText(e) })),
+        )
+      },
+      // The first search and a refresh go at once; typing waits for a pause.
+      state.rows === undefined || state.key === key ? 0 : delayMs,
+    )
+    return () => {
+      live = false
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, version, delayMs])
+  return { rows: state.rows, total: state.total, loading: key !== null && (state.key !== key || state.version !== version), error: state.key === key ? state.error : undefined }
 }
