@@ -125,7 +125,7 @@ export const MOCHI_ROLES: Record<MochiRoleId, MochiRole> = {
     flavor: "Blueberry",
     body: "gumdrop",
     eyes: "focus",
-    tile: "<text x=\"30\" y=\"70\" font-family=\"JetBrains Mono,monospace\" font-size=\"38\" font-weight=\"700\" style=\"fill:var(--pop)\" opacity=\".8\">{ }</text>",
+    tile: "<text x=\"30\" y=\"70\" font-family=\"Cascadia Mono,Consolas,monospace\" font-size=\"38\" font-weight=\"700\" style=\"fill:var(--pop)\" opacity=\".8\">{ }</text>",
     head: "<path d=\"M70 132C68 58 188 58 186 132\" fill=\"none\" style=\"stroke:var(--acc)\" stroke-width=\"9\" stroke-linecap=\"round\"/><rect x=\"58\" y=\"114\" width=\"20\" height=\"36\" rx=\"9\" style=\"fill:var(--acc)\"/><rect x=\"178\" y=\"114\" width=\"20\" height=\"36\" rx=\"9\" style=\"fill:var(--acc)\"/>",
     front: "<ellipse cx=\"128\" cy=\"146\" rx=\"40\" ry=\"10\" style=\"fill:var(--pop)\" opacity=\".25\"/><rect x=\"88\" y=\"150\" width=\"80\" height=\"42\" rx=\"8\" style=\"fill:var(--acc)\"/><circle cx=\"128\" cy=\"171\" r=\"6\" style=\"fill:var(--pop)\"/><rect x=\"76\" y=\"190\" width=\"104\" height=\"9\" rx=\"4.5\" style=\"fill:var(--acc)\" opacity=\".8\"/>",
   },

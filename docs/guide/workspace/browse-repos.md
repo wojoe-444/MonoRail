@@ -42,9 +42,9 @@ the branch is from main, commits not pushed, files not committed, the last
 backup and the newest commit. The branch picker on the right switches the
 branch you are looking at.
 
-- **Code**: a file tree on the left, the open folder's files with when each
-  last changed, and the README below. The arrow on the folder listing and on
-  the README folds them away; GitHub+ remembers that.
+- **Code**: a file tree on the left to move between folders and files, and the
+  open folder's README beside it. The arrow on the README folds it away;
+  GitHub+ remembers that.
 - **History** and **commits**: every [commit](../glossary.md#commit), with
   what it changed.
 - **Branches** and **Compare**: how far [branches](../glossary.md#branch)
