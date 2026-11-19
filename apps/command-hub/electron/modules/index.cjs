@@ -91,14 +91,14 @@ function startModuleBackends() {
 
   const desktopOnly = desktopOnlyIndex([...byId].map(([key, entry]) => [key, entry.backend]))
 
-  async function invoke(moduleId, method, args) {
+  async function invoke(moduleId, method, args, remoteLimits) {
     if (typeof moduleId === 'string' && moduleId.startsWith('ext:')) return invokeExtension(moduleId.slice(4), method, args)
     const entry = byId.get(moduleId)
     if (!entry) throw new Error(`Unknown module: ${moduleId}`)
     const fn = Object.hasOwn(entry.backend.methods, method) ? entry.backend.methods[method] : undefined
     if (typeof fn !== 'function') throw new Error(`Unknown method ${moduleId}.${method}`)
 
-    return fn(makeCtx(moduleId, entry), args)
+    return fn({ ...makeCtx(moduleId, entry), remoteLimits }, args)
   }
   invoke.isDesktopOnly = desktopOnly.isDesktopOnly
   // Remote access (off by default) serves these same backends to a paired phone.

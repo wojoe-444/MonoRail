@@ -729,7 +729,7 @@ async function startTurn(ctx, args = {}) {
   const systemPrompt = prompts.promptForTurn(prompts.readPrompts(ctx.dataDir), { sdk, coordinator })
   const job = options.validateJob({ sdk, prompt: args.prompt, mode: args.mode, model: args.model, effort: args.effort, reasoning: args.reasoning, coordinator, systemPrompt })
   // A turn from a paired phone (Remote access) carries its limits; they only ever restrict.
-  if (args.remoteLimits?.askOnly) {
+  if (ctx.remoteLimits?.askOnly) {
     if (coordinator) throw new Error('From the phone, the coordinator needs "Agent mode from the phone" (Settings > Remote access on your PC), because it can start chats that edit files.')
     if (job.mode !== 'ask') throw new Error('Agent mode from the phone is off. Use Ask, or turn it on in Settings > Remote access on your PC.')
   }
@@ -750,11 +750,11 @@ async function startTurn(ctx, args = {}) {
       meta: { sdk: 'pi', model: job.model, mode: job.mode, resume: sessionFile ? chatKey.slice('pi:'.length) : undefined },
       // pi logs a cost on every model call, so a turn's cost is exact.
       onFinish: (turn) => {
+        const cost = turn.result?.costUsd
+        // If the worker did not send a result, count the usage it had reported so far.
+        spending.record(ctx.dataDir, typeof cost === 'number' ? cost : turn.usageCostUsd ?? 0)
         if (turn.sessionId && !sessionFile) chatState.markStartedHere(ctx.dataDir, `pi:${turn.sessionId}`)
-        // A stopped turn has no result, but each model call it made logged its cost.
-        const logged = turn.events.reduce((n, e) => n + (e.t === 'usage' && typeof e.costUsd === 'number' ? e.costUsd : 0), 0)
-        spending.record(ctx.dataDir, typeof turn.result?.costUsd === 'number' ? turn.result.costUsd : logged)
-        return typeof turn.result?.costUsd === 'number' ? [{ t: 'cost', turnUsd: turn.result.costUsd, exact: true }] : []
+        return typeof cost === 'number' ? [{ t: 'cost', turnUsd: cost, exact: true }] : []
       },
     })
   }

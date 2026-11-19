@@ -9,7 +9,7 @@ const { createRemoteStore, describeAgent, cleanLogin } = require('./store.cjs')
 const { createRemoteServer, createPairing, COOKIE, PAIR_PATH } = require('./server.cjs')
 const { parseStatus, parseServe, checkTailscale } = require('./tailscale.cjs')
 const { REMOTE_DENY, remoteRefusal, isQuiet } = require('./policy.cjs')
-const { readEnabledSync } = require('./service.cjs')
+const { createRemoteService, readEnabledSync } = require('./service.cjs')
 const { decode } = require('../bridge/codec.cjs')
 
 
@@ -57,8 +57,8 @@ async function start({ agentFromPhone = false } = {}) {
     store,
     state: () => ({ settings, dnsName: HOST }),
     pairing,
-    invoke: async (moduleId, method, args) => {
-      calls.push([moduleId, method, args])
+    invoke: async (moduleId, method, args, remoteLimits) => {
+      calls.push([moduleId, method, args, remoteLimits])
       return { ok: true }
     },
     isDesktopOnly: (m, method) => m === 'backups' && method === 'pickFolder',
@@ -175,7 +175,7 @@ test('refused: wrong host, no login, wrong login, no cookie, wrong cookie, wrong
   }
 })
 
-test('desktop-only and denied methods are refused and logged; startTurn gets Ask-only limits', async () => {
+test('desktop-only and denied methods are refused and logged; remote calls get trusted Ask-only context', async () => {
   const t = await start()
   try {
     const key = keyFrom(await pairDevice(t))
@@ -190,8 +190,13 @@ test('desktop-only and denied methods are refused and logged; startTurn gets Ask
     assert.equal(ext.ok, false)
     assert.equal(t.calls.length, 0)
 
-    await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args: { prompt: 'hi', remoteLimits: { askOnly: false } } })
-    assert.deepEqual(t.calls[0][2].remoteLimits, { askOnly: true }, 'the page cannot lift the limit')
+    const args = { prompt: 'hi', remoteLimits: { askOnly: false } }
+    await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args })
+    await invoke(t, key, { moduleId: 'flows', method: 'run', args })
+    assert.deepEqual(t.calls, [
+      ['agent-chat', 'startTurn', args, { askOnly: true }],
+      ['flows', 'run', args, { askOnly: true }],
+    ])
 
     // Give the fire-and-forget audit writes a moment.
     await new Promise((r) => setTimeout(r, 50))
@@ -211,7 +216,7 @@ test('Agent mode from the phone lifts only the Ask-only limit', async () => {
   try {
     const key = keyFrom(await pairDevice(t))
     await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args: {} })
-    assert.deepEqual(t.calls[0][2].remoteLimits, { askOnly: false })
+    assert.deepEqual(t.calls[0][3], { askOnly: false })
   } finally {
     await t.close()
   }
@@ -286,6 +291,38 @@ test('store: off by default, logins cleaned, readEnabledSync reads the machine f
   assert.equal(readEnabledSync(userData), true)
   assert.equal(cleanLogin('a b@c'), undefined)
   assert.equal(describeAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) AppleWebKit Version/18.0 Mobile Safari/604.1'), 'Safari on iOS')
+})
+
+test('Tailscale checks seed the allowlist once and respect a saved empty list', async () => {
+  const runTool = async (_cmd, args) => ({
+    code: 0,
+    stdout: args[0] === 'status' ? JSON.stringify({ BackendState: 'Running', Self: { UserID: 7 }, User: { 7: { LoginName: LOGIN } } }) : '{}',
+  })
+  const dir = tmp()
+  const file = path.join(dir, 'settings.json')
+  const store = createRemoteStore(dir)
+  await store.writeSettings({ enabled: true })
+  const service = createRemoteService({ runTool })
+  await service.init(dir)
+  await service.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [LOGIN])
+  await service.setLogins([])
+  await service.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).allowedLoginsInitialized, true)
+
+  const restarted = createRemoteService({ runTool })
+  await restarted.init(dir)
+  await restarted.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
+
+  // Existing settings have no initialization flag.
+  fs.writeFileSync(file, JSON.stringify({ enabled: true, allowedLogins: [LOGIN] }))
+  assert.equal((await store.readSettings()).allowedLoginsInitialized, true)
+  await restarted.init(dir)
+  await restarted.setLogins([])
+  await restarted.check()
+  assert.deepEqual((await store.readSettings()).allowedLogins, [])
 })
 
 test('tailscale: status and serve parsing, Funnel detection', async () => {

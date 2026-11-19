@@ -18,9 +18,11 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
-const { readJson, writeJsonAtomic, writeAtomic } = require('../cache/files.cjs')
+const { writeJsonAtomic, writeAtomic, tryLock, lockHolder, pidAlive, sleep } = require('../cache/files.cjs')
 
 const ACCESS_FILE = 'access.json'
+const ACCESS_LOCK = 'access.json.lock'
+const RECOVERY_LOCK = 'access.json.recovery.lock'
 const AUDIT_FILE = 'audit.jsonl'
 const AUDIT_MAX_BYTES = 2 * 1024 * 1024
 const AUDIT_KEEP_LINES = 2_000
@@ -33,9 +35,70 @@ function cleanName(s) {
   return v || 'unknown agent'
 }
 
+const isRecord = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+
+async function readAccessFile(file) {
+  let text
+  try {
+    text = await fs.readFile(file, 'utf8')
+  } catch (e) {
+    if (e.code === 'ENOENT') return { agents: {} }
+    throw e
+  }
+  try {
+    const a = JSON.parse(text)
+    if (isRecord(a?.agents) && Object.values(a.agents).every((agent) => isRecord(agent) && isRecord(agent.allow))) return a
+  } catch {
+    // The same error covers invalid JSON and invalid records.
+  }
+  throw new Error('The agent access file is damaged.')
+}
+
 async function readAccess(rootDir) {
-  const a = await readJson(path.join(mcpDir(rootDir), ACCESS_FILE))
-  return a && typeof a.agents === 'object' && a.agents ? a : { agents: {} }
+  try {
+    return await readAccessFile(path.join(mcpDir(rootDir), ACCESS_FILE))
+  } catch {
+    return { agents: {} }
+  }
+}
+
+async function abandoned(file) {
+  const held = await lockHolder(file)
+  return Number.isInteger(held?.pid) && held.pid > 0 && !pidAlive(held.pid)
+}
+
+async function recoverAccessLock(dir, lockFile) {
+  if (!(await abandoned(lockFile))) return
+  // Only one contender may remove an abandoned lock. Check it again after
+  // taking the recovery lock, as another writer may already have taken over.
+  const release = await tryLock(path.join(dir, RECOVERY_LOCK), { recoverStale: false })
+  if (!release) return
+  try {
+    if (await abandoned(lockFile)) await fs.rm(lockFile, { force: true })
+  } finally {
+    await release()
+  }
+}
+
+/** Every writer, including MCP registration, reads and replaces the file under this lock. */
+async function updateAccess(rootDir, change) {
+  const dir = mcpDir(rootDir)
+  const lockFile = path.join(dir, ACCESS_LOCK)
+  const deadline = Date.now() + 10_000
+  let release
+  while (!(release = await tryLock(lockFile, { recoverStale: false }))) {
+    if (Date.now() > deadline) throw new Error('The agent access file is busy. Try again in a moment.')
+    await recoverAccessLock(dir, lockFile)
+    await sleep(25)
+  }
+  try {
+    const file = path.join(dir, ACCESS_FILE)
+    const a = await readAccessFile(file)
+    if (change(a)) await writeJsonAtomic(file, a)
+    return a
+  } finally {
+    await release()
+  }
 }
 
 /** May `agent` call write tool `tool`? Read fresh on every call, so a change on the page applies at once. */
@@ -47,35 +110,40 @@ async function isAllowed(rootDir, agent, tool) {
 /** Record an agent the first time it connects, with nothing allowed. */
 async function noteAgent(rootDir, clientInfo) {
   const name = cleanName(clientInfo?.name)
-  const a = await readAccess(rootDir)
-  if (Object.hasOwn(a.agents, name)) return name
-  a.agents[name] = {
-    title: typeof clientInfo?.title === 'string' ? clientInfo.title.slice(0, MAX_NAME) : undefined,
-    version: typeof clientInfo?.version === 'string' ? clientInfo.version.slice(0, 40) : undefined,
-    firstSeen: new Date().toISOString(),
-    allow: {},
-  }
-  await writeJsonAtomic(path.join(mcpDir(rootDir), ACCESS_FILE), a)
+  if (Object.hasOwn((await readAccess(rootDir)).agents, name)) return name
+  await updateAccess(rootDir, (a) => {
+    if (Object.hasOwn(a.agents, name)) return false
+    a.agents = {
+      ...a.agents,
+      [name]: {
+        title: typeof clientInfo?.title === 'string' ? clientInfo.title.slice(0, MAX_NAME) : undefined,
+        version: typeof clientInfo?.version === 'string' ? clientInfo.version.slice(0, 40) : undefined,
+        firstSeen: new Date().toISOString(),
+        allow: {},
+      },
+    }
+    return true
+  })
   return name
 }
 
 /** The page turns one write tool on or off for one agent. */
-async function setAllowed(rootDir, agent, tool, allowed) {
-  const a = await readAccess(rootDir)
-  if (!Object.hasOwn(a.agents, agent)) throw new Error(`Unknown agent: ${agent}`)
-  const allow = { ...a.agents[agent].allow }
-  if (allowed) allow[tool] = true
-  else delete allow[tool]
-  a.agents[agent] = { ...a.agents[agent], allow }
-  await writeJsonAtomic(path.join(mcpDir(rootDir), ACCESS_FILE), a)
-  return a
+function setAllowed(rootDir, agent, tool, allowed) {
+  return updateAccess(rootDir, (a) => {
+    if (!Object.hasOwn(a.agents, agent)) throw new Error(`Unknown agent: ${agent}`)
+    const allow = { ...a.agents[agent].allow, ...(allowed ? { [tool]: true } : {}) }
+    if (!allowed) delete allow[tool]
+    a.agents[agent] = { ...a.agents[agent], allow }
+    return true
+  })
 }
 
-async function forgetAgent(rootDir, agent) {
-  const a = await readAccess(rootDir)
-  delete a.agents[agent]
-  await writeJsonAtomic(path.join(mcpDir(rootDir), ACCESS_FILE), a)
-  return a
+function forgetAgent(rootDir, agent) {
+  return updateAccess(rootDir, (a) => {
+    if (!Object.hasOwn(a.agents, agent)) return false
+    delete a.agents[agent]
+    return true
+  })
 }
 
 // ---------- audit log ----------

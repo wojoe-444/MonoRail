@@ -64,9 +64,9 @@ function pidAlive(pid) {
 /**
  * Take the lock file `file` (created exclusively). Returns a release function,
  * or undefined if another live holder has it. A lock whose holder died, or that
- * is older than `staleMs`, is broken.
+ * is older than `staleMs`, is broken unless `recoverStale` is false.
  */
-async function tryLock(file, { staleMs }) {
+async function tryLock(file, { staleMs, recoverStale = true }) {
   await fs.mkdir(path.dirname(file), { recursive: true })
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -84,6 +84,7 @@ async function tryLock(file, { staleMs }) {
       // opened (EPERM/EACCES) until the delete finishes. That is "busy".
       if (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES')) return undefined
       if (e.code !== 'EEXIST') throw e
+      if (!recoverStale) return undefined
       const held = await lockHolder(file)
       const age = held ? Date.now() - Date.parse(held.startedAt) : Infinity
       // No pid yet means another holder has just created the file and is

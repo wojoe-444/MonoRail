@@ -90,8 +90,8 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
       await startServer()
     }
     // First time on: the PC's own Tailscale login may connect.
-    if (lastCheck.login && settings.allowedLogins.length === 0) {
-      settings = await requireStore().writeSettings({ allowedLogins: [lastCheck.login] })
+    if (lastCheck.login && !settings.allowedLoginsInitialized) {
+      settings = await requireStore().initializeLogins(lastCheck.login)
     }
     return lastCheck
   }
@@ -133,7 +133,6 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
     async status() {
       const s = requireStore()
       const fresh = await s.readSettings()
-      settings = { ...fresh, damaged: undefined }
       const devices = await s.listDevices()
       const address = lastCheck?.serve === 'ok' && hostName() ? `https://${hostName()}` : undefined
       return {
@@ -197,7 +196,7 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
       settings = await requireStore().writeSettings({ agentFromPhone: !!on })
     },
     async setLogins(logins) {
-      settings = await requireStore().writeSettings({ allowedLogins: Array.isArray(logins) ? logins : [] })
+      settings = await requireStore().writeSettings({ allowedLogins: Array.isArray(logins) ? logins : [], allowedLoginsInitialized: true })
       return settings.allowedLogins
     },
     renameDevice: (id, name) => requireStore().renameDevice(id, name),

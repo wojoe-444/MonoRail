@@ -116,6 +116,44 @@ describe('tracker', () => {
     assert.equal(t.snapshot().issues[0].stateId, stateOf(t.snapshot(), team.id, 'In Progress').id)
   })
 
+  test('project removal clears project and milestone from restorable issues', () => {
+    const { db, t } = fresh()
+    const team = t.createTeam({ name: 'Engineering', key: 'ENG' })
+    const project = t.save({ type: 'project', entity: { name: 'Example project' } })
+    const milestone = t.save({ type: 'projectMilestone', entity: { name: 'First milestone', projectId: project.id } })
+    const issue = t.createIssue({ teamId: team.id, title: 'Example issue', projectId: project.id, projectMilestoneId: milestone.id })
+    t.deleteIssues({ ids: [issue.id] })
+    t.remove({ type: 'project', id: project.id })
+    assert.equal(db.byId(issue.id).deleted, true)
+    assert.equal(db.byId(issue.id).projectId, null)
+    assert.equal(db.byId(issue.id).projectMilestoneId, null)
+    t.restoreIssues({ ids: [issue.id] })
+    assert.equal(t.updateIssues({ ids: [issue.id], patch: { title: 'Edited' } })[0].title, 'Edited')
+  })
+
+  test('Undo repairs optional references already left dangling in storage', () => {
+    const { db, t } = fresh()
+    const team = t.createTeam({ name: 'Engineering', key: 'ENG' })
+    const project = t.save({ type: 'project', entity: { name: 'Example project' } })
+    const milestone = t.save({ type: 'projectMilestone', entity: { name: 'First milestone', projectId: project.id } })
+    const parent = t.createIssue({ teamId: team.id, title: 'Parent' })
+    const label = t.save({ type: 'issueLabel', entity: { name: 'Example label' } })
+    const issue = t.createIssue({
+      teamId: team.id, title: 'Example issue', projectId: project.id, projectMilestoneId: milestone.id,
+      parentId: parent.id, relations: [{ type: 'related', issueId: parent.id }], labelIds: [label.id],
+    })
+    t.deleteIssues({ ids: [issue.id, parent.id] })
+    // Model an older app removing related records without updating its deleted issues.
+    for (const id of [project.id, milestone.id, label.id]) db.remove(id)
+    t.restoreIssues({ ids: [issue.id, parent.id] })
+    const [saved] = t.updateIssues({ ids: [issue.id], patch: { title: 'Edited' } })
+    assert.equal(saved.projectId, null)
+    assert.equal(saved.projectMilestoneId, null)
+    assert.deepEqual(saved.labelIds, [])
+    assert.equal(saved.parentId, parent.id)
+    assert.deepEqual(saved.relations, [{ type: 'related', issueId: parent.id }])
+  })
+
   test('triage only when the team has it on', () => {
     const { t } = fresh()
     const off = t.createTeam({ name: 'Off', key: 'OFF' })

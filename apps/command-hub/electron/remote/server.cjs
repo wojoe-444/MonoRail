@@ -97,7 +97,7 @@ function readForm(req) {
  * @param {ReturnType<import('./store.cjs').createRemoteStore>} o.store
  * @param {() => { settings: object, dnsName?: string }} o.state current settings and the tailnet name
  * @param {{ take(code: string): boolean }} o.pairing one-time pairing codes
- * @param {(moduleId: string, method: string, args: unknown) => Promise<unknown>} o.invoke
+ * @param {(moduleId: string, method: string, args: unknown, remoteLimits: { askOnly: boolean }) => Promise<unknown>} o.invoke
  * @param {(moduleId: string, method: string) => boolean} o.isDesktopOnly
  * @param {(fn: (channel: string, payload: unknown) => void) => void} [o.subscribe]
  * @param {string} o.distDir the built web app
@@ -132,13 +132,9 @@ function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, subs
       err.name = 'BridgeRefused'
       throw err
     }
-    let callArgs = args
-    // The phone's limits ride on the turn request; the page can't remove them.
-    if (moduleId === 'agent-chat' && method === 'startTurn') {
-      callArgs = { ...(args && typeof args === 'object' ? args : {}), remoteLimits: { askOnly: !settings.agentFromPhone } }
-    }
     try {
-      const result = await invoke(moduleId, method, callArgs)
+      // Request context is set here, separately from the page's arguments.
+      const result = await invoke(moduleId, method, args, { askOnly: !settings.agentFromPhone })
       if (!isQuiet(method)) log('ok')
       return result
     } catch (err) {

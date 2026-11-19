@@ -179,7 +179,7 @@ function createTracker(db, { now = () => Date.now() } = {}) {
     const u = need(id, 'user', 'member')
     if (ext(u).me) fail('You cannot remove yourself.')
     db.transaction(() => {
-      for (const i of live('issue')) if (i.assigneeId === id) put('issue', { ...i, assigneeId: null })
+      for (const i of db.all('issue')) if (i.assigneeId === id) put('issue', { ...i, assigneeId: null })
       for (const p of live('project')) if (p.leadId === id || p.memberIds?.includes(id)) put('project', { ...p, leadId: p.leadId === id ? null : p.leadId, memberIds: (p.memberIds ?? []).filter((m) => m !== id) })
       for (const i of live('initiative')) if (i.ownerId === id) put('initiative', { ...i, ownerId: null })
       db.remove(id)
@@ -425,13 +425,30 @@ function createTracker(db, { now = () => Date.now() } = {}) {
   function deleteIssues(list, restore = false) {
     const targets = ids(list, 'Issues')
     db.transaction(() => {
-      for (const id of targets) {
-        const e = db.byId(id)
-        if (!e || e.entityType !== 'issue') continue
-        if (restore && e.deleted) {
-          if (!byId(e.teamId, 'team')) fail('Its team no longer exists.')
-          put('issue', { ...e, deleted: false, archivedAt: null })
-        } else if (!restore && !e.deleted) put('issue', { ...e, deleted: true, archivedAt: now() })
+      const issues = targets.map((id) => db.byId(id)).filter((e) => e?.entityType === 'issue')
+      if (!restore) {
+        for (const e of issues) if (!e.deleted) put('issue', { ...e, deleted: true, archivedAt: now() })
+        return
+      }
+      const restoring = new Set(issues.map((e) => e.id))
+      const issueExists = (id) => restoring.has(id) || byId(id, 'issue')
+      for (const e of issues) {
+        if (!e.deleted) continue
+        if (!byId(e.teamId, 'team')) fail('Its team no longer exists.')
+        const projectId = byId(e.projectId, 'project')?.id ?? null
+        const milestone = byId(e.projectMilestoneId, 'projectMilestone')
+        put('issue', {
+          ...e,
+          deleted: false,
+          archivedAt: null,
+          assigneeId: byId(e.assigneeId, 'user')?.id ?? null,
+          labelIds: (e.labelIds ?? []).filter((id) => byId(id, 'issueLabel')),
+          projectId,
+          projectMilestoneId: projectId && milestone?.projectId === projectId ? milestone.id : null,
+          cycleId: byId(e.cycleId, 'cycle')?.id ?? null,
+          parentId: issueExists(e.parentId) ? e.parentId : null,
+          relations: (e.relations ?? []).filter((r) => issueExists(r.issueId)),
+        })
       }
     })
   }
@@ -634,7 +651,7 @@ function createTracker(db, { now = () => Date.now() } = {}) {
     const e = need(id, type, type)
     db.transaction(() => {
       const clear = (field, match = (v) => v === id) => {
-        for (const i of live('issue')) if (match(i[field])) put('issue', { ...i, [field]: Array.isArray(i[field]) ? i[field].filter((x) => x !== id) : null, ...(field === 'projectId' ? { projectMilestoneId: null } : {}) })
+        for (const i of db.all('issue')) if (match(i[field])) put('issue', { ...i, [field]: Array.isArray(i[field]) ? i[field].filter((x) => x !== id) : null, ...(field === 'projectId' ? { projectMilestoneId: null } : {}) })
       }
       if (type === 'issueLabel') {
         clear('labelIds', (v) => v?.includes(id))

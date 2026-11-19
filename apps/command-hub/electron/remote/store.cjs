@@ -1,7 +1,7 @@
 // Remote access files, in the machine-wide `modules/remote` data folder
 // (docs/remote-access.md). No Electron dependency, so tests run under Node.
 //
-//   settings.json  { enabled, port, allowedLogins[], agentFromPhone }
+//   settings.json  { enabled, port, allowedLogins[], allowedLoginsInitialized, agentFromPhone }
 //   devices.json   [{ id, name, agent, keyHash, pairedAt, lastSeen }]  (sha-256 of each key, never the key)
 //   audit.jsonl    one line per remote call worth showing: device, module, method, outcome, ms
 //
@@ -23,7 +23,7 @@ const MAX_DEVICES = 20
 const MAX_LOGINS = 10
 const LOGIN_RE = /^[^\s@]{1,64}@[^\s@]{1,190}$|^[\w.-]{1,64}@github$/
 
-const DEFAULTS = Object.freeze({ enabled: false, port: DEFAULT_PORT, allowedLogins: [], agentFromPhone: false })
+const DEFAULTS = Object.freeze({ enabled: false, port: DEFAULT_PORT, allowedLogins: [], allowedLoginsInitialized: false, agentFromPhone: false })
 
 async function readJson(file) {
   let text
@@ -49,7 +49,13 @@ function cleanSettings(v) {
   const s = v && typeof v === 'object' ? v : {}
   const port = Number.isInteger(s.port) && s.port >= 1024 && s.port <= 65535 ? s.port : DEFAULT_PORT
   const logins = Array.isArray(s.allowedLogins) ? [...new Set(s.allowedLogins.map(cleanLogin).filter(Boolean))].slice(0, MAX_LOGINS) : []
-  return { enabled: s.enabled === true, port, allowedLogins: logins, agentFromPhone: s.agentFromPhone === true }
+  return {
+    enabled: s.enabled === true,
+    port,
+    allowedLogins: logins,
+    allowedLoginsInitialized: s.allowedLoginsInitialized === true || logins.length > 0,
+    agentFromPhone: s.agentFromPhone === true,
+  }
 }
 
 function createRemoteStore(dir) {
@@ -61,13 +67,28 @@ function createRemoteStore(dir) {
     return cleanSettings(r.value)
   }
 
-  async function writeSettings(patch) {
-    const r = await readJson(file(SETTINGS_FILE))
-    if (r.damaged) throw new Error('The Remote access settings file is damaged. Delete it to start over.')
-    const next = cleanSettings({ ...cleanSettings(r.value), ...patch })
-    await fs.mkdir(dir, { recursive: true })
-    await writeAtomic(file(SETTINGS_FILE), `${JSON.stringify(next, null, 2)}\n`)
-    return next
+  // Check initialization and apply settings changes in the same queue, so an
+  // automatic check cannot replace an allowlist the user just edited.
+  let settingsQueue = Promise.resolve()
+  function mutateSettings(change) {
+    const run = settingsQueue.then(async () => {
+      const current = await readSettings()
+      if (current.damaged) throw new Error('The Remote access settings file is damaged. Delete it to start over.')
+      const patch = change(current)
+      if (!patch) return current
+      const next = cleanSettings({ ...current, ...patch })
+      await writeAtomic(file(SETTINGS_FILE), `${JSON.stringify(next, null, 2)}\n`)
+      return next
+    })
+    settingsQueue = run.catch(() => {})
+    return run
+  }
+
+  const writeSettings = (patch) => mutateSettings(() => patch)
+
+  function initializeLogins(login) {
+    const cleaned = cleanLogin(login)
+    return mutateSettings((current) => cleaned && current.enabled && !current.allowedLoginsInitialized ? { allowedLogins: [cleaned] } : undefined)
   }
 
   async function readDevicesRaw() {
@@ -200,6 +221,7 @@ function createRemoteStore(dir) {
     dir,
     readSettings,
     writeSettings,
+    initializeLogins,
     listDevices,
     addDevice,
     deviceForKey,

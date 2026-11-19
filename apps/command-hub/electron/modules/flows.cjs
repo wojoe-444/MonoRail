@@ -91,7 +91,7 @@ async function runDeps(ctx) {
   return {
     models: { claude: options.CLAUDE_MODELS, pi: options.PI_MODELS },
     resolveRepo: (name) => repos.find((r) => r.name === name) ?? repos.find((r) => r.path === name),
-    startTurn: ({ sdk, repoPath, prompt, mode, model }) => agentChat._internal.startTurn({ dataDir: dir }, { repo: repoPath, sdk, prompt, mode, model, effort: 'default' }),
+    startTurn: ({ sdk, repoPath, prompt, mode, model }) => agentChat._internal.startTurn({ ...ctx, dataDir: dir }, { repo: repoPath, sdk, prompt, mode, model, effort: 'default' }),
     pollTurn: (turnId) => turnsApi.pollTurn(turnId, 0),
     stopTurn: (turnId) => turnsApi.stopTurn(turnId),
     async getSubagent(id) {

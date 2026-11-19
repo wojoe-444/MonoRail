@@ -4,7 +4,7 @@
 
 const { describe, it, before, after } = require('node:test')
 const assert = require('node:assert/strict')
-const { execFileSync, spawn } = require('node:child_process')
+const { execFile, execFileSync, spawn } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -271,6 +271,53 @@ describe('MonoRail read tools', () => {
     const r = await call(server, 'list_chat_sessions', {})
     assert.equal(r.isError, false, r.text)
     assert.ok(Array.isArray(r.value.sessions))
+  })
+})
+
+describe('agent access storage', () => {
+  const access = require('./access.cjs')
+
+  it('preserves concurrent grants, revocations, removals and registration across processes', async () => {
+    const dir = tmp('monorail-mcp-access-')
+    await access.noteAgent(dir, { name: 'known-agent' })
+    await access.noteAgent(dir, { name: 'retired-agent' })
+    await access.setAllowed(dir, 'known-agent', 'create_issue', true)
+    fs.writeFileSync(path.join(access.mcpDir(dir), 'access.json.lock'), JSON.stringify({ pid: 999999999, startedAt: new Date().toISOString() }))
+    const names = Array.from({ length: 8 }, (_, i) => `new-agent-${i}`)
+    const localNames = Array.from({ length: 8 }, (_, i) => `local-agent-${i}`)
+    const script = `
+      const access = require(process.argv[1])
+      Promise.all(process.argv.slice(3).map((name) => access.noteAgent(process.argv[2], { name })))
+        .catch((e) => { console.error(e); process.exitCode = 1 })
+    `
+    const registrations = new Promise((resolve, reject) => {
+      execFile(process.execPath, ['-e', script, require.resolve('./access.cjs'), dir, ...names], (err) => err ? reject(err) : resolve())
+    })
+    await Promise.all([
+      registrations,
+      access.setAllowed(dir, 'known-agent', 'create_issue', false),
+      access.setAllowed(dir, 'known-agent', 'comment_on_issue', true),
+      access.forgetAgent(dir, 'retired-agent'),
+      ...localNames.map((name) => access.noteAgent(dir, { name })),
+    ])
+    const { agents } = await access.readAccess(dir)
+    assert.deepEqual(Object.keys(agents).sort(), ['known-agent', ...localNames, ...names])
+    assert.deepEqual(agents['known-agent'].allow, { comment_on_issue: true })
+    for (const name of [...localNames, ...names]) assert.deepEqual(agents[name].allow, {})
+  })
+
+  it('refuses every write when the access file is damaged', async () => {
+    const dir = tmp('monorail-mcp-access-')
+    fs.mkdirSync(access.mcpDir(dir), { recursive: true })
+    const file = path.join(access.mcpDir(dir), access.ACCESS_FILE)
+    for (const damaged of ['{ broken', '{"agents":{"known-agent":null}}']) {
+      fs.writeFileSync(file, damaged)
+      assert.equal(await access.isAllowed(dir, 'known-agent', 'create_issue'), false)
+      await assert.rejects(access.noteAgent(dir, { name: 'new-agent' }), /damaged/)
+      await assert.rejects(access.setAllowed(dir, 'known-agent', 'create_issue', false), /damaged/)
+      await assert.rejects(access.forgetAgent(dir, 'known-agent'), /damaged/)
+      assert.equal(fs.readFileSync(file, 'utf8'), damaged)
+    }
   })
 })
 
