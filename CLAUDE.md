@@ -933,6 +933,31 @@ issue on the repo's own remote (never a repo named by the page), then saves
 the local issue with a `github` link (`{ repo, number, url }`); later edits
 and comments stay local. The MCP server's GitHub+ tools never publish.
 
+**Search** (`electron/apps/github-plus/search.cjs`, tests `search.test.cjs`;
+page `pages/SearchPage.tsx` at `/repo/search` and `/search` for every Home
+repo; guide `docs/guide/workspace/search-code.md`). Kinds: code (`git grep`
+with one line of context), files (`ls-files` / `ls-tree`, fuzzy scored in
+JS), commits (`log --grep`, plus a sha prefix), history (the pickaxe, `log -S`
+or `-G` with `--name-only`; runs only when its tab is open) and issues (local
+issues read with `issues.readAll`, plus linked tasks). The default is the
+**working folder** (`git grep --untracked`, `ls-files -co --exclude-standard`;
+results open through `readWorkingBlob`, a real-path check that keeps reads
+inside the repo); `ref:` (up to 4, comma list) or the page's `in` option picks
+committed refs, each checked with `assertRef` and resolved first. `parseQuery`
+reads the qualifiers (`repo: path: -path: lang: ref: author: before: after:
+def: is: case: word: regex:`, `"phrases"`, `/regex/`). The search text goes to
+git only after `-e` or glued to its option (`--grep=`, `-S`), never as its own
+argument; paths are filtered in JS and passed only as pathspecs after `--`;
+textconv and external diff are off. Every process runs inside git.cjs's
+6-process `slot`, with per-kind caps and time limits, and a newer search on the
+same channel (`search.channel`) kills the older one. `searchAll` reads only
+Home's stored recents and linked repos, never paths from the page. "Since
+when?" (`lineHistory`: `blame --porcelain -L` plus `log -L`) opens from a line
+number on the file page. Saved searches are raw query strings in `prefs`
+(`commandHub.githubPlus.savedSearches`, max 8); Home counts them with
+`searchCounts` (`git grep -c`), reused per repo while `refsFingerprint` is
+unchanged only for committed-ref queries. Nothing is cached to disk.
+
 GitHub+ can show a repo's folder in File Explorer (repo header button and
 the home page's repo list, `openInExplorer`): only for a repo opened this
 session, on its recents list or linked, only a directory (`shell.openPath` would run a

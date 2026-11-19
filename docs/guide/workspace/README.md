@@ -17,6 +17,8 @@ it helps.
   branches and comparisons for the git [repositories](../glossary.md#repository)
   on your computer, plus your repositories on github.com once you
   [connect GitHub](../setup/connections.md#the-connections).
+  [Search your code](search-code.md) across every repository, including work
+  you have not committed yet and the whole history.
 - **To-dos next to the code.** [Local issues](local-issues.md) live inside a
   repository, so they travel with it.
 - **Tasks.** [Tasks](tasks.md) (formerly Jira+) keeps private projects on your computer

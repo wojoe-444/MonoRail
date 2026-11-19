@@ -293,4 +293,4 @@ async function addComment(repo, number, { body } = {}) {
   })
 }
 
-module.exports = { ISSUES_REF, listIssues, issueCounts, getIssue, createIssue, updateIssue, addComment, cleanTitle, cleanBody }
+module.exports = { ISSUES_REF, readAll, listIssues, issueCounts, getIssue, createIssue, updateIssue, addComment, cleanTitle, cleanBody }

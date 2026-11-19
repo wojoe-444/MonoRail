@@ -21,6 +21,9 @@ search box opens over the page. It looks through everything at once:
 On a Settings page, Ctrl+K opens on the Settings results first. Press Ctrl+K
 again, Escape or click outside the box to close it.
 
+To search inside your git repositories (code, files, commits and history),
+use GitHub+'s own search: [search your code](workspace/search-code.md).
+
 ## Browse the catalog
 
 Before you type, the box shows the last few things you opened and the

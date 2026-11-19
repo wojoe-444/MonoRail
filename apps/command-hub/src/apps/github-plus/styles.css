@@ -674,5 +674,62 @@
   .ghp-empty svg { width: 32px; height: 32px; color: var(--muted-foreground); }
   .ghp-empty h3 { font-size: 16px; margin: 8px 0 4px; }
   .ghp-empty p { color: var(--muted-foreground); margin: 0 0 16px; }
+
+  /* Search (pages/SearchPage.tsx, components/LineHistory.tsx) */
+  .ghp-search-box { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .ghp-search-box input.search { flex: 1 1 320px; min-width: 0; height: 36px; font-size: 14px; }
+  .ghp-toggle { all: unset; box-sizing: border-box; height: 32px; min-width: 34px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--input); border-radius: 8px; font-family: var(--font-mono, monospace); font-size: 12.5px; color: var(--muted-foreground); background: var(--card); cursor: pointer; }
+  .ghp-toggle:hover { color: var(--foreground); }
+  .ghp-toggle.on { background: var(--primary-soft); color: var(--primary-soft-foreground); border-color: transparent; font-weight: 600; }
+  .ghp-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+  .ghp-select { height: 32px; max-width: 260px; background: var(--card); color: var(--gh-fg); border: 1px solid var(--input); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 13px; }
+  .btn.active { background: var(--gh-bg3); }
+  .ghp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .ghp-tips { margin-bottom: 16px; }
+  .ghp-tips td { padding: 6px 12px; vertical-align: top; }
+  .ghp-saved { list-style: none; margin: 0; padding: 4px 0; }
+  .ghp-saved li { display: flex; gap: 12px; justify-content: space-between; padding: 6px 16px; border-bottom: 1px solid var(--border); }
+  .ghp-saved li:last-child { border-bottom: 0; }
+  .ghp-search mark, .ghp-search-repo mark { background: var(--warning-soft); color: var(--warning-soft-foreground); border-radius: 2px; padding: 0 1px; }
+  .ghp-search-repo { margin-bottom: 24px; }
+  .ghp-search-repo > h2 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+  .ghp-search-repo > h2 svg { width: 16px; height: 16px; }
+  .ghp-search-note { margin: 0 0 8px; }
+  .ghp-hit .box-head { gap: 8px; padding: 8px 12px; min-width: 0; }
+  .ghp-hit .box-head svg { width: 14px; height: 14px; flex: none; color: var(--muted-foreground); }
+  .ghp-hit .box-head .link-btn { color: var(--foreground); font-weight: 600; min-width: 0; }
+  table.ghp-hit-lines td.lc { white-space: pre; }
+  table.ghp-hit-lines tr.hit td.lc { background: color-mix(in oklch, var(--warning-soft) 45%, transparent); }
+  table.ghp-hit-lines tr.gap td { color: var(--gh-muted); background: var(--gh-bg2); line-height: 14px; font-size: 11px; }
+  table.ghp-hit-lines td.ln .link-btn { color: var(--gh-muted); }
+  table.ghp-hit-lines td.ln .link-btn:hover { color: var(--gh-link); }
+  .ghp-hit-row { all: unset; box-sizing: border-box; display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 8px 16px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .ghp-hit-row:last-child { border-bottom: 0; }
+  .ghp-hit-row:hover { background: var(--gh-bg2); }
+  .ghp-hit-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ghp-hit-row svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--muted-foreground); }
+  .ghp-hit-issue .ok svg { color: var(--success); } .ghp-hit-issue .done svg { color: var(--highlight, var(--primary)); } .ghp-hit-issue .pri svg { color: var(--primary); }
+  .ghp-hit-issue .title { font-weight: 600; }
+  .ghp-hit-issue .snippet { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ghp-hit-commit { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .ghp-hit-commit:last-child { border-bottom: 0; }
+  .ghp-hit-commit .title { font-weight: 600; color: var(--foreground); }
+  .ghp-hit-commit svg { width: 12px; height: 12px; vertical-align: -1px; }
+  .ghp-hit-files { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  table.code tr.selected td { background: color-mix(in oklch, var(--warning-soft) 60%, transparent); }
+  .ln-btn { all: unset; cursor: pointer; color: inherit; }
+  .ln-btn:hover { color: var(--gh-link); text-decoration: underline; }
+  .ln-btn:focus-visible { outline: 2px solid var(--ring); border-radius: 2px; }
+  .ghp-linehist { border-bottom: 1px solid var(--gh-border); background: var(--gh-bg2); }
+  .ghp-linehist .head { display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-wrap: wrap; }
+  .ghp-linehist .head svg { width: 14px; height: 14px; }
+  .ghp-linehist .pad-x { padding: 0 16px 8px; }
+  .ghp-linehist .list { list-style: none; margin: 0; padding: 0 16px 12px; max-height: 360px; overflow: auto; }
+  .ghp-linehist .list li { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; overflow: hidden; }
+  .ghp-linehist .row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; min-width: 0; }
+  .ghp-linehist .row .title { font-weight: 600; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .ghp-linehist .diff { margin: 0; padding: 4px 0; font-size: 12px; line-height: 18px; border-top: 1px solid var(--border); overflow-x: auto; }
+  .ghp-linehist .diff span { display: block; padding: 0 10px; white-space: pre; }
+  .ghp-linehist .diff .add { background: var(--gh-addbg); } .ghp-linehist .diff .del { background: var(--gh-delbg); }
 }
 }

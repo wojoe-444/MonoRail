@@ -20,7 +20,9 @@ automatically.
 ## The home page
 
 The home page has five views: **Overview**, **Repositories**, **Activity**,
-**Issues** and **Backups**. The search box filters every table at once.
+**Issues** and **Backups**. The search box filters every table at once;
+press **Enter** in it to [search the code](search-code.md) of every
+repository instead.
 
 - A summary row at the top counts your repositories and open issues, and how
   many have commits that are **not pushed** or files that are **not
@@ -49,6 +51,11 @@ branch you are looking at.
   what it changed.
 - **Branches** and **Compare**: how far [branches](../glossary.md#branch)
   have moved apart, and the difference between any two.
+
+The search box in the tab row (press **/**) searches the repository's code,
+files, commits, history and issues, including work you have not committed
+yet; see [search your code](search-code.md). Click a line number in any
+file to see [when that line changed](search-code.md#when-did-this-line-change).
 
 If an agent is working in the repository right now, the **Changes** panel in
 [Chat](../agents/chat.md#side-panels) shows its uncommitted edits.
