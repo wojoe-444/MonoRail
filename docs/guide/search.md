@@ -1,6 +1,6 @@
 ---
 audience: human
-summary: Press Ctrl+K anywhere to jump to a page, setting, chat, wiki article or catalog entity type.
+summary: Press Ctrl+K anywhere to jump to a page, setting, chat, wiki article, table or catalog entity type.
 ---
 
 # Find anything with Ctrl+K
@@ -9,9 +9,11 @@ Press **Ctrl+K** on any page (or click the top search bar) to search everything
 at once:
 
 - **Pages**: every destination in the sidebar (Chat, Explore, Storage, etc.).
-- **Catalog**: every entity type in the
-  [MonoRail standard](../standard/README.md) — selecting one opens
-  [Explore](data/explore.md) directly at that type.
+- **Catalog**: your tables and other data assets, searched by name across
+  the whole [OpenMetadata](data/openmetadata.md) catalog (best matches first;
+  selecting one opens it there), and every entity type in the
+  [MonoRail standard](../standard/README.md) (selecting one opens
+  [Explore](data/explore.md) directly at that type).
 - **Chats**: recent non-archived sessions from [Chat](agents/chat.md).
 - **Settings**: every Settings page, card and option, matching the search box in
   [Settings](setup/README.md#finding-your-way-around-settings).

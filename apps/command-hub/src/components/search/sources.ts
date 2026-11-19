@@ -145,6 +145,34 @@ export function searchChats(chats: SessionSummary[], query: string): SessionSumm
   return chats.filter((c) => matchesAll(`${c.title} ${c.preview} ${c.repo.name} ${c.branch ?? ''}`, ws))
 }
 
+/** A table (or other data asset) in the OpenMetadata catalog. */
+export interface AssetHit {
+  id: string
+  type: string
+  name: string
+  fqn: string
+  deleted?: boolean
+}
+
+/**
+ * Tables and other data assets whose name matches, from the OpenMetadata
+ * page's catalog (its backend `search`: the whole catalog, best matches first,
+ * not a loaded page). Loaded lazily so the catalog code stays out of the main
+ * bundle.
+ */
+export async function searchAssets(query: string, limit: number): Promise<{ rows: AssetHit[]; total: number }> {
+  const [{ call }, { ASSET_TYPES }] = await Promise.all([import('@/modules/openmetadata/api'), import('@/modules/openmetadata/tabs/assets')])
+  const res = await call<{ data: { id: string; entityType: string; name?: string; displayName?: string; fullyQualifiedName?: string; deleted?: boolean }[]; total: number }>('search', {
+    q: query,
+    types: [...ASSET_TYPES],
+    limit,
+  })
+  return {
+    rows: res.data.map((e) => ({ id: e.id, type: e.entityType, name: e.displayName || e.name || e.fullyQualifiedName || 'Unnamed', fqn: e.fullyQualifiedName ?? e.name ?? '', deleted: e.deleted })),
+    total: res.total,
+  }
+}
+
 /**
  * Where a result goes. Kept as data so recent results can be stored; it
  * never holds a file path (a chat is named by the id Chat's backend gave it).
@@ -154,9 +182,10 @@ export type Target =
   | { kind: 'type'; type: string }
   | { kind: 'wiki'; id: string; anchor?: string }
   | { kind: 'chat'; id: string }
+  | { kind: 'entity'; type: string; fqn: string }
 
 export interface Recent {
-  kind: 'page' | 'setting' | 'type' | 'chat' | 'wiki'
+  kind: 'page' | 'setting' | 'type' | 'chat' | 'wiki' | 'asset'
   label: string
   detail: string
   target: Target

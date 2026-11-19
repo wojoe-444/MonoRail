@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { BookOpen, ChevronRight, Compass, CornerDownLeft, FileText, MessageSquare, Search, Settings2, Shapes, X } from 'lucide-react'
+import { BookOpen, ChevronRight, Compass, CornerDownLeft, FileText, MessageSquare, Search, Settings2, Shapes, Table2, X } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { currentPath, navigate } from '@/lib/router'
@@ -19,11 +19,13 @@ import {
   loadChats,
   loadWikiPages,
   readRecents,
+  searchAssets,
   searchChats,
   searchTypes,
   searchWiki,
   SECTION_SUMMARIES,
   usePageIndex,
+  type AssetHit,
   type Recent,
   type Target,
 } from './sources'
@@ -64,6 +66,7 @@ const KIND_ICON: Record<Kind, IconComponent> = {
   type: Shapes,
   chat: MessageSquare,
   wiki: BookOpen,
+  asset: Table2,
   section: Compass,
 }
 
@@ -73,6 +76,7 @@ const KIND_TONE: Record<Kind, string> = {
   type: 'bg-info-soft text-info-soft-foreground',
   chat: 'bg-success-soft text-success-soft-foreground',
   wiki: 'bg-muted text-muted-foreground',
+  asset: 'bg-info-soft text-info-soft-foreground',
   section: 'bg-info-soft text-info-soft-foreground',
 }
 
@@ -88,6 +92,15 @@ const typeItem = (type: string): Item | undefined => {
     target: { kind: 'type', type: t.type },
   }
 }
+
+const assetItem = (a: AssetHit): Item => ({
+  key: `asset:${a.type}:${a.id}`,
+  kind: 'asset',
+  label: a.name,
+  detail: a.fqn,
+  badge: a.deleted ? 'Deleted' : (entityType(a.type)?.name ?? a.type),
+  target: { kind: 'entity', type: a.type, fqn: a.fqn },
+})
 
 const chatItem = (c: SessionSummary): Item => ({
   key: `chat:${c.id}`,
@@ -122,6 +135,9 @@ function go(target: Target) {
       break
     case 'chat':
       openInChat({ open: target.id })
+      break
+    case 'entity':
+      void import('@/modules/openmetadata/tabs').then((m) => m.openInCatalog({ type: target.type, fqn: target.fqn }))
       break
   }
 }
@@ -210,6 +226,25 @@ function PaletteBody({ start }: { start: SearchState }) {
     }
   }, [needsChats])
 
+  // Tables and other data assets: the whole catalog, searched in the backend once typing pauses.
+  const assetQuery = query.trim() && !section && (scope === 'all' || scope === 'catalog') ? query.trim() : ''
+  const assetLimit = scope === 'all' ? GROUP_MAX + 1 : SCOPED_MAX
+  const [assets, setAssets] = useState<{ q: string; rows: AssetHit[]; total: number; error?: string }>()
+  useEffect(() => {
+    if (!assetQuery) return
+    let live = true
+    const t = setTimeout(() => {
+      searchAssets(assetQuery, assetLimit).then(
+        (r) => live && setAssets({ q: assetQuery, ...r }),
+        (e: unknown) => live && setAssets({ q: assetQuery, rows: [], total: 0, error: e instanceof Error ? e.message : String(e) }),
+      )
+    }, 150)
+    return () => {
+      live = false
+      clearTimeout(t)
+    }
+  }, [assetQuery, assetLimit])
+
   const groups = useMemo<Group[]>(() => {
     const q = query.trim()
     const max = scope === 'all' ? GROUP_MAX : SCOPED_MAX
@@ -245,9 +280,12 @@ function PaletteBody({ start }: { start: SearchState }) {
           if (items.length) out.push({ id: `cat:${c.id}`, heading: c.name, aside: <span>{items.length}</span>, items })
         }
       } else {
+        // Keep the last answer on screen while the next one loads, so rows don't jump.
+        if (assetQuery && assets && assets.rows.length)
+          out.push({ id: 'assets', heading: 'Tables and data assets', aside: more('catalog', assets.total), items: assets.rows.slice(0, max).map(assetItem) })
         const hits = searchTypes(q, section)
         if (hits.length || scope === 'catalog')
-          out.push({ id: 'catalog', heading: section ? `Catalog › ${SECTIONS.find((s) => s.id === section)?.name}` : 'Catalog', aside: more('catalog', hits.length), items: hits.slice(0, max).map((t) => typeItem(t.type)!) })
+          out.push({ id: 'catalog', heading: section ? `Catalog › ${SECTIONS.find((s) => s.id === section)?.name}` : 'Entity types', aside: more('catalog', hits.length), items: hits.slice(0, max).map((t) => typeItem(t.type)!) })
       }
     }
 
@@ -267,7 +305,7 @@ function PaletteBody({ start }: { start: SearchState }) {
       if (hits.length || scope === 'wiki') out.push({ id: 'wiki', heading: q ? 'Wiki' : 'Guides', aside: more('wiki', hits.length), items: hits.slice(0, max).map(wikiItem) })
     }
     return out
-  }, [query, scope, section, recents, index, chats, wiki])
+  }, [query, scope, section, recents, index, chats, wiki, assets, assetQuery])
 
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups])
   const current = flat[Math.min(active, flat.length - 1)]
@@ -418,7 +456,7 @@ function PaletteBody({ start }: { start: SearchState }) {
           <Hint keys={[<CornerDownLeft key="enter" className="size-3" />]}>open</Hint>
           <Hint keys={['Tab']}>change scope</Hint>
           {(section || scope !== 'all') && <Hint keys={['⌫']}>back</Hint>}
-          <span className="ml-auto hidden sm:inline">Catalog types open in Explore</span>
+          <span className="ml-auto hidden sm:inline">Tables open in OpenMetadata, types in Explore</span>
         </div>
     </>
   )
