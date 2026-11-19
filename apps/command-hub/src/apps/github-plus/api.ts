@@ -2,7 +2,7 @@ import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
 import { sampleApi } from './sample'
-import type { LinkCounts, LinkedTask, GitHubRepos, GitHubTarget, BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry, WorkingState } from './types'
+import type { LinkCounts, LinkedTask, GitHubRepos, GitHubTarget, BackupSchedule, BackupState, BlobResult, FolderPreview, GitHubPlusSettings, LinkedRepo, Issue, IssueCounts, IssueEdit, IssueState, IssueSummary, InitOptions, RepoActivity, CommitDetail, CommitSummary, Divergence, LastCommit, CompareResult, LogOptions, RefInfo, RepoInfo, TreeEntry, WorkingState, AllSearch, LineHistory, RepoSearch, SavedSearchCount, SearchKind, SearchOptions } from './types'
 
 /**
  * Everything GitHub+ asks of its backend (electron/apps/github-plus). Every call
@@ -38,6 +38,16 @@ export interface RepoApi {
   /** Ahead/behind of every branch against `base`, by branch name. */
   branchDivergence(repo: string, base: string): Promise<Record<string, Divergence>>
   readBlob(repo: string, ref: string, path: string): Promise<BlobResult>
+  /** A file as it is in the working folder now (for results found there). */
+  readWorkingBlob(repo: string, path: string): Promise<BlobResult>
+  /** Search one opened repo. history (the pickaxe) only runs when asked for. A newer search on the channel cancels this one. */
+  search(repo: string, query: string, kinds: SearchKind[], opts: SearchOptions, channel: string): Promise<RepoSearch>
+  /** Search every repo Home lists (narrowed by repo: in the query). */
+  searchAll(query: string, kinds: SearchKind[], opts: SearchOptions, channel: string): Promise<AllSearch>
+  /** Matching lines per saved search across Home's repos. */
+  searchCounts(queries: string[]): Promise<SavedSearchCount[]>
+  /** Who last changed a line and every commit that changed it. */
+  lineHistory(repo: string, ref: string, path: string, line: number): Promise<LineHistory>
   getLog(repo: string, opts: LogOptions): Promise<{ commits: CommitSummary[]; hasMore: boolean }>
   countCommits(repo: string, ref: string): Promise<number>
   getCommit(repo: string, sha: string): Promise<CommitDetail>
@@ -110,6 +120,11 @@ const desktopApi: RepoApi = {
   treeLastCommits: (repo, ref, path) => call('treeLastCommits', { repo, ref, path }),
   branchDivergence: (repo, base) => call('branchDivergence', { repo, base }),
   readBlob: (repo, ref, path) => call('readBlob', { repo, ref, path }),
+  readWorkingBlob: (repo, path) => call('readWorkingBlob', { repo, path }),
+  search: (repo, query, kinds, opts, channel) => call('search', { repo, query, kinds, opts, channel }),
+  searchAll: (query, kinds, opts, channel) => call('searchAll', { query, kinds, opts, channel }),
+  searchCounts: (queries) => call('searchCounts', { queries }),
+  lineHistory: (repo, ref, path, line) => call('lineHistory', { repo, ref, path, line }),
   getLog: (repo, opts) => call('getLog', { repo, opts }),
   countCommits: (repo, ref) => call('countCommits', { repo, ref }),
   getCommit: (repo, sha) => call('getCommit', { repo, sha }),

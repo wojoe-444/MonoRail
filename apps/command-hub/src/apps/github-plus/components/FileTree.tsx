@@ -2,7 +2,7 @@ import { useEffect, useReducer, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRepo } from '../RepoContext'
 import { api } from '../api'
-import { blobLink, treeLink } from '../links'
+import { blobLink, searchLink, treeLink } from '../links'
 import type { TreeEntry } from '../types'
 import { ChevronDown, ChevronRight, FileIcon, FolderIcon, SubmoduleIcon } from './Icons'
 
@@ -84,27 +84,56 @@ export default function FileTree({ refName, current, isFile }: { refName: string
     return l.flatMap((e) => [row(e, depth), e.type === 'dir' && open.has(e.path) ? <div key={`${e.path}:kids`}>{renderDir(e.path, depth + 1)}</div> : null])
   }
 
-  // Filter: entries of the folders loaded so far whose path contains the text.
-  const q = filter.trim().toLowerCase()
-  const matches = q
-    ? [...listings.entries()]
-        .filter(([k, v]) => k.startsWith(`${rp}\0${sha}\0`) && Array.isArray(v))
-        .flatMap(([, v]) => v as TreeEntry[])
-        .filter((e) => e.path.toLowerCase().includes(q))
-        .sort((a, b) => a.path.localeCompare(b.path))
-        .slice(0, 200)
-    : []
+  // Filter: every file at this ref (not only the folders opened so far), fuzzy, best first.
+  const q = filter.trim()
+  const [found, setFound] = useState<{ q: string; paths: string[]; total: number; error?: string } | null>(null)
+  useEffect(() => {
+    if (!q) { setFound(null); return }
+    let live = true
+    const t = setTimeout(() => {
+      api.search(rp, q, ['files'], { in: refName }, 'ghp-tree').then(
+        (r) => {
+          if (!live) return
+          const f = r.results.files
+          if (f && 'error' in f) setFound({ q, paths: [], total: 0, error: f.error })
+          else setFound({ q, paths: (f?.files ?? []).map((x) => x.path), total: f?.total ?? 0 })
+        },
+        (e: Error) => live && !/cancelled/i.test(e.message) && setFound({ q, paths: [], total: 0, error: e.message }),
+      )
+    }, 150)
+    return () => { live = false; clearTimeout(t) }
+  }, [q, rp, refName])
 
   return (
     <aside className="ghp-card ghp-tree" aria-label="Files">
-      <input className="search" placeholder="Filter files…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter files in the folders opened so far" />
+      <input
+        className="search"
+        placeholder="Find a file…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && found?.paths[0]) nav(blobLink(refName, found.paths[0])) }}
+        aria-label="Find a file anywhere in this branch"
+        title="Letters in order are enough: sfmt finds src/format.ts. Enter opens the first match."
+      />
       {q ? (
-        matches.length ? matches.map((e) => (
-          <button key={e.path} className={`ghp-tree-row${e.path === current ? ' current' : ''}`} style={{ paddingLeft: 6 }} title={e.path} onClick={() => nav(e.type === 'dir' ? treeLink(refName, e.path) : blobLink(refName, e.path))}>
-            <span className={`ico${e.type === 'dir' ? ' folder' : ''}`}>{e.type === 'dir' ? <FolderIcon /> : <FileIcon />}</span>
-            <span className="nm">{e.path}</span>
-          </button>
-        )) : <div className="note">Nothing found in the folders opened so far.</div>
+        !found || found.q !== q ? <div className="note">Searching…</div>
+          : found.error ? <div className="note">{found.error}</div>
+          : found.paths.length ? (
+            <>
+              {found.paths.map((p) => (
+                <button key={p} className={`ghp-tree-row${p === current ? ' current' : ''}`} style={{ paddingLeft: 6 }} title={p} onClick={() => nav(blobLink(refName, p))}>
+                  <span className="ico"><FileIcon /></span>
+                  <span className="nm">{p}</span>
+                </button>
+              ))}
+              {found.total > found.paths.length && (
+                <div className="note">
+                  {found.total} files match; showing the best {found.paths.length}.{' '}
+                  <button className="link-btn" onClick={() => nav(searchLink(`${q} ref:${refName}`, 'files'))}>See all</button>
+                </div>
+              )}
+            </>
+          ) : <div className="note">No file matches.</div>
       ) : renderDir('', 0)}
     </aside>
   )

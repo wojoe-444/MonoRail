@@ -17,6 +17,7 @@ async function sampleTasks(repo: { path?: string; github?: string | null }): Pro
   })
 }
 const sampleGitHubOf = (repo: string) => (repo.endsWith('/orbit-notes') ? 'sample-dev/orbit-notes' : null)
+import type { CodeFile, IssueHit, ParsedQuery, RepoSearch, RepoSearchResults, SearchKind, SearchOptions } from './types'
 import type { GitHubRepo, BackupState, CommitDetail, Issue, IssueSummary, LinkedRepo, RepoActivity, CommitSummary, LastCommit, DiffFile, RefInfo, RepoInfo, TreeEntry } from './types'
 
 const REPO: RepoInfo = {
@@ -291,6 +292,105 @@ const saveIssue = (i: Issue): Promise<Issue> => {
 }
 const SAMPLE_USER = 'Avery Lin'
 
+// Search over the sample repo, a small stand-in for search.cjs: free text,
+// /regex/, path:, lang: (as an extension), ref: and is:. The working folder
+// is the main branch plus one fictional uncommitted file.
+const WORKING_FILES: Files = { ...MAIN_FILES, 'src/draft.ts': `// Not committed yet.\nexport const draftNote = createNote('Draft', '')\n` }
+function sampleQuery(raw: string, opts: SearchOptions): ParsedQuery {
+  const q: ParsedQuery = { text: '', regex: !!opts.regex, caseSensitive: !!opts.caseSensitive, word: !!opts.word, repos: [], paths: [], notPaths: [], langs: [], refs: [], author: null, before: null, after: null, def: null, state: null }
+  const words: string[] = []
+  for (const t of raw.match(/"[^"]*"|\S+/g) ?? []) {
+    const m = /^(-?[a-z]+):(.+)$/i.exec(t)
+    const k = m?.[1].toLowerCase()
+    if (k === 'repo') q.repos.push(m![2])
+    else if (k === 'path') q.paths.push(m![2])
+    else if (k === '-path') q.notPaths.push(m![2])
+    else if (k === 'lang') q.langs.push(m![2].toLowerCase())
+    else if (k === 'ref') q.refs.push(...m![2].split(','))
+    else if (k === 'author') q.author = m![2]
+    else if (k === 'def') q.def = m![2]
+    else if (k === 'is' && /^(open|closed)$/.test(m![2])) q.state = m![2] as ParsedQuery['state']
+    else words.push(t.replace(/^"|"$/g, ''))
+  }
+  q.text = words.join(' ')
+  const rx = /^\/(.+)\/$/.exec(q.text)
+  if (rx) { q.text = rx[1]; q.regex = true }
+  return q
+}
+function sampleTest(q: ParsedQuery): (s: string) => boolean {
+  const src = q.def ? `(function|const|class|interface|type)\\s+${q.def}\\b` : q.regex ? q.text : q.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  try {
+    const re = new RegExp(q.word && !q.def ? `\\b${src}\\b` : src, q.caseSensitive || q.def ? '' : 'i')
+    return (s) => re.test(s)
+  } catch {
+    throw new Error('That regular expression is not valid.')
+  }
+}
+const samplePathOk = (q: ParsedQuery, p: string) =>
+  (!q.paths.length || q.paths.some((x) => p.toLowerCase().includes(x.toLowerCase()))) &&
+  !q.notPaths.some((x) => p.toLowerCase().includes(x.toLowerCase())) &&
+  (!q.langs.length || q.langs.some((l) => p.endsWith('.' + (l === 'typescript' ? 'ts' : l))))
+function sampleSearch(raw: string, kinds: SearchKind[], opts: SearchOptions): RepoSearch {
+  const q = sampleQuery(raw, opts)
+  const results: RepoSearchResults = {}
+  if (!q.text && !q.def && !q.paths.length && !q.langs.length) return { query: q, results }
+  const refs: (string | null)[] = q.refs.length ? q.refs.map((r) => (r === 'working' ? null : r)) : [opts.in && opts.in !== 'working' ? opts.in : null]
+  let test: (s: string) => boolean
+  try {
+    test = sampleTest(q)
+  } catch (e) {
+    const error = (e as Error).message
+    for (const k of kinds) (results as Record<string, { error: string }>)[k] = { error }
+    return { query: q, results }
+  }
+  const filesOf = (ref: string | null) => (ref === null ? WORKING_FILES : filesAt(ref))
+  if (kinds.includes('code')) {
+    const files: CodeFile[] = []
+    let matches = 0
+    if (q.text || q.def) {
+      for (const ref of refs) {
+        for (const [path, content] of Object.entries(filesOf(ref))) {
+          if (!samplePathOk(q, path)) continue
+          const ls = content.split('\n')
+          const hit = ls.map((l, i) => (test(l) ? i : -1)).filter((i) => i >= 0)
+          if (!hit.length) continue
+          const keep = new Set(hit.flatMap((i) => [i - 1, i, i + 1]).filter((i) => i >= 0 && i < ls.length && (ls[i] !== '' || hit.includes(i))))
+          files.push({ ref, path, matches: hit.length, lines: [...keep].sort((a, b) => a - b).map((i) => ({ n: i + 1, text: ls[i], match: hit.includes(i) })) })
+          matches += hit.length
+        }
+      }
+    }
+    results.code = { files, matches, truncated: false }
+  }
+  if (kinds.includes('files')) {
+    const t = q.text.toLowerCase()
+    const all = Object.keys(filesOf(refs[0])).filter((p) => samplePathOk(q, p) && (!t || p.toLowerCase().includes(t)))
+    results.files = { files: all.map((path) => ({ ref: refs[0], path })), total: all.length, truncated: false }
+  }
+  const ref = refs.find((r) => r !== null) ?? 'main'
+  if (kinds.includes('commits')) {
+    const list = q.def || !q.text ? [] : history(ref).filter((c) => test(c.subject) || test(c.body) || c.sha.startsWith(q.text))
+    results.commits = { commits: list.map(summary), truncated: false }
+  }
+  if (kinds.includes('history')) {
+    const list = history(ref).filter((c) => c.files.some((f) => samplePathOk(q, f.newPath) && f.hunks.some((h) => h.lines.some((l) => l.type !== 'context' && test(l.content)))))
+    results.history = { commits: list.map((c) => ({ ...summary(c), files: c.files.map((f) => f.newPath), moreFiles: 0 })), truncated: false }
+  }
+  if (kinds.includes('issues')) {
+    const hits: IssueHit[] = []
+    for (const i of issues) {
+      if (q.state && i.state !== q.state) continue
+      const c = i.timeline.find((t) => t.kind === 'comment' && test(t.body))
+      const where = !q.text ? null : test(i.title) ? 'title' : test(i.body) ? 'description' : c ? 'comment' : null
+      if (!where) continue
+      const snippet = where === 'description' ? i.body.split('\n').find(test) ?? '' : where === 'comment' && c?.kind === 'comment' ? c.body : ''
+      hits.push({ number: i.number, title: i.title, state: i.state, author: i.author, updatedAt: i.updatedAt, comments: i.timeline.filter((t) => t.kind === 'comment').length, where, snippet })
+    }
+    results.issues = { issues: hits, truncated: false }
+  }
+  return { query: q, results }
+}
+
 // A plain (non-git) folder, so the browser preview can show "Make this a git repo".
 const PLAIN = 'C:/Users/sample/Documents/Job search'
 let plainIsRepo = false
@@ -409,6 +509,35 @@ export const sampleApi: RepoApi = {
     const content = filesAt(ref)[path]
     if (content === undefined) throw new Error(`path '${path}' does not exist in '${ref}'`)
     return wait({ kind: 'text' as const, content, size: content.length, truncated: false })
+  },
+  async readWorkingBlob(_repo, path) {
+    const content = WORKING_FILES[path]
+    if (content === undefined) throw new Error(`${path} is not in the working folder`)
+    return wait({ kind: 'text' as const, content, size: content.length, truncated: false })
+  },
+  search: async (_repo, query, kinds, opts) => wait(sampleSearch(query, kinds, opts)),
+  async searchAll(query, kinds, opts) {
+    const one = sampleSearch(query, kinds, opts)
+    const want = one.query.repos.map((r) => r.toLowerCase())
+    const repos = want.length && !want.some((w) => REPO.name.includes(w)) ? [] : [{ path: REPO.path, name: REPO.name, results: one.results }]
+    return wait({ query: one.query, repos })
+  },
+  searchCounts: async (queries) =>
+    wait(queries.map((query) => {
+      const r = sampleSearch(query, ['code'], {}).results.code
+      const total = r && 'matches' in r ? r.matches : 0
+      return { query, total, repos: total ? 1 : 0, error: null }
+    })),
+  async lineHistory(_repo, ref, path, line) {
+    const list = history(ref).filter((c) => touches(c, path))
+    const text = filesAt(ref)[path]?.split('\n')[line - 1] ?? ''
+    const commits = list.map((c) => ({
+      sha: c.sha, shortSha: c.shortSha, authorName: c.authorName, date: c.date, subject: c.subject,
+      lines: c.files.filter((f) => f.newPath === path).flatMap((f) => f.hunks.flatMap((h) => h.lines)).filter((l) => l.content === text).slice(0, 3)
+        .map((l) => ({ kind: l.type === 'add' ? 'add' as const : l.type === 'del' ? 'del' as const : 'ctx' as const, text: l.content })),
+    }))
+    const last = list[0]
+    return wait({ ref, path, line, last: last ? { sha: last.sha, authorName: last.authorName, date: last.date, subject: last.subject, text } : null, commits, truncated: false })
   },
   async getLog(_repo, { ref, path, search, skip = 0, limit = 30 }) {
     let list = history(ref)

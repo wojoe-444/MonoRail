@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { searchLink } from '../links'
 import type { CommitSummary } from '../types'
 import { useRepo } from '../RepoContext'
 import CommitList from '../components/CommitList'
@@ -37,6 +38,11 @@ export default function CommitsPage() {
         <form onSubmit={(e) => { e.preventDefault(); setApplied(search) }}>
           <input className="search" placeholder="Search commit messages" value={search} onChange={(e) => setSearch(e.target.value)} />
         </form>
+        {applied && (
+          <Link className="btn" to={searchLink(`${applied} ref:${ref}${path ? ` path:${path}` : ''}`, 'history')} title="Find the commits whose changes added or removed this text, not just mentioned it">
+            Search the changes too
+          </Link>
+        )}
       </div>
       {error && <div className="flash error">{error}</div>}
       <CommitList commits={commits} />

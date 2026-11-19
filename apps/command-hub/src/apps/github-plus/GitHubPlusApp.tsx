@@ -14,6 +14,7 @@ import ComparePage from './pages/ComparePage'
 import RepoLayout from './pages/RepoLayout'
 import TreePage from './pages/TreePage'
 import TasksPage from './pages/TasksPage'
+import { AllSearchPage, RepoSearchPage } from './pages/SearchPage'
 import Welcome from './pages/Welcome'
 import './styles.css'
 
@@ -32,6 +33,7 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
         <RepoProvider>
           <Routes>
             <Route path="/" element={<Welcome />} />
+            <Route path="/search" element={<AllSearchPage />} />
             <Route path="/repo" element={<RepoLayout />}>
               <Route index element={<Navigate to="tree" replace />} />
               <Route path="tree" element={<TreePage />} />
@@ -42,6 +44,7 @@ export default function GitHubPlusApp({ basePath }: { basePath: string }) {
               <Route path="compare" element={<ComparePage />} />
               <Route path="backups" element={<BackupsPage />} />
               <Route path="tasks" element={<TasksPage />} />
+              <Route path="search" element={<RepoSearchPage />} />
               <Route path="issues" element={<IssuesPage />} />
               <Route path="issues/new" element={<NewIssuePage />} />
               <Route path="issues/:number" element={<IssuePage />} />

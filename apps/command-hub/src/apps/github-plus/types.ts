@@ -313,3 +313,64 @@ export interface WorkingState {
   /** Repo page only: the branch against main/master, when it is another branch. */
   base: { name: string; ahead: number; behind: number } | null
 }
+
+/** Search (electron/apps/github-plus/search.cjs). */
+export type SearchKind = 'code' | 'files' | 'commits' | 'history' | 'issues'
+/** The page's toggles; the query's own qualifiers (case:yes, /regex/) win. `in`: where to look when the query names no ref. */
+export interface SearchOptions { regex?: boolean; caseSensitive?: boolean; word?: boolean; in?: string }
+/** The query as the backend read it, for the chips under the box. */
+export interface ParsedQuery {
+  text: string
+  regex: boolean
+  caseSensitive: boolean
+  word: boolean
+  repos: string[]
+  paths: string[]
+  notPaths: string[]
+  langs: string[]
+  refs: string[]
+  author: string | null
+  before: string | null
+  after: string | null
+  def: string | null
+  state: IssueState | null
+}
+export interface CodeLine { n: number; text: string; match: boolean }
+/** ref null: the working folder. */
+export interface CodeFile { ref: string | null; path: string; matches: number; lines: CodeLine[] }
+export interface CodeResults { files: CodeFile[]; matches: number; truncated: boolean }
+export interface FileResults { files: { ref: string | null; path: string }[]; total: number; truncated: boolean }
+export interface CommitResults { commits: CommitSummary[]; truncated: boolean }
+export interface HistoryCommit extends CommitSummary { files: string[]; moreFiles: number }
+export interface HistoryResults { commits: HistoryCommit[]; truncated: boolean }
+export interface IssueHit {
+  number: number
+  title: string
+  state: IssueState
+  author: string
+  updatedAt: string
+  comments: number
+  where: 'number' | 'title' | 'description' | 'comment'
+  snippet: string
+}
+export interface IssueResults { issues: IssueHit[]; truncated: boolean; tasks?: LinkedTask[] }
+export type KindResult<T> = T | { error: string }
+export interface RepoSearchResults {
+  code?: KindResult<CodeResults>
+  files?: KindResult<FileResults>
+  commits?: KindResult<CommitResults>
+  history?: KindResult<HistoryResults>
+  issues?: KindResult<IssueResults>
+}
+export interface RepoSearch { query: ParsedQuery; results: RepoSearchResults }
+export interface AllSearchRepo { path: string; name: string; linked?: LinkedSource; results: RepoSearchResults; error?: string }
+export interface AllSearch { query: ParsedQuery; repos: AllSearchRepo[] }
+export interface SavedSearchCount { query: string; total: number; repos: number; error: string | null }
+export interface LineHistory {
+  ref: string
+  path: string
+  line: number
+  last: { sha: string; authorName: string; date: string; subject: string; text: string } | null
+  commits: { sha: string; shortSha: string; authorName: string; date: string; subject: string; lines: { kind: 'add' | 'del' | 'ctx'; text: string }[] }[]
+  truncated: boolean
+}

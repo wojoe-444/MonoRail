@@ -20,6 +20,7 @@ const { spawn } = require('node:child_process')
 const { BrowserWindow, dialog, shell } = require('electron')
 
 const git = require('./git.cjs')
+const search = require('./search.cjs')
 const { createBackupService } = require('./backup.cjs')
 const inApp = require('../../scheduled/in-app.cjs')
 const folderInit = require('./init.cjs')
@@ -98,6 +99,43 @@ async function repoActivity(p) {
   else activityCache.delete(p)
   return value
 }
+
+/** The repos Home lists (stored recents, then linked), as { path, name, linked }; never paths from the page. */
+async function homeRepos(ctx) {
+  const [recents, linked] = await Promise.all([readRecents(ctx), linkedRepos(ctx.dataDir)])
+  const byPath = new Map(linked.map((l) => [l.path, l]))
+  return mergeRecents(recents, linked).map((p) => {
+    const l = byPath.get(p)
+    return { path: p, name: l?.name ?? path.basename(p), ...(l ? { linked: { app: l.app, label: l.label } } : {}) }
+  })
+}
+
+/** Home repos narrowed by the query's repo: values (name or folder contains, case-insensitive). */
+function pickRepos(list, q) {
+  if (!q.repos.length) return list
+  const want = q.repos.map((r) => r.toLowerCase())
+  return list.filter((r) => want.some((w) => r.name.toLowerCase().includes(w) || r.path.toLowerCase().replace(/\\/g, '/').endsWith('/' + w)))
+}
+
+/** Where a search looks when the query names no ref: the working folder (null) or a ref. */
+function defaultRefOf(opts) {
+  const v = opts?.in
+  if (typeof v !== 'string' || !v || /^(working|worktree)$/i.test(v)) return null
+  return git.assertRef(v)
+}
+
+/** Linked tasks whose key or summary matches, for a repo search's Issues results. */
+async function matchingTasks(ctx, repo, q) {
+  if (!q.text || q.def) return []
+  const low = q.text.toLowerCase()
+  const github = pickGitHubRemote(await git.remotes(repo).catch(() => []))
+  const tasks = await jiraPlus().tasksForRepo(jiraCtx(ctx), { path: repo, github }).catch(() => [])
+  return tasks.filter((t) => !t.error && (t.key.toLowerCase().includes(low) || String(t.summary ?? '').toLowerCase().includes(low))).slice(0, 20)
+}
+
+// Saved-search counts by repo, refs fingerprint and query: only for queries
+// that name committed refs, since the working folder can change any time.
+const countCache = new Map()
 
 function focused() {
   return BrowserWindow.getFocusedWindow() ?? undefined
@@ -249,6 +287,93 @@ module.exports = {
     treeLastCommits: (_ctx, { repo, ref, path: p } = {}) => git.treeLastCommits(guard(repo), ref, p),
     branchDivergence: (_ctx, { repo, base } = {}) => git.branchDivergence(guard(repo), base),
     readBlob: (_ctx, { repo, ref, path: p } = {}) => git.readBlob(guard(repo), ref, p),
+    /** A file as it is in the working folder now, for results found there. */
+    readWorkingBlob: (_ctx, { repo, path: p } = {}) => git.readWorkingBlob(guard(repo), p),
+    /**
+     * Search one opened repo (search.cjs). kinds: code, files, commits,
+     * issues by default; history (the pickaxe) only when asked for. opts.in
+     * is where to look when the query names no ref: 'working' (default) or a
+     * ref. A newer search on the same channel cancels this one.
+     */
+    async search(ctx, { repo, query, kinds, opts, channel } = {}) {
+      guard(repo)
+      const q = search.parseQuery(query, opts)
+      if (!search.hasTerms(q)) return { query: search.describe(q), results: {} }
+      const ch = search.channel(channel)
+      try {
+        const results = await search.searchRepo(repo, q, { kinds, signal: ch.signal, defaultRef: defaultRefOf(opts) })
+        if (results.issues && !results.issues.error) results.issues.tasks = await matchingTasks(ctx, repo, q)
+        return { query: search.describe(q), results }
+      } finally {
+        ch.done()
+      }
+    },
+    /**
+     * Search every repo Home lists (stored recents and linked repos, never
+     * paths from the page), narrowed by repo: in the query. Each repo gets a
+     * smaller share of results. A repo that can't be read reports an error.
+     */
+    async searchAll(ctx, { query, kinds, opts, channel } = {}) {
+      const q = search.parseQuery(query, opts)
+      if (!search.hasTerms(q)) return { query: search.describe(q), repos: [] }
+      const list = pickRepos(await homeRepos(ctx), q)
+      const ch = search.channel(channel)
+      try {
+        const repos = await Promise.all(
+          list.map(async (r) => {
+            try {
+              const results = await search.searchRepo(r.path, q, { kinds, limits: search.ALL_LIMITS, signal: ch.signal, defaultRef: null })
+              return { ...r, results }
+            } catch (e) {
+              if (e.name === 'AbortError') throw e
+              return { ...r, results: {}, error: e.message }
+            }
+          }),
+        )
+        return { query: search.describe(q), repos }
+      } finally {
+        ch.done()
+      }
+    },
+    /**
+     * Matching lines per saved search across Home's repos: [{ query, total,
+     * repos, error }]. Committed-ref queries are reused while a repo's refs
+     * are unchanged; working-folder ones are counted each time.
+     */
+    async searchCounts(ctx, { queries } = {}) {
+      const list = (Array.isArray(queries) ? queries : []).filter((s) => typeof s === 'string' && s.trim()).slice(0, 8)
+      const repos = await homeRepos(ctx)
+      const out = []
+      for (const raw of list) {
+        const q = search.parseQuery(raw)
+        const cacheable = q.refs.length > 0 && !q.refs.some((r) => /^(working|worktree|wt)$/i.test(r))
+        let total = 0
+        let hits = 0
+        let error = null
+        for (const r of pickRepos(repos, q)) {
+          try {
+            const fp = cacheable ? await git.refsFingerprint(r.path).catch(() => null) : null
+            const key = `${r.path}\0${fp}\0${raw}`
+            let n = fp !== null ? countCache.get(key) : undefined
+            if (n === undefined) {
+              n = await search.countCode(r.path, q)
+              if (fp !== null) {
+                countCache.set(key, n)
+                if (countCache.size > 500) countCache.delete(countCache.keys().next().value)
+              }
+            }
+            total += n
+            if (n) hits++
+          } catch (e) {
+            error = e.message
+          }
+        }
+        out.push({ query: raw, total, repos: hits, error })
+      }
+      return out
+    },
+    /** "Since when?": who last changed one line and every commit that changed it. */
+    lineHistory: (_ctx, { repo, ref, path: p, line } = {}) => search.lineHistory(guard(repo), ref, p, line),
     getLog: (_ctx, { repo, opts } = {}) => git.getLog(guard(repo), opts),
     countCommits: (_ctx, { repo, ref } = {}) => git.countCommits(guard(repo), ref),
     getCommit: (_ctx, { repo, sha } = {}) => git.getCommit(guard(repo), sha),

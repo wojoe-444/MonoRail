@@ -8,7 +8,8 @@
 // (textconv, external diff, fsmonitor) is disabled per call.
 
 const { execFile, spawn } = require('node:child_process')
-const { basename } = require('node:path')
+const fs = require('node:fs/promises')
+const { basename, join, sep } = require('node:path')
 
 const { parseDiff } = require('./diff.cjs')
 
@@ -360,6 +361,39 @@ async function readBlob(repo, ref, filePath) {
   return { kind: 'text', content: buf.subarray(0, MAX_TEXT_BYTES).toString('utf8'), size, truncated }
 }
 
+/**
+ * A file as it is in the working folder now (uncommitted edits included),
+ * for search results found there. Same limits and kinds as readBlob. The
+ * real path must stay inside the repo's folder, so a link pointing outside
+ * it is refused. Reads only; nothing in the folder is changed.
+ */
+async function readWorkingBlob(repo, filePath) {
+  const p = assertPath(filePath)
+  if (!p) throw new Error('Invalid path')
+  const root = await fs.realpath(repo)
+  let real
+  try {
+    real = await fs.realpath(join(root, p))
+  } catch {
+    throw new Error(`${p} is not in the working folder`)
+  }
+  if (!real.startsWith(root.endsWith(sep) ? root : root + sep)) throw new Error('That file is outside the repository')
+  const st = await fs.stat(real)
+  if (!st.isFile()) throw new Error(`${p} is not a file`)
+  const ext = p.split('.').pop()?.toLowerCase() ?? ''
+  const mime = IMAGE_MIME[ext]
+  if (mime) {
+    if (st.size > MAX_IMAGE_BYTES) return { kind: 'toolarge', size: st.size }
+    const buf = await fs.readFile(real)
+    return { kind: 'image', dataUrl: `data:${mime};base64,${buf.toString('base64')}`, size: st.size }
+  }
+  if (st.size > MAX_TEXT_BYTES * 5) return { kind: 'toolarge', size: st.size }
+  const buf = await fs.readFile(real)
+  if (buf.subarray(0, 8000).includes(0)) return { kind: 'binary', size: st.size }
+  const truncated = buf.length > MAX_TEXT_BYTES
+  return { kind: 'text', content: buf.subarray(0, MAX_TEXT_BYTES).toString('utf8'), size: st.size, truncated }
+}
+
 const LOG_FMT = '%H%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%D%x1f%s%x1f%b%x1e'
 
 function parseLog(out) {
@@ -520,6 +554,13 @@ async function createBundle(repo, file) {
 }
 
 module.exports = {
+  GIT_CONFIG,
+  GIT_ENV,
+  LOG_FMT,
+  parseLog,
+  slot,
+  memo,
+  readWorkingBlob,
   /** Tests only: take the git < 2.41 path for ahead/behind. */
   _useRevListDivergence: () => { aheadBehindAtom = false },
   createBundle,

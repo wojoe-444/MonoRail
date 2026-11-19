@@ -6,7 +6,8 @@ import { AlertIcon, CloseIcon, CloudIcon, CodeIcon, CompareIcon, FolderIcon, Plu
 import { Avatar } from '../components/CommitList'
 import GitHubRepoList from '../components/GitHubRepoList'
 import { AheadBehind, CardHead, StateCell, TableScroll } from '../components/Dense'
-import { commitLink, compareLink, issueLink, treeLink } from '../links'
+import { commitLink, compareLink, issueLink, searchAllLink, treeLink } from '../links'
+import SavedSearches from '../components/SavedSearches'
 import type { RepoActivity, WorkingState } from '../types'
 import { fileManagerName, fullDate, timeAgo } from '../util'
 import { hasLocalScreen } from '@/modules/client'
@@ -256,7 +257,17 @@ export default function Welcome() {
           ))}
         </div>
         <span className="grow" />
-        <input className="search" placeholder="Find a repository, branch or commit…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Find a repository, branch or commit" />
+        <form role="search" onSubmit={(e) => { e.preventDefault(); if (filter.trim()) nav(searchAllLink(filter.trim())) }}>
+          <input
+            className="search"
+            placeholder="Filter, or Enter to search code everywhere…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter the tables; press Enter to search the code of every repository"
+            title="Typing filters these tables. Enter searches the code, files, commits and issues of every repository, uncommitted work included."
+          />
+        </form>
+        <button className="btn" onClick={() => nav(searchAllLink(filter.trim()))} title="Search the code, files, commits and issues of every repository"><CodeIcon /> Search code</button>
       </div>
 
       {error && !initOffer && <div className="flash error">{error}</div>}
@@ -287,6 +298,7 @@ export default function Welcome() {
             {repoTable(false)}
           </div>
           {commitTable(10)}
+          <SavedSearches tick={tick} />
         </>
       ))}
 

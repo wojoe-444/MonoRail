@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import { useAsync, useRepo } from '../RepoContext'
 import { api } from '../api'
@@ -8,7 +8,7 @@ import { AheadBehind } from '../components/Dense'
 import RefSelector from '../components/RefSelector'
 import { fileManagerName, fullDate, timeAgo } from '../util'
 import { hasLocalScreen } from '@/modules/client'
-import { backupsLink, blobLink, commitLink, commitsLink, compareLink, issuesLink, tasksLink, treeLink } from '../links'
+import { backupsLink, blobLink, commitLink, commitsLink, compareLink, issuesLink, searchLink, tasksLink, treeLink } from '../links'
 
 /** Pages whose content follows the ref in the URL: the branch picker in the tab row switches it. */
 const REF_PAGES: Record<string, (ref: string, path: string) => string> = {
@@ -68,6 +68,7 @@ export default function RepoLayout() {
           {tab(backupsLink(), <BackupIcon />, 'Backups')}
         </nav>
         <span className="grow" />
+        {pathname !== '/repo/search' && <SearchBox refName={pathname in REF_PAGES ? shownRef : null} />}
         {refPage && <RefSelector value={shownRef} onChange={(r) => nav(refPage(r, sp.get('path') || ''))} />}
       </div>
 
@@ -75,6 +76,34 @@ export default function RepoLayout() {
 
       {repo.isEmpty && !/^\/repo\/issues/.test(pathname) ? <div className="box pad">This repository has no commits yet.</div> : <Outlet />}
     </div>
+  )
+}
+
+/**
+ * The repo's search box: Enter opens Search with the text. Press / anywhere
+ * on a repo page to jump here. On a page that follows a branch other than
+ * the default, the search looks in that branch.
+ */
+function SearchBox({ refName }: { refName: string | null }) {
+  const nav = useNavigate()
+  const { repo } = useRepo()
+  const [text, setText] = useState('')
+  const box = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || !t || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) return
+      e.preventDefault()
+      box.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const ref = refName && refName !== repo?.defaultRef ? refName : null
+  return (
+    <form role="search" onSubmit={(e) => { e.preventDefault(); if (text.trim()) nav(searchLink(ref && !/(^|\s)ref:/.test(text) ? `${text} ref:${ref}` : text)); setText('') }}>
+      <input ref={box} className="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search code, files, history…  ( / )" aria-label="Search this repository" title="Searches the working folder, uncommitted work included. Press / to jump here." />
+    </form>
   )
 }
 
