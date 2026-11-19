@@ -52,6 +52,7 @@ const wincred = require('./wincred.cjs')
 const CONNECTORS = [
   require('./connectors/gcloud.cjs'),
   require('./connectors/bigquery-metadata.cjs'),
+  require('./connectors/malloy.cjs'),
   require('./connectors/atlassian.cjs'),
   require('./connectors/claude.cjs'),
   require('./connectors/claude-playwright.cjs'),
