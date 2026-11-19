@@ -77,7 +77,7 @@ async function status(conn, deps = {}) {
   for (const t of ['entity_version', 'record']) details.push({ label: `Table ${t}`, value: check.tables[t] ? `${check.tables[t].rows.toLocaleString('en-US')} rows` : 'Not there (optional)' })
   details.push({ label: 'Copy on this PC', value: `Refreshed ${EVERY_TEXT[config.syncEvery]}` })
   if (config.billingProject !== config.projectId) details.push({ label: 'Sync queries billed to', value: config.billingProject })
-  return { state: 'ok', summary: `${config.source} holds MonoRail's metadata (${e.rows.toLocaleString('en-US')} entities). It is the source of truth.`, details }
+  return { state: 'ok', summary: `${config.source} holds MonoRail's metadata (${e.rows.toLocaleString('en-US')} entities). New and changed rows are synced into SQLite on this PC.`, details }
 }
 
 module.exports = {
@@ -91,7 +91,7 @@ module.exports = {
   service: { category: 'metadataService', serviceType: 'BigQuery' },
   title: 'BigQuery metadata',
   icon: 'database',
-  description: `Make a BigQuery dataset the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on this PC. If the default ${mirror.DEFAULT_DATASET} dataset does not exist yet, MonoRail creates it with empty tables; otherwise it never writes to BigQuery.`,
+  description: `Feed MonoRail's metadata from a BigQuery dataset into SQLite on this PC. After the first copy, each sync asks BigQuery only for rows changed since the last one. If the default ${mirror.DEFAULT_DATASET} dataset does not exist yet, MonoRail creates it with empty tables; otherwise it never writes to BigQuery.`,
   fields: [
     { key: 'project', label: 'Project', type: 'text', placeholder: 'my-project', help: 'The Google Cloud project that holds the dataset.' },
     { key: 'dataset', label: 'Dataset', type: 'text', defaultValue: mirror.DEFAULT_DATASET, placeholder: mirror.DEFAULT_DATASET, help: `The dataset with MonoRail's tables (entity, meta, and optionally entity_version and record). Names are case-sensitive. ${mirror.DEFAULT_DATASET} is created for you when it does not exist; any other dataset must already exist.` },
@@ -109,7 +109,7 @@ module.exports = {
         { value: '24h', label: 'Once a day' },
         { value: 'manual', label: 'Only when I press Sync now' },
       ],
-      help: 'Only while MonoRail is open. Each refresh reads only what changed since the last one.',
+      help: 'Only while MonoRail is open. Each refresh asks BigQuery only for rows changed since the second the last one started.',
     },
     {
       key: 'maxScanGb',
@@ -117,7 +117,7 @@ module.exports = {
       type: 'select',
       defaultValue: '1',
       options: mirror.MAX_SCAN_GB.map((gb) => ({ value: gb, label: `${gb} GB` })),
-      help: 'A refresh that would scan more in BigQuery does not run. A full refresh is free in BigQuery and has no limit.',
+      help: 'A sync whose change queries would scan more in BigQuery does not run. The first copy is free in BigQuery and has no limit.',
     },
   ],
   actions: [],

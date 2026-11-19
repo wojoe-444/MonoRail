@@ -34,7 +34,8 @@ where secrets stay encrypted.
 SQLite files open read-only and copy no row data — only schema and counts.
 
 **BigQuery metadata** needs no pipeline (updated externally); it appears here
-with **None needed**, sync status and **Sync now** / **Full refresh**.
+with **None needed**, sync status and **Sync now** (changes since the last
+sync only).
 
 **On your OpenMetadata server**: once connected on
 [Connections](../setup/connections.md), its services and Airflow pipelines

@@ -1444,10 +1444,14 @@ with `putExact`, emptied when the source changes or the connection is
 removed), and the page's `bigquery` source reads only the copy, read-only
 (`setDescription` refused, pencil hidden). Sync (`localdb/bigquery-mirror.cjs`,
 run by `modules/openmetadata-bigquery.cjs` from `openmetadata`'s `start()`):
-full through free `tabledata.list` (first time, new source, Full refresh);
-otherwise one dry-run-checked SELECT per table since the watermark less 10
-minutes, refused over the connection's scan limit; removals found by row
-count then a free id listing (lineage: a free from_id/to_id listing). Hourly by default while the app runs, retries
+**SQLite is the first-class database**: never emptied or re-downloaded to
+update it. Every sync is one dry-run-checked SELECT per table `WHERE <time> >=
+TIMESTAMP_SECONDS(<second the last sync started>)`, refused over the
+connection's scan limit; a table SQLite does not hold yet (first sync, new
+source, a table the layout gained) is seeded once through free
+`tabledata.list`; removals arrive as `deleted = TRUE` rows (no id listing). A
+full re-read happens only on the user's confirmed Rebuild (OpenMetadata page
+only). Hourly by default while the app runs, retries
 after 15 minutes, one at a time, an In-App row. On Services it is a
 connect-only service (`LOCAL_SERVICES` `ingestion: 'connect'`,
 `bigquery_metadata`, `metadataService` of type `BigQuery`, a value MonoRail

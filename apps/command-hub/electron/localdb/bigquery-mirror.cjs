@@ -1,26 +1,31 @@
-// BigQuery as the source of truth for MonoRail's metadata (docs/bigquery-metadata.md).
+// A BigQuery dataset feeding MonoRail's metadata into SQLite (docs/bigquery-metadata.md).
 //
 // The user picks a BigQuery project and dataset (default METADATA) that holds
 // MonoRail's metadata layout: the local database's tables (entity,
 // entity_version, record, lineage, meta) as BigQuery tables. Something else keeps that
-// dataset up to date; MonoRail only connects and reads. It keeps a copy in
-// its own SQLite file (localdb mirrorDb(), bigquery.sqlite3) and every page
-// reads the copy, so browsing never runs a BigQuery query.
+// dataset up to date; MonoRail only connects and reads.
+//
+// SQLite is the first-class database here: the SQLite file on this PC
+// (localdb mirrorDb(), bigquery.sqlite3) holds the catalog, every page reads
+// it, and it is never emptied or re-downloaded to "update" it. BigQuery is
+// only the feed of changes, and each sync asks it for the literal minimum.
 //
 // Sync:
-//   - full: every row through tabledata.list, which runs no query, so
-//     BigQuery bills nothing for it. Used the first time, after the
-//     project or dataset changed, and on Full refresh. Entities that are
-//     no longer in BigQuery are removed from the copy afterwards (nothing is
-//     emptied first, so the page keeps working while it runs).
-//   - incremental: one query per table for rows whose time column is at or
-//     after the last one seen, less 10 minutes for late writers. Each query
-//     is dry-run first; when they would scan more than the user's limit,
+//   - incremental (every sync once a table is in SQLite): one query per table,
+//     `WHERE <time column> >= TIMESTAMP_SECONDS(<second the last sync
+//     started>)`. Nothing older is ever asked for again. Each query is
+//     dry-run first; when they would scan more than the user's limit,
 //     nothing runs and the error says so (a table partitioned on its time
-//     column keeps this small). Entities (and lineage edges) removed from
-//     BigQuery outright are found by comparing row counts (free table
-//     metadata) and, when the copy has more, listing BigQuery's ids, or
-//     from_id/to_id pairs, through tabledata.list (free).
+//     column keeps this small). Removals arrive the same way: a row with
+//     deleted = TRUE and a new time. Nothing lists the whole table to look
+//     for rows removed outright.
+//   - seed: a table SQLite does not hold yet (the very first sync, a
+//     different project or dataset, or a table the dataset gained, such as
+//     lineage when it moves to layout /2) is read once through
+//     tabledata.list, which runs no query, so BigQuery bills nothing for it.
+//     Only that table is read; tables SQLite already holds stay incremental.
+//   - rebuild (`full`): only when the user explicitly asks for it (the
+//     confirmed Rebuild on the OpenMetadata page). Never automatic.
 //
 // Layout versions: /1 has entity, entity_version, record and meta; /2 adds the
 // optional lineage table (OpenMetadata keeps lineage as edges apart from
@@ -40,9 +45,7 @@ const { createClient, _ids } = require('../modules/bigquery-api.cjs')
 const LAYOUT = 'monorail.metadata/2'
 const DEFAULT_DATASET = 'METADATA'
 const DEFAULT_LOCATION = 'US'
-const OVERLAP_MS = 10 * 60_000
 const PAGE_ROWS = 2000
-const ID_PAGE_ROWS = 10_000
 const QUERY_WAIT_MS = 10 * 60_000
 const TOKEN_TTL_MS = 30 * 60_000
 
@@ -340,57 +343,80 @@ const edgeKey = (fromId, toId) => `${fromId}|${toId}`
 const nonEmpty = (v) => typeof v === 'string' && v.length > 0 && v.length <= 4000
 const truthy = (v) => v === true || v === 'true'
 
-/** Turn the time-filtered SELECT for one table. `since` is ms. */
+/** Whole seconds of a ms time: the WHERE filter's resolution. */
+const toSecond = (ms) => Math.floor(Number(ms) / 1000)
+
+/**
+ * The time-filtered SELECT for one table: the rows written at or after the
+ * second the last sync started. `since` is ms; it is cut to that second.
+ */
 function incrementalSql(table, { projectId, datasetId, jsonType, since }) {
   const from = `\`${projectId}.${datasetId}.${table}\``
   const json = jsonType === 'JSON' ? 'TO_JSON_STRING(json)' : 'json'
-  const s = Math.floor(since)
+  const s = toSecond(since)
   if (table === 'entity') {
     return `SELECT id, type, fqn, name, CAST(version AS FLOAT64) AS version, UNIX_MILLIS(updated_at) AS updated_ms, IFNULL(deleted, FALSE) AS deleted, ${json} AS json
 FROM ${from}
-WHERE updated_at >= TIMESTAMP_MILLIS(${s})
+WHERE updated_at >= TIMESTAMP_SECONDS(${s})
 QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY updated_at DESC, version DESC) = 1`
   }
   if (table === 'entity_version') {
     return `SELECT id, CAST(version AS FLOAT64) AS version, UNIX_MILLIS(updated_at) AS updated_ms, ${json} AS json
 FROM ${from}
-WHERE updated_at >= TIMESTAMP_MILLIS(${s})`
+WHERE updated_at >= TIMESTAMP_SECONDS(${s})`
   }
   if (table === 'lineage') {
     return `SELECT from_id, from_type, to_id, to_type, UNIX_MILLIS(updated_at) AS updated_ms, IFNULL(deleted, FALSE) AS deleted, ${json} AS json
 FROM ${from}
-WHERE updated_at >= TIMESTAMP_MILLIS(${s})
+WHERE updated_at >= TIMESTAMP_SECONDS(${s})
 QUALIFY ROW_NUMBER() OVER (PARTITION BY from_id, to_id ORDER BY updated_at DESC) = 1`
   }
   return `SELECT kind, owner, key, UNIX_MILLIS(\`at\`) AS at_ms, ${json} AS json
 FROM ${from}
-WHERE \`at\` >= TIMESTAMP_MILLIS(${s})`
+WHERE \`at\` >= TIMESTAMP_SECONDS(${s})`
 }
 
 /**
- * Bring the copy in step with BigQuery. `store` is an entity store
- * (localdb openDatabase / mirrorDb). Returns what changed. Throws an error
- * with a `code` (the inspectDataset state, 'over-cap', 'timeout') when it
- * cannot.
+ * Bring SQLite in step with BigQuery, asking BigQuery for as little as
+ * possible. `store` is an entity store (localdb openDatabase / mirrorDb).
+ * `full` rebuilds every table from BigQuery and is only for an explicit
+ * request by the user. Returns what changed. Throws an error with a `code`
+ * (the inspectDataset state, 'over-cap', 'timeout') when it cannot; SQLite
+ * then keeps what it had and the next sync asks from the same second.
  */
-async function syncMirror({ client, store, config, full = false }) {
+async function syncMirror({ client, store, config, full = false, now = Date.now }) {
   const { projectId, datasetId, billingProject, maxBytes, source } = config
+  // The second this sync started: the next sync asks for rows from here on.
+  // Taken before anything is read, so a row written while this one runs is
+  // asked for again next time rather than missed.
+  const startedAt = toSecond(now()) * 1000
   const { check, created } = await ensureDataset(client, config)
   if (check.state !== 'ok') throw fail(check.message, check.state)
-  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, created, layout: check.layout, entities: 0, versions: 0, records: 0, lineage: 0, removed: 0, lineageRemoved: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned, lineage: check.lineage } }
+  const out = { mode: full ? 'full' : 'incremental', reason: full ? 'asked' : undefined, created, layout: check.layout, since: undefined, seeded: [], entities: 0, versions: 0, records: 0, lineage: 0, removed: 0, lineageRemoved: 0, skipped: 0, bytesProcessed: 0, remote: { entities: check.tables.entity.rows, bytes: check.tables.entity.bytes, partitioned: check.tables.entity.partitioned, lineage: check.lineage } }
 
-  // bq.layout is the dataset's layout: a dataset moving to a newer layout is copied in full again.
-  if (store.getMeta('bq.source') !== source || store.getMeta('bq.layout') !== check.layout) {
+  // A different project or dataset is a different catalog: SQLite starts it
+  // afresh. Nothing else empties SQLite; a layout change only adds tables.
+  const copied = store.getMeta('bq.source')
+  if (copied !== undefined && copied !== source) {
     store.clearAll()
-    out.mode = 'full'
-    out.reason = 'first'
-  } else if (store.getMeta('bq.watermark.entity') === undefined) {
-    out.mode = 'full'
-    out.reason = 'first'
+    out.reason ??= 'source'
   }
 
   const tables = Object.keys(TABLES).filter((n) => n !== 'meta' && check.tables[n])
-  const marks = {}
+  const markOf = (name) => {
+    const v = store.getMeta(`bq.watermark.${name}`)
+    return v === undefined ? NaN : Number(v)
+  }
+  // Tables SQLite does not hold yet are seeded once; the rest are incremental.
+  const seed = full ? tables : tables.filter((n) => !Number.isFinite(markOf(n)))
+  const incremental = tables.filter((n) => !seed.includes(n))
+  if (!full && !incremental.length) {
+    out.mode = 'full'
+    out.reason ??= 'first'
+  } else if (!full) {
+    out.seeded = seed
+  }
+
   const apply = {
     entity(r, seen) {
       const id = r.id
@@ -404,7 +430,6 @@ async function syncMirror({ client, store, config, full = false }) {
         seen.set(id, updatedAt)
       }
       store.putExact({ id, type: r.type, fqn: r.fqn, name: nonEmpty(r.name) ? r.name : r.fqn, version, updatedAt, deleted: truthy(r.deleted), entity })
-      marks.entity = Math.max(marks.entity ?? 0, updatedAt)
       out.entities++
     },
     entity_version(r) {
@@ -413,7 +438,6 @@ async function syncMirror({ client, store, config, full = false }) {
       const entity = parseObject(r.json)
       if (!nonEmpty(r.id) || !Number.isFinite(version) || !Number.isFinite(updatedAt) || !entity) return void out.skipped++
       store.putVersionExact(r.id, version, entity)
-      marks.entity_version = Math.max(marks.entity_version ?? 0, updatedAt)
       out.versions++
     },
     record(r) {
@@ -421,7 +445,6 @@ async function syncMirror({ client, store, config, full = false }) {
       const value = parseObject(r.json)
       if (!nonEmpty(r.kind) || !nonEmpty(r.owner) || !nonEmpty(r.key) || !Number.isFinite(at) || !value) return void out.skipped++
       store.putRecord(r.kind, r.owner, r.key, at, value)
-      marks.record = Math.max(marks.record ?? 0, at)
       out.records++
     },
     lineage(r, seen) {
@@ -435,7 +458,6 @@ async function syncMirror({ client, store, config, full = false }) {
         seen.set(key, updatedAt)
       }
       store.putLineageExact({ fromId: r.from_id, fromType: r.from_type, toId: r.to_id, toType: r.to_type, updatedAt, deleted: truthy(r.deleted), edge })
-      marks.lineage = Math.max(marks.lineage ?? 0, updatedAt)
       out.lineage++
     },
   }
@@ -447,65 +469,46 @@ async function syncMirror({ client, store, config, full = false }) {
   // A dataset without a lineage table (layout /1, or the table was dropped) has no lineage.
   if (!check.tables.lineage && store.countLineage() > 0) removeEdges(() => false)
 
-  if (out.mode === 'full') {
-    for (const name of tables) {
-      const seen = name === 'entity' || name === 'lineage' ? new Map() : undefined
-      const fields = check.tables[name].fields
-      await eachTablePage(client, { projectId, datasetId, tableId: name }, (rows) => {
-        store.transaction(() => {
-          for (const r of decodeRows(fields, rows)) apply[name](r, seen)
-        })
-      })
-      if (name === 'entity') {
-        const gone = store.ids().filter((id) => !seen.has(id))
-        store.transaction(() => gone.forEach((id) => store.remove(id)))
-        out.removed += gone.length
-      } else if (name === 'lineage') {
-        removeEdges((key) => seen.has(key))
-      }
-    }
-  } else {
-    const plan = tables.map((name) => {
-      const last = Number(store.getMeta(`bq.watermark.${name}`) ?? 0)
-      marks[name] = last
-      return { name, sql: incrementalSql(name, { projectId, datasetId, jsonType: check.tables[name].jsonType, since: last - OVERLAP_MS }) }
-    })
+  // Incremental tables first, checked against the scan limit before anything runs.
+  if (incremental.length) {
+    out.since = new Date(toSecond(Math.min(...incremental.map(markOf))) * 1000).toISOString()
+    const plan = incremental.map((name) => ({ name, sql: incrementalSql(name, { projectId, datasetId, jsonType: check.tables[name].jsonType, since: markOf(name) }) }))
     const req = { projectId: billingProject, location: check.location }
     let estimate = 0
     for (const p of plan) estimate += (await client.runQuery({ ...req, query: p.sql, dryRun: true })).totalBytesProcessed ?? 0
     if (estimate > maxBytes) {
       const gb = (n) => `${(n / 1024 ** 3).toFixed(n < 1024 ** 3 ? 2 : 1)} GB`
       const hint = check.tables.entity.partitioned ? '' : ' Partitioning the tables on their time column (see the setup SQL) makes each sync read only recent rows.'
-      throw fail(`A sync would scan ${gb(estimate)} in BigQuery, more than your limit of ${gb(maxBytes)}, so nothing ran.${hint} Raise the limit on Connections, or use Full refresh (free in BigQuery, but downloads everything).`, 'over-cap')
+      throw fail(`A sync would scan ${gb(estimate)} in BigQuery, more than your limit of ${gb(maxBytes)}, so nothing ran.${hint} Raise the limit on Connections.`, 'over-cap')
     }
     for (const p of plan) {
       out.bytesProcessed += await eachQueryPage(client, { ...req, query: p.sql, maximumBytesBilled: maxBytes }, (rows) => {
         store.transaction(() => rows.forEach((r) => apply[p.name](r)))
       })
     }
-    // Entities removed from BigQuery outright: the copy then has more rows than BigQuery.
-    const remote = check.tables.entity.rows + check.tables.entity.streamingRows
-    if (store.countAll() > remote) {
-      const ids = new Set()
-      await eachTablePage(client, { projectId, datasetId, tableId: 'entity', selectedFields: ['id'], maxResults: ID_PAGE_ROWS }, (rows) => {
-        for (const r of rows) if (r?.f?.[0]?.v) ids.add(r.f[0].v)
+  }
+
+  // Seeded tables (on an explicit rebuild, every table): read once, free, through tabledata.list.
+  for (const name of seed) {
+    const seen = name === 'entity' || name === 'lineage' ? new Map() : undefined
+    const fields = check.tables[name].fields
+    await eachTablePage(client, { projectId, datasetId, tableId: name }, (rows) => {
+      store.transaction(() => {
+        for (const r of decodeRows(fields, rows)) apply[name](r, seen)
       })
-      const gone = store.ids().filter((id) => !ids.has(id))
+    })
+    // Only an explicit rebuild drops what BigQuery no longer has: it has just read every row anyway.
+    if (full && name === 'entity') {
+      const gone = store.ids().filter((id) => !seen.has(id))
       store.transaction(() => gone.forEach((id) => store.remove(id)))
       out.removed += gone.length
-    }
-    // Edges removed outright, the same way: listing only from_id and to_id is free.
-    if (check.tables.lineage && store.countLineage() > check.tables.lineage.rows + check.tables.lineage.streamingRows) {
-      const keys = new Set()
-      await eachTablePage(client, { projectId, datasetId, tableId: 'lineage', selectedFields: ['from_id', 'to_id'], maxResults: ID_PAGE_ROWS }, (rows) => {
-        for (const r of rows) if (r?.f?.[0]?.v && r.f[1]?.v) keys.add(edgeKey(r.f[0].v, r.f[1].v))
-      })
-      removeEdges((key) => keys.has(key))
+    } else if (full && name === 'lineage') {
+      removeEdges((key) => seen.has(key))
     }
   }
 
   store.transaction(() => {
-    for (const name of tables) store.setMeta(`bq.watermark.${name}`, String(marks[name] ?? 0))
+    for (const name of tables) store.setMeta(`bq.watermark.${name}`, String(startedAt))
     store.setMeta('bq.source', source)
     store.setMeta('bq.layout', check.layout)
     store.setMeta('bq.lineage', check.tables.lineage ? 'yes' : 'no')
@@ -534,4 +537,4 @@ function gcloudClient({ getCredentials, hasConnection, fetch } = {}) {
   })
 }
 
-module.exports = { LAYOUT, DEFAULT_DATASET, DEFAULT_LOCATION, TABLES, SYNC_EVERY, MAX_SCAN_GB, OVERLAP_MS, configOf, setupSql, inspectDataset, ensureDataset, syncMirror, gcloudClient, incrementalSql, _internal: { decodeRows, layoutVersion } }
+module.exports = { LAYOUT, DEFAULT_DATASET, DEFAULT_LOCATION, TABLES, SYNC_EVERY, MAX_SCAN_GB, configOf, setupSql, inspectDataset, ensureDataset, syncMirror, gcloudClient, incrementalSql, _internal: { decodeRows, layoutVersion, toSecond } }

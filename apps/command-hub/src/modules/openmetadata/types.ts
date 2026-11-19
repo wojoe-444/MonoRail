@@ -124,6 +124,11 @@ export interface BqSync {
   /** missing | empty | foreign | mismatch | newer | denied | over-cap | timeout | no-gcloud */
   code?: string
   mode?: 'full' | 'incremental'
+  /** Why a sync was full: first copy, a different dataset, or the user asked for a rebuild. */
+  reason?: 'first' | 'source' | 'asked'
+  /** The second incremental queries asked from (ISO), and tables read whole because SQLite did not hold them yet. */
+  since?: string
+  seeded?: string[]
   entities?: number
   versions?: number
   records?: number

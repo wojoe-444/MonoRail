@@ -5,7 +5,7 @@ summary: BigQuery as the source of truth for MonoRail's metadata: the dataset la
 
 # BigQuery metadata
 
-People: the [OpenMetadata guide](guide/data/openmetadata.md#bigquery-as-the-source-of-truth)
+People: the [OpenMetadata guide](guide/data/openmetadata.md#feeding-the-catalog-from-bigquery)
 explains it in plain words.
 
 A BigQuery dataset can be the source of truth for the
@@ -134,28 +134,41 @@ in exactly as BigQuery has them (id, version, `updatedAt`); `put()` is not
 used, so no version is bumped. Sync state lives in the copy's `meta`:
 `bq.source` (`project.dataset`), `bq.layout` (the dataset's layout row),
 `bq.lineage` (`yes` / `no`: whether it has a lineage table),
-`bq.watermark.<table>` (ms) and `bq.last` (the last result or error). Lineage
+`bq.watermark.<table>` (ms, the start of the last sync, whole seconds) and `bq.last` (the last result or error). Lineage
 edges go in the copy's `lineage` table as-is (`putLineageExact`).
 
-- **Full**: every table through `tabledata.list`, which runs no query, so
-  BigQuery bills nothing. Runs the first time, when `bq.source` or the
-  dataset's layout changed (the copy is emptied first), and on Full refresh.
-  Duplicate ids (or edge keys) keep the newest `updated_at`; ids and edges no
-  longer in BigQuery are removed at the end, so the copy stays readable while
-  it runs.
-- **Incremental**: per table, `SELECT ... WHERE <time> >= TIMESTAMP_MILLIS(watermark - 10 min)`
-  (the overlap catches late writers; applying a row twice changes nothing).
+**SQLite is the first-class database.** `bigquery.sqlite3` holds the catalog
+and every page reads it; it is never emptied or downloaded again to bring it
+up to date. BigQuery is only the feed of changes, and a sync asks it for the
+literal minimum: the rows written since the second the last sync started.
+
+- **Incremental** (every sync, for every table SQLite already holds): per
+  table, `SELECT ... WHERE <time> >= TIMESTAMP_SECONDS(<bq.watermark.<table>>)`,
+  where the watermark is the second the last successful sync **started**
+  (taken on this PC before anything is read, so a row written while a sync runs
+  is asked for again by the next one, never missed; applying a row twice
+  changes nothing). Rows older than that are never asked for again.
   `entity` (by `id`) and `lineage` (by `from_id, to_id`) deduplicate with
   `QUALIFY ROW_NUMBER()`. Every query is dry-run
   first; when the sum is over the limit nothing runs (`over-cap`). Queries run
   in the billing project at the dataset's location with `maximumBytesBilled`.
-- **Removals**: when the copy has more entities than BigQuery's `numRows` plus
-  streaming rows (free table metadata), BigQuery's ids are listed with
-  `tabledata.list` (`id` only, free) and the rest leave the copy. Duplicate
-  ids in BigQuery can hide a removal until the next Full refresh. Lineage
-  edges work the same way: when the copy has more edges than the `lineage`
-  table has rows, `from_id` and `to_id` are listed (free) and the other edges
-  leave the copy. A dataset whose lineage table is gone leaves no edges.
+  A failed sync moves no watermark, so the next one asks from the same second.
+- **Seed**: a table SQLite does not hold yet (no watermark) is read once through
+  `tabledata.list`, which runs no query, so BigQuery bills nothing. That is the
+  very first sync, a different `bq.source` (a different project or dataset is a
+  different catalog, so SQLite is emptied first), or a table the dataset
+  gained (for example `lineage` when it moves from layout /1 to /2). Only that
+  table is read; a layout change never empties SQLite or re-reads the tables
+  it already holds. Duplicate ids (or edge keys) keep the newest `updated_at`.
+- **Removals** arrive as changes: a row with `deleted = TRUE` and a new time
+  (entities and lineage edges both have the column). A sync never lists a
+  whole table to look for rows removed outright, so a row deleted from
+  BigQuery without that mark stays in SQLite until the user runs a Rebuild. A
+  dataset whose lineage table is gone leaves no edges.
+- **Rebuild** (`syncBigQuery({ full: true })`): only when the user asks for it,
+  behind a confirmation on the OpenMetadata page (it is not offered on
+  Services). Every table through `tabledata.list` (free), then ids and edges
+  no longer in BigQuery are dropped. Nothing ever starts one by itself.
 - **Schedule**: `start()` ticks every minute (first after 30 s). A sync is due
   at once for a dataset not yet copied, then after the chosen interval; a
   failure retries after 15 minutes (or sooner on a 15-minute interval).
@@ -184,8 +197,9 @@ The connector declares `service: { category: 'metadataService', serviceType:
 to OpenMetadata's list. It is a [connect-only service](ingestion.md#services-and-accounts)
 (`bigquery_metadata`) on the
 [Services page](guide/data/services.md): no pipelines, the copy's size and
-freshness, Sync now and Full refresh (`ingestion.syncConnected`, which runs
-the same shared sync as the OpenMetadata page).
+freshness and Sync now (`ingestion.syncConnected`, which runs the same
+shared incremental sync as the OpenMetadata page). Rebuild is only on the
+OpenMetadata page.
 
 ## The page
 

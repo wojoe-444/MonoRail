@@ -39,7 +39,7 @@ const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
  * app. Its tabs (src/modules/openmetadata/tabs.ts) sit in a command bar in
  * the top bar; each is its own route. Catalog tabs read one catalog, picked
  * by the backend (electron/modules/openmetadata.cjs) and never by the page:
- * the copy on this PC of the BigQuery dataset that is the source of truth
+ * the SQLite database on this PC that a BigQuery dataset feeds
  * while that is set up (the sync only keeps the copy fresh), else a connected
  * OpenMetadata server, else MonoRail's local database. There is no switch;
  * no server is contacted until the OpenMetadata connection is set up. The semantic-layer tabs read the
@@ -118,7 +118,7 @@ const WATCH_IDLE_MS = 30_000
 
 /**
  * Keeps the page current with the BigQuery copy: whenever a sync finishes
- * (Sync now, Full refresh, or the schedule while the page is open), every
+ * (Sync now, Rebuild, or the schedule while the page is open), every
  * open list and entity reloads in place. The status call only reads the
  * copy's meta table, so looking every 30 seconds starts no sync and no
  * BigQuery request; it is skipped while the window is hidden.

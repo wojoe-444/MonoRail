@@ -32,7 +32,7 @@ Checks run when you open the page, click **Check**, or finish signing in.
   [Tasks](../workspace/tasks.md#your-teams-jira).
 - **Google Cloud**: `gcloud` login for [BigQuery](../data/bigquery.md) and
   [Malloy](../data/malloy.md), with an add-on for
-  [BigQuery metadata](../data/openmetadata.md#bigquery-as-the-source-of-truth).
+  [BigQuery metadata](../data/openmetadata.md#feeding-the-catalog-from-bigquery).
 - **pi**: detected pi version, providers, default [models](../glossary.md#model)
   and browser add-ons.
 - **OpenAI**: API key and Codex CLI (also used by the PR reviewer in

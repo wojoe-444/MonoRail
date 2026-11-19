@@ -633,7 +633,7 @@ function createService(deps = {}) {
         const layout = store.getMeta('bq.layout')
         return flag === 'no' || (flag === undefined && layout === 'monorail.metadata/1') ? { missing: 'no-lineage-table', layout } : undefined
       },
-      readOnly: 'BigQuery is the source of truth here, and MonoRail does not write to it yet. Change the description in BigQuery; the next sync brings it here.',
+      readOnly: 'This catalog is fed from BigQuery, and MonoRail does not write to BigQuery yet. Change the description in BigQuery; the next sync brings the change into SQLite here.',
       describe: async () => {
         const s = await bq.status()
         return { source: 'bigquery', url: s.source ? `BigQuery ${s.source}` : 'BigQuery', version: undefined, user: undefined, bigquery: s }

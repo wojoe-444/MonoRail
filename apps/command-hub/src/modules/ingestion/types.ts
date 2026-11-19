@@ -111,7 +111,7 @@ export interface ServiceCopy {
   /** The copy holds this dataset (a first sync finished). */
   synced: boolean
   syncEvery?: '15m' | '1h' | '6h' | '24h' | 'manual'
-  last?: { at: string; ok: boolean; error?: string; mode?: 'full' | 'incremental'; entities?: number; removed?: number }
+  last?: { at: string; ok: boolean; error?: string; mode?: 'full' | 'incremental'; reason?: 'first' | 'source' | 'asked'; entities?: number; removed?: number }
   running?: boolean
   nextAt?: string
   error?: string

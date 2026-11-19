@@ -41,7 +41,7 @@ The **Databases** category uses OpenMetadata's hierarchy (`database`,
 - **[Ingestion pipelines](services.md)**: tables, views, columns, profiler row
   counts (SQLite) and dbt models/sources/[lineage](openmetadata.md#lineage) run
   locally.
-- **[BigQuery metadata](openmetadata.md#bigquery-as-the-source-of-truth)**: all
+- **[BigQuery metadata](openmetadata.md#feeding-the-catalog-from-bigquery)**: all
   non-deleted entities from MonoRail's local mirror (sync on the OpenMetadata
   page, then press **Refresh** here).
 
