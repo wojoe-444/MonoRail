@@ -391,7 +391,7 @@ function Graph({ data, onRecenter }: { data: OmLineage; onRecenter: (r: OmRef) =
 
 function Panel({ title, sub, onClose, children }: { title: string; sub: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="absolute top-3 right-3 z-10 flex max-h-[calc(100%-1.5rem)] w-[min(24rem,calc(100%-1.5rem))] flex-col gap-3 overflow-y-auto rounded-xl border bg-card p-4 shadow-elevation-2">
+    <div className="absolute top-3 right-3 z-10 flex max-h-[calc(100%-1.5rem)] w-[min(24rem,calc(100%-1.5rem))] flex-col gap-3 overflow-y-auto rounded-xl border bg-popover p-4 text-popover-foreground shadow-elevation-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-xs text-muted-foreground">{sub}</div>
