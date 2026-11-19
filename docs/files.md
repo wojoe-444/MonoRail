@@ -12,10 +12,18 @@ side by side, a preview panel, pinned folders and color tags. It sits next to
 
 ## Finding your way
 
+The page fills the whole window under the top bar. The top bar holds the
+page's name, your folder tabs and, on the right, the split, preview and
+**New** buttons. Below it, one toolbar row has back, forward, up and refresh,
+the path, the filter box, the file actions (cut, copy, paste, rename, tag,
+Recycle Bin) and the view and sort buttons. A status line under the folder
+counts the items and the selection, and names the git branch when the folder
+is in a repository.
+
 - **Tabs.** Press **+** (or Ctrl+T) for a new tab, Ctrl+W closes one, Ctrl+Tab
   moves between them. Middle-click a tab to close it. Your tabs are still there
   the next time you open the page.
-- **Split view.** The split button in the toolbar shows two folders side by
+- **Split view.** The split button in the top bar shows two folders side by
   side in one tab. The highlighted pane is the one the toolbar acts on. Drag
   items from one pane onto the other (or onto any folder) to move them; hold
   Ctrl while dropping to copy instead.

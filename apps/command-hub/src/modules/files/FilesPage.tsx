@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
+  ArrowDownUp,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   ChevronRight,
   ClipboardPaste,
   Columns2,
+  Columns3,
   Copy,
   Eye,
   EyeOff,
   FilePlus2,
+  Folder,
   FolderPlus,
-  GitBranch,
+  LayoutGrid,
+  List,
   PanelRight,
   Pencil,
   Plus,
@@ -23,13 +27,11 @@ import {
   X,
 } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/PageHeader'
+import { PageCommandBar } from '@/components/layout/PageCommandBar'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Segmented } from '@/components/ui/segmented'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { hasLocalScreen, isDesktop } from '@/modules/client'
@@ -260,59 +262,86 @@ export default function FilesPage() {
     ev.preventDefault()
   }
 
-  const viewOptions: { value: ViewMode; label: string }[] = [
-    { value: 'details', label: 'Details' },
-    { value: 'grid', label: 'Grid' },
-    { value: 'columns', label: 'Columns' },
-  ]
   const sortLabels: Record<SortKey, string> = { name: 'Name', modified: 'Date modified', size: 'Size', type: 'Type' }
   const selection = sel.selection
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6" onKeyDown={onRootKey}>
-      <PageHeader
+    <div className="flex h-full min-h-0 flex-col" onKeyDown={onRootKey}>
+      <PageCommandBar
         title="Files"
         description={desktop ? 'A file explorer with tabs, split view, previews, pins and color tags. Deleting always goes to the Recycle Bin.' : 'Sample folders: the real explorer works in the desktop app.'}
-      />
-
-      <Card className="relative flex min-h-[600px] flex-1 flex-col gap-0 overflow-hidden py-0">
-        {/* Tabs */}
-        <div className="flex h-11 shrink-0 items-end gap-1 overflow-x-auto border-b bg-muted/40 px-2 pt-1.5" role="tablist" aria-label="Tabs">
+        actions={
+          <>
+            <BarButton label={tab && tab.panes.length > 1 ? 'Single pane' : 'Split into two panes'} pressed={!!tab && tab.panes.length > 1} onClick={toggleSplit}>
+              <Columns2 />
+            </BarButton>
+            <BarButton label={opts.preview ? 'Hide preview' : 'Show preview'} pressed={opts.preview} onClick={() => setOpts((o) => ({ ...o, preview: !o.preview }))}>
+              <PanelRight />
+            </BarButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="h-7" disabled={!currentDir || !desktop}>
+                  <Plus /> New
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => currentDir && activeOps.newFolder(currentDir)}>
+                  <FolderPlus /> Folder <span className="ml-auto pl-4 text-xs text-muted-foreground">Ctrl+Shift+N</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => currentDir && activeOps.newFile(currentDir)}>
+                  <FilePlus2 /> Text file
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      >
+        {/* Folder tabs, drawn like the command bar's page tabs. */}
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label="Folder tabs">
           {tabsState.tabs.map((t, i) => {
             const p = t.panes[0]
-            const label = p?.startsWith('tag:') ? `${p.slice(4)} tag` : baseName(p ?? '') || p
+            const label = (q: string | undefined) => (q?.startsWith('tag:') ? `${q.slice(4)} tag` : baseName(q ?? '') || q)
+            const current = i === tabIndex
+            const TabIcon = t.panes.length > 1 ? Columns2 : p?.startsWith('tag:') ? Tag : Folder
             return (
               <div
                 key={t.id}
                 role="tab"
-                aria-selected={i === tabIndex}
+                aria-selected={current}
                 tabIndex={0}
                 onClick={() => (setTabs((s) => ({ ...s, active: i })), setActivePane(0))}
                 onAuxClick={(e) => e.button === 1 && closeTab(i)}
                 onKeyDown={(e) => e.key === 'Enter' && setTabs((s) => ({ ...s, active: i }))}
                 className={cn(
-                  'group flex h-9 max-w-52 min-w-28 cursor-default items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm select-none',
-                  i === tabIndex ? 'bg-card text-foreground' : 'border-transparent text-muted-foreground hover:bg-card/60',
+                  'group inline-flex h-7 max-w-56 shrink-0 cursor-default items-center gap-2 rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                  current ? 'bg-primary-soft text-primary-soft-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                 )}
                 title={t.panes.join('  |  ')}
               >
-                {t.panes.length > 1 && <Columns2 className="size-3.5 shrink-0" />}
-                <span className="truncate">{label}</span>
+                <TabIcon className="size-3.5 shrink-0" />
+                <span className="truncate">{t.panes.map(label).join(' | ')}</span>
                 {tabsState.tabs.length > 1 && (
-                  <button type="button" aria-label="Close tab" className="ml-auto rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted" onClick={(e) => (e.stopPropagation(), closeTab(i))}>
+                  <button
+                    type="button"
+                    aria-label="Close tab"
+                    className={cn('-mr-1 rounded p-0.5 hover:bg-foreground/10', current ? 'opacity-70' : 'opacity-0 group-hover:opacity-70')}
+                    onClick={(e) => (e.stopPropagation(), closeTab(i))}
+                  >
                     <X className="size-3" />
                   </button>
                 )}
               </div>
             )
           })}
-          <IconButton label="New tab (Ctrl+T)" onClick={() => newTab()} className="mb-1">
+          <BarButton label="New tab (Ctrl+T)" onClick={() => newTab()}>
             <Plus />
-          </IconButton>
+          </BarButton>
         </div>
+      </PageCommandBar>
 
-        {/* Navigation and path */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+      <div className="relative flex min-h-0 flex-1 flex-col bg-card">
+        {/* Navigation, path, filter, actions and view in one row */}
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1.5">
           <div className="flex items-center">
             <IconButton label="Back (Alt+Left)" disabled={!h?.back.length} onClick={() => activeOps.back()}>
               <ArrowLeft />
@@ -328,8 +357,8 @@ export default function FilesPage() {
             </IconButton>
           </div>
           <PathBar path={currentPath} sep={sep} home={places?.home} editing={editingPath} setEditing={setEditingPath} onGo={(p) => activeOps.navigate(p)} />
-          <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full sm:w-56">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={filterRef}
               value={filter}
@@ -341,9 +370,10 @@ export default function FilesPage() {
                   setDeep(false)
                 }
               }}
-              placeholder={deep ? 'Search subfolders' : 'Filter (Enter searches subfolders)'}
+              placeholder={deep ? 'Search subfolders' : 'Filter this folder'}
+              title="Filter this folder. Enter also searches subfolders."
               aria-label="Filter or search"
-              className="pr-24 pl-9"
+              className="h-8 pr-24 pl-8"
               disabled={inTag}
             />
             {filter && (
@@ -357,25 +387,6 @@ export default function FilesPage() {
               </button>
             )}
           </div>
-        </div>
-
-        {/* Actions and view */}
-        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" disabled={!currentDir || !desktop}>
-                <Plus /> New
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => currentDir && activeOps.newFolder(currentDir)}>
-                <FolderPlus /> Folder <span className="ml-auto pl-4 text-xs text-muted-foreground">Ctrl+Shift+N</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => currentDir && activeOps.newFile(currentDir)}>
-                <FilePlus2 /> Text file
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Divider />
           <IconButton label="Cut (Ctrl+X)" disabled={!selection.length || !desktop} onClick={() => activeOps.cut(selection)}>
             <Scissors />
@@ -388,9 +399,6 @@ export default function FilesPage() {
           </IconButton>
           <IconButton label="Rename (F2)" disabled={selection.length !== 1 || !desktop} onClick={() => activeOps.rename(selection[0])}>
             <Pencil />
-          </IconButton>
-          <IconButton label="Move to Recycle Bin (Delete)" disabled={!selection.length || !desktop} onClick={() => activeOps.trash(selection)}>
-            <Trash2 />
           </IconButton>
           <DropdownMenu>
             <Tooltip>
@@ -414,40 +422,41 @@ export default function FilesPage() {
               <DropdownMenuItem onSelect={() => activeOps.setTag(selection.map((e) => e.path), null)}>Clear tag</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <div className="ml-auto flex flex-wrap items-center gap-1">
-            <Segmented aria-label="View" value={opts.view} onChange={(v) => setOpts((o) => ({ ...o, view: v }))} options={viewOptions} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost">
-                  Sort: {sortLabels[opts.sortKey]} {opts.sortDir === 'asc' ? '↑' : '↓'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {(Object.keys(sortLabels) as SortKey[]).map((k) => (
-                  <DropdownMenuItem key={k} onSelect={() => setOpts((o) => ({ ...o, sortKey: k, sortDir: o.sortKey === k && o.sortDir === 'asc' ? 'desc' : 'asc' }))}>
-                    {sortLabels[k]} {opts.sortKey === k && <span className="ml-auto pl-4">{opts.sortDir === 'asc' ? '↑' : '↓'}</span>}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setOpts((o) => ({ ...o, foldersFirst: !o.foldersFirst }))}>{opts.foldersFirst ? 'Mix folders with files' : 'Folders first'}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Divider />
-            <IconButton label={opts.showHidden ? 'Hide hidden items' : 'Show hidden items'} pressed={opts.showHidden} onClick={() => setOpts((o) => ({ ...o, showHidden: !o.showHidden }))}>
-              {opts.showHidden ? <Eye /> : <EyeOff />}
-            </IconButton>
-            <IconButton label={tab && tab.panes.length > 1 ? 'Single pane' : 'Split into two panes'} pressed={!!tab && tab.panes.length > 1} onClick={toggleSplit}>
-              <Columns2 />
-            </IconButton>
-            <IconButton label={opts.preview ? 'Hide preview' : 'Show preview'} pressed={opts.preview} onClick={() => setOpts((o) => ({ ...o, preview: !o.preview }))}>
-              <PanelRight />
-            </IconButton>
-          </div>
+          <IconButton label="Move to Recycle Bin (Delete)" disabled={!selection.length || !desktop} onClick={() => activeOps.trash(selection)}>
+            <Trash2 />
+          </IconButton>
+          <Divider />
+          <ViewSwitch value={opts.view} onChange={(v) => setOpts((o) => ({ ...o, view: v }))} />
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="size-8" aria-label={`Sort: ${sortLabels[opts.sortKey]}`}>
+                    <ArrowDownUp />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                Sort: {sortLabels[opts.sortKey]} {opts.sortDir === 'asc' ? '↑' : '↓'}
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              {(Object.keys(sortLabels) as SortKey[]).map((k) => (
+                <DropdownMenuItem key={k} onSelect={() => setOpts((o) => ({ ...o, sortKey: k, sortDir: o.sortKey === k && o.sortDir === 'asc' ? 'desc' : 'asc' }))}>
+                  {sortLabels[k]} {opts.sortKey === k && <span className="ml-auto pl-4">{opts.sortDir === 'asc' ? '↑' : '↓'}</span>}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setOpts((o) => ({ ...o, foldersFirst: !o.foldersFirst }))}>{opts.foldersFirst ? 'Mix folders with files' : 'Folders first'}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <IconButton label={opts.showHidden ? 'Hide hidden items' : 'Show hidden items'} pressed={opts.showHidden} onClick={() => setOpts((o) => ({ ...o, showHidden: !o.showHidden }))}>
+            {opts.showHidden ? <Eye /> : <EyeOff />}
+          </IconButton>
         </div>
 
-        {/* Body */}
-        <div className={cn('grid min-h-0 flex-1 grid-cols-1', opts.preview ? 'md:grid-cols-[224px_1fr] xl:grid-cols-[224px_1fr_320px]' : 'md:grid-cols-[224px_1fr]')}>
+        {/* Body: sidebar, panes and preview, edge to edge */}
+        <div className={cn('grid min-h-0 flex-1 grid-cols-1', opts.preview ? 'md:grid-cols-[224px_1fr] xl:grid-cols-[224px_1fr_300px]' : 'md:grid-cols-[224px_1fr]')}>
           <aside className="hidden min-h-0 border-r md:flex md:flex-col">
             <Sidebar places={places} pinned={pinned} recent={recent} tags={tags} current={currentPath} onGo={(p) => activeOps.navigate(p)} onUnpin={(p) => activeOps.togglePin(p)} />
           </aside>
@@ -482,17 +491,11 @@ export default function FilesPage() {
             ))}
           </div>
           {opts.preview && (
-            <aside className="hidden min-h-0 overflow-y-auto border-l xl:block">
+            <aside className="hidden min-h-0 overflow-y-auto border-l bg-background xl:block">
               <PreviewPanel target={previewTarget} count={selection.length} tags={tags} pinned={pinned} ops={activeOps} />
             </aside>
           )}
         </div>
-
-        {sel.listing?.git && !inTag && (
-          <div className="pointer-events-none absolute right-4 bottom-12 hidden items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-elevation-2 md:flex">
-            <GitBranch className="size-3" /> {sel.listing.git.branch}
-          </div>
-        )}
 
         {notice && (
           <div role="status" className={cn('absolute bottom-12 left-1/2 z-20 flex max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-lg px-4 py-2 text-sm shadow-elevation-3', notice.tone === 'error' ? 'bg-destructive text-destructive-foreground' : 'bg-foreground text-background')}>
@@ -502,7 +505,7 @@ export default function FilesPage() {
             </button>
           </div>
         )}
-      </Card>
+      </div>
 
       <NameDialog
         state={nameDialog}
@@ -538,7 +541,7 @@ export default function FilesPage() {
 function PathBar({ path, sep, home, editing, setEditing, onGo }: { path: string; sep: string; home?: string; editing: boolean; setEditing: (v: boolean) => void; onGo: (p: string) => void }) {
   const [text, setText] = useState(path)
   useEffect(() => setText(path), [path, editing])
-  if (!path && !editing) return <div className="h-9 min-w-0 flex-1 rounded-md border bg-muted/40" />
+  if (!path && !editing) return <div className="h-8 min-w-48 flex-1 rounded-md border bg-muted/40" />
   if (editing)
     return (
       <Input
@@ -555,14 +558,14 @@ function PathBar({ path, sep, home, editing, setEditing, onGo }: { path: string;
             setEditing(false)
           }
         }}
-        className="min-w-0 flex-1 font-mono text-sm"
+        className="h-8 min-w-48 flex-1 font-mono text-sm"
         aria-label="Folder path"
         placeholder="Type a folder path"
       />
     )
   if (path.startsWith('tag:'))
     return (
-      <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-sm">
+      <div className="flex h-8 min-w-48 flex-1 items-center gap-2 rounded-md border bg-background px-3 text-sm">
         <span className="size-2.5 rounded-full" style={{ background: tagCss(path.slice(4) as TagColor) }} />
         <span className="capitalize">{path.slice(4)} tag</span>
       </div>
@@ -570,14 +573,14 @@ function PathBar({ path, sep, home, editing, setEditing, onGo }: { path: string;
   const parts = crumbs(path, sep)
   return (
     <div
-      className="flex h-9 min-w-0 flex-1 cursor-text items-center overflow-x-auto rounded-md border px-1 text-sm"
+      className="flex h-8 min-w-48 flex-1 cursor-text items-center overflow-x-auto rounded-md border bg-background px-1 text-sm [scrollbar-width:none]"
       onClick={(e) => e.target === e.currentTarget && setEditing(true)}
       title="Click an empty spot to type a path (Ctrl+L)"
     >
       {parts.map((c, i) => (
         <span key={c.path} className="flex shrink-0 items-center">
           {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
-          <button type="button" onClick={() => onGo(c.path)} className={cn('rounded px-1.5 py-1 hover:bg-muted', i === parts.length - 1 && 'font-medium')}>
+          <button type="button" onClick={() => onGo(c.path)} className={cn('rounded px-1.5 py-0.5 hover:bg-muted', i === parts.length - 1 && 'font-medium')}>
             {c.label}
           </button>
         </span>
@@ -671,4 +674,52 @@ function IconButton({ label, children, onClick, disabled, pressed, className }: 
 
 function Divider() {
   return <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+}
+
+/** A small icon button for the command bar in the top bar, named in a tooltip. */
+function BarButton({ label, children, onClick, pressed }: { label: string; children: React.ReactNode; onClick: () => void; pressed?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button size="icon" variant="ghost" aria-label={label} aria-pressed={pressed} onClick={onClick} className={cn('size-7 shrink-0', pressed && 'bg-primary-soft text-primary hover:bg-primary-soft')}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+const VIEWS: { value: ViewMode; label: string; icon: typeof List }[] = [
+  { value: 'details', label: 'Details', icon: List },
+  { value: 'grid', label: 'Grid', icon: LayoutGrid },
+  { value: 'columns', label: 'Columns', icon: Columns3 },
+]
+
+/** Details / Grid / Columns as an icon button group. */
+function ViewSwitch({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  return (
+    <div role="radiogroup" aria-label="View" className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5">
+      {VIEWS.map((v) => (
+        <Tooltip key={v.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={value === v.value}
+              aria-label={v.label}
+              onClick={() => onChange(v.value)}
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                value === v.value ? 'bg-card text-foreground shadow-elevation-1' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <v.icon className="size-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{v.label}</TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
+  )
 }
