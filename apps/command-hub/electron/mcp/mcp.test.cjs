@@ -282,7 +282,9 @@ describe('agent access storage', () => {
     await access.noteAgent(dir, { name: 'known-agent' })
     await access.noteAgent(dir, { name: 'retired-agent' })
     await access.setAllowed(dir, 'known-agent', 'create_issue', true)
+    fs.writeFileSync(path.join(access.mcpDir(dir), 'access.json.lock'), JSON.stringify({ pid: 999999999, startedAt: new Date().toISOString() }))
     const names = Array.from({ length: 8 }, (_, i) => `new-agent-${i}`)
+    const localNames = Array.from({ length: 8 }, (_, i) => `local-agent-${i}`)
     const script = `
       const access = require(process.argv[1])
       Promise.all(process.argv.slice(3).map((name) => access.noteAgent(process.argv[2], { name })))
@@ -296,11 +298,12 @@ describe('agent access storage', () => {
       access.setAllowed(dir, 'known-agent', 'create_issue', false),
       access.setAllowed(dir, 'known-agent', 'comment_on_issue', true),
       access.forgetAgent(dir, 'retired-agent'),
+      ...localNames.map((name) => access.noteAgent(dir, { name })),
     ])
     const { agents } = await access.readAccess(dir)
-    assert.deepEqual(Object.keys(agents).sort(), ['known-agent', ...names])
+    assert.deepEqual(Object.keys(agents).sort(), ['known-agent', ...localNames, ...names])
     assert.deepEqual(agents['known-agent'].allow, { comment_on_issue: true })
-    for (const name of names) assert.deepEqual(agents[name].allow, {})
+    for (const name of [...localNames, ...names]) assert.deepEqual(agents[name].allow, {})
   })
 
   it('refuses every write when the access file is damaged', async () => {

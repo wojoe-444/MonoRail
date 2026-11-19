@@ -18,10 +18,11 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
-const { writeJsonAtomic, writeAtomic, tryLock, sleep } = require('../cache/files.cjs')
+const { writeJsonAtomic, writeAtomic, tryLock, lockHolder, pidAlive, sleep } = require('../cache/files.cjs')
 
 const ACCESS_FILE = 'access.json'
 const ACCESS_LOCK = 'access.json.lock'
+const RECOVERY_LOCK = 'access.json.recovery.lock'
 const AUDIT_FILE = 'audit.jsonl'
 const AUDIT_MAX_BYTES = 2 * 1024 * 1024
 const AUDIT_KEEP_LINES = 2_000
@@ -61,14 +62,33 @@ async function readAccess(rootDir) {
   }
 }
 
+async function abandoned(file) {
+  const held = await lockHolder(file)
+  return Number.isInteger(held?.pid) && held.pid > 0 && !pidAlive(held.pid)
+}
+
+async function recoverAccessLock(dir, lockFile) {
+  if (!(await abandoned(lockFile))) return
+  // Only one contender may remove an abandoned lock. Check it again after
+  // taking the recovery lock, as another writer may already have taken over.
+  const release = await tryLock(path.join(dir, RECOVERY_LOCK), { recoverStale: false })
+  if (!release) return
+  try {
+    if (await abandoned(lockFile)) await fs.rm(lockFile, { force: true })
+  } finally {
+    await release()
+  }
+}
+
 /** Every writer, including MCP registration, reads and replaces the file under this lock. */
 async function updateAccess(rootDir, change) {
   const dir = mcpDir(rootDir)
   const lockFile = path.join(dir, ACCESS_LOCK)
   const deadline = Date.now() + 10_000
   let release
-  while (!(release = await tryLock(lockFile, { staleMs: 30_000 }))) {
+  while (!(release = await tryLock(lockFile, { recoverStale: false }))) {
     if (Date.now() > deadline) throw new Error('The agent access file is busy. Try again in a moment.')
+    await recoverAccessLock(dir, lockFile)
     await sleep(25)
   }
   try {
