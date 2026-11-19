@@ -1,5 +1,3 @@
-import { ChevronRight } from 'lucide-react'
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -162,7 +160,6 @@ function NavFlyout({
         )}
       >
         <Icon className="size-4 shrink-0" />
-        <ChevronRight className="absolute right-0.5 bottom-0.5 size-2.5 shrink-0 opacity-60" />
       </button>
     </DropdownMenuTrigger>
   )
