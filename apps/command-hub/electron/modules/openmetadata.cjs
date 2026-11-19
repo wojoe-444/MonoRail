@@ -502,6 +502,8 @@ function createLocalService(deps = {}, { readOnly, describe, lineageNote, legacy
     /** Search the whole database (localdb search), not a loaded page. */
     async search(args = {}) {
       const { q, types, limit, deleted } = searchArgs(args)
+      // A search (the command palette's too) never creates the local database.
+      if (!deps.local && !require('../localdb/index.cjs').localDbExists()) return { data: [], total: 0 }
       const res = db().search({ q, types, limit, deleted })
       return { data: res.data.map(searchRow), total: res.total }
     },
