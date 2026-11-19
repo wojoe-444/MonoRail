@@ -25,7 +25,7 @@ async function runNode() {
     const env = { ...process.env }
     delete env.ELECTRON_RUN_AS_NODE
     await new Promise((resolve, reject) => {
-      const child = spawn(electron, [__filename, `--benchmark-html=${html}`, `--benchmark-data=${work}`, `--dpr=${dpr}`], {
+      const child = spawn(electron, [__filename, `--benchmark-html=${html}`, `--benchmark-data=${work}`, `--dpr=${dpr}`, ...process.argv.filter((arg) => arg === '--checks-only')], {
         stdio: 'inherit',
         windowsHide: true,
         env,
@@ -61,7 +61,8 @@ async function runElectron() {
   }, 90000)
   try {
     await win.loadFile(argument('--benchmark-html'))
-    const results = await win.webContents.executeJavaScript(`window.runLineageBenchmark(${dpr})`)
+    const checksOnly = process.argv.includes('--checks-only')
+    const results = await win.webContents.executeJavaScript(`window.${checksOnly ? 'runLineageChecks' : 'runLineageBenchmark'}(${dpr})`)
     console.log(JSON.stringify({
       electron: process.versions.electron,
       chromium: process.versions.chrome,

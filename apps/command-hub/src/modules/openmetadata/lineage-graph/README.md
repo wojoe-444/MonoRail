@@ -45,7 +45,10 @@ From `apps/command-hub`:
 ```powershell
 node src/modules/openmetadata/lineage-graph/benchmark.cjs
 node src/modules/openmetadata/lineage-graph/benchmark.cjs --dpr=2
+node src/modules/openmetadata/lineage-graph/benchmark.cjs --checks-only
 ```
+
+`--checks-only` runs the component interactions and pixel regression checks without the performance traces. Repainting after movement must match a fresh frame for solid, glass, and liquid palettes in both light and dark modes, including translucent backgrounds. Add `--dpr=2` to check high-DPI drawing.
 
 The script builds a disposable Vite entry with `resolve.preserveSymlinks` and runs it under Electron's `file://` origin in a 1280 × 720 offscreen window at 60 Hz. Its component checks cover the initial neighbourhood, keyboard and button expansion, collapse, disconnected assets, layout switching, snapshot updates, asset opening, and palette changes.
 

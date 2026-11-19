@@ -331,6 +331,10 @@ export class LineageRenderer {
   draw(ctx: CanvasRenderingContext2D, camera: Camera, width: number, height: number, dpr: number, options = optimized, spawns?: Uint32Array) {
     this.spawns = spawns
     if (!options.cacheHighlight && this.selection >= 0) this.highlight = trace(this.layout, this.selection)
+    // Glass palettes have transparent backgrounds. Painting over the previous
+    // frame would leave trails as cards move, pan, or zoom.
+    ctx.resetTransform()
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.fillStyle = this.theme.background
     ctx.fillRect(0, 0, width, height)
