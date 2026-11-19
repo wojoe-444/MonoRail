@@ -651,7 +651,7 @@ creates no pipelines. Explore shows local services, pipelines and catalog
 tables (full names start at the service).
 
 **Local database** (`electron/localdb`, docs `docs/local-database.md`): one
-SQLite file per profile, `databaseslocal.sqlite3` (folder `databases`,
+SQLite file per profile, `databases\local.sqlite3` (folder `databases`,
 profile scope), through the `node:sqlite` built into Electron's Node (nothing
 bundled). The home for in-app data in the standard's OpenMetadata shape:
 `entity` (OpenMetadata JSON by type and full name; `put` assigns UUIDs and
@@ -747,7 +747,7 @@ or focusing an icon shows its name in a tooltip, and opening a subpage panel
 never changes the rail's width.
 
 **Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Tracker, Calendar, Email, Bookmarks, Browser, Files, Notes and Flashcards behind one rail button.
+Tracker, Calendar, Email, Bookmarks, Browser, BigQuery, Files, Notes and Flashcards behind one rail button.
 **Browser** (`browser`, guide `docs/guide/workspace/browser.md`) is a tabbed
 `<webview>` browser with its own sign-ins per profile (`persist:browser`,
 `persist:browser-<id>`, in memory for New User; Electron's `Partitions`
@@ -758,6 +758,19 @@ plain Chrome user agent, only fullscreen/clipboard-write permissions); new
 tabs come over the `browser:open-tab` push channel, sized popups (sign-in
 flows) open as sandboxed windows in the same session. `clearData` is in
 `REMOTE_DENY`; the page only runs in the desktop window.
+**BigQuery** (`bigquery`, `layout: 'full'`, guide `docs/guide/workspace/bigquery.md`)
+is a BigQuery console: explorer (starred projects > datasets > tables),
+editor tabs with a debounced free dry run for the bytes estimate, results
+(grid, JSON, job information, execution details from `queryPlan`, chart),
+table Schema/Details/Preview (`tabledata.list`, no query) and Personal/Project
+history (BigQuery's `jobs.list`). Opt-in: every method checks
+`hasConnection('gcloud')` first; the token comes from the gcloud connector's
+`credentials()` (`gcloud auth print-access-token`), kept in memory 30
+minutes, refetched on a 401. `electron/modules/bigquery-api.cjs` (no
+Electron) calls only `bigquery.googleapis.com` with fixed URL shapes and
+validated ids; rows are converted by schema (INT64/NUMERIC stay strings).
+Nothing is written to disk; tabs and starred projects live in `prefs`
+(`monorail.bigquery.*`). Queries run with the user's own permissions.
 Its overview lists the same destinations as its flyout. Modules join it with
 `nav.parent: '/tools'`; workspace apps are added from the app registry.
 Existing page URLs stay the same, and nested app routes resolve to their
@@ -1236,6 +1249,16 @@ entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
   prompt templates are OpenMetadata's `promptTemplate` since 2.1 (Explore
   maps the stored template onto it in `promptTemplateRecord`; versions go in
   `extension.versions`).
+- **MonoRail may add values to OpenMetadata's enum types, never change
+  theirs** (rule 5 in `docs/standard/README.md`): `standard.json` `enums`
+  lists each enum MonoRail extends, with OpenMetadata's values (`openMetadata`,
+  refreshed by `standard-openmetadata.cjs`, which also flags a MonoRail value
+  OpenMetadata has since added) and MonoRail's (`monorail`: value, summary,
+  docs). `allowedValues(type)` in `src/standard/index.ts`; field tables say
+  "MonoRail adds ...", a `<!-- standard:enum <type> -->` block lists them all;
+  tests check no overlap with OpenMetadata and that every data-service
+  connector's `serviceType` is allowed. So far: `metadataServiceType`
+  `BigQuery`. An OpenMetadata server does not accept MonoRail's values.
 - MonoRail's own types are camelCase and never reuse an OpenMetadata type name
   (the MetricFlow metric is `semanticMetric`); the test checks against every
   OpenMetadata type in the file plus OpenMetadata's non-entity record names.
@@ -1275,8 +1298,9 @@ page had, `nav: { section: 'Insights' }`, `/semantic` redirects here; guide `doc
 app's UI side, reading **MonoRail's local database by default** and a connected
 server on request (`createLocalService` / `createServerService` behind
 `createService` in `openmetadata.cjs`; every method takes `source: 'local' |
-'server'`, default server once its connection is set up, local until then; the
-page shows a This PC / Server switch, pref `monorail.openmetadata.source`):
+'bigquery' | 'server'`, default BigQuery while it is set up, then the server
+once its connection is set up, local until then; the page shows a This PC /
+BigQuery / Server switch, pref `monorail.openmetadata.source`):
 every OpenMetadata 2.1 entity type that has a REST collection
 (90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
 rows take their wording from the standard) on one page, read live from the
@@ -1297,6 +1321,31 @@ check it matches `catalog.ts` and the standard's `basePath`s), ids must be UUIDs
 refusal. The only write is `setDescription` (one JSON Patch op on
 `/description`). Keeps no files. The browser dev server uses the fictional
 catalog in `sample.ts`. Descriptions render with links and images inert.
+
+**BigQuery as the source of truth** (docs: `docs/bigquery-metadata.md`): the
+connector `bigquery-metadata` (subconnector of `gcloud`, signs in with its
+login) names a project and dataset (default `METADATA`) that holds **MonoRail's
+metadata layout** `monorail.metadata/1`: the local database's tables as
+BigQuery tables (`entity` with OpenMetadata's full API JSON in `json`, `meta`
+with the `layout` row; optional `entity_version`, `record`), not
+OpenMetadata's own MySQL schema. Something else fills it; for this source,
+ingestion means connecting. MonoRail never writes to BigQuery (no DML/DDL;
+`setupSql()` is text the page shows for the user to run). It keeps a copy,
+`databases\bigquery.sqlite3` (`mirrorDb()`, same schema, rows stored as-is
+with `putExact`, emptied when the source changes or the connection is
+removed), and the page's `bigquery` source reads only the copy, read-only
+(`setDescription` refused, pencil hidden). Sync (`localdb/bigquery-mirror.cjs`,
+run by `modules/openmetadata-bigquery.cjs` from `openmetadata`'s `start()`):
+full through free `tabledata.list` (first time, new source, Full refresh);
+otherwise one dry-run-checked SELECT per table since the watermark less 10
+minutes, refused over the connection's scan limit; removals found by row
+count then a free id listing. Hourly by default while the app runs, retries
+after 15 minutes, one at a time, an In-App row. On Services it is a
+connect-only service (`LOCAL_SERVICES` `ingestion: 'connect'`,
+`bigquery_metadata`, `metadataService` of type `BigQuery`, a value MonoRail
+adds): no pipelines, its copy's state, `syncConnected`. CRUD on the source of
+truth is a later goal; the layout is MonoRail's own so it can be plain DML
+with a version check.
 
 ## Diagrams
 

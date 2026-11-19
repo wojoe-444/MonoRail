@@ -60,6 +60,20 @@ export const sampleOverview: Overview = {
   services: [
     { kind: 'metricflow', title: 'MetricFlow', name: 'local_dbt', displayName: 'jaffle_shop', category: 'databaseService', serviceType: 'dbt', added: true, localTypes: ['dbt'], pipelines: 1, catalog: { databases: 2, schemas: 3, tables: 12 }, status: { state: 'ok', summary: 'dbt project jaffle_shop with 6 metrics.', details: [], added: true } },
     { kind: 'sqlite', title: 'SQLite', name: 'local_sqlite', displayName: 'field-notes.sqlite3', category: 'databaseService', serviceType: 'SQLite', added: true, localTypes: ['metadata', 'profiler'], pipelines: 2, catalog: { databases: 1, schemas: 1, tables: 14 }, status: { state: 'ok', summary: 'Database is readable (12 tables).', details: [], added: true } },
+    {
+      kind: 'bigquery-metadata',
+      title: 'BigQuery metadata',
+      name: 'bigquery_metadata',
+      displayName: 'orbit-analytics.METADATA',
+      category: 'metadataService',
+      serviceType: 'BigQuery',
+      added: true,
+      localTypes: [],
+      ingestion: 'connect',
+      pipelines: 0,
+      copy: { source: 'orbit-analytics.METADATA', entities: 1842, synced: true, syncEvery: '1h', last: { at: new Date(t0 - HOUR / 3).toISOString(), ok: true, mode: 'incremental', entities: 6 }, nextAt: new Date(t0 + (2 * HOUR) / 3).toISOString() },
+      status: { state: 'ok', summary: "orbit-analytics.METADATA holds MonoRail's metadata (1,842 entities). It is the source of truth.", details: [], added: true },
+    },
   ],
 }
 

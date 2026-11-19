@@ -16,7 +16,7 @@ import { sampleProject } from '@/modules/semantic/sample'
 import type { SemanticProject } from '@/modules/semantic/types'
 import type { NoteList } from '@/modules/notes/types'
 import type { DeckList, CardList } from '@/modules/flashcards/types'
-import { SECTIONS, STANDARD, categoriesIn, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
+import { SECTIONS, STANDARD, allowedValues, categoriesIn, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
 
 type Bookmark = { id: string; name: string; description: string; target: string; kind?: 'folder' | 'bookmark'; parentId?: string | null; color?: string }
 type Prompt = { id: string; versions: { version: number; name: string; text: string; savedAt: string }[] }
@@ -271,7 +271,8 @@ export default function ExplorePage() {
         <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">In the standard</h3>{activeField ? <>
           <div className="mt-2 flex flex-wrap items-center gap-1.5"><Badge variant="outline" className="font-mono">{activeField.name}: {activeField.type}</Badge>{activeField.required && <Badge variant="secondary">Required</Badge>}</div>
           <p className="mt-2 break-words text-sm text-muted-foreground">{activeField.description}</p>
-        </> : <p className="mt-2 text-sm text-muted-foreground">Not a field of {activeType.name} in the standard.</p>}
+          {allowedValues(activeField.type) && <div className="mt-3"><h4 className="text-xs font-medium text-muted-foreground">Allowed values</h4><div className="mt-1.5 flex flex-wrap gap-1.5">{allowedValues(activeField.type)!.map((v) => <Badge key={v.value} variant={v.origin === 'monorail' ? 'secondary' : 'outline'} className="font-mono" title={v.origin === 'monorail' ? `Added by MonoRail: ${v.summary}` : 'OpenMetadata'}>{v.value}{v.origin === 'monorail' ? ' · MonoRail' : ''}</Badge>)}</div></div>}
+        </> :<p className="mt-2 text-sm text-muted-foreground">Not a field of {activeType.name} in the standard.</p>}
           <Button variant="link" size="sm" className="h-auto px-0" onClick={() => openStandard(activeType)}><BookOpen /> {activeType.name} in the standard</Button></div>
         {active.entry.description && <div className="mt-4 border-t pt-4"><h3 className="text-sm font-medium">About {active.entry.name}</h3><p className="mt-2 break-words text-sm text-muted-foreground">{active.entry.description}</p></div>}
       </> : chosenType ? typeCard(chosenType) : <p className="text-sm text-muted-foreground">Select a field to inspect its value.</p>}</section>

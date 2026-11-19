@@ -52,6 +52,43 @@ The token is encrypted and stays on this computer
 ([passwords and tokens are encrypted](private-data.md#passwords-and-tokens-are-encrypted)).
 A server on another computer must use https.
 
+## BigQuery as the source of truth
+
+If your team keeps its metadata in BigQuery, you can make one BigQuery
+dataset the source of truth: for example the `METADATA` dataset in your
+`chicago-transit` project, where `chicago-transit.METADATA.entity` holds one
+row per entity. Keeping that dataset up to date is up to you or your team's
+pipelines. MonoRail only connects to it and reads it. It never writes to
+BigQuery.
+
+To avoid running BigQuery queries every time you open the page, MonoRail
+keeps a **copy on your PC** and reads that. The first sync downloads
+everything, which is free in BigQuery because it runs no query. After that,
+each sync only fetches what changed, by default once an hour while MonoRail
+is open. You can also press **Sync now**, or **Full refresh** to download
+everything again.
+
+### Set it up
+
+1. Add the **Google Cloud** connection on [Connections](setup/connections.md):
+   MonoRail reads BigQuery with your own `gcloud` login.
+2. Add **BigQuery metadata** under it: your project, and the dataset
+   (`METADATA` unless you choose another one). You can also choose how often
+   the copy is refreshed and the most a refresh may scan.
+3. Open this page. It switches to **BigQuery** by itself, and the first copy
+   is made within a minute. The **This PC / BigQuery** switch in the header
+   still lets you look at your local database.
+
+If the dataset doesn't exist yet, or is empty, **Setup SQL** on the page
+shows the statements that create MonoRail's tables in it. Run them yourself
+in the BigQuery console, then fill the tables from your own pipeline. The
+[layout reference](../bigquery-metadata.md) describes every table and column.
+
+Descriptions can't be edited while you look at BigQuery, because MonoRail
+doesn't write to it yet. Change them in BigQuery and the next sync brings
+them in. Removing the connection empties the copy on your PC. Your BigQuery
+dataset is never touched.
+
 ## Find your way around
 
 The list on the left has every kind of [entity](glossary.md#entity)
@@ -77,12 +114,16 @@ server older than 2.1 has no ontology kinds, so those stay greyed out.
 
 You can change an entity's **description** (the pencil beside it). It is
 saved to OpenMetadata, which keeps the old text as an earlier version, so
-nothing is lost. Everything else on the page only reads.
+nothing is lost. Everything else on the page only reads. There is no pencil
+while you look at [BigQuery](#bigquery-as-the-source-of-truth).
 
 ## What it sends where
 
 The page talks only to the server in your connection, and only while it is
-open. It keeps nothing on your computer. See
+open. It keeps nothing of the server on your computer. With
+[BigQuery](#bigquery-as-the-source-of-truth), MonoRail calls only Google's
+BigQuery service, with your own login, and keeps the copy in its
+[data folder](glossary.md#data-folder) on your PC. See
 [private data stays local](private-data.md).
 
 ## Related
@@ -90,6 +131,8 @@ open. It keeps nothing on your computer. See
 - [Explore](explore.md) lists what MonoRail itself knows, sorted the same way.
 - [Services and ingestion pipelines](setup/services.md) runs, deploys and adds
   the server's ingestion pipelines, and runs pipelines on your PC too.
+- [BigQuery metadata layout](../bigquery-metadata.md): the tables MonoRail
+  expects in the dataset, and how the copy is kept in step.
 - [The MonoRail standard](../standard/README.md) explains every kind, with all
   its fields; [Databases](../standard/data-assets/databases/README.md) is the
   one MonoRail fills itself too.

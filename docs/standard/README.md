@@ -98,14 +98,27 @@ types here. They come with the entity they belong to.
    described from the standard.
 4. **One definition.** Each entity type has a page here, and its field table
    is generated from the same definition the app reads.
+5. **MonoRail may add values to OpenMetadata's lists, never change theirs.**
+   Where an OpenMetadata field takes one of a fixed list of values (an enum
+   type) and that list has no word for something MonoRail has, MonoRail adds
+   the value. It never removes, renames or redefines one of OpenMetadata's.
+   Each addition says what it means and links to its page; the field's table
+   says "MonoRail adds ...", and its type page lists every allowed value. When
+   OpenMetadata adds a value for the same thing, MonoRail moves to it, as in
+   rule 1. So far: `BigQuery` as a
+   [metadata service type](platform/metadata-service.md#service-types). Values
+   MonoRail adds are MonoRail's: an OpenMetadata server will not accept them.
 
 ## Where it is defined
 
 The standard is one file, `apps/command-hub/src/standard/standard.json`:
 sections, categories, entity types and their fields. Each OpenMetadata type
-also records its schema file, REST path and reference page. The app reads it
-through `src/standard/index.ts`, which Explore uses for its tree and field
-descriptions, and which the OpenMetadata page uses for field descriptions.
+also records its schema file, REST path and reference page. `enums` holds the
+enum types MonoRail extends ([rule 5](#rules)): OpenMetadata's values, copied
+from the schema, and MonoRail's additions, each with a summary and a page.
+The app reads it through `src/standard/index.ts` (`allowedValues(type)`),
+which Explore uses for its tree, field descriptions and allowed values, and
+which the OpenMetadata page uses for field descriptions.
 The tables on these pages sit between `<!-- standard:... -->` comments and
 are written from that file by `node scripts/standard-docs.cjs`, run from
 `apps/command-hub`. `npm test` fails when a page is out of date, when an
@@ -121,7 +134,9 @@ from the standard's.
 2. Run `node scripts/standard-openmetadata.cjs <checkout>` from
    `apps/command-hub`. It rewrites every OpenMetadata type's fields from its
    schema, and lists the entity schemas the standard does not have yet and
-   the entries whose schema is gone.
+   the entries whose schema is gone. It also refreshes OpenMetadata's values
+   of each enum MonoRail extends, and lists any MonoRail value OpenMetadata
+   now has too: drop MonoRail's entry and use OpenMetadata's ([rule 5](#rules)).
 3. Add each new type to `standard.json` with its category, name, summary,
    REST path and reference, give it a page under its category's folder with
    a `<!-- standard:fields <type> -->` block, add it to the OpenMetadata

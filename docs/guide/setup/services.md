@@ -40,6 +40,14 @@ needs no server. Today it can read:
 SQLite databases are opened read-only. No row data is copied: only names,
 types and counts.
 
+**BigQuery metadata needs no pipeline.** When a BigQuery dataset is the
+[source of truth for your metadata](../openmetadata.md#bigquery-as-the-source-of-truth),
+connecting it is all the ingestion there is: something outside MonoRail keeps
+the dataset up to date. It is listed with the services on this PC, with
+**None needed** for pipelines and how big and how fresh MonoRail's copy is.
+Open it to see when the copy last synced, press **Sync now** or
+**Full refresh**, or jump to the OpenMetadata page.
+
 **On your OpenMetadata server.** If you added your OpenMetadata server on
 [Connections](connections.md), its services are listed too, with every
 ingestion pipeline the server has. You can run them, deploy them, pause and

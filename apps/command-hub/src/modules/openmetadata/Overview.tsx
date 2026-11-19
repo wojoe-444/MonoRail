@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { StatTile } from '@/components/charts/StatTile'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCount } from '@/lib/format'
+import { formatCount, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { useCall } from './api'
@@ -37,10 +37,15 @@ export function Overview({ status, counts, countsError, onOpen }: { status: OmSt
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div>
-              <Badge variant="success">{status.source === 'local' ? 'On this PC' : 'Connected'}</Badge>
+              <Badge variant="success">{status.source === 'local' ? 'On this PC' : status.source === 'bigquery' ? 'Source of truth' : 'Connected'}</Badge>
             </div>
             <dl className="flex flex-col gap-2">
-              {(status.source === 'local' ? ([['Catalog', status.url], ['Stored as', 'OpenMetadata entities in SQLite']] as const) : ([['Server', status.url], ['Version', status.version ? `OpenMetadata ${status.version}` : undefined], ['Signed in as', status.user]] as const)).map(([k, v]) => (
+              {(status.source === 'local'
+                ? ([['Catalog', status.url], ['Stored as', 'OpenMetadata entities in SQLite']] as const)
+                : status.source === 'bigquery'
+                  ? ([['Dataset', status.bigquery?.source], ['Read from', 'A copy on this PC, refreshed from BigQuery'], ['Last synced', status.bigquery?.last?.ok ? formatRelative(status.bigquery.last.at) : undefined]] as const)
+                  : ([['Server', status.url], ['Version', status.version ? `OpenMetadata ${status.version}` : undefined], ['Signed in as', status.user]] as const)
+              ).map(([k, v]) => (
                 <div key={k} className="min-w-0">
                   <dt className="text-xs text-muted-foreground">{k}</dt>
                   <dd className="truncate text-sm" title={v}>

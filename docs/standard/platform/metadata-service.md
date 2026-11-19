@@ -15,10 +15,34 @@ Another metadata catalog, such as Amundsen or Atlas, read as a source. It is Ope
 
 ## In MonoRail
 
-MonoRail keeps none itself yet. The
-[OpenMetadata page](../../guide/openmetadata.md) lists them from your own
-OpenMetadata server, and
-[Explore](../../guide/explore.md) lists the type with 0.
+MonoRail has one of its own: a BigQuery dataset made the
+[source of truth for MonoRail's metadata](../../bigquery-metadata.md), service
+type `BigQuery`, listed on the [Services page](../../guide/setup/services.md)
+and on [Explore](../../guide/explore.md) once it is set up. The
+[OpenMetadata page](../../guide/openmetadata.md) lists the metadata services
+of your own OpenMetadata server.
+
+## Service types
+
+`serviceType` takes OpenMetadata's values, plus `BigQuery`, which MonoRail
+adds ([rule 5](../README.md#rules)). An OpenMetadata server does not know
+`BigQuery` as a metadata service type, so a metadata service of that type
+stays in MonoRail.
+
+<!-- standard:enum metadataServiceType -->
+
+| Value | Defined by | What it is |
+| --- | --- | --- |
+| `Amundsen` | OpenMetadata 2.1.x | |
+| `MetadataES` | OpenMetadata 2.1.x | |
+| `OpenMetadata` | OpenMetadata 2.1.x | |
+| `Atlas` | OpenMetadata 2.1.x | |
+| `Alation` | OpenMetadata 2.1.x | |
+| `AlationSink` | OpenMetadata 2.1.x | |
+| `Collibra` | OpenMetadata 2.1.x | |
+| `BigQuery` | MonoRail | A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/1), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC. [More](../../bigquery-metadata.md) |
+
+<!-- /standard -->
 
 ## Fields
 
@@ -30,7 +54,7 @@ OpenMetadata server, and
 | `name` | `entityName` | Yes | Name that identifies this database service. |
 | `fullyQualifiedName` | `fullyQualifiedEntityName` |  | FullyQualifiedName same as `name`. |
 | `displayName` | `string` |  | Display Name that identifies this database service. |
-| `serviceType` | `metadataServiceType` | Yes | Type of database service such as MySQL, BigQuery, Snowflake, Redshift, Postgres... |
+| `serviceType` | `metadataServiceType` | Yes | Type of database service such as MySQL, BigQuery, Snowflake, Redshift, Postgres... MonoRail adds `BigQuery`. |
 | `description` | `markdown` |  | Description of a database service instance. |
 | `connection` | `metadataConnection` |  | Metadata Service Connection. |
 | `pipelines` | `entityReferenceList` |  | References to pipelines deployed for this database service to extract metadata, usage, lineage etc.. |

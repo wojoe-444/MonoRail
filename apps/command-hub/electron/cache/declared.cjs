@@ -139,7 +139,7 @@ const DATA_FILES = Object.freeze({
   'modules/flows': ['repo/', 'runs.json'],
   'modules/storage': ['goals.json'],
   'modules/ingestion': ['pipelines.json', 'runs.json', 'catalog.json'], // older versions only: copied into the local database once, then left as they are
-  databases: ['local.sqlite3', 'local.sqlite3-wal', 'local.sqlite3-shm', 'local.sqlite3-journal'],
+  databases: ['local.sqlite3', 'local.sqlite3-wal', 'local.sqlite3-shm', 'local.sqlite3-journal', 'bigquery.sqlite3', 'bigquery.sqlite3-wal', 'bigquery.sqlite3-shm', 'bigquery.sqlite3-journal'],
   'modules/backups': ['settings.json', 'state.json'],
   'modules/remote': ['settings.json', 'devices.json', 'audit.jsonl'],
   'apps/github-plus': ['recents.json', 'settings.json', 'backups.json'],
@@ -161,7 +161,7 @@ const NOT_CACHED = Object.freeze({
   'modules/notes': 'Notes are the user\'s own Markdown files in a local git repo (repo/, no remote), read on every call and never cached.',
   'modules/flows': 'Flows are the user\'s own JSON files in a local git repo (repo/, no remote), read on every call and never cached. runs.json keeps metadata of the newest 200 runs (flow id, start time, duration, outcome, cost, step count), never a prompt, a reply or a step\'s output; outputs live only in memory while the app runs.',
   'modules/ingestion': 'Older versions kept ingestion pipelines, runs and the local catalog here (pipelines.json, runs.json, catalog.json). They are copied into the local database once and then left as they are; nothing writes them any more.',
-  databases: 'The local database of MonoRail (local.sqlite3, plus the SQLite -wal, -shm and -journal files while it is open): OpenMetadata entities the user or local ingestion pipelines made (services, databases, schemas, tables with column names, types, descriptions, lineage and row and null counts; never row data), every version of each, ingestion pipelines that run on this PC and their newest 30 run statuses with up to 200 log lines, and the teams, members, issues, comments, projects, cycles, initiatives and views of Tracker. It is the source of truth, not a cache; it never leaves the PC.',
+  databases: 'The local database of MonoRail (local.sqlite3, plus the SQLite -wal, -shm and -journal files while it is open): OpenMetadata entities the user or local ingestion pipelines made (services, databases, schemas, tables with column names, types, descriptions, lineage and row and null counts; never row data), every version of each, ingestion pipelines that run on this PC and their newest 30 run statuses with up to 200 log lines. It is the source of truth, not a cache; it never leaves the PC. bigquery.sqlite3 (same schema, only while the BigQuery metadata connection is set up) is a copy of the BigQuery dataset the user chose as the source of truth: the entities, versions and records found there, refilled from BigQuery on a schedule or on request and emptied when the connection is removed. MonoRail never writes it back.',
   'modules/files': 'Files reads folders and files in place on every call and keeps nothing: no listing, preview, thumbnail or search result is written to disk. Pins, tags, tabs and view choices are the person\'s page preferences.',
   'modules/flashcards': 'Decks, cards and per-day study counts are the user\'s own data (decks.json, plus its lock file while a change is written), read on every call and never cached.',
 })

@@ -13,8 +13,11 @@
 // from the entity's `schema` file. It also lists the entity schemas (a
 // top-level `javaInterfaces` naming an EntityInterface) that standard.json
 // does not have yet, and the entries whose schema is gone, so a version bump
-// shows what to adopt. Categories, names, summaries and pages are edited by
-// hand; afterwards run node scripts/standard-docs.cjs for the wiki tables.
+// shows what to adopt. For each enum type MonoRail extends (`enums`), it
+// rewrites OpenMetadata's values from the schema and lists MonoRail values
+// OpenMetadata has since added. Categories, names, summaries, pages and
+// MonoRail's enum values are edited by hand; afterwards run
+// node scripts/standard-docs.cjs for the wiki tables.
 const fs = require('node:fs')
 const path = require('node:path')
 
@@ -127,11 +130,23 @@ if (require.main === module) {
     const fields = fieldsOf(readSchema(root, e.schema), { root, file: e.schema })
     if (JSON.stringify(fields) !== JSON.stringify(e.fields)) { changed++; e.fields = fields }
   }
+  // Enum types MonoRail extends: OpenMetadata's own values come from the schema;
+  // a MonoRail value OpenMetadata now has too should move to OpenMetadata's (rule 5).
+  const taken = []
+  for (const [name, e] of Object.entries(standard.enums ?? {})) {
+    if (!fs.existsSync(path.join(root, SCHEMA_DIR, e.schema))) { gone.push(`enum ${name} (${e.schema})`); continue }
+    const values = readSchema(root, e.schema).definitions?.[e.definition]?.enum
+    if (!Array.isArray(values)) { gone.push(`enum ${name} (${e.schema}#/definitions/${e.definition})`); continue }
+    if (JSON.stringify(values) !== JSON.stringify(e.openMetadata)) { changed++; e.openMetadata = values }
+    const has = new Set(values.map((v) => String(v).toLowerCase()))
+    for (const v of e.monorail) if (has.has(v.value.toLowerCase())) taken.push(`${name}: ${v.value}`)
+  }
   const known = new Set(adopted.map((e) => e.schema))
   const missing = entitySchemas(root).filter((s) => !known.has(s.file)).map((s) => s.file)
   console.log(`${adopted.length} OpenMetadata entity types; ${changed} with changed fields.`)
   if (missing.length) console.log(`Entity schemas not in the standard yet:\n  ${missing.join('\n  ')}`)
   if (gone.length) console.log(`Entries whose schema is gone:\n  ${gone.join('\n  ')}`)
+  if (taken.length) console.log(`MonoRail enum values OpenMetadata now has too (use OpenMetadata's, drop MonoRail's entry):\n  ${taken.join('\n  ')}`)
   if (!check && changed) fs.writeFileSync(STANDARD_FILE, JSON.stringify(standard, null, 2) + '\n')
-  if (check && (changed || missing.length || gone.length)) process.exitCode = 1
+  if (check && (changed || missing.length || gone.length || taken.length)) process.exitCode = 1
 }

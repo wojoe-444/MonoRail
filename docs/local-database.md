@@ -84,6 +84,16 @@ A schema change adds a step to `MIGRATIONS` and bumps `SCHEMA_VERSION`.
   cycles, initiatives, views, comments). Issue history is read from the
   entity versions.
 
+## The BigQuery copy
+
+When a BigQuery dataset is the source of truth
+([BigQuery metadata](bigquery-metadata.md)), its copy is a second file with
+this same schema, `databases\bigquery.sqlite3` (`mirrorDb()`,
+`mirrorDbExists()`). It holds only what came from BigQuery, written with
+`putExact` (BigQuery's id, version and time; no bump), and is emptied when
+the source changes or the connection is removed. `local.sqlite3` is never
+synced anywhere.
+
 Other modules keep their own files for now (Notes and Tasks in git repos,
 Flashcards in `decks.json`, ...). Moving one in is a separate change per
 module, never automatic, and must leave the old data where it is.
@@ -91,5 +101,6 @@ module, never automatic, and must leave the old data where it is.
 ## Related
 
 - [Services and ingestion pipelines](ingestion.md)
+- [BigQuery metadata](bigquery-metadata.md): BigQuery as the source of truth, read through a copy.
 - [Caching rules](caching.md): declared files and the "not cached" policy.
 - [Profiles](profiles.md): why the folder is per profile.

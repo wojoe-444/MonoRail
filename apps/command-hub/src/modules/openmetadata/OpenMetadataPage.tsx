@@ -14,6 +14,7 @@ import type { Overview as IngestionOverview } from '@/modules/ingestion/types'
 import { openWiki } from '@/modules/wiki/store'
 
 import { setSource, useCall, type Source } from './api'
+import { BigQueryNote } from './BigQueryNote'
 import { typeInfo } from './catalog'
 import { EntityList } from './EntityList'
 import { EntityView } from './EntityView'
@@ -26,12 +27,13 @@ const TYPE_KEY = 'monorail.openmetadata.type'
 const SOURCE_KEY = 'monorail.openmetadata.source'
 const savedSource = (): Source | undefined => {
   const v = prefs.getItem(SOURCE_KEY)
-  return v === 'local' || v === 'server' ? v : undefined
+  return v === 'local' || v === 'server' || v === 'bigquery' ? v : undefined
 }
 
 /**
  * OpenMetadata: every entity type on one page, from MonoRail's local
- * database (the default) or a connected OpenMetadata server. The overview,
+ * database, the copy of a BigQuery dataset the user made the source of truth
+ * (the default while it is set up), or a connected OpenMetadata server. The overview,
  * one type's entities, or one entity with everything held about it. Reads
  * through electron/modules/openmetadata.cjs; no server is contacted until
  * the OpenMetadata connection is set up.
@@ -65,18 +67,21 @@ export default function OpenMetadataPage() {
         description={
           source === 'local'
             ? "Every entity type in MonoRail's local database on this PC, the way OpenMetadata stores it: browse any of them and see every field, relationship and version."
-            : 'Every entity type in your OpenMetadata server, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
+            : source === 'bigquery'
+              ? 'Every entity type in your BigQuery metadata dataset, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
+              : 'Every entity type in your OpenMetadata server, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
         }
         actions={
           <>
-            {status.data?.serverSetUp && (
+            {(status.data?.serverSetUp || status.data?.bigquerySetUp) && (
               <Segmented
                 aria-label="Catalog"
-                value={source ?? 'server'}
+                value={source ?? 'local'}
                 onChange={choose}
                 options={[
-                  { value: 'local', label: 'This PC' },
-                  { value: 'server', label: 'Server' },
+                  { value: 'local' as const, label: 'This PC' },
+                  ...(status.data.bigquerySetUp ? [{ value: 'bigquery' as const, label: 'BigQuery', title: 'The source of truth: a copy on this PC of your BigQuery dataset' }] : []),
+                  ...(status.data.serverSetUp ? [{ value: 'server' as const, label: 'Server' }] : []),
                 ]}
               />
             )}
@@ -105,6 +110,15 @@ export default function OpenMetadataPage() {
         <BlockedCard status={status.data} onRetry={status.reload} />
       ) : (
         <div key={source ?? 'default'} className="flex flex-col gap-6">
+        {source === 'bigquery' && status.data.bigquery && (
+          <BigQueryNote
+            status={status.data.bigquery}
+            onChanged={() => {
+              status.reload()
+              counts.reload()
+            }}
+          />
+        )}
         {source === 'local' && <LocalNote serverSetUp={!!status.data.serverSetUp} empty={!!counts.data && Object.values(counts.data).every((n) => n === 0)} />}
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
           <TypeNav current={view.type} counts={counts.data} onChoose={(type) => setView(type ? { type } : {})} />

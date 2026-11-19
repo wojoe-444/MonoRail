@@ -104,3 +104,35 @@ test("the OpenMetadata page reads every OpenMetadata type at the standard's REST
   )
   assert.deepEqual({ ...TYPES }, expected)
 })
+
+test("enum types MonoRail extends: OpenMetadata's values plus MonoRail's own, never the same value twice", () => {
+  const fieldTypes = new Set(STANDARD.entities.filter((e) => e.origin === 'openmetadata').flatMap((e) => e.fields.map((f) => f.type)))
+  assert.ok(Object.keys(STANDARD.enums ?? {}).length > 0, 'standard.json has an enums section')
+  for (const [name, e] of Object.entries(STANDARD.enums)) {
+    assert.ok(fieldTypes.has(name), `${name}: a field of an OpenMetadata entity type has this type`)
+    assert.ok(e.schema && e.definition, `${name}: names the schema and definition it comes from`)
+    assert.ok(Array.isArray(e.openMetadata) && e.openMetadata.length, `${name}: lists OpenMetadata's values`)
+    assert.ok(Array.isArray(e.monorail) && e.monorail.length, `${name}: is listed only because MonoRail adds a value`)
+    const om = new Set(e.openMetadata.map((v) => v.toLowerCase()))
+    const seen = new Set()
+    for (const v of e.monorail) {
+      assert.ok(!om.has(v.value.toLowerCase()), `${name}: ${v.value} is already OpenMetadata's; use theirs`)
+      assert.ok(!seen.has(v.value.toLowerCase()), `${name}: ${v.value} twice`)
+      seen.add(v.value.toLowerCase())
+      assert.ok(v.summary && v.summary.length > 20, `${name}: ${v.value} needs a summary`)
+      assert.ok(page(v.docs).text, `${name}: ${v.value} links to docs/${v.docs}.md`)
+    }
+  }
+})
+
+test('a data-service connector names an allowed service type for its category', () => {
+  const { CONNECTORS } = require('./connections/index.cjs')
+  for (const c of CONNECTORS.filter((x) => x.service)) {
+    const type = STANDARD.entities.find((e) => e.type === c.service.category)?.fields.find((f) => f.name === 'serviceType')?.type
+    assert.ok(type, `${c.kind}: ${c.service.category} has a serviceType field`)
+    const e = STANDARD.enums[type]
+    if (!e) continue // an enum MonoRail does not extend; its values are not recorded here
+    const allowed = [...e.openMetadata, ...e.monorail.map((v) => v.value)]
+    assert.ok(allowed.includes(c.service.serviceType), `${c.kind}: ${c.service.serviceType} is not an allowed ${type} (${allowed.join(', ')})`)
+  }
+})

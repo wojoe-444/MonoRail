@@ -4,13 +4,19 @@ import { invokeModule, isDesktop } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 
-/** Which catalog the page reads: MonoRail's local database or the OpenMetadata server. Unset: the backend's default. */
-export type Source = 'local' | 'server'
+/**
+ * Which catalog the page reads: MonoRail's local database, the copy of the
+ * BigQuery dataset that is the source of truth, or the OpenMetadata server.
+ * Unset: the backend's default.
+ */
+export type Source = 'local' | 'bigquery' | 'server'
 let source: Source | undefined
 /** Set by the page before its children load; every call then names it. */
 export function setSource(s: Source | undefined) {
   source = s
 }
+/** Whether the catalog being read takes edits. BigQuery is read-only for now: MonoRail never writes to it. */
+export const canEdit = () => source !== 'bigquery'
 
 /** Call the OpenMetadata backend; in the browser dev server, the fictional sample catalog. */
 export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
