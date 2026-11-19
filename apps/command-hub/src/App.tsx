@@ -7,7 +7,7 @@ import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
-import { HeaderRevealProvider, HeaderRevealTrigger, RevealableHeader } from '@/components/layout/HeaderReveal'
+import { HeaderRevealProvider, HeaderRevealTrigger } from '@/components/layout/HeaderReveal'
 import { Inspector } from '@/components/dev/Inspector'
 import { TourHost } from '@/components/tour/Tour'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -111,14 +111,12 @@ export default function App() {
         />
         <HeaderRevealProvider><div data-slot="app-body" className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
           <HeaderRevealTrigger />
-          <RevealableHeader>
           <TopBar
             section={section}
             parent={found?.parent ? { label: found.parent.label, path: found.parent.path } : undefined}
             onNavigate={openPath}
             title={current?.label ?? 'Not found'}
           />
-          </RevealableHeader>
           {workspaceApp ? (
             // A workspace app owns the whole page body, with its own look and scrolling.
             <main className="min-h-0 flex-1 overflow-auto">

@@ -20,8 +20,8 @@ interface SideNavProps {
 }
 
 /**
- * Permanent 72px icon rail with a 64px brand header aligned with the app bar,
- * section dividers, 40px items on soft pills, and hover/focus labels to the
+ * Permanent 48px icon rail with a 40px brand header aligned with the app bar,
+ * section dividers, 36px items on soft pills, and hover/focus labels to the
  * right. The active item is filled with the drawer's primary color.
  *
  * Items with subpages never expand inside the drawer: they open a panel just
@@ -40,21 +40,21 @@ export function SideNav({ current, onNavigate }: SideNavProps) {
         data-slot="sidebar"
         data-tour="rail"
         aria-label="Navigation"
-        className="flex h-full w-[72px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+        className="flex h-full w-12 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
       >
-        {/* Brand header: height matches the 64px top bar */}
-        <div className="flex h-16 shrink-0 items-center justify-center border-b border-sidebar-border">
-          <BrandTile className="size-8" />
+        {/* Brand header: height matches the 40px top bar */}
+        <div className="flex h-10 shrink-0 items-center justify-center border-b border-sidebar-border">
+          <BrandTile className="size-7" />
         </div>
 
         <nav
           // Hide the scrollbar to keep icons centered; wheel, touch, and focus still scroll.
-          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1.5 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Main"
         >
           {mainSections.map((section, i) => (
-            <div key={section.heading ?? i} className={cn(i > 0 && 'mt-4')}>
-              {section.heading && <div className="mx-2 mb-3 h-px bg-sidebar-border" />}
+            <div key={section.heading ?? i} className={cn(i > 0 && 'mt-3')}>
+              {section.heading && <div className="mx-1 mb-2 h-px bg-sidebar-border" />}
               <ul className="flex flex-col gap-1">
                 {section.items.map((item) => (
                   <li key={item.path}>
@@ -73,7 +73,7 @@ export function SideNav({ current, onNavigate }: SideNavProps) {
         {settings && (
           // Settings: one button pinned at the bottom. Its pages (Connections,
           // Agent access, Extensions, ...) have their own menu on the Settings page.
-          <div className="shrink-0 border-t border-sidebar-border px-4 py-3">
+          <div className="shrink-0 border-t border-sidebar-border px-1.5 py-2">
             <NavButton
               item={{ ...settings, children: undefined, badge: alerts.length ? String(alerts.length) : undefined }}
               current={inSettings ? settings.path : current}
@@ -106,20 +106,20 @@ function NavButton({
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex h-10 w-full items-center justify-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        'relative flex h-9 w-full items-center justify-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
         active
           ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
           : 'bg-sidebar-accent/70 text-sidebar-accent-foreground hover:bg-sidebar-accent',
       )}
     >
       <Icon className="size-4 shrink-0" />
-      {item.badge && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-warning" aria-label={`${item.badge} need attention`} />}
+      {item.badge && <span className="absolute top-1 right-1 size-2 rounded-full bg-warning" aria-label={`${item.badge} need attention`} />}
     </button>
   )
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="right" sideOffset={24}>{item.label}</TooltipContent>
+      <TooltipContent side="right" sideOffset={14}>{item.label}</TooltipContent>
     </Tooltip>
   )
 }
@@ -155,14 +155,14 @@ function NavFlyout({
         aria-label={`${item.label} pages`}
         data-tour={`nav:${item.path}`}
         className={cn(
-          'relative flex h-10 w-full items-center justify-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+          'relative flex h-9 w-full items-center justify-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
           active || activeChild
             ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-md shadow-sidebar-primary/25'
             : 'bg-sidebar-accent/70 text-sidebar-accent-foreground hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent',
         )}
       >
         <Icon className="size-4 shrink-0" />
-        <ChevronRight className="absolute right-1 size-3 shrink-0 opacity-60" />
+        <ChevronRight className="absolute right-0.5 bottom-0.5 size-2.5 shrink-0 opacity-60" />
       </button>
     </DropdownMenuTrigger>
   )
@@ -171,13 +171,13 @@ function NavFlyout({
     <DropdownMenu modal={false}>
       <Tooltip>
         <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        <TooltipContent side="right" sideOffset={24}>{item.label}</TooltipContent>
+        <TooltipContent side="right" sideOffset={14}>{item.label}</TooltipContent>
       </Tooltip>
-      {/* The trigger sits 16px inside the drawer's edge: 24px puts the panel 8px past it. */}
+      {/* The trigger sits 6px inside the drawer's edge: 14px puts the panel 8px past it. */}
       <DropdownMenuContent
         side="right"
         align="start"
-        sideOffset={24}
+        sideOffset={14}
         alignOffset={-8}
         aria-label={`${item.label} pages`}
         className="min-w-44 rounded-xl p-1.5"
