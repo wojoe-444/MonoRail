@@ -787,10 +787,14 @@ validated ids; rows are converted by schema (INT64/NUMERIC stay strings).
 Nothing is written to disk; tabs and starred projects live in `prefs`
 (`monorail.bigquery.*`). Queries run with the user's own permissions.
 **SQLX** (`sqlx`, guide `docs/guide/workspace/sqlx.md`) opens Dataform
-`.sqlx` files: file list left, SQL in the middle, the `config { }` block as a
-form on the right (`ConfigForm.tsx`, field specs in `fields.ts`: core 3 puts
-BigQuery options at the top, core 2 under `bigquery`), `js` / `pre_operations`
-/ `post_operations` as folding panels, and a Source view of the whole file.
+`.sqlx` files: file list left, the open file in tabs right. The `config { }`
+block is never shown as code outside the last tab: Query (SQL and its refs),
+Settings (`ConfigForm.tsx` limited to Target/About/Run/BigQuery/More; field
+specs in `fields.ts`: core 3 puts BigQuery options at the top, core 2 under
+`bigquery`), Columns (`columns` as a table with a Not null toggle that edits
+`assertions.nonNull`) and Tests (`assertions`) in `ConfigTabs.tsx`, Pre / post
+ops (`js` / `pre_operations` / `post_operations` as folding panels) and Raw
+file (the whole file as text).
 `parse.ts` splits a file into block and text pieces whose `raw` joins back byte
 for byte (line endings kept), and reads the config's object literal into
 values; anything else (variables, calls) stays as source text and is written

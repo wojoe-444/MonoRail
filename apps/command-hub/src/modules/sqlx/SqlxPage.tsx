@@ -8,13 +8,15 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
-import { Segmented } from '@/components/ui/segmented'
 import { cn } from '@/lib/utils'
 import { hasLocalScreen, isDesktop } from '@/modules/client'
 import { ConfirmDialog } from '@/modules/flashcards/dialogs'
 
 import { call, errorText } from './api'
 import { ConfigForm } from './ConfigForm'
+import { ColumnsTable, TestsForm } from './ConfigTabs'
+import { countColumns, countTests } from './config-values'
+import type { Section } from './fields'
 import {
   addBlock,
   buildSqlx,
@@ -30,6 +32,7 @@ import {
   setBody,
   stringOf,
   type BlockKind,
+  type ObjectValue,
   type SqlxFile,
 } from './parse'
 import { SqlxCode } from './SqlxCode'
@@ -65,8 +68,9 @@ const sameSource = (a: Source | undefined, b: Source) =>
   !!a && a.kind === b.kind && (a.kind === 'scratch' ? b.kind === 'scratch' && a.name === b.name : b.kind === 'project' && a.projectId === b.projectId && a.path === b.path)
 
 /**
- * SQLX (electron/modules/sqlx.cjs): Dataform .sqlx files with the config block
- * as a form on the right, so the SQL gets the middle of the page. Files come
+ * SQLX (electron/modules/sqlx.cjs): Dataform .sqlx files in tabs: the query,
+ * the config block spread over Settings, Columns and Tests, the extra blocks,
+ * and the raw file for anything else. Files come
  * from project folders picked in the system dialog, or are dropped or pasted
  * in (those can be copied but not saved).
  */
@@ -76,7 +80,7 @@ export default function SqlxPage() {
   const [list, setList] = useState<SqlxFileList>()
   const [query, setQuery] = useState('')
   const [doc, setDoc] = useState<Doc>()
-  const [mode, setMode] = useState<'form' | 'source'>('form')
+  const [tab, setTab] = useState<EditorTab>('query')
   const [error, setError] = useState<string>()
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState<'open' | 'save'>()
@@ -261,7 +265,7 @@ export default function SqlxPage() {
         title="SQLX"
         description={
           isDesktop()
-            ? 'Dataform files with the config as a form, so the SQL has room. Files stay where they are; saving writes them in place.'
+            ? 'Dataform files with the query and its settings in tabs, so you never edit the config as code. Files stay where they are; saving writes them in place.'
             : 'A sample Dataform project: saves stay in the browser tab.'
         }
         actions={
@@ -295,7 +299,7 @@ export default function SqlxPage() {
 
       <Card
         className={cn(
-          'relative grid min-h-[600px] flex-1 grid-cols-1 gap-0 overflow-hidden py-0 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_400px]',
+          'relative grid min-h-[600px] flex-1 grid-cols-1 gap-0 overflow-hidden py-0 lg:grid-cols-[260px_minmax(0,1fr)]',
           dragging && 'ring-2 ring-primary',
         )}
       >
@@ -316,8 +320,8 @@ export default function SqlxPage() {
           <Editor
             doc={doc}
             core={project?.core ?? null}
-            mode={mode}
-            onMode={setMode}
+            tab={tab}
+            onTab={setTab}
             onChange={(file) => setDoc((d) => d && { ...d, file })}
             dirty={dirty}
             busy={busy}
@@ -331,7 +335,7 @@ export default function SqlxPage() {
             knownRefs={new Set(list?.files.map((f) => baseName(f.path)))}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center gap-3 p-12 text-center lg:col-span-1 2xl:col-span-2">
+          <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
             {busy === 'open' ? (
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             ) : (
@@ -490,13 +494,17 @@ function FileList(props: {
 }
 
 // ---------------------------------------------------------------------------
-// Middle and right: the open file
+// Right: the open file, in tabs
+
+export type EditorTab = 'query' | 'settings' | 'columns' | 'tests' | 'blocks' | 'raw'
+
+const SETTINGS_SECTIONS: Section[] = ['Target', 'About', 'Run', 'BigQuery', 'More']
 
 function Editor(props: {
   doc: Doc
   core: 2 | 3 | null
-  mode: 'form' | 'source'
-  onMode: (m: 'form' | 'source') => void
+  tab: EditorTab
+  onTab: (t: EditorTab) => void
   onChange: (file: SqlxFile) => void
   dirty: boolean
   busy?: 'open' | 'save'
@@ -509,7 +517,7 @@ function Editor(props: {
   onOpenRef: (name: string) => void
   knownRefs: Set<string>
 }) {
-  const { doc, mode, onChange } = props
+  const { doc, tab, onChange } = props
   const file = doc.file
   const configBlock = findBlock(file, 'config')
   const config = useMemo(() => (configBlock ? parseConfig(configBlock.inner) : undefined), [configBlock])
@@ -517,67 +525,109 @@ function Editor(props: {
   const refs = useMemo(() => references(body.sql), [body.sql])
   const configObj = config?.ok ? config.value : undefined
   const type = stringOf(getEntry(configObj, 'type'))
+  const description = stringOf(getEntry(configObj, 'description'))
   const pathName = doc.source.kind === 'project' ? doc.source.path : doc.source.name
   const name = stringOf(getEntry(configObj, 'name')) ?? baseName(pathName)
   const target = [stringOf(getEntry(configObj, 'database')), stringOf(getEntry(configObj, 'schema')), name].filter(Boolean).join('.')
   const tags = getEntry(configObj, 'tags')
   const canSave = doc.source.kind === 'project'
+  const blocks = (['js', 'pre_operations', 'post_operations'] as const).filter((k) => findBlock(file, k))
   const missingBlocks = (['js', 'pre_operations', 'post_operations'] as const).filter((k) => !findBlock(file, k))
-
   const sourceText = file.pieces.map((p) => p.raw).join('')
+  const setConfig = (v: ObjectValue) => onChange(setBlockInner(file, 'config', formatConfigInner(v)))
+
+  const tabs: { value: EditorTab; label: string; count?: number }[] = [
+    { value: 'query', label: 'Query' },
+    { value: 'settings', label: 'Settings' },
+    { value: 'columns', label: 'Columns', count: countColumns(configObj) },
+    { value: 'tests', label: 'Tests', count: countTests(configObj) },
+    { value: 'blocks', label: 'Pre / post ops', count: blocks.length },
+  ]
+
+  /** The config tabs need a config block the form can read. */
+  const withConfig = (render: (value: ObjectValue) => ReactNode) => {
+    if (!configBlock)
+      return (
+        <div className="flex flex-col items-start gap-3 text-sm text-muted-foreground">
+          <p>This file has no config block.</p>
+          <Button variant="outline" size="sm" onClick={() => onChange(addBlock(file, 'config', '\n  type: "table"\n'))}>
+            <Plus /> Add config
+          </Button>
+        </div>
+      )
+    if (config && !config.ok)
+      return (
+        <div className="flex max-w-lg flex-col items-start gap-3 text-sm">
+          <p className="text-muted-foreground">This config uses JavaScript the form cannot show as fields, so it stays as code.</p>
+          <p className="font-mono text-xs text-destructive">{config.error}</p>
+          <Button variant="outline" size="sm" onClick={() => props.onTab('raw')}>
+            Open the raw file <ChevronRight />
+          </Button>
+        </div>
+      )
+    if (!configObj) return null
+    return (
+      <>
+        {config?.ok && config.hasComments && <Notice>This config has comments. Changing a value rewrites the block without them; use the Raw file tab to keep them.</Notice>}
+        {render(configObj)}
+      </>
+    )
+  }
 
   return (
-    <>
-      <section className="flex min-h-0 min-w-0 flex-col">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b px-6 py-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="truncate text-lg font-semibold">{name}</h2>
-              {type && <Badge variant={TYPE_TONE[type] ?? 'secondary'}>{type}</Badge>}
-              {props.dirty && <Badge variant="warning">Unsaved</Badge>}
-            </div>
-            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={pathName}>
-              {target && target !== name ? target : pathName}
-            </p>
+    <section className="flex min-h-0 min-w-0 flex-col">
+      {/* Header */}
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-3 px-6 pt-4 pb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-lg font-semibold">{name}</h2>
+            {type && <Badge variant={TYPE_TONE[type] ?? 'secondary'}>{type}</Badge>}
+            {props.dirty && <Badge variant="warning">Unsaved</Badge>}
           </div>
-          <Segmented
-            aria-label="View"
-            value={mode}
-            onChange={props.onMode}
-            options={[
-              { value: 'form', label: 'Form' },
-              { value: 'source', label: 'Source' },
-            ]}
-          />
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="icon" aria-label="Copy file" title="Copy the whole file" onClick={props.onCopy}>
-              {props.copied ? <Check /> : <Copy />}
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="Undo all changes" title="Undo all changes" disabled={!props.dirty} onClick={props.onRevert}>
-              <RotateCcw />
-            </Button>
-            {canSave ? (
-              <Button onClick={props.onSave} disabled={!props.dirty || !!props.busy} title="Save (Ctrl+S)">
-                {props.busy === 'save' ? <Loader2 className="animate-spin" /> : props.saved ? <Check /> : <Save />} {props.saved ? 'Saved' : 'Save'}
-              </Button>
-            ) : (
-              <Button variant="ghost" size="icon" aria-label="Close" onClick={props.onClose}>
-                <X />
-              </Button>
-            )}
-          </div>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={description ? `${pathName}\n${description}` : pathName}>
+            <span className="font-mono">{target && target !== name ? target : pathName}</span>
+            {description && <> · {description.split('\n')[0]}</>}
+          </p>
         </div>
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="icon" aria-label="Copy file" title="Copy the whole file" onClick={props.onCopy}>
+            {props.copied ? <Check /> : <Copy />}
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Undo all changes" title="Undo all changes" disabled={!props.dirty} onClick={props.onRevert}>
+            <RotateCcw />
+          </Button>
+          {canSave ? (
+            <Button onClick={props.onSave} disabled={!props.dirty || !!props.busy} title="Save (Ctrl+S)">
+              {props.busy === 'save' ? <Loader2 className="animate-spin" /> : props.saved ? <Check /> : <Save />} {props.saved ? 'Saved' : 'Save'}
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" aria-label="Close" onClick={props.onClose}>
+              <X />
+            </Button>
+          )}
+        </div>
+      </div>
 
-        {mode === 'source' ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <SqlxCode label="Whole file" value={sourceText} minLines={20} onChange={(t) => onChange({ ...parseSqlx(t), eol: file.eol })} />
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {/* What the SQL reads */}
+      {/* Tabs */}
+      <div role="tablist" aria-label="File" className="flex items-end gap-5 overflow-x-auto border-b px-6 text-sm">
+        {tabs.map((t) => (
+          <TabButton key={t.value} active={tab === t.value} onClick={() => props.onTab(t.value)}>
+            {t.label}
+            {!!t.count && <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">{t.count}</span>}
+          </TabButton>
+        ))}
+        <TabButton active={tab === 'raw'} onClick={() => props.onTab('raw')} className="ml-auto" muted>
+          <FileCode2 className="mr-1.5 size-3.5" />
+          Raw file
+        </TabButton>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto" role="tabpanel">
+        {tab === 'query' && (
+          <>
             {(refs.length > 0 || (tags && tags.t === 'array' && tags.items.length > 0)) && (
               <div className="flex flex-wrap items-center gap-1.5 border-b px-6 py-2.5 text-xs">
+                {refs.some((r) => r.name) && <span className="mr-1 font-semibold tracking-wide text-muted-foreground uppercase">Reads</span>}
                 {refs
                   .filter((r) => r.name)
                   .map((r) => {
@@ -613,85 +663,76 @@ function Editor(props: {
                 )}
               </div>
             )}
-
-            {(['js', 'pre_operations'] as const).map((k) => {
-              const b = findBlock(file, k)
-              return b && <BlockPanel key={k} kind={k} inner={b.inner} onChange={(inner) => onChange(setBlockInner(file, k, inner))} onRemove={() => onChange(removeBlock(file, k))} />
-            })}
-
-            <div className="flex items-center gap-2 px-6 pt-4 pb-1">
-              <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Query</span>
-              {body.split && <span className="text-xs text-muted-foreground">(SQL sits between blocks; editing joins it)</span>}
-              {missingBlocks.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs">
-                      <Plus /> Block
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {missingBlocks.map((k) => (
-                      <DropdownMenuItem key={k} onSelect={() => onChange(addBlock(file, k))}>
-                        {BLOCK_LABEL[k].title} <span className="ml-auto pl-4 font-mono text-xs text-muted-foreground">{k}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+            {body.split && <p className="px-6 pt-3 text-xs text-muted-foreground">The SQL sits between blocks in this file; editing it here joins it into one piece.</p>}
             <SqlxCode
               label="Query"
               value={body.sql}
-              minLines={12}
+              minLines={16}
               placeholder={type === 'declaration' ? 'A declaration has no SQL.' : 'SELECT ...'}
               onChange={(sql) => onChange(setBody(file, sql))}
               roomy
               className="pb-6"
             />
+          </>
+        )}
 
-            {(() => {
-              const b = findBlock(file, 'post_operations')
-              return b && <BlockPanel kind="post_operations" inner={b.inner} onChange={(inner) => onChange(setBlockInner(file, 'post_operations', inner))} onRemove={() => onChange(removeBlock(file, 'post_operations'))} />
-            })()}
+        {tab === 'settings' && (
+          <div className="p-6">{withConfig((v) => <ConfigForm core={props.core} value={v} onChange={setConfig} sections={SETTINGS_SECTIONS} />)}</div>
+        )}
+
+        {tab === 'columns' && <div className="p-6">{withConfig((v) => <ColumnsTable value={v} onChange={setConfig} />)}</div>}
+
+        {tab === 'tests' && <div className="p-6">{withConfig((v) => <TestsForm value={v} onChange={setConfig} />)}</div>}
+
+        {tab === 'blocks' && (
+          <div className="pb-6">
+            {blocks.length === 0 && (
+              <p className="px-6 pt-6 text-sm text-muted-foreground">
+                This file has no extra blocks. Add JavaScript the SQL can use, or statements that run before or after the query.
+              </p>
+            )}
+            {blocks.map((k) => {
+              const b = findBlock(file, k)!
+              return <BlockPanel key={k} kind={k} inner={b.inner} onChange={(inner) => onChange(setBlockInner(file, k, inner))} onRemove={() => onChange(removeBlock(file, k))} />
+            })}
+            {missingBlocks.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-6 pt-4">
+                {missingBlocks.map((k) => (
+                  <Button key={k} variant="outline" size="sm" onClick={() => onChange(addBlock(file, k))}>
+                    <Plus /> {BLOCK_LABEL[k].title}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </section>
 
-      {/* Right: config */}
-      <aside className="flex min-h-0 flex-col border-t lg:col-span-2 2xl:col-span-1 2xl:border-t-0 2xl:border-l">
-        <div className="flex items-center gap-2 border-b px-5 py-3">
-          <h3 className="text-sm font-semibold">Config</h3>
-          <span className="font-mono text-xs text-muted-foreground">config {'{ }'}</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {!configBlock ? (
-            <div className="flex flex-col items-start gap-3 text-sm text-muted-foreground">
-              <p>This file has no config block.</p>
-              <Button variant="outline" size="sm" onClick={() => onChange(addBlock(file, 'config', '\n  type: "table"\n'))}>
-                <Plus /> Add config
-              </Button>
-            </div>
-          ) : config && !config.ok ? (
-            <div className="flex flex-col items-start gap-3 text-sm">
-              <p className="text-muted-foreground">This config uses JavaScript the form cannot show as fields, so it stays as code. Edit it in Source.</p>
-              <p className="font-mono text-xs text-destructive">{config.error}</p>
-              <Button variant="outline" size="sm" onClick={() => props.onMode('source')}>
-                Open Source <ChevronRight />
-              </Button>
-            </div>
-          ) : (
-            configObj && (
-              <>
-                {config?.ok && config.hasComments && (
-                  <Notice>This config has comments. Changing a field rewrites the block without them; use Source to keep them.</Notice>
-                )}
-                <ConfigForm core={props.core} value={configObj} onChange={(v) => onChange(setBlockInner(file, 'config', formatConfigInner(v)))} />
-              </>
-            )
-          )}
-        </div>
-      </aside>
-    </>
+        {tab === 'raw' && (
+          <>
+            <p className="px-6 pt-3 text-xs text-muted-foreground">The whole file as text, config included. Use it for anything the other tabs cannot show, such as comments.</p>
+            <SqlxCode label="Whole file" value={sourceText} minLines={20} onChange={(t) => onChange({ ...parseSqlx(t), eol: file.eol })} />
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function TabButton({ active, onClick, children, className, muted }: { active: boolean; onClick: () => void; children: ReactNode; className?: string; muted?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        '-mb-px inline-flex shrink-0 items-center border-b-2 py-2.5 whitespace-nowrap transition-colors',
+        active ? 'border-primary font-semibold text-foreground' : cn('border-transparent hover:text-foreground', muted ? 'text-muted-foreground/80' : 'text-muted-foreground'),
+        className,
+      )}
+    >
+      {children}
+    </button>
   )
 }
 

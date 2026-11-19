@@ -10,19 +10,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import { appliesTo, CONFIG_FIELDS, SECTIONS, specFor, type FieldSpec, type Section, type Widget } from './fields'
+import { setEntry, str } from './config-values'
 import type { Entry, ObjectValue, Value } from './parse'
 
 // ---------------------------------------------------------------------------
 // Value helpers
 
-function setEntry(obj: ObjectValue, key: string, value: Value | undefined): ObjectValue {
-  const has = obj.entries.some((e) => e.key === key)
-  if (value === undefined) return { ...obj, entries: obj.entries.filter((e) => e.key !== key) }
-  if (has) return { ...obj, entries: obj.entries.map((e) => (e.key === key ? { key, value } : e)) }
-  return { ...obj, entries: [...obj.entries, { key, value }] }
-}
 
-const str = (v: string, like?: Value): Value => ({ t: 'string', v, q: like?.t === 'string' ? like.q : undefined })
+
 
 function isStringArray(v: Value): v is { t: 'array'; items: { t: 'string'; v: string }[] } {
   return v.t === 'array' && v.items.every((x) => x.t === 'string')
@@ -197,7 +192,7 @@ function MapRow({ entry, onRename, onValue, onRemove }: { entry: Entry; onRename
   )
 }
 
-function RawInput({ value, onChange }: { value: Value; onChange: (v: Value) => void }) {
+export function RawInput({ value, onChange }: { value: Value; onChange: (v: Value) => void }) {
   return (
     <div className="relative">
       <Input className="pr-10 font-mono text-[13px]" value={rawSource(value)} onChange={(e) => onChange({ t: 'raw', src: e.target.value })} />
@@ -313,7 +308,7 @@ function AddFieldMenu({ specs, onAdd, label = 'Add field', sections }: { specs: 
   )
 }
 
-function ObjectFields({ obj, specs, onChange, compact, addable, type }: { obj: ObjectValue; specs: FieldSpec[]; onChange: (obj: ObjectValue) => void; compact?: boolean; addable?: boolean; type?: string }) {
+export function ObjectFields({ obj, specs, onChange, compact, addable, addLabel = 'Add option', type }: { obj: ObjectValue; specs: FieldSpec[]; onChange: (obj: ObjectValue) => void; compact?: boolean; addable?: boolean; addLabel?: string; type?: string }) {
   const ordered = [...obj.entries].sort((a, b) => {
     const ia = specs.findIndex((s) => s.key === a.key)
     const ib = specs.findIndex((s) => s.key === b.key)
@@ -325,7 +320,7 @@ function ObjectFields({ obj, specs, onChange, compact, addable, type }: { obj: O
       {ordered.map((e) => (
         <Field key={e.key} entry={e} spec={specFor(e.key, specs)} onChange={(v) => onChange(setEntry(obj, e.key, v))} onRemove={() => onChange(setEntry(obj, e.key, undefined))} />
       ))}
-      {addable && <div className="self-start"><AddFieldMenu specs={missing} label="Add option" onAdd={(s) => onChange(setEntry(obj, s.key, emptyValue(s)))} /></div>}
+      {addable && <div className="self-start"><AddFieldMenu specs={missing} label={addLabel} onAdd={(s) => onChange(setEntry(obj, s.key, emptyValue(s)))} /></div>}
     </div>
   )
 }
@@ -340,13 +335,15 @@ interface Props {
   onChange: (value: ObjectValue) => void
   /** Dataform core version of the project, when known. */
   core: 2 | 3 | null
+  /** The sections to show (and offer fields for); all when missing. */
+  sections?: Section[]
 }
 
 /**
  * The config block as a form, in sections. Fields in the file always show;
  * "Add field" offers the ones that apply to the file's type.
  */
-export function ConfigForm({ value, onChange, core }: Props) {
+export function ConfigForm({ value, onChange, core, sections = SECTIONS }: Props) {
   const type = value.entries.find((e) => e.key === 'type')?.value
   const typeName = type?.t === 'string' ? type.v : undefined
   const hasBigqueryBlock = value.entries.some((e) => e.key === 'bigquery')
@@ -356,6 +353,7 @@ export function ConfigForm({ value, onChange, core }: Props) {
 
   const offered = CONFIG_FIELDS.filter((f) => {
     if (value.entries.some((e) => e.key === f.key) || !appliesTo(f, typeName)) return false
+    if (!sections.includes(f.section ?? 'More')) return false
     if (f.key === 'bigquery') return nested
     if (f.section === 'BigQuery' && BIGQUERY_TOP.has(f.key)) return !nested
     return true
@@ -368,8 +366,8 @@ export function ConfigForm({ value, onChange, core }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {SECTIONS.filter((s) => bySection.has(s) || (s === 'Target' && !type)).map((section) => {
+    <div className="grid items-start gap-x-10 gap-y-6 xl:grid-cols-2">
+      {sections.filter((s) => bySection.has(s) || (s === 'Target' && !type)).map((section) => {
         const entries = bySection.get(section) ?? []
         const sectionObj: ObjectValue = { t: 'object', entries }
         return (
@@ -407,7 +405,7 @@ export function ConfigForm({ value, onChange, core }: Props) {
           </section>
         )
       })}
-      <div>
+      <div className="xl:col-span-2">
         <AddFieldMenu sections specs={offered} onAdd={(s) => onChange(setEntry(value, s.key, emptyValue(s)))} />
       </div>
     </div>

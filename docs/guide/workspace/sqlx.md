@@ -1,6 +1,6 @@
 ---
 audience: human
-summary: Read and edit Dataform .sqlx files with the config block as a form, so the SQL has the page to itself.
+summary: Read and edit Dataform .sqlx files in tabs, with the config block as settings, a column table and checks instead of code.
 ---
 
 # SQLX files
@@ -8,8 +8,9 @@ summary: Read and edit Dataform .sqlx files with the config block as a form, so 
 **SQLX**, under **Tools**, opens the `.sqlx` files of a Dataform project. A
 `.sqlx` file starts with a `config { ... }` block that says what the file
 makes (a table, a view, an incremental table, an assertion), where it goes and
-how. SQLX turns that block into a form on the right, so the SQL in the middle
-of the page gets the room.
+how. SQLX splits the file into tabs: the SQL gets one to itself, and the
+config block becomes settings, a column table and checks, so you never have to
+edit it as code.
 
 Like the rest of your [workspace](README.md), it works on your computer only:
 files are read where they are and saved back in place, as
@@ -30,22 +31,32 @@ to it) never touches its files.
 
 ## The page
 
-- **Config (right).** Each field of the config block, in sections: Target
-  (type, name, dataset, project), About (description, tags), Run (dependencies,
-  disabled, unique key), BigQuery (partitioning, clustering, labels), Data
-  quality (assertions) and Columns. Tags and column lists are chips: type a
-  name and press Enter. **Add field** offers the fields that fit the file's
-  type. A value written as JavaScript (a variable, a function call) is kept as
-  code and marked with a `{ }` sign.
-- **Query (middle).** The SQL, with `${ref("...")}` and other JavaScript
-  inside `${ }` drawn as soft chips. Above it, every table the query reads with
-  `ref()`; select one to open its file.
-- **Blocks.** `js`, `pre_operations` and `post_operations` show as folding
-  panels above and below the query. **+ Block** adds one.
-- **Source.** Switch to **Source** to see and edit the whole file as text.
-  Use it for anything the form cannot show, such as comments inside the
-  config: changing a field rewrites the block without them, and the page warns
-  you first.
+Above the tabs are the file's name, its type and where it goes (project,
+dataset and name), with the first line of its description.
+
+- **Query.** The SQL, with `${ref("...")}` and other JavaScript inside `${ }`
+  drawn as soft chips. Above it, every table the query reads with `ref()`;
+  select one to open its file.
+- **Settings.** The config's fields as a form, in sections: Target (type, name,
+  dataset, project), About (description, tags), Run (dependencies, disabled,
+  unique key) and BigQuery (partitioning, clustering, labels). Tags and column
+  lists are chips: type a name and press Enter. **Add field** offers the fields
+  that fit the file's type. A value written as JavaScript (a variable, a
+  function call) is kept as code and marked with a `{ }` sign.
+- **Columns.** One row per described column: its name and description, both
+  editable in place. **Not null** turns on a check that the column is never
+  empty; **Key** marks columns in the unique key. **Add column** adds a row.
+- **Tests.** The checks Dataform runs after the table is built: not-null
+  columns, a unique key and row conditions (SQL every row must satisfy).
+  **Add check** adds one. An assertion file is a test itself, so it has none.
+- **Pre / post ops.** The `js`, `pre_operations` and `post_operations` blocks
+  as folding panels, with a button to add each one the file lacks.
+- **Raw file.** The whole file as text, config included. Use it for anything
+  the other tabs cannot show, such as comments inside the config: changing a
+  value elsewhere rewrites the block without them, and the page warns you
+  first.
+
+The numbers on the tabs count the columns, checks and extra blocks.
 
 ## Saving
 
