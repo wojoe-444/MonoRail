@@ -120,8 +120,8 @@ forward works, and **Guide** and **Refresh** stay on the right for every tab.
 - **Metrics**: your MetricFlow metrics, with their definitions and lineage.
 - **Malloy models**: each Malloy file, compiled, with any errors, its sources
   and fields, and a workbench to run its views or a query you type.
-  These tabs need the Malloy or MetricFlow connection, not an OpenMetadata
-  catalog.
+  Malloy comes with MonoRail (pick your models folder on the tab); MetricFlow
+  needs its connection. None of these tabs needs an OpenMetadata catalog.
 - **Glossary**, **Classifications** and **Domains**: business terms, tags
   such as PII or Tier, and domains with their data products.
 - **Data quality**: test cases and suites with their latest results.

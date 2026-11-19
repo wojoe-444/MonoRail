@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const malloyLib = require('./malloy-lib.cjs')
-const connector = require('../connections/connectors/malloy.cjs')
+const settingsLib = require('./malloy-settings.cjs')
 
 // Fictional models. Table schemas come from FakeBigQuery below, never from Google.
 const ORDERS = `source: orders is bigquery.table('lantern-demo.shop.orders') extend {
@@ -216,30 +216,69 @@ describe('Malloy compile, SQL and run', () => {
   })
 })
 
-describe('Malloy connector', () => {
-  test('validate needs an absolute folder and a sane project id', () => {
-    assert.throws(() => connector._internal.validate({ values: {} }), /folder/)
-    assert.throws(() => connector._internal.validate({ values: { folder: 'relative/path' } }), /full path/)
-    assert.throws(() => connector._internal.validate({ values: { folder: os.tmpdir(), project: 'Bad Project!' } }), /project/)
-    connector._internal.validate({ values: { folder: os.tmpdir(), project: 'lantern-demo' } })
+describe('Malloy settings (built in, not a connection)', () => {
+  const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mr-malloy-set-'))
+
+  test('validate needs an absolute folder and sane ids', () => {
+    assert.throws(() => settingsLib.validate({ folder: 'relative/path' }), /full path/)
+    assert.throws(() => settingsLib.validate({ folder: os.tmpdir(), project: 'Bad Project!' }), /project/)
+    assert.throws(() => settingsLib.validate({ location: 'us; drop' }), /location/)
+    settingsLib.validate({ folder: os.tmpdir(), project: 'lantern-demo', location: 'europe-west2' })
   })
 
-  test('settings: run is off and 1 GB unless chosen', () => {
-    const s = connector._internal.settingsOf({ folder: ' C:\\models ' })
-    assert.equal(s.folder, 'C:\\models')
+  test('defaults: nothing until a folder is picked, run off, 1 GB', () => {
+    assert.equal(settingsLib.settingsOf({}), undefined)
+    const s = settingsLib.settingsOf({ folder: ' C:\models ' })
+    assert.equal(s.folder, 'C:\models')
     assert.equal(s.run, 'off')
     assert.equal(s.maxBytes, 1024 ** 3)
-    assert.equal(connector._internal.settingsOf({ run: 'on', maxScanGb: '0.1' }).maxBytes, Math.round(0.1 * 1024 ** 3))
+    assert.equal(settingsLib.settingsOf({ folder: 'C:\m', run: 'on', maxScanGb: '0.1' }).maxBytes, Math.round(0.1 * 1024 ** 3))
+    assert.equal(settingsLib.clean({ maxScanGb: '9999' }).maxScanGb, '1')
   })
 
-  test('status needs Google Cloud and reads only the folder', async () => {
-    const dir = makeFolder()
-    const no = await connector.status({ values: { folder: dir } }, { hasConnection: async () => false })
-    assert.equal(no.state, 'needs-setup')
-    const ok = await connector.status({ values: { folder: dir } }, { hasConnection: async () => true })
-    assert.equal(ok.state, 'ok')
-    assert.match(ok.summary, /1 Malloy model file/)
-    const missing = await connector.status({ values: { folder: path.join(dir, 'nope') } }, { hasConnection: async () => true })
-    assert.equal(missing.state, 'error')
+  test('save writes settings.json and merges changes', async () => {
+    const dir = tmp()
+    const store = settingsLib.createSettingsStore({ dir })
+    assert.deepEqual((await store.read()).values, settingsLib.clean())
+    await store.save({ folder: makeFolder() })
+    await store.save({ run: 'on' })
+    const { values } = await store.read()
+    assert.equal(values.run, 'on')
+    assert.ok(values.folder)
+    assert.ok(fs.existsSync(path.join(dir, 'settings.json')))
+  })
+
+  test('a Malloy connection from an older version is read, never changed', async () => {
+    const dir = tmp()
+    const legacyDir = tmp()
+    const legacy = JSON.stringify({ connections: { malloy: { values: { folder: os.tmpdir(), project: 'lantern-demo', run: 'on', maxScanGb: '5' } } } })
+    fs.writeFileSync(path.join(legacyDir, 'connections.json'), legacy)
+    const store = settingsLib.createSettingsStore({ dir, legacyDir })
+    const r = await store.read()
+    assert.equal(r.fromConnection, true)
+    assert.equal(r.values.project, 'lantern-demo')
+    assert.equal(r.values.maxScanGb, '5')
+    await store.save({ location: 'US' })
+    const after = await store.read()
+    assert.equal(after.fromConnection, undefined)
+    assert.equal(after.values.project, 'lantern-demo', 'the first save keeps the old values')
+    assert.equal(fs.readFileSync(path.join(legacyDir, 'connections.json'), 'utf8'), legacy, 'connections.json is untouched')
+  })
+
+  test('a damaged settings file is never overwritten by a save', async () => {
+    const dir = tmp()
+    fs.writeFileSync(path.join(dir, 'settings.json'), '{ not json')
+    const store = settingsLib.createSettingsStore({ dir })
+    assert.equal((await store.read()).damaged, true)
+    await assert.rejects(store.save({ run: 'on' }), /damaged/)
+    assert.equal(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'), '{ not json')
+    await store.reset()
+    assert.ok(fs.existsSync(path.join(dir, 'settings.json.damaged.bak')))
+    assert.equal((await store.read()).damaged, undefined)
+  })
+
+  test('there is no Malloy connector any more', () => {
+    const { CONNECTORS } = require('../connections/index.cjs')
+    assert.ok(!CONNECTORS.some((c) => c.kind === 'malloy'))
   })
 })
