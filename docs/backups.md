@@ -24,6 +24,7 @@ the folder itself stays tidy:
   flashcards\flashcards-2026-11-11_200532.json
   notes\notes-2026-11-11_200532.bundle
   flows\flows-2026-11-11_200532.bundle
+  local-database\local-database-2026-11-11_200532.sqlite3
 ```
 
 | Page | What is backed up | How to restore |
@@ -33,8 +34,9 @@ the folder itself stays tidy:
 | Flashcards | All decks, cards and study history as one `.json` | Copy it over `decks.json` in the Flashcards data folder with MonoRail closed |
 | Notes | Every note and its history (the Notes git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Notes data folder with MonoRail closed |
 | [Flows](flows.md) | Every flow and its versions (the Flows git repo) as one `.bundle` | `git clone "<file>" repo`, then put it in place of `repo` in the Flows data folder with MonoRail closed |
+| [Local database](local-database.md) | OpenMetadata entities, their versions, lineage, pipelines and runs on this PC as one `.sqlite3` (a consistent `VACUUM INTO` copy; the database is only read) | With MonoRail closed, put it in place of `databases\local.sqlite3` in the data folder and delete any `local.sqlite3-wal` / `-shm` next to it |
 
-Tasks, Flashcards, Notes and Flows run on the global schedule; each has a switch in the
+Tasks, Flashcards, Notes, Flows and the local database run on the global schedule; each has a switch in the
 card to leave it out. **Back up now** runs them right away. A page with nothing
 to back up yet (no private projects, no decks, no notes) is skipped. Notes typed in the last
 minute may not be committed yet; the next backup has them. A damaged
@@ -66,7 +68,7 @@ On by default (Settings > Backups, "Back up before updating"; `beforeUpdate` in
 after the download and before the installer runs, the settings backend
 (`electron/modules/settings.cjs`, state `backing-up`) calls
 `runBeforeUpdate(version)` in `electron/backups/service.cjs`. It backs up
-**every** global item (Tasks private projects, Notes, Flashcards), whatever
+**every** global item (Tasks private projects, Notes, Flashcards, Flows, local database), whatever
 their own switches say, into `<folder>\before-update\` as
 `<prefix><stamp>-before-<version><suffix>`, and keeps the newest 5 of each
 (`BEFORE_UPDATE_KEEP`). GitHub+ repositories are not included: an update never

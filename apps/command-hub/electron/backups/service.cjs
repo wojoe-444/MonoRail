@@ -113,6 +113,26 @@ const ITEMS = {
       await fs.writeFile(file, raw)
     },
   },
+  'local-database': {
+    prefix: 'local-database-',
+    suffix: '.sqlite3',
+    async source(userData) {
+      // The default profile's database (the data folder is its folder; electron/profiles).
+      const localdb = require('../localdb/index.cjs')
+      const file = path.join(userData, localdb.FOLDER, localdb.DB_FILE)
+      try {
+        await fs.access(file)
+        return file
+      } catch {
+        return null
+      }
+    },
+    async write(src, file) {
+      // One consistent copy (VACUUM INTO, WAL included); the database is only read.
+      // Restore: close MonoRail and put the file back as databases\local.sqlite3.
+      require('../localdb/index.cjs').copyDatabase(src, file)
+    },
+  },
 }
 
 function createGlobalBackups(userData, log = () => {}) {

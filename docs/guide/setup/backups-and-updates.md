@@ -24,7 +24,9 @@ Each page gets its own subfolder:
 - your [Tasks](../workspace/tasks.md#private-projects) private projects;
 - your [Flashcards](../../flashcards.md) decks;
 - your [Notes](../../notes.md);
-- your [flows](../agents/flows.md#versions), with every version.
+- your [flows](../agents/flows.md#versions), with every version;
+- your [OpenMetadata](../openmetadata.md) catalog on this PC and your
+  [ingestion pipelines](services.md) (the local database).
 
 **Back up now** runs a backup right away. A repository can also have its own
 folder or schedule on GitHub+'s **Backups** tab; its own settings win over
@@ -38,6 +40,13 @@ files](../private-data.md#what-monorail-reads-and-leaves-alone).
 How to restore, and every detail: [Backups](../../backups.md).
 
 ## Updates
+
+An update never resets your data. Everything you made stays where it is,
+including your [OpenMetadata](../openmetadata.md) entities and
+[pipelines](services.md) on this PC. When an update needs to change how the
+local database is laid out, MonoRail first saves a complete copy of it next
+to the original. If it can't make that copy, it leaves the database alone.
+[Details](../../local-database.md#updates-keep-your-data).
 
 MonoRail updates itself. Half a minute after it starts, and every four hours
 after that, it checks for a new version. When there is one, a small pop-up in
@@ -54,7 +63,7 @@ went into each update, written for people using the app.
 
 **Your data is backed up first.** When you have a backup folder set (see
 [Backups](#backups) above), MonoRail backs up your Tasks private projects,
-Notes, Flashcards and flows into a `before-update` subfolder right before an update
+Notes, Flashcards, flows and local database into a `before-update` subfolder right before an update
 installs, and keeps the last five of each. This is on by default; you can turn
 it off with **Back up before updating** in **Settings > Backups**. If that
 backup fails, nothing is installed: the pop-up says what went wrong and lets

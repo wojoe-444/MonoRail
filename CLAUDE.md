@@ -679,7 +679,11 @@ bumps `version` by 0.1 only on a real change, keeping every version),
 `meta`. Created on first use (OpenMetadata page, saving a pipeline); the
 scheduler and read-only views never create it (`localDbExists`). A damaged
 file or a newer schema is refused and never overwritten; secrets never go in
-it. Other modules keep their own stores; moving one in is a separate,
+it. **Updates never reset it**: migrations only add (a test greps `MIGRATIONS`
+for DROP/DELETE/RENAME/UPDATE), and before a database with rows is upgraded a
+whole `VACUUM INTO` copy goes next to it (`local.sqlite3.before-schema-<n>.bak`,
+never overwritten); if the copy fails, the upgrade does not run. It is also a
+global backup item (`local-database`, included before updates). Other modules keep their own stores; moving one in is a separate,
 never-automatic change that leaves old data in place.
 
 `flashcards` (**Flashcards**, under Workspace; docs: `docs/flashcards.md`) keeps
@@ -997,8 +1001,8 @@ it. GitHub+ schedules may follow the global folder (`useGlobalFolder`) and/or
 frequency (`useGlobalFrequency`), read when each backup runs; a repo's own
 folder or frequency wins when its flag is off, and a schedule that follows a
 global folder that was turned off pauses with a reason. Jira+'s private
-projects repo (bundle) and Flashcards' `decks.json` (copy, refused when
-damaged) run on the global schedule (`service.cjs`, one switch each). **Back up
+projects repo (bundle), Flashcards' `decks.json` (copy, refused when
+damaged), Notes, Flows and the local database (`copyDatabase`, `VACUUM INTO`) run on the global schedule (`service.cjs`, one switch each). **Back up
 before updating** (`beforeUpdate`, on by default): while the global folder is
 on, the settings backend backs up every global item into
 `<folder>/before-update/` (newest 5 each) after the download and before the

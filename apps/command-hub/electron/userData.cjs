@@ -30,7 +30,7 @@ function isDir(p) {
 }
 
 function holdsData(dir) {
-  return isDir(path.join(dir, 'modules')) || isDir(path.join(dir, 'apps')) || fs.existsSync(path.join(dir, 'Local State'))
+  return isDir(path.join(dir, 'modules')) || isDir(path.join(dir, 'apps')) || isDir(path.join(dir, 'databases')) || fs.existsSync(path.join(dir, 'Local State'))
 }
 
 /**

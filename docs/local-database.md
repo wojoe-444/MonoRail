@@ -68,6 +68,33 @@ carries. Deleted edges are kept (the BigQuery copy) but never walked.
 [OpenMetadata page](guide/openmetadata.md#lineage)'s Lineage tab reads them
 through `openmetadata.getLineage`.
 
+## Updates keep your data
+
+An update to MonoRail never resets this database or the
+[OpenMetadata](guide/openmetadata.md) entities and [pipelines](ingestion.md) in it:
+
+- The file stays in the [data folder](profiles.md), which the installer never
+  touches (`deleteAppDataOnUninstall` is off) and MonoRail never moves.
+- **Migrations only add.** A step in `MIGRATIONS` may create tables, columns
+  and indexes; it never drops, renames, updates or deletes anything
+  (`localdb.test.cjs` greps the steps). Data that needs a new shape is read
+  in both shapes, as lineage still reads the older `extension.monorail.lineage`.
+- **A copy before every upgrade.** Before an existing database with rows is
+  upgraded, `openDatabase` writes a whole copy next to it,
+  `local.sqlite3.before-schema-<n>.bak` (`VACUUM INTO`, so the WAL is
+  included; never overwritten, a second one gets `-2`). If the copy fails,
+  the upgrade does not run and the file is left as it was. An empty database
+  needs no copy.
+- Each step runs in one transaction with its `user_version`, so a crash
+  mid-upgrade leaves the old schema and data.
+- **Before the installer runs**, the global backup folder's
+  [before-update backup](backups.md) includes this database (item
+  `local-database`), and it is on the regular schedule too.
+- Older ingestion files are imported once (`import.ingestion` in `meta`)
+  and never imported again over what is in the database.
+- The [BigQuery copy](#the-bigquery-copy) is different: it is refilled from
+  BigQuery and emptied when its source changes. This file never is.
+
 ## Rules
 
 - **OpenMetadata's bookkeeping.** `put(type, entity)` matches by id, then by
