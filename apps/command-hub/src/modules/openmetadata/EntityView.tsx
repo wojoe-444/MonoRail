@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Check, ChevronLeft, Copy, Loader2, Pencil } from 'lucide-react'
@@ -16,6 +16,7 @@ import { STANDARD, docsTarget, standardField } from '@/standard'
 
 import { call, canEdit, errorText, useCall } from './api'
 import { GROUPS, adopted, typeInfo } from './catalog'
+import { LineageGraph } from './lineage-graph/LineageGraph'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, formatTime, tierOf, type View } from './util'
 import type { OmColumn, OmEntity, OmLineage, OmLineageEdge, OmRef } from './types'
@@ -447,20 +448,36 @@ function sideOf(data: OmLineage, upstream: boolean): { ref: OmRef; steps: number
  * 3 levels, OpenMetadata's limit.
  */
 function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onOpen: (v: View) => void }) {
-  const [depth, setDepth] = useState<Depth>('1')
+  // The graph reveals neighbours as you click, so it loads all 3 steps up front.
+  const [depth, setDepth] = useState<Depth>('3')
+  const [shape, setShape] = useState<'graph' | 'list'>('graph')
   const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: Number(depth), downstreamDepth: Number(depth) })
+  const graphNodes = useMemo(() => (q.data ? [q.data.entity, ...q.data.nodes] : []), [q.data])
+  const graphEdges = useMemo(() => (q.data ? [...q.data.upstreamEdges, ...q.data.downstreamEdges] : []), [q.data])
   const depthPicker = (
-    <Segmented
-      className="w-fit"
-      aria-label="How many steps to follow"
-      value={depth}
-      onChange={setDepth}
-      options={[
-        { value: '1', label: '1 step' },
-        { value: '2', label: '2 steps' },
-        { value: '3', label: '3 steps' },
-      ]}
-    />
+    <div className="flex flex-wrap items-center gap-2">
+      <Segmented
+        className="w-fit"
+        aria-label="Show lineage as"
+        value={shape}
+        onChange={setShape}
+        options={[
+          { value: 'graph', label: 'Graph' },
+          { value: 'list', label: 'List' },
+        ]}
+      />
+      <Segmented
+        className="w-fit"
+        aria-label="How many steps to follow"
+        value={depth}
+        onChange={setDepth}
+        options={[
+          { value: '1', label: '1 step' },
+          { value: '2', label: '2 steps' },
+          { value: '3', label: '3 steps' },
+        ]}
+      />
+    </div>
   )
   if (q.error) return <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">{q.error}</p>
   if (!q.data)
@@ -482,6 +499,23 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
       <div className="flex flex-col gap-4">
         {depthPicker}
         <p className="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">No lineage is recorded for this {typeInfo(type)?.name.toLowerCase() ?? 'entity'}.</p>
+      </div>
+    )
+  if (shape === 'graph')
+    return (
+      <div className="flex flex-col gap-4">
+        {depthPicker}
+        <LineageGraph
+          nodes={graphNodes}
+          edges={graphEdges}
+          rootId={q.data.entity.id}
+          onOpen={(ref) => {
+            if (typeInfo(ref.type)) onOpen({ type: ref.type, fqn: ref.fullyQualifiedName ?? ref.name ?? ref.id })
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          {up.length} upstream · {down.length} downstream. Click an asset to show what it connects to; open it from its controls. The List view shows the same assets as rows.
+        </p>
       </div>
     )
   const side = (title: string, description: string, icon: ReactNode, rows: ReturnType<typeof sideOf>, none: string) => (
