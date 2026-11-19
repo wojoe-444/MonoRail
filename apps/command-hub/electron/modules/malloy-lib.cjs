@@ -103,7 +103,9 @@ async function listFiles(root, fsp = nodeFs) {
 }
 
 /** A model file named by the page: a relative .malloy path that really is inside root. */
-async function resolveModel(root, rel, fsp = nodeFs) {
+async function resolveModel(rootIn, rel, fsp = nodeFs) {
+  // The folder's own real path, so a short (8.3) or linked name compares right.
+  const root = await fsp.realpath(rootIn).catch(() => rootIn)
   const clean = String(rel ?? '').replace(/\\/g, '/')
   if (!clean || clean.startsWith('/') || /^[a-z]:/i.test(clean) || clean.split('/').includes('..') || !clean.toLowerCase().endsWith('.malloy')) {
     throw new Error('Not a model path.')

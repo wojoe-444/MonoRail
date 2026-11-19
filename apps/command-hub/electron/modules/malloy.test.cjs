@@ -115,7 +115,7 @@ describe('Malloy files', () => {
 
   test('a model path must be a relative .malloy file inside the folder', async () => {
     const dir = makeFolder()
-    const root = fs.realpathSync(dir)
+    const root = fs.realpathSync.native(dir)
     for (const bad of ['../x.malloy', '/etc/x.malloy', 'C:/x.malloy', 'orders.txt', '', 'a/../../x.malloy']) {
       await assert.rejects(malloyLib.resolveModel(root, bad), /Not a model path|not found/)
     }
