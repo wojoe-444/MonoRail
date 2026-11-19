@@ -12,7 +12,7 @@ catalog MonoRail is built around:
 - A **service** is one data source: a SQLite database, a dbt project, or a
   warehouse your team's OpenMetadata server knows about.
 - An **ingestion pipeline** is a job that reads a service and writes what it
-  finds (databases, schemas, tables, columns, row counts, lineage) into a
+  finds (databases, schemas, tables, columns, row counts, [lineage](../openmetadata.md#lineage)) into a
   catalog. It has a type, filters and a schedule.
 
 What a pipeline reads shows up on [Explore](../explore.md) as databases,

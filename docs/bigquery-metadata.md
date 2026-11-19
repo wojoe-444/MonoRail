@@ -20,7 +20,7 @@ version check. Today MonoRail writes to BigQuery only to
 [create the default dataset](#creating-the-default-dataset) when it does not
 exist yet.
 
-## The layout (`monorail.metadata/1`)
+## The layout (`monorail.metadata/2`)
 
 The [local database](local-database.md)'s tables as BigQuery tables, in one
 dataset (default name `METADATA`, case-sensitive). Every `json` column holds an
@@ -33,12 +33,14 @@ MySQL/Postgres schema (`table_entity` plus `entity_relationship` and
 | Table | Columns | Needed |
 | --- | --- | --- |
 | `entity` | `id` STRING, `type` STRING (entity type as OpenMetadata spells it), `fqn` STRING, `name` STRING, `version` FLOAT64, `updated_at` TIMESTAMP, `deleted` BOOL, `json` JSON | yes |
-| `meta` | `key` STRING, `value` STRING; a row `layout` = `monorail.metadata/1` | yes |
+| `meta` | `key` STRING, `value` STRING; a row `layout` = `monorail.metadata/2` (or `/1`) | yes |
 | `entity_version` | `id`, `version`, `updated_at`, `json`: every version of every entity | no |
 | `record` | `kind`, `owner` (entity id), `key`, `at` TIMESTAMP, `json`: non-entities such as `tableProfile` | no |
+| `lineage` | `from_id` STRING, `from_type` STRING, `to_id` STRING, `to_type` STRING, `updated_at` TIMESTAMP, `deleted` BOOL, `json` JSON: one row per edge (layout `/2`) | no |
 
 `version` may also be NUMERIC or INT64; `json` may be STRING holding JSON.
-Partition `entity` and `entity_version` on `DATE(updated_at)` and `record` on
+Partition `entity`, `entity_version` and `lineage` on `DATE(updated_at)` (cluster
+`lineage` on `from_id, to_id`) and `record` on
 ``DATE(`at`)`` (`at` is a reserved word in BigQuery, so it is quoted). Without partitioning, each incremental sync scans the whole
 `json` column. `setupSql(project, dataset, location)` in
 `electron/localdb/bigquery-mirror.cjs` returns the DDL: every statement `IF NOT
@@ -48,7 +50,40 @@ for the default dataset (below); for any other dataset the user runs it.
 
 A dataset is accepted only when `entity` and `meta` exist with the columns
 above and `meta` has the layout row. A dataset that holds other tables is
-reported as foreign. A newer layout number is refused.
+reported as foreign. A newer layout number is refused, so an older MonoRail
+never misreads a dataset in a layout it does not know.
+
+### Lineage and the layout versions
+
+OpenMetadata keeps lineage as edges between entities (its
+`entity_relationship` rows, served by `/api/v1/lineage/...`), never inside an
+entity's JSON, so layout `/1` had nowhere to put it. Layout `/2` adds the
+optional `lineage` table:
+
+- **One row per edge**, keyed by `from_id` + `to_id` (upstream entity to
+  downstream entity; OpenMetadata keeps one relationship per pair). Several
+  rows for one pair are allowed: the newest `updated_at` wins. Set `deleted`
+  (or delete the row) to drop an edge.
+- **`json`** is OpenMetadata's edge as its `addLineage` API takes it
+  (EntitiesEdge): `{ "fromEntity": {...}, "toEntity": {...}, "lineageDetails": {...} }`,
+  both ends EntityReferences (`id`, `type`, `fullyQualifiedName`, ...).
+  `lineageDetails` holds `source` (`DbtLineage`, `QueryLineage`, ...),
+  `sqlQuery`, `columnsLineage` and `pipeline`, as in OpenMetadata. The columns
+  win over the JSON for the ends' ids and types.
+- **`/1` datasets are still read.** They simply have no lineage; a table named
+  `lineage` in a `/1` dataset is not read, and the page's
+  [Lineage tab](guide/openmetadata.md#lineage) says the dataset has no lineage
+  table. A `/2` dataset without the table is fine too. Running the setup SQL
+  on a `/1` dataset adds the empty table but keeps its layout row (the row is
+  inserted only when missing); change the row to `monorail.metadata/2` to have
+  it read, and the next sync is a full one.
+- A dataset MonoRail [creates](#creating-the-default-dataset) is `/2`, with an
+  empty `lineage` table.
+- `inspectDataset` checks the `lineage` columns only when the layout row says
+  `/2` or later (`since: 2` in `TABLES`) and returns `lineage: true | false`.
+- The page reads it through `openmetadata.getLineage`, which answers
+  OpenMetadata's EntityLineage shape for every source (see
+  [Local database: lineage](local-database.md#lineage)).
 
 ## Creating the default dataset
 
@@ -56,7 +91,7 @@ When the dataset is the default `METADATA` and it does not exist, or exists
 with no tables at all, MonoRail creates it: `ensureDataset()` runs
 `setupSql()` as one script job in the billing project, at the connection's
 location (default `US`; an existing dataset keeps its own). That makes the
-dataset, the four empty layout tables and the `meta` layout row. DDL is not
+dataset, the five empty layout tables (`lineage` included) and the `meta` layout row. DDL is not
 billed; the layout row's `NOT EXISTS` check reads the empty `meta` table.
 It runs from the connection's `afterSave` (right after saving; a failure never
 refuses the save) and at the start of every sync. A refused create fails the
@@ -69,9 +104,9 @@ datasets. Any other dataset name, and a `METADATA` that already holds tables
 | File | What it does |
 | --- | --- |
 | `electron/localdb/bigquery-mirror.cjs` | Layout, `configOf`, `setupSql`, `inspectDataset` (metadata only), `syncMirror`, `gcloudClient`. No Electron |
-| `electron/localdb/index.cjs` | `mirrorDb()` / `mirrorDbExists()`: the copy, `databases/bigquery.sqlite3`, same schema as `local.sqlite3`; `putExact`, `putVersionExact`, `clearAll` |
+| `electron/localdb/index.cjs` | `mirrorDb()` / `mirrorDbExists()`: the copy, `databases/bigquery.sqlite3`, same schema as `local.sqlite3`; `putExact`, `putVersionExact`, `putLineageExact`, `lineageOf`, `clearAll` |
 | `electron/modules/openmetadata-bigquery.cjs` | `createBigQuerySource`: status, `sync` (one at a time), the schedule `tick`, the Scheduled > In-App row |
-| `electron/modules/openmetadata.cjs` | Source `bigquery` (read-only), `syncBigQuery`, `bigquerySetupSql`, `start()` |
+| `electron/modules/openmetadata.cjs` | Source `bigquery` (read-only; `getLineage` reads the copy's lineage table and answers `missing: 'no-lineage-table'` without one), `syncBigQuery`, `bigquerySetupSql`, `start()` |
 | `electron/connections/connectors/bigquery-metadata.cjs` | The connection, a subconnector of Google Cloud |
 | `electron/localdb/bigquery-mirror.test.cjs` | Tests with an in-memory BigQuery |
 | `src/modules/openmetadata/BigQueryNote.tsx` | Sync state, Sync now, Full refresh, Setup SQL |
@@ -97,23 +132,30 @@ it". `afterSave` creates it ([above](#creating-the-default-dataset)).
 `databases` folder, so BigQuery's entities and This PC's never mix. Rows go
 in exactly as BigQuery has them (id, version, `updatedAt`); `put()` is not
 used, so no version is bumped. Sync state lives in the copy's `meta`:
-`bq.source` (`project.dataset`), `bq.layout`, `bq.watermark.<table>` (ms) and
-`bq.last` (the last result or error).
+`bq.source` (`project.dataset`), `bq.layout` (the dataset's layout row),
+`bq.lineage` (`yes` / `no`: whether it has a lineage table),
+`bq.watermark.<table>` (ms) and `bq.last` (the last result or error). Lineage
+edges go in the copy's `lineage` table as-is (`putLineageExact`).
 
 - **Full**: every table through `tabledata.list`, which runs no query, so
-  BigQuery bills nothing. Runs the first time, when `bq.source` or the layout
-  changed (the copy is emptied first), and on Full refresh. Duplicate ids keep
-  the newest `updated_at`; ids no longer in BigQuery are removed at the end,
-  so the copy stays readable while it runs.
+  BigQuery bills nothing. Runs the first time, when `bq.source` or the
+  dataset's layout changed (the copy is emptied first), and on Full refresh.
+  Duplicate ids (or edge keys) keep the newest `updated_at`; ids and edges no
+  longer in BigQuery are removed at the end, so the copy stays readable while
+  it runs.
 - **Incremental**: per table, `SELECT ... WHERE <time> >= TIMESTAMP_MILLIS(watermark - 10 min)`
   (the overlap catches late writers; applying a row twice changes nothing).
-  `entity` deduplicates with `QUALIFY ROW_NUMBER()`. Every query is dry-run
+  `entity` (by `id`) and `lineage` (by `from_id, to_id`) deduplicate with
+  `QUALIFY ROW_NUMBER()`. Every query is dry-run
   first; when the sum is over the limit nothing runs (`over-cap`). Queries run
   in the billing project at the dataset's location with `maximumBytesBilled`.
 - **Removals**: when the copy has more entities than BigQuery's `numRows` plus
   streaming rows (free table metadata), BigQuery's ids are listed with
   `tabledata.list` (`id` only, free) and the rest leave the copy. Duplicate
-  ids in BigQuery can hide a removal until the next Full refresh.
+  ids in BigQuery can hide a removal until the next Full refresh. Lineage
+  edges work the same way: when the copy has more edges than the `lineage`
+  table has rows, `from_id` and `to_id` are listed (free) and the other edges
+  leave the copy. A dataset whose lineage table is gone leaves no edges.
 - **Schedule**: `start()` ticks every minute (first after 30 s). A sync is due
   at once for a dataset not yet copied, then after the chosen interval; a
   failure retries after 15 minutes (or sooner on a 15-minute interval).

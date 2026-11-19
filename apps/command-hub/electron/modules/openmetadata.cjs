@@ -18,6 +18,11 @@
 // connection is set up; nothing else runs while the page is closed. Requests go
 // only to the server in the connection, with its token; the page never sees it.
 //
+// Lineage (getLineage) has one shape for every source, OpenMetadata's
+// EntityLineage: { entity, nodes, upstreamEdges, downstreamEdges }. The server
+// answers GET /api/v1/lineage/{entityType}/{id}; the local database and the
+// BigQuery copy read their lineage table (electron/localdb).
+//
 // The page names an entity type (from TYPES below), never a URL or path: the
 // backend builds every request itself. Reads only, except one write: a new
 // description (PATCH /<collection>/<id> with one JSON Patch op on
@@ -146,6 +151,42 @@ function collectionOf(type) {
   const c = typeof type === 'string' && Object.hasOwn(TYPES, type) ? TYPES[type] : undefined
   if (!c) throw new Error(`OpenMetadata has no entity type "${type}" here.`)
   return c
+}
+
+function checkId(id) {
+  if (typeof id !== 'string' || !UUID_RE.test(id)) throw new Error('Give an entity id.')
+  return id
+}
+
+/** OpenMetadata's lineage API takes 0 to 3 levels each way (@Max(3) on upstreamDepth/downstreamDepth). */
+const MAX_LINEAGE_DEPTH = 3
+const lineageDepth = (v) => {
+  const n = v === undefined || v === null ? 1 : Math.floor(Number(v))
+  return Number.isFinite(n) ? Math.max(0, Math.min(MAX_LINEAGE_DEPTH, n)) : 1
+}
+
+const isRefLike = (r) => r && typeof r === 'object' && typeof r.id === 'string' && typeof r.type === 'string'
+const refFields = (r) => Object.fromEntries(['id', 'type', 'name', 'fullyQualifiedName', 'displayName', 'description', 'deleted'].filter((k) => r[k] !== undefined).map((k) => [k, r[k]]))
+
+/**
+ * An EntityLineage as the page reads it, from whatever the source answered.
+ * Edges carry ids (OpenMetadata 2.x answers UUIDs; an EntityReference is
+ * accepted too), nodes are EntityReferences without the entity itself.
+ */
+function normalizeLineage(res, { type, id }) {
+  const idOf = (v) => (typeof v === 'string' ? v : typeof v?.id === 'string' ? v.id : undefined)
+  const edges = (list) =>
+    (Array.isArray(list) ? list : [])
+      .map((e) => {
+        const out = { fromEntity: idOf(e?.fromEntity), toEntity: idOf(e?.toEntity) }
+        if (e?.lineageDetails && typeof e.lineageDetails === 'object') out.lineageDetails = e.lineageDetails
+        if (typeof e?.description === 'string') out.description = e.description
+        return out
+      })
+      .filter((e) => e.fromEntity && e.toEntity)
+  const entity = isRefLike(res?.entity) ? refFields(res.entity) : { id, type }
+  const nodes = (Array.isArray(res?.nodes) ? res.nodes : []).filter((n) => isRefLike(n) && n.id !== entity.id).map(refFields)
+  return { entity, nodes, upstreamEdges: edges(res?.upstreamEdges), downstreamEdges: edges(res?.downstreamEdges) }
 }
 
 function text(v, name, max = 2000) {
@@ -348,6 +389,15 @@ function createServerService(deps = {}) {
       return (res?.hits?.hits ?? []).map((h) => h._source).filter((s) => s && Object.hasOwn(TYPES, s.entityType))
     },
 
+    /** Upstream and downstream assets: GET /lineage/{entityType}/{id}?upstreamDepth=&downstreamDepth= (0 to 3 each). */
+    async getLineage({ type, id, upstreamDepth, downstreamDepth } = {}) {
+      const c = await guard()
+      collectionOf(type)
+      checkId(id)
+      const res = await c.get(`/lineage/${encodeURIComponent(type)}/${id}${query({ upstreamDepth: lineageDepth(upstreamDepth), downstreamDepth: lineageDepth(downstreamDepth) })}`)
+      return normalizeLineage(res, { type, id })
+    },
+
     /** Set an entity's description. The one write: OpenMetadata keeps the old text as a version. */
     async setDescription({ type, id, description } = {}) {
       const c = await guard()
@@ -363,7 +413,7 @@ function createServerService(deps = {}) {
  * The same methods over MonoRail's local database (electron/localdb), which
  * keeps entities in OpenMetadata's JSON shape. deps.local is for tests.
  */
-function createLocalService(deps = {}, { readOnly, describe } = {}) {
+function createLocalService(deps = {}, { readOnly, describe, lineageNote, legacyLineage } = {}) {
   const db = () => (deps.local ? deps.local() : require('../localdb/index.cjs').localDb())
   const withProfile = (type, e) => {
     if (!e || type !== 'table') return e
@@ -405,6 +455,17 @@ function createLocalService(deps = {}, { readOnly, describe } = {}) {
     async recent({ size = 30 } = {}) {
       return db().recent(Math.max(1, Math.min(50, Number(size) || 30))).filter((e) => Object.hasOwn(TYPES, e.entityType))
     },
+    /** The lineage table's edges around an entity, in the server's EntityLineage shape. */
+    async getLineage({ type, id, upstreamDepth, downstreamDepth } = {}) {
+      collectionOf(type)
+      checkId(id)
+      const store = db()
+      const res = store.lineageOf(id, { upstreamDepth: lineageDepth(upstreamDepth), downstreamDepth: lineageDepth(downstreamDepth), extra: legacyLineage ? legacyLineage(store) : [] })
+      if (!res) throw new Error('That entity is not in the local database.')
+      const out = normalizeLineage(res, { type, id })
+      const note = lineageNote ? lineageNote(store) : undefined
+      return note ? { ...out, ...note } : out
+    },
     async setDescription({ type, id, description } = {}) {
       if (readOnly) throw new Error(readOnly)
       collectionOf(type)
@@ -427,11 +488,18 @@ function createLocalService(deps = {}, { readOnly, describe } = {}) {
  */
 function createService(deps = {}) {
   const server = createServerService(deps)
-  const local = createLocalService(deps)
+  // Lineage older ingestion runs kept in a service field is read too, until the next run moves it to the lineage table.
+  const local = createLocalService(deps, { legacyLineage: (store) => require('./ingestion-store.cjs').legacyLineage(store) })
   const bq = deps.bigquery ?? require('./openmetadata-bigquery.cjs').createBigQuerySource(deps.bigqueryDeps)
   const copy = createLocalService(
     { local: () => bq.store() },
     {
+      // A dataset in layout /1 (or /2 without the optional table) has no lineage table.
+      lineageNote: (store) => {
+        const flag = store.getMeta('bq.lineage')
+        const layout = store.getMeta('bq.layout')
+        return flag === 'no' || (flag === undefined && layout === 'monorail.metadata/1') ? { missing: 'no-lineage-table', layout } : undefined
+      },
       readOnly: 'BigQuery is the source of truth here, and MonoRail does not write to it yet. Change the description in BigQuery; the next sync brings it here.',
       describe: async () => {
         const s = await bq.status()
@@ -465,6 +533,7 @@ function createService(deps = {}) {
     get: route('get'),
     versions: route('versions'),
     recent: route('recent'),
+    getLineage: route('getLineage'),
     setDescription: route('setDescription'),
     /** Sync the BigQuery copy now (`full`: download everything again, free in BigQuery). */
     syncBigQuery: (args = {}) => bq.sync({ full: args.full === true }),
@@ -488,6 +557,7 @@ module.exports = {
     get: (_ctx, args) => svc().get(args),
     versions: (_ctx, args) => svc().versions(args),
     recent: (_ctx, args) => svc().recent(args),
+    getLineage: (_ctx, args) => svc().getLineage(args),
     setDescription: (_ctx, args) => svc().setDescription(args),
     syncBigQuery: (_ctx, args) => svc().syncBigQuery(args),
     bigquerySetupSql: () => svc().bigquerySetupSql(),
@@ -508,5 +578,5 @@ module.exports = {
     setInterval(() => void bq.tick(), TICK_MS).unref?.()
   },
   TYPES,
-  _internal: { createService, createServerService, createLocalService, createClient, collectionOf },
+  _internal: { createService, createServerService, createLocalService, createClient, collectionOf, normalizeLineage },
 }

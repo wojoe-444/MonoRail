@@ -16978,7 +16978,7 @@
       "monorail": [
         {
           "value": "BigQuery",
-          "summary": "A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/1), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC.",
+          "summary": "A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/2), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC.",
           "docs": "bigquery-metadata"
         }
       ]

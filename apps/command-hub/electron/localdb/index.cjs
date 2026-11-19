@@ -4,8 +4,9 @@
 //
 // It holds OpenMetadata entities (any type of the MonoRail standard, stored as
 // OpenMetadata JSON with OpenMetadata's id, fullyQualifiedName, version and
-// updatedAt), every version of each entity, and small records that are not
-// entities (pipeline run statuses). The OpenMetadata page reads it when no
+// updatedAt), every version of each entity, lineage edges between entities
+// (kept apart from entity JSON, as OpenMetadata keeps them), and small records
+// that are not entities (pipeline run statuses). The OpenMetadata page reads it when no
 // OpenMetadata server is connected, and local ingestion pipelines write it.
 //
 // SQLite is the engine built into the Node runtime inside Electron
@@ -23,7 +24,9 @@ const { randomUUID } = require('node:crypto')
 const DB_FILE = 'local.sqlite3'
 const FOLDER = 'databases'
 /** Bump with a new step in MIGRATIONS. */
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
+/** OpenMetadata's lineage API answers at most 3 levels each way; local reads keep the same limit. */
+const MAX_LINEAGE_DEPTH = 3
 
 const MIGRATIONS = [
   // 1: entities, their versions, records
@@ -55,6 +58,19 @@ const MIGRATIONS = [
    );
    CREATE INDEX record_at ON record (kind, owner, at);
    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+  // 2: lineage edges, one per (from id, to id); json is OpenMetadata's
+  //    EntitiesEdge ({ fromEntity, toEntity, lineageDetails }, EntityReferences)
+  `CREATE TABLE lineage (
+     from_id TEXT NOT NULL,
+     from_type TEXT NOT NULL,
+     to_id TEXT NOT NULL,
+     to_type TEXT NOT NULL,
+     updated_at INTEGER NOT NULL,
+     deleted INTEGER NOT NULL DEFAULT 0,
+     json TEXT NOT NULL,
+     PRIMARY KEY (from_id, to_id)
+   );
+   CREATE INDEX lineage_to ON lineage (to_id);`,
 ]
 
 /** OpenMetadata quotes a name that holds a dot inside a fully qualified name. */
@@ -100,6 +116,25 @@ function openDatabase(dir, { file = DB_FILE } = {}) {
 }
 
 const round1 = (n) => Math.round(n * 10) / 10
+const strip = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
+const clampDepth = (n) => Math.max(0, Math.min(MAX_LINEAGE_DEPTH, Math.floor(Number(n)) || 0))
+
+/** An EntityReference for a stored entity, as OpenMetadata's lineage API lists nodes. */
+const refOf = (type, e) => strip({ id: e.id, type, name: e.name, fullyQualifiedName: e.fullyQualifiedName, displayName: e.displayName, description: e.description, deleted: e.deleted || undefined })
+
+/** Both ends of an edge, checked: each needs an id and a type, and they differ. */
+function edgeEnds(edge) {
+  const end = (r, what) => {
+    if (!r || typeof r.id !== 'string' || !r.id || typeof r.type !== 'string' || !r.type) throw new Error(`A lineage edge needs ${what} with an id and a type.`)
+    return strip({ id: r.id, type: r.type, name: r.name, fullyQualifiedName: r.fullyQualifiedName, displayName: r.displayName })
+  }
+  const from = end(edge?.fromEntity, 'fromEntity')
+  const to = end(edge?.toEntity, 'toEntity')
+  if (from.id === to.id) throw new Error('A lineage edge cannot point at itself.')
+  return { from, to }
+}
+
+const edgeRow = (r) => ({ fromId: r.from_id, toId: r.to_id, edge: JSON.parse(r.json) })
 
 /** JSON with object keys sorted and undefined dropped, so the same content always compares equal. */
 function stableStringify(value) {
@@ -145,6 +180,20 @@ function createEntityStore(db) {
     ),
     ids: q('SELECT id FROM entity'),
     countAll: q('SELECT count(*) AS n FROM entity'),
+    typeOf: q('SELECT type, json FROM entity WHERE id = ?'),
+    // Lineage edges
+    edge: q('SELECT json, deleted FROM lineage WHERE from_id = ? AND to_id = ?'),
+    upsertEdge: q(
+      `INSERT INTO lineage (from_id, from_type, to_id, to_type, updated_at, deleted, json) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (from_id, to_id) DO UPDATE SET from_type = excluded.from_type, to_type = excluded.to_type,
+         updated_at = excluded.updated_at, deleted = excluded.deleted, json = excluded.json`,
+    ),
+    removeEdge: q('DELETE FROM lineage WHERE from_id = ? AND to_id = ?'),
+    removeEdgesOf: q('DELETE FROM lineage WHERE from_id = ? OR to_id = ?'),
+    edgesInto: q('SELECT from_id, to_id, json FROM lineage WHERE to_id = ? AND deleted = 0'),
+    edgesFrom: q('SELECT from_id, to_id, json FROM lineage WHERE from_id = ? AND deleted = 0'),
+    edgeKeys: q('SELECT from_id, to_id FROM lineage'),
+    countEdges: q('SELECT count(*) AS n FROM lineage'),
   }
   const parse = (row) => (row ? JSON.parse(row.json) : undefined)
   let depth = 0
@@ -267,7 +316,87 @@ function createEntityStore(db) {
     countAll: () => s.countAll.get().n,
     /** Empty every table (a copy whose source changed). */
     clearAll() {
-      store.transaction(() => db.exec('DELETE FROM entity; DELETE FROM entity_version; DELETE FROM record; DELETE FROM meta;'))
+      store.transaction(() => db.exec('DELETE FROM entity; DELETE FROM entity_version; DELETE FROM record; DELETE FROM lineage; DELETE FROM meta;'))
+    },
+
+    // ---- Lineage: edges between entities, kept apart from their JSON as OpenMetadata keeps them.
+    // One edge per (from id, to id). Its JSON is OpenMetadata's EntitiesEdge:
+    // { fromEntity, toEntity, lineageDetails?, description? }, both ends EntityReferences.
+
+    /** Add or update an edge; unchanged content keeps its time. Both ends need an id and a type. */
+    putLineage(edge, { now = Date.now() } = {}) {
+      const { from, to } = edgeEnds(edge)
+      const json = { ...edge, fromEntity: from, toEntity: to }
+      const prev = s.edge.get(from.id, to.id)
+      if (prev && !prev.deleted && stableStringify(JSON.parse(prev.json)) === stableStringify(json)) return json
+      s.upsertEdge.run(from.id, from.type, to.id, to.type, now, 0, JSON.stringify(json))
+      return json
+    },
+    /** Store an edge exactly as a source (the BigQuery copy) has it; the columns win over the JSON. */
+    putLineageExact({ fromId, fromType, toId, toType, updatedAt, deleted, edge }) {
+      const json = { ...edge, fromEntity: { ...edge?.fromEntity, id: fromId, type: fromType }, toEntity: { ...edge?.toEntity, id: toId, type: toType } }
+      s.upsertEdge.run(fromId, fromType, toId, toType, updatedAt, deleted ? 1 : 0, JSON.stringify(json))
+    },
+    removeLineage: (fromId, toId) => void s.removeEdge.run(fromId, toId),
+    /** Remove every edge into or out of an entity. */
+    removeLineageOf: (id) => void s.removeEdgesOf.run(id, id),
+    /** Edges into an entity (its upstream), not deleted: [{ fromId, toId, edge }]. */
+    lineageInto: (id) => s.edgesInto.all(id).map(edgeRow),
+    /** Edges out of an entity (its downstream), not deleted. */
+    lineageFrom: (id) => s.edgesFrom.all(id).map(edgeRow),
+    /** Every edge's key, deleted ones too: [{ fromId, toId }]. */
+    lineageKeys: () => s.edgeKeys.all().map((r) => ({ fromId: r.from_id, toId: r.to_id })),
+    countLineage: () => s.countEdges.get().n,
+
+    /**
+     * An entity's lineage in OpenMetadata's EntityLineage shape:
+     * { entity, nodes, upstreamEdges, downstreamEdges }, edges as
+     * { fromEntity: id, toEntity: id, lineageDetails? }, up to
+     * MAX_LINEAGE_DEPTH levels each way. Undefined when the entity is not here.
+     * `extra` edges ([{ fromId, toId, edge }], e.g. from an older field) are
+     * walked too; the table's own edge wins for the same pair.
+     */
+    lineageOf(id, { upstreamDepth = 1, downstreamDepth = 1, extra = [] } = {}) {
+      const center = s.typeOf.get(id)
+      if (!center) return undefined
+      const refs = new Map()
+      const note = (ref) => {
+        if (!ref?.id || refs.has(ref.id)) return
+        const row = s.typeOf.get(ref.id)
+        // An end that is not stored here keeps the reference the edge carries.
+        refs.set(ref.id, row ? refOf(row.type, JSON.parse(row.json)) : strip({ id: ref.id, type: ref.type, name: ref.name, fullyQualifiedName: ref.fullyQualifiedName, displayName: ref.displayName }))
+      }
+      const walk = (depth, next, far) => {
+        const edges = []
+        const seen = new Set()
+        const visited = new Set([id])
+        let frontier = [id]
+        for (let d = 0; d < clampDepth(depth) && frontier.length; d++) {
+          const after = []
+          for (const at of frontier) {
+            for (const e of next(at)) {
+              const key = `${e.fromId}|${e.toId}`
+              if (seen.has(key)) continue
+              seen.add(key)
+              edges.push(strip({ fromEntity: e.fromId, toEntity: e.toId, lineageDetails: e.edge.lineageDetails, description: e.edge.description }))
+              const otherId = far === 'fromEntity' ? e.fromId : e.toId
+              note({ ...e.edge[far], id: otherId })
+              if (!visited.has(otherId)) {
+                visited.add(otherId)
+                after.push(otherId)
+              }
+            }
+          }
+          frontier = after
+        }
+        return edges
+      }
+      const into = extra.length ? (at) => [...store.lineageInto(at), ...extra.filter((e) => e.toId === at)] : store.lineageInto
+      const from = extra.length ? (at) => [...store.lineageFrom(at), ...extra.filter((e) => e.fromId === at)] : store.lineageFrom
+      const upstreamEdges = walk(upstreamDepth, into, 'fromEntity')
+      const downstreamEdges = walk(downstreamDepth, from, 'toEntity')
+      refs.delete(id)
+      return { entity: refOf(center.type, JSON.parse(center.json)), nodes: [...refs.values()], upstreamEdges, downstreamEdges }
     },
 
     close: () => db.close(),
@@ -337,4 +466,4 @@ function mirrorDbExists() {
   }
 }
 
-module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION }
+module.exports = { openDatabase, localDb, localDbExists, mirrorDb, mirrorDbExists, fqnOf, fqnPart, stableStringify, DB_FILE, MIRROR_FILE, FOLDER, SCHEMA_VERSION, MAX_LINEAGE_DEPTH }

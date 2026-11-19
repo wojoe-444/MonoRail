@@ -6,7 +6,7 @@ const path = require('node:path')
 
 const cron = require('./ingestion-cron.cjs')
 const local = require('./ingestion-local.cjs')
-const { createStore } = require('./ingestion-store.cjs')
+const { createStore, legacyLineage } = require('./ingestion-store.cjs')
 const { openDatabase } = require('../localdb/index.cjs')
 const omLib = require('./openmetadata.cjs')
 const { createIngestion, SOURCE_TYPES } = require('./ingestion.cjs')
@@ -104,6 +104,75 @@ describe('dbt manifest', () => {
     assert.deepEqual(r.tables.map((t) => t.name).sort(), ['orders', 'orders_v2'])
     assert.equal(r.filtered, 1)
     assert.equal(r.tables.find((t) => t.name === 'orders').description, undefined)
+  })
+})
+
+describe('dbt lineage in the local database', () => {
+  const manifest = {
+    nodes: {
+      'model.shop.orders': { resource_type: 'model', database: 'analytics', schema: 'marts', name: 'orders', columns: {}, config: { materialized: 'table' }, depends_on: { nodes: ['model.shop.stg_orders'] } },
+      'model.shop.stg_orders': { resource_type: 'model', database: 'analytics', schema: 'staging', name: 'stg_orders', columns: {}, config: { materialized: 'view' }, depends_on: { nodes: ['source.shop.raw.orders'] } },
+    },
+    sources: { 'source.shop.raw.orders': { resource_type: 'source', database: 'raw', schema: 'shop', name: 'orders', columns: {} } },
+  }
+  const pipeline = { name: 'shop_dbt', pipelineType: 'dbt', service: { name: 'local_dbt' }, sourceConfig: { config: {} }, extension: { monorail: { runner: 'this-pc', serviceKind: 'metricflow' } } }
+
+  async function runDbt(db, m) {
+    const dir = tmp()
+    fs.writeFileSync(path.join(dir, 'dbt_project.yml'), 'name: shop\n')
+    fs.mkdirSync(path.join(dir, 'target'))
+    fs.writeFileSync(path.join(dir, 'target', 'manifest.json'), JSON.stringify(m))
+    const store = createStore({ db })
+    await local.runLocal(pipeline, { creds: { project: dir }, log: () => {}, catalog: (change) => store.updateCatalog(change) })
+    return store
+  }
+
+  test('a dbt run writes edges between table entities, not the old service field', async () => {
+    const db = newDb()
+    const store = await runDbt(db, manifest)
+    const t = (fqn) => db.get('table', fqn)
+    const orders = t('local_dbt.analytics.marts.orders')
+    const stg = t('local_dbt.analytics.staging.stg_orders')
+    const raw = t('local_dbt.raw.shop.orders')
+    assert.equal(db.countLineage(), 2)
+    const l = db.lineageOf(stg.id)
+    assert.deepEqual(l.upstreamEdges, [{ fromEntity: raw.id, toEntity: stg.id, lineageDetails: { source: 'DbtLineage' } }])
+    assert.deepEqual(l.downstreamEdges.map((e) => e.toEntity), [orders.id])
+    assert.equal(db.get('databaseService', 'local_dbt').extension.monorail.lineage, undefined, 'the old field is no longer written')
+    // Explore and the runners still read { from, to } keys.
+    const { services } = await store.catalog()
+    assert.deepEqual(services.local_dbt.lineage.sort((a, b) => a.to.localeCompare(b.to)), [
+      { from: 'analytics.staging.stg_orders', to: 'analytics.marts.orders' },
+      { from: 'raw.shop.orders', to: 'analytics.staging.stg_orders' },
+    ])
+    // A later run without a dependency drops that edge; unchanged edges keep their time.
+    const fewer = structuredClone(manifest)
+    fewer.nodes['model.shop.orders'].depends_on.nodes = []
+    await runDbt(db, fewer)
+    assert.equal(db.countLineage(), 1)
+    assert.equal(db.lineageOf(orders.id).upstreamEdges.length, 0)
+  })
+
+  test('lineage older versions kept in the service field is still read, and moves to the table on the next write', async () => {
+    const db = newDb()
+    const store = await runDbt(db, { ...manifest, nodes: Object.fromEntries(Object.entries(manifest.nodes).map(([k, n]) => [k, { ...n, depends_on: { nodes: [] } }])) })
+    assert.equal(db.countLineage(), 0)
+    // What an older MonoRail left behind.
+    const svc = db.get('databaseService', 'local_dbt')
+    db.put('databaseService', { ...svc, extension: { monorail: { catalog: true, lineage: [{ from: 'raw.shop.orders', to: 'analytics.staging.stg_orders' }] } } })
+    const stg = db.get('table', 'local_dbt.analytics.staging.stg_orders')
+    const raw = db.get('table', 'local_dbt.raw.shop.orders')
+    assert.deepEqual((await store.catalog()).services.local_dbt.lineage, [{ from: 'raw.shop.orders', to: 'analytics.staging.stg_orders' }])
+    const legacy = legacyLineage(db)
+    assert.deepEqual(legacy.map((e) => [e.fromId, e.toId]), [[raw.id, stg.id]])
+    // The OpenMetadata page's This PC source shows it too.
+    const om = omLib._internal.createService({ isSetUp: async () => false, local: () => db, bigquery: { isSetUp: async () => false } })
+    assert.deepEqual((await om.getLineage({ type: 'table', id: stg.id })).upstreamEdges.map((e) => e.fromEntity), [raw.id])
+    // Any catalog write moves it into the lineage table and stops writing the field.
+    await store.updateCatalog(() => {})
+    assert.equal(db.countLineage(), 1)
+    assert.equal(db.get('databaseService', 'local_dbt').extension.monorail.lineage, undefined)
+    assert.deepEqual((await om.getLineage({ type: 'table', id: stg.id })).upstreamEdges.map((e) => e.fromEntity), [raw.id])
   })
 })
 

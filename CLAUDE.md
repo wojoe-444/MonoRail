@@ -656,7 +656,9 @@ profile scope), through the `node:sqlite` built into Electron's Node (nothing
 bundled). The home for in-app data in the standard's OpenMetadata shape:
 `entity` (OpenMetadata JSON by type and full name; `put` assigns UUIDs and
 bumps `version` by 0.1 only on a real change, keeping every version),
-`record` (non-entity JSON: pipeline statuses, schedules, table profiles) and
+`record` (non-entity JSON: pipeline statuses, schedules, table profiles),
+`lineage` (schema 2: edges keyed by from/to id, OpenMetadata's EntitiesEdge in
+`json`; dbt ingestion writes them, `lineageOf` walks up to 3 levels) and
 `meta`. Created on first use (OpenMetadata page, saving a pipeline); the
 scheduler and read-only views never create it (`localDbExists`). A damaged
 file or a newer schema is refused and never overwritten; secrets never go in
@@ -1339,7 +1341,9 @@ user's own OpenMetadata server (2.0 or 2.1; a type the server lacks answers
 404 and is greyed out). The type navigator has counts; the overview,
 one type's list (owners, tags, include deleted, load more) and one entity
 (owners, tier, tags, domains, Markdown description, every field, custom
-properties, columns or fields, references, versions, raw JSON) follow. Field
+properties, columns or fields, references, lineage (data and AI assets;
+`getLineage`: `GET /lineage/{type}/{id}` on the server, the lineage table for
+local and BigQuery, one EntityLineage shape), versions, raw JSON) follow. Field
 descriptions come from the standard for adopted types. The page keeps its
 place in component state (module routes match exact paths, so no query
 string). Connector `openmetadata` (`electron/connections/connectors/`): server
@@ -1356,10 +1360,12 @@ catalog in `sample.ts`. Descriptions render with links and images inert.
 **BigQuery as the source of truth** (docs: `docs/bigquery-metadata.md`): the
 connector `bigquery-metadata` (subconnector of `gcloud`, signs in with its
 login) names a project and dataset (default `METADATA`) that holds **MonoRail's
-metadata layout** `monorail.metadata/1`: the local database's tables as
+metadata layout** `monorail.metadata/2`: the local database's tables as
 BigQuery tables (`entity` with OpenMetadata's full API JSON in `json`, `meta`
-with the `layout` row; optional `entity_version`, `record`), not
-OpenMetadata's own MySQL schema. Something else fills it; for this source,
+with the `layout` row; optional `entity_version`, `record`, and `lineage`:
+one edge per `from_id` + `to_id`, `json` OpenMetadata's EntitiesEdge), not
+OpenMetadata's own MySQL schema. `/1` datasets (no lineage table) are still
+read; a newer number is refused. Something else fills it; for this source,
 ingestion means connecting. MonoRail writes to BigQuery only to create the
 default `METADATA` dataset when it is missing or has no tables
 (`ensureDataset()` runs `setupSql()`, all `IF NOT EXISTS`, as one script job at
@@ -1374,7 +1380,7 @@ run by `modules/openmetadata-bigquery.cjs` from `openmetadata`'s `start()`):
 full through free `tabledata.list` (first time, new source, Full refresh);
 otherwise one dry-run-checked SELECT per table since the watermark less 10
 minutes, refused over the connection's scan limit; removals found by row
-count then a free id listing. Hourly by default while the app runs, retries
+count then a free id listing (lineage: a free from_id/to_id listing). Hourly by default while the app runs, retries
 after 15 minutes, one at a time, an In-App row. On Services it is a
 connect-only service (`LOCAL_SERVICES` `ingestion: 'connect'`,
 `bigquery_metadata`, `metadataService` of type `BigQuery`, a value MonoRail

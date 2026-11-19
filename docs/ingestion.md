@@ -71,6 +71,21 @@ marked `deleted`, profiles survive a metadata run. Filters follow
 OpenMetadata: regex anchored at the start, case-insensitive, includes then
 excludes.
 
+**dbt lineage.** `parseDbtManifest` turns `depends_on` into `{ from, to }`
+pairs of table keys (`database.schema.table`). The store (`writeLineage` in
+`ingestion-store.cjs`) resolves each end to the catalog's `table` entity it
+just wrote, by that key within the service, and writes one edge per pair to
+the [local database's lineage table](local-database.md#lineage):
+OpenMetadata's EntitiesEdge with both ends as table EntityReferences and
+`lineageDetails.source = 'DbtLineage'`. A pair whose table is not in the
+catalog (filtered out, ephemeral) is skipped. Each run replaces the edges
+between that service's tables; unchanged edges keep their time, and removing
+a table removes its edges. Older versions kept the pairs in
+`databaseService.extension.monorail.lineage`; that field is no longer
+written, but it is still read (`legacyLineage`, and the catalog's `lineage`
+when a service has no edges in the table), and the next catalog write moves
+it into the table.
+
 The scheduler (`start(ctx)`: first tick after 20 s, then every minute) runs
 only pipelines that are `deployed && enabled` with a schedule, when the cron
 time after the last scheduled time (or the deploy time) has passed; missed
@@ -93,7 +108,7 @@ password to the server: server pipelines use what the server already keeps.
 
 ## Where it is kept
 
-Everything is in the [local database](local-database.md): pipelines as entities, run statuses as `pipelineStatus` records (newest 30 per pipeline, up to 200 log lines each), the last scheduled time as `pipelineSchedule` records, the catalog as entities, profiler results as `tableProfile` records (newest 30 per table). Names, types, descriptions, lineage and counts; never row data. Older versions kept `pipelines.json`, `runs.json` and `catalog.json` in `modules/ingestion`; they are copied in once (meta `import.ingestion`) and left as they are, a damaged one skipped.
+Everything is in the [local database](local-database.md): pipelines as entities, run statuses as `pipelineStatus` records (newest 30 per pipeline, up to 200 log lines each), the last scheduled time as `pipelineSchedule` records, the catalog as entities, dbt lineage as edges in the `lineage` table, profiler results as `tableProfile` records (newest 30 per table). Names, types, descriptions, lineage and counts; never row data. Older versions kept `pipelines.json`, `runs.json` and `catalog.json` in `modules/ingestion`; they are copied in once (meta `import.ingestion`) and left as they are, a damaged one skipped.
 
 ## Deliberate differences
 
@@ -114,8 +129,12 @@ Everything is in the [local database](local-database.md): pipelines as entities,
 `ingestion.explore` returns added local services, local pipelines and the
 catalog. Explore adds them as `databaseService`, `ingestionPipeline`,
 `database`, `databaseSchema` and `table` entries with full names that start
-at the service (`local_sqlite.main.main.notes`); lineage goes in a table's
-`extension.lineage.upstream`.
+at the service (`local_sqlite.main.main.notes`). The catalog's `lineage` per
+service comes from the lineage table (or the older field, see
+[dbt lineage](#runners)); Explore lists a table's neighbours by full name in
+its `extension.lineage.upstream` and `downstream`. The edges themselves, with
+their source, are on the [OpenMetadata page](guide/openmetadata.md#lineage)'s
+Lineage tab.
 
 ## Related
 

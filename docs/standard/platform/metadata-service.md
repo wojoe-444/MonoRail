@@ -40,7 +40,7 @@ stays in MonoRail.
 | `Alation` | OpenMetadata 2.1.x | |
 | `AlationSink` | OpenMetadata 2.1.x | |
 | `Collibra` | OpenMetadata 2.1.x | |
-| `BigQuery` | MonoRail | A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/1), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC. [More](../../bigquery-metadata.md) |
+| `BigQuery` | MonoRail | A BigQuery dataset in MonoRail's metadata layout (monorail.metadata/2), made the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on the PC. [More](../../bigquery-metadata.md) |
 
 <!-- /standard -->
 

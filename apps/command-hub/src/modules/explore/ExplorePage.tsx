@@ -126,8 +126,15 @@ function ingestionEntries(data?: IngestionExplore): Entry[] {
   }
   for (const p of data.pipelines) out.push(entry('ingestionPipeline', p.displayName || p.name, p, p.description || 'An ingestion pipeline that runs on this PC.'))
   for (const [service, svc] of Object.entries(data.catalog ?? {})) {
+    // svc.lineage: the local database's lineage table between this service's tables, as { from, to } table keys
+    // (the backend falls back to the field older versions kept on the service). The edges themselves are on
+    // the OpenMetadata page's Lineage tab; here each table lists its neighbours by full name.
     const upstream = new Map<string, string[]>()
-    for (const e of svc.lineage ?? []) upstream.set(e.to, [...(upstream.get(e.to) ?? []), e.from])
+    const downstream = new Map<string, string[]>()
+    for (const e of svc.lineage ?? []) {
+      upstream.set(e.to, [...(upstream.get(e.to) ?? []), e.from])
+      downstream.set(e.from, [...(downstream.get(e.from) ?? []), e.to])
+    }
     for (const db of svc.databases ?? []) {
       const dbFqn = `${service}.${db.name}`
       out.push(entry('database', db.name, { name: db.name, fullyQualifiedName: dbFqn, service: ref('databaseService', service, service), databaseSchemas: (db.schemas ?? []).map((s) => ref('databaseSchema', `${dbFqn}.${s.name}`, s.name)) }, `Read by an ingestion pipeline from ${service}.`))
@@ -135,12 +142,15 @@ function ingestionEntries(data?: IngestionExplore): Entry[] {
         const scFqn = `${dbFqn}.${sc.name}`
         out.push(entry('databaseSchema', sc.name, { name: sc.name, fullyQualifiedName: scFqn, service: ref('databaseService', service, service), database: ref('database', dbFqn, db.name), tables: (sc.tables ?? []).map((t) => ref('table', `${scFqn}.${t.name}`, t.name)) }, `Read by an ingestion pipeline from ${service}.`))
         for (const t of sc.tables ?? []) {
-          const up = upstream.get(`${db.name}.${sc.name}.${t.name}`)
+          const key = `${db.name}.${sc.name}.${t.name}`
+          const up = upstream.get(key)
+          const down = downstream.get(key)
+          const lineage = up || down ? { ...(up ? { upstream: up.map((u) => `${service}.${u}`) } : {}), ...(down ? { downstream: down.map((d) => `${service}.${d}`) } : {}) } : undefined
           out.push(entry('table', t.name, {
             name: t.name, fullyQualifiedName: `${scFqn}.${t.name}`, tableType: t.tableType, description: t.description, deleted: t.deleted || undefined,
             columns: t.columns ?? [], profile: t.profile, tags: t.tags,
             service: ref('databaseService', service, service), database: ref('database', dbFqn, db.name), databaseSchema: ref('databaseSchema', scFqn, sc.name),
-            ...(up || t.extension ? { extension: { ...t.extension, ...(up ? { lineage: { upstream: up.map((u) => `${service}.${u}`) } } : {}) } } : {}),
+            ...(lineage || t.extension ? { extension: { ...t.extension, ...(lineage ? { lineage } : {}) } } : {}),
           }, t.description || `Read by an ingestion pipeline from ${service}${t.deleted ? '; no longer in the source' : ''}.`))
         }
       }

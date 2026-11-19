@@ -59,6 +59,35 @@ export interface OmPage {
   paging?: { total?: number; after?: string }
 }
 
+/** One lineage edge, as OpenMetadata's EntityLineage lists them: the two ends by id. */
+export interface OmLineageEdge {
+  fromEntity: string
+  toEntity: string
+  description?: string
+  lineageDetails?: {
+    source?: string
+    sqlQuery?: string
+    description?: string
+    pipeline?: OmRef
+    columnsLineage?: { fromColumns?: string[]; toColumn?: string; function?: string }[]
+    [field: string]: unknown
+  }
+}
+
+/**
+ * OpenMetadata's EntityLineage, the same from every source: the entity, the
+ * other entities on its lineage, and the edges up- and downstream.
+ */
+export interface OmLineage {
+  entity: OmRef
+  nodes: OmRef[]
+  upstreamEdges: OmLineageEdge[]
+  downstreamEdges: OmLineageEdge[]
+  /** BigQuery only: the dataset has no lineage table (layout monorail.metadata/1, or /2 without the table). */
+  missing?: 'no-lineage-table'
+  layout?: string
+}
+
 /** Count per entity type; a type the server does not have gets the error. */
 export type OmCounts = Record<string, number | { error: string }>
 
@@ -90,11 +119,16 @@ export interface BqSync {
   entities?: number
   versions?: number
   records?: number
+  /** Lineage edges copied, and removed because BigQuery no longer has them. */
+  lineage?: number
+  lineageRemoved?: number
   removed?: number
   skipped?: number
+  /** The dataset's layout, e.g. monorail.metadata/2. */
+  layout?: string
   bytesProcessed?: number
   ms?: number
-  remote?: { entities: number; bytes: number; partitioned?: boolean }
+  remote?: { entities: number; bytes: number; partitioned?: boolean; lineage?: boolean }
 }
 
 /** The BigQuery copy: which dataset, whether it has been copied, the last sync and the next. */
@@ -107,6 +141,9 @@ export interface BqStatus {
   syncEvery?: '15m' | '1h' | '6h' | '24h' | 'manual'
   /** The copy holds this dataset (it has finished a first sync). */
   synced?: boolean
+  /** The copied dataset's layout, and whether it has a lineage table. */
+  layout?: string
+  lineage?: boolean
   last?: BqSync
   running?: { full: boolean; startedAt: string }
   nextAt?: string

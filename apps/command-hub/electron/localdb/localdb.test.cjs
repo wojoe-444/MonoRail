@@ -64,6 +64,55 @@ describe('local database', () => {
     assert.throws(() => openDatabase(dir2), /newer version/)
   })
 
+  test('lineage edges: one per pair, unchanged keeps its time, walked up to 3 levels each way', () => {
+    const db = openDatabase(tmp())
+    const t = (n) => db.put('table', { name: n, fullyQualifiedName: fqnOf('svc', 'db', 'sch', n) })
+    const [raw, stg, fct, rpt] = ['raw', 'stg', 'fct', 'rpt'].map(t)
+    const r = (e) => ({ id: e.id, type: 'table', fullyQualifiedName: e.fullyQualifiedName })
+    db.putLineage({ fromEntity: r(raw), toEntity: r(stg) }, { now: 1 })
+    db.putLineage({ fromEntity: r(stg), toEntity: r(fct), lineageDetails: { source: 'DbtLineage' } }, { now: 1 })
+    db.putLineage({ fromEntity: r(fct), toEntity: r(rpt) }, { now: 1 })
+    db.putLineage({ fromEntity: r(stg), toEntity: r(fct), lineageDetails: { source: 'DbtLineage' } }, { now: 99 })
+    assert.equal(db.countLineage(), 3, 'the same pair is one edge')
+    assert.throws(() => db.putLineage({ fromEntity: r(raw), toEntity: { id: raw.id } }), /toEntity with an id and a type/)
+    assert.throws(() => db.putLineage({ fromEntity: r(raw), toEntity: r(raw) }), /itself/)
+
+    const one = db.lineageOf(fct.id)
+    assert.equal(one.entity.name, 'fct')
+    assert.deepEqual(one.upstreamEdges, [{ fromEntity: stg.id, toEntity: fct.id, lineageDetails: { source: 'DbtLineage' } }])
+    assert.deepEqual(one.downstreamEdges.map((e) => e.toEntity), [rpt.id])
+    assert.deepEqual(one.nodes.map((n) => n.name).sort(), ['rpt', 'stg'])
+    const deep = db.lineageOf(rpt.id, { upstreamDepth: 3, downstreamDepth: 0 })
+    assert.deepEqual(deep.upstreamEdges.map((e) => e.fromEntity), [fct.id, stg.id, raw.id])
+    assert.equal(db.lineageOf(rpt.id, { upstreamDepth: 9 }).upstreamEdges.length, 3, 'depth is capped, and the walk ends at the source')
+    assert.equal(db.lineageOf('00000000-0000-4000-8000-000000000099'), undefined)
+
+    // An end that is not stored keeps the reference the edge carries.
+    db.putLineage({ fromEntity: { id: '00000000-0000-4000-8000-0000000000aa', type: 'pipeline', name: 'nightly' }, toEntity: r(raw) })
+    assert.deepEqual(db.lineageOf(raw.id).nodes.find((n) => n.type === 'pipeline'), { id: '00000000-0000-4000-8000-0000000000aa', type: 'pipeline', name: 'nightly' })
+
+    db.removeLineageOf(stg.id)
+    assert.equal(db.countLineage(), 2)
+  })
+
+  test('a schema 1 database gets the lineage table and keeps its data', () => {
+    const dir = tmp()
+    const first = openDatabase(dir)
+    const kept = first.put('glossary', { name: 'Business' })
+    first.close()
+    const { DatabaseSync } = require('node:sqlite')
+    const raw = new DatabaseSync(path.join(dir, DB_FILE))
+    raw.exec('DROP TABLE lineage; PRAGMA user_version = 1')
+    raw.close()
+    const db = openDatabase(dir)
+    assert.equal(db.byId(kept.id).name, 'Business')
+    assert.equal(db.countLineage(), 0)
+    const check = new DatabaseSync(path.join(dir, DB_FILE))
+    assert.equal(check.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION)
+    assert.equal(SCHEMA_VERSION, 2)
+    check.close()
+  })
+
   test('records keep the newest ones', () => {
     const db = openDatabase(tmp())
     for (let i = 0; i < 5; i++) db.putRecord('pipelineStatus', 'p', `r${i}`, i, { i })

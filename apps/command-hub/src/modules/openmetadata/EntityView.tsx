@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BookOpen, Check, ChevronLeft, Copy, Loader2, Pencil } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Check, ChevronLeft, Copy, Loader2, Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,17 +15,21 @@ import { openWiki } from '@/modules/wiki/store'
 import { STANDARD, docsTarget, standardField } from '@/standard'
 
 import { call, canEdit, errorText, useCall } from './api'
-import { adopted, typeInfo } from './catalog'
+import { GROUPS, adopted, typeInfo } from './catalog'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, formatTime, tierOf, type View } from './util'
-import type { OmColumn, OmEntity, OmRef } from './types'
+import type { OmColumn, OmEntity, OmLineage, OmLineageEdge, OmRef } from './types'
 
-type Tab = 'details' | 'schema' | 'relationships' | 'versions' | 'json'
+type Tab = 'details' | 'schema' | 'relationships' | 'lineage' | 'versions' | 'json'
+
+/** Lineage is drawn between data and AI assets, as in OpenMetadata. */
+const LINEAGE_TYPES = new Set(GROUPS.filter((g) => g.id === 'assets' || g.id === 'ai').flatMap((g) => g.types.map((t) => t.type)))
 
 /**
  * Any OpenMetadata entity, the way OpenMetadata stores it: who owns it, its
  * tier and tags, its description (editable), every other field, its columns
- * or fields, the entities it refers to, its versions and the raw JSON.
+ * or fields, the entities it refers to, its lineage (data and AI assets),
+ * its versions and the raw JSON.
  */
 export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; onOpen: (v: View) => void }) {
   const info = typeInfo(type)
@@ -137,6 +141,7 @@ export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; o
             { value: 'details', label: 'Details' },
             ...(schema ? [{ value: 'schema' as const, label: `${schema.label} ${schema.count}` }] : []),
             { value: 'relationships', label: `Relationships ${refs.reduce((n, [, r]) => n + r.length, 0)}` },
+            ...(LINEAGE_TYPES.has(type) ? [{ value: 'lineage' as const, label: 'Lineage' }] : []),
             { value: 'versions', label: 'Versions' },
             { value: 'json', label: 'JSON' },
           ]}
@@ -144,6 +149,7 @@ export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; o
         {tab === 'details' && <Details type={type} entity={entity} />}
         {tab === 'schema' && schema && <SchemaList columns={schema.columns} />}
         {tab === 'relationships' && <Relationships refs={refs} onOpen={onOpen} />}
+        {tab === 'lineage' && <Lineage type={type} entity={entity} onOpen={onOpen} />}
         {tab === 'versions' && <Versions type={type} entity={entity} />}
         {tab === 'json' && <JsonCard entity={entity} />}
       </div>
@@ -356,37 +362,166 @@ function Relationships({ refs, onOpen }: { refs: [string, OmRef[]][]; onOpen: (v
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col divide-y">
-              {list.map((r) => {
-                const known = !!typeInfo(r.type)
-                const body = (
-                  <>
-                    <TypeTile type={r.type} className="size-7" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{displayName(r)}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {typeInfo(r.type)?.name ?? r.type}
-                        {r.fullyQualifiedName && <> · <span className="font-mono">{r.fullyQualifiedName}</span></>}
-                      </span>
-                    </span>
-                    {r.deleted && <Badge variant="outline">Deleted</Badge>}
-                  </>
-                )
-                return (
-                  <li key={`${r.type}:${r.id}`}>
-                    {known ? (
-                      <button type="button" className="flex w-full min-w-0 items-center gap-3 rounded-md py-2 text-left hover:bg-muted/50" onClick={() => onOpen({ type: r.type, fqn: r.fullyQualifiedName ?? r.name ?? r.id })}>
-                        {body}
-                      </button>
-                    ) : (
-                      <div className="flex min-w-0 items-center gap-3 py-2">{body}</div>
-                    )}
-                  </li>
-                )
-              })}
+              {list.map((r) => (
+                <RefRow key={`${r.type}:${r.id}`} r={r} onOpen={onOpen} />
+              ))}
             </ul>
           </CardContent>
         </Card>
       ))}
+    </div>
+  )
+}
+
+/** One referenced entity in a list; opens it when the page knows its type. */
+function RefRow({ r, onOpen, children }: { r: OmRef; onOpen: (v: View) => void; children?: ReactNode }) {
+  const known = !!typeInfo(r.type)
+  const body = (
+    <>
+      <TypeTile type={r.type} className="size-7" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{displayName(r)}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {typeInfo(r.type)?.name ?? r.type}
+          {r.fullyQualifiedName && <> · <span className="font-mono">{r.fullyQualifiedName}</span></>}
+        </span>
+      </span>
+      {children}
+      {r.deleted && <Badge variant="outline">Deleted</Badge>}
+    </>
+  )
+  return (
+    <li>
+      {known ? (
+        <button type="button" className="flex w-full min-w-0 items-center gap-3 rounded-md py-2 text-left hover:bg-muted/50" onClick={() => onOpen({ type: r.type, fqn: r.fullyQualifiedName ?? r.name ?? r.id })}>
+          {body}
+        </button>
+      ) : (
+        <div className="flex min-w-0 items-center gap-3 py-2">{body}</div>
+      )}
+    </li>
+  )
+}
+
+type Depth = '1' | '2' | '3'
+/** How OpenMetadata names where an edge came from (LineageSource), in plain words. */
+const LINEAGE_SOURCE: Record<string, string> = {
+  Manual: 'Added by hand',
+  ViewLineage: 'View',
+  QueryLineage: 'Query',
+  PipelineLineage: 'Pipeline',
+  DashboardLineage: 'Dashboard',
+  DbtLineage: 'dbt',
+  SparkLineage: 'Spark',
+  OpenLineage: 'OpenLineage',
+  ExternalTableLineage: 'External table',
+  CrossDatabaseLineage: 'Cross-database',
+}
+
+/** One side of the lineage: each entity once, with how many steps away it is and the edge that reached it first. */
+function sideOf(data: OmLineage, upstream: boolean): { ref: OmRef; steps: number; edge: OmLineageEdge }[] {
+  const nodes = new Map(data.nodes.map((n) => [n.id, n]))
+  const edges = upstream ? data.upstreamEdges : data.downstreamEdges
+  const out: { ref: OmRef; steps: number; edge: OmLineageEdge }[] = []
+  const seen = new Set([data.entity.id])
+  let frontier = [data.entity.id]
+  for (let steps = 1; frontier.length; steps++) {
+    const next: string[] = []
+    for (const at of frontier) {
+      for (const e of edges.filter((x) => (upstream ? x.toEntity : x.fromEntity) === at)) {
+        const id = upstream ? e.fromEntity : e.toEntity
+        if (seen.has(id)) continue
+        seen.add(id)
+        next.push(id)
+        out.push({ ref: nodes.get(id) ?? { id, type: 'unknown', name: id }, steps, edge: e })
+      }
+    }
+    frontier = next
+  }
+  return out
+}
+
+/**
+ * What the entity is made from (upstream) and what is made from it
+ * (downstream), from OpenMetadata's lineage edges. Depth 1 by default; up to
+ * 3 levels, OpenMetadata's limit.
+ */
+function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onOpen: (v: View) => void }) {
+  const [depth, setDepth] = useState<Depth>('1')
+  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: Number(depth), downstreamDepth: Number(depth) })
+  const depthPicker = (
+    <Segmented
+      className="w-fit"
+      aria-label="How many steps to follow"
+      value={depth}
+      onChange={setDepth}
+      options={[
+        { value: '1', label: '1 step' },
+        { value: '2', label: '2 steps' },
+        { value: '3', label: '3 steps' },
+      ]}
+    />
+  )
+  if (q.error) return <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">{q.error}</p>
+  if (!q.data)
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Loading lineage…
+      </p>
+    )
+  if (q.data.missing === 'no-lineage-table')
+    return (
+      <p className="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
+        This BigQuery dataset has no lineage table{q.data.layout ? ` (layout ${q.data.layout})` : ''}, so there is no lineage to show. Add it with Setup SQL at the top of the page and set the dataset's layout row to monorail.metadata/2; the next sync brings its edges here.
+      </p>
+    )
+  const up = sideOf(q.data, true)
+  const down = sideOf(q.data, false)
+  if (!up.length && !down.length)
+    return (
+      <div className="flex flex-col gap-4">
+        {depthPicker}
+        <p className="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">No lineage is recorded for this {typeInfo(type)?.name.toLowerCase() ?? 'entity'}.</p>
+      </div>
+    )
+  const side = (title: string, description: string, icon: ReactNode, rows: ReturnType<typeof sideOf>, none: string) => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {icon} {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length ? (
+          <ul className="flex flex-col divide-y">
+            {rows.map(({ ref, steps, edge }) => {
+              const source = edge.lineageDetails?.source
+              return (
+                <RefRow key={ref.id} r={ref} onOpen={onOpen}>
+                  {source && <Badge variant="outline">{LINEAGE_SOURCE[source] ?? source}</Badge>}
+                  {steps > 1 && (
+                    <Badge variant="secondary" className="font-mono">
+                      {steps} steps
+                    </Badge>
+                  )}
+                </RefRow>
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">{none}</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+  return (
+    <div className="flex flex-col gap-4">
+      {depthPicker}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {side('Upstream', `${up.length} ${up.length === 1 ? 'asset' : 'assets'} this one is made from`, <ArrowUpFromLine className="size-4 text-muted-foreground" aria-hidden />, up, 'Nothing upstream: this is where the data starts.')}
+        {side('Downstream', `${down.length} ${down.length === 1 ? 'asset' : 'assets'} made from this one`, <ArrowDownToLine className="size-4 text-muted-foreground" aria-hidden />, down, 'Nothing downstream yet.')}
+      </div>
     </div>
   )
 }
