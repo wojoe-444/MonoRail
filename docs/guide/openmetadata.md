@@ -94,9 +94,39 @@ doesn't write to it yet. Change them in BigQuery and the next sync brings
 them in. Removing the connection empties the copy on your PC. Your BigQuery
 dataset stays as it is.
 
+## The tabs
+
+The page's sections sit as tabs in the bar at the top of the window, where
+the page title would be. Each tab has its own address, so going back and
+forward works, and the source switch (**This PC / BigQuery / Server**) and
+**Refresh** stay on the right for every tab.
+
+- **Home**: totals, what changed lately, and shortcuts to the other tabs.
+- **Catalog**: every kind of entity, described in
+  [Find your way around](#find-your-way-around) below.
+- **Explore**: search and filter the data assets (tables, dashboards,
+  pipelines and more) by name, type, service, owner or tag.
+- **Lineage**: pick an asset and see its [lineage](#lineage) as a graph.
+- **Semantic models**, **Metrics** and **Query builder**: your
+  [semantic layer](setup/semantic.md), powered by MetricFlow. They need the
+  MetricFlow connection, not an OpenMetadata catalog.
+- **Malloy models**: the Malloy files in the same project folder, with their
+  sources, joins, dimensions, measures and views. MonoRail only reads them.
+- **Glossary**, **Classifications** and **Domains**: business terms, tags
+  such as PII or Tier, and domains with their data products.
+- **Data quality**: test cases and suites with their latest results.
+- **Insights**: how complete the catalog is: how many assets have a
+  description, an owner, a tier and tags.
+- **Services**: the services the catalog reads from and their ingestion
+  pipelines. To add or run pipelines, open [Services](setup/services.md).
+- **Teams and users**: teams, users and roles.
+
+Clicking an entity on any tab opens it in **Catalog** with everything about
+it.
+
 ## Find your way around
 
-The list on the left has every kind of [entity](glossary.md#entity)
+In the **Catalog** tab, the list on the left has every kind of [entity](glossary.md#entity)
 OpenMetadata has, in its groups (data assets, AI assets, services,
 governance, ontology, data quality, teams and access, collaboration and
 context, platform), with how many your server holds. Kinds with none are

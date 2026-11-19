@@ -260,3 +260,49 @@ describe('MetricFlow MCP tools', () => {
     await assert.rejects(query.handler({ metrics: ['revenue'] }, { did: () => {} }), /off/)
   })
 })
+
+describe('Malloy models', () => {
+  test('not set up reads nothing; a missing folder is no-project', async () => {
+    const none = await semantic._internal.malloyModels({ settings: async () => undefined, fs: new Proxy({}, { get: () => () => assert.fail('touched the disk') }) })
+    assert.equal(none.block, 'not-set-up')
+    assert.deepEqual(none.files, [])
+    const gone = await semantic._internal.malloyModels({ settings: async () => ({ project: path.join(os.tmpdir(), 'nope-mr-malloy') }) })
+    assert.equal(gone.block, 'no-project')
+  })
+
+  test('lists .malloy files with relative paths, skipping dot folders, node_modules, target and big files', async () => {
+    const dir = makeProject()
+    fs.mkdirSync(path.join(dir, 'malloy', 'marts'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'malloy', 'orders.malloy'), "source: orders is duckdb.table('orders') extend {\n  measure: order_count is count()\n}\n")
+    fs.writeFileSync(path.join(dir, 'malloy', 'marts', 'stores.malloy'), "source: stores is duckdb.table('stores')\n")
+    fs.writeFileSync(path.join(dir, 'malloy', 'notes.txt'), 'not malloy')
+    for (const skip of ['node_modules', 'target', '.git']) {
+      fs.mkdirSync(path.join(dir, skip, 'pkg'), { recursive: true })
+      fs.writeFileSync(path.join(dir, skip, 'pkg', 'hidden.malloy'), 'source: x is duckdb.table("x")')
+    }
+    fs.writeFileSync(path.join(dir, 'big.malloy'), 'x'.repeat(600 * 1024))
+    // A junction (Windows) or symlink to a folder outside the project is never followed.
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'mr-malloy-out-'))
+    fs.writeFileSync(path.join(outside, 'secret.malloy'), 'source: s is duckdb.table("s")')
+    try {
+      fs.symlinkSync(outside, path.join(dir, 'malloy', 'linked'), 'junction')
+    } catch {
+      // No permission to link here: the other checks still run.
+    }
+
+    const r = await semantic._internal.malloyModels({ settings: async () => ({ project: dir, run: 'off' }) })
+    assert.equal(r.block, undefined)
+    assert.deepEqual(r.files.map((f) => f.path).sort(), ['big.malloy', 'malloy/marts/stores.malloy', 'malloy/orders.malloy'])
+    const big = r.files.find((f) => f.path === 'big.malloy')
+    assert.equal(big.tooLarge, true)
+    assert.equal(big.text, undefined)
+    assert.match(r.files.find((f) => f.path === 'malloy/orders.malloy').text, /order_count/)
+    const json = JSON.stringify(r)
+    const esc = (p) => JSON.stringify(p).slice(1, -1)
+    for (const p of [dir, outside, fs.realpathSync(dir)]) {
+      assert.ok(!json.includes(esc(p)) && !json.includes(p.split(path.sep).join('/')), 'no absolute paths reach the page')
+    }
+    assert.ok(r.files.every((f) => !path.isAbsolute(f.path) && !f.path.includes('\\')))
+    assert.ok(!json.includes('secret'), 'links are not followed')
+  })
+})

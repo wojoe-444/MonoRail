@@ -10,9 +10,10 @@ project with a semantic layer, you can connect it to MonoRail. MonoRail reads
 its metrics, semantic models and saved queries, and with MetricFlow (dbt's
 semantic layer engine, the `mf` command) your agents can query them.
 
-The Semantic page itself is empty for now: the menu's shapes icon under
-**Insights** opens [OpenMetadata](../openmetadata.md) instead. The connection
-described here still works, and nothing about it changed.
+You browse it on the [OpenMetadata](../openmetadata.md#the-tabs) page (the
+shapes icon under **Insights**), in its **Semantic models**, **Metrics** and
+**Query builder** tabs. The **Malloy models** tab shows any Malloy files in
+the same project folder.
 
 ## It is optional, twice
 

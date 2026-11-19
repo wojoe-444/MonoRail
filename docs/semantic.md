@@ -5,11 +5,12 @@ summary: Reference for the MetricFlow connector and its backend: files, what it 
 
 # MetricFlow connector and Semantic backend
 
-The Semantic page's content was removed: the `/semantic` route now shows the
-[OpenMetadata](guide/openmetadata.md) page, which holds the drawer's Insights
-slot. The backend and connector below stay: Explore, Services and the MCP
-server use them. `query` and `explain` on `semantic.cjs` no longer have a page
-caller.
+There is no Semantic page of its own: the `/semantic` route shows the
+[OpenMetadata](guide/openmetadata.md#the-tabs) page, whose **Semantic models**,
+**Metrics**, **Query builder** and **Malloy models** tabs
+(`src/modules/openmetadata/tabs/`) call this backend. Explore, Services and
+the MCP server use it too. `malloyModels` lists the `*.malloy` files in the
+project folder for the Malloy tab: relative paths and text, read-only.
 
 People: see the guide, [Semantic (MetricFlow)](guide/setup/semantic.md).
 

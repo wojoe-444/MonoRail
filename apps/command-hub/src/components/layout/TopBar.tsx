@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { useFullScreen } from '@/lib/fullscreen'
 import { currentPath } from '@/lib/router'
 
+import { useTopBarSlot } from './TopBarSlot'
+
 interface TopBarProps {
   /** Nav section of the current page, e.g. "Workspace", linked to the section's first page. Home has none. */
   section?: { label: string; path: string }
@@ -42,9 +44,13 @@ function Crumb({ label, path, onNavigate, className = '' }: { label: string; pat
 export function TopBar({ section, parent, onNavigate, title }: TopBarProps) {
   const { fullScreen, toggle } = useFullScreen()
   const fsLabel = fullScreen ? 'Exit full screen (F11)' : 'Full screen (F11)'
+  const slot = useTopBarSlot()
+  // A page's command bar (PageCommandBar) takes the breadcrumb's place.
+  const claimed = !!slot?.claimed
   return (
     <header data-slot="top-bar" className="sticky top-0 z-10 flex h-10 shrink-0 items-center gap-4 border-b bg-background/85 px-4 backdrop-blur">
-      <nav aria-label="Breadcrumb" data-tour="breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+      <div ref={slot?.setTarget} data-slot="top-bar-slot" className={claimed ? 'flex min-w-0 flex-1 items-center gap-3' : 'hidden'} />
+      <nav aria-label="Breadcrumb" data-tour="breadcrumb" className={`${claimed ? 'hidden' : 'flex'} min-w-0 flex-1 items-center gap-1.5 text-sm`}>
         <Crumb label={section?.label ?? 'MonoRail'} path={section?.path ?? '/'} onNavigate={onNavigate} className="hidden sm:inline" />
         <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" aria-hidden />
         {parent && (

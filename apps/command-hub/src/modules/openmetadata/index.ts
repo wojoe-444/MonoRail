@@ -13,7 +13,7 @@ import type { ModuleDefinition } from '../types'
 export const openMetadataModule: ModuleDefinition = {
   id: 'openmetadata',
   title: 'OpenMetadata',
-  description: 'Every entity in your OpenMetadata server, the way OpenMetadata stores it.',
+  description: 'Your metadata catalog: glossary, lineage, data quality, the semantic layer and every entity type OpenMetadata knows.',
   icon: Shapes,
   path: '/openmetadata',
   nav: { section: 'Insights' },

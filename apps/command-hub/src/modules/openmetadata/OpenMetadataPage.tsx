@@ -1,44 +1,59 @@
-import { useEffect, useState } from 'react'
-import { BookOpen, Cable, Database, Loader2, PlugZap, RefreshCw, ShieldAlert, WifiOff, Workflow } from 'lucide-react'
+import { lazy, Suspense, useState, type ComponentType } from 'react'
+import { BookOpen, Cable, Database, Loader2, PlugZap, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/PageHeader'
+import { PageCommandBar } from '@/components/layout/PageCommandBar'
+import { PageTabs } from '@/components/layout/PageTabs'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/segmented'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { prefs } from '@/lib/prefs'
-import { navigate } from '@/lib/router'
+import { navigate, useRoute } from '@/lib/router'
 import { cn } from '@/lib/utils'
-import { call as ingestionCall } from '@/modules/ingestion/api'
-import { openAddIngestion } from '@/modules/ingestion/handoff'
-import type { Overview as IngestionOverview } from '@/modules/ingestion/types'
 import { openWiki } from '@/modules/wiki/store'
 
 import { setSource, useCall, type Source } from './api'
-import { BigQueryNote } from './BigQueryNote'
-import { typeInfo } from './catalog'
-import { EntityList } from './EntityList'
-import { EntityView } from './EntityView'
-import { Overview } from './Overview'
-import type { View } from './util'
-import { TypeNav } from './TypeNav'
+import { OM_TABS, tabFromPath, tabPath } from './tabs'
+import type { OmTabProps } from './tabs/types'
 import type { OmCounts, OmStatus } from './types'
 
-const TYPE_KEY = 'monorail.openmetadata.type'
 const SOURCE_KEY = 'monorail.openmetadata.source'
 const savedSource = (): Source | undefined => {
   const v = prefs.getItem(SOURCE_KEY)
   return v === 'local' || v === 'server' || v === 'bigquery' ? v : undefined
 }
 
+const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
+  home: lazy(() => import('./tabs/HomeTab')),
+  catalog: lazy(() => import('./tabs/CatalogTab')),
+  explore: lazy(() => import('./tabs/ExploreTab')),
+  lineage: lazy(() => import('./tabs/LineageTab')),
+  'semantic-models': lazy(() => import('./tabs/SemanticModelsTab')),
+  metrics: lazy(() => import('./tabs/MetricsTab')),
+  query: lazy(() => import('./tabs/QueryTab')),
+  malloy: lazy(() => import('./tabs/MalloyTab')),
+  glossary: lazy(() => import('./tabs/GlossaryTab')),
+  classifications: lazy(() => import('./tabs/ClassificationsTab')),
+  domains: lazy(() => import('./tabs/DomainsTab')),
+  quality: lazy(() => import('./tabs/QualityTab')),
+  insights: lazy(() => import('./tabs/InsightsTab')),
+  services: lazy(() => import('./tabs/ServicesTab')),
+  teams: lazy(() => import('./tabs/TeamsTab')),
+}
+
 /**
- * OpenMetadata: every entity type on one page, from MonoRail's local
- * database, the copy of a BigQuery dataset the user made the source of truth
- * (the default while it is set up), or a connected OpenMetadata server. The overview,
- * one type's entities, or one entity with everything held about it. Reads
- * through electron/modules/openmetadata.cjs; no server is contacted until
- * the OpenMetadata connection is set up.
+ * OpenMetadata: a metadata platform in one page, after the MonoRail-Metadata
+ * app. Its tabs (src/modules/openmetadata/tabs.ts) sit in a command bar in
+ * the top bar; each is its own route. Catalog tabs read MonoRail's local
+ * database, the copy of the BigQuery dataset that is the source of truth, or
+ * a connected OpenMetadata server (the source switch), through
+ * electron/modules/openmetadata.cjs; no server is contacted until the
+ * OpenMetadata connection is set up. The semantic-layer tabs read the
+ * MetricFlow project (electron/modules/semantic.cjs).
  */
 export default function OpenMetadataPage() {
+  const [path] = useRoute()
+  const tab = tabFromPath(path)
   const [chosen, setChosen] = useState<Source | undefined>(savedSource)
   const status = useCall<OmStatus>('status', chosen ? { source: chosen } : {})
   // Every call below names the catalog that answered status, and the content remounts when it changes.
@@ -46,36 +61,30 @@ export default function OpenMetadataPage() {
   setSource(source)
   const ready = !!status.data && !status.data.block
   const counts = useCall<OmCounts>('counts', ready ? { source } : null)
+  const [refresh, setRefresh] = useState(0)
   const choose = (s: Source) => {
     setChosen(s)
     prefs.setItem(SOURCE_KEY, s)
   }
-  const [view, setViewState] = useState<View>(() => {
-    const type = prefs.getItem(TYPE_KEY) ?? undefined
-    return typeInfo(type) ? { type } : {}
-  })
-  const setView = (v: View) => {
-    setViewState(v)
-    if (v.type) prefs.setItem(TYPE_KEY, v.type)
-    else prefs.removeItem(TYPE_KEY)
+  const reload = () => {
+    status.reload()
+    counts.reload()
   }
+  const busy = status.loading || counts.loading
+  const Tab = TAB_COMPONENTS[tab.id]
+  const props: OmTabProps = { status: status.data, counts, source, reload }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
+    <div className="flex flex-col gap-6">
+      <PageCommandBar
         title="OpenMetadata"
-        description={
-          source === 'local'
-            ? "Every entity type in MonoRail's local database on this PC, the way OpenMetadata stores it: browse any of them and see every field, relationship and version."
-            : source === 'bigquery'
-              ? 'Every entity type in your BigQuery metadata dataset, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
-              : 'Every entity type in your OpenMetadata server, the way OpenMetadata stores it: browse any of them and see every field, relationship and version.'
-        }
+        description={tab.description}
         actions={
           <>
-            {(status.data?.serverSetUp || status.data?.bigquerySetUp) && (
+            {tab.catalog && (status.data?.serverSetUp || status.data?.bigquerySetUp) && (
               <Segmented
                 aria-label="Catalog"
+                className="min-h-0 p-0.5"
                 value={source ?? 'local'}
                 onChange={choose}
                 options={[
@@ -85,135 +94,57 @@ export default function OpenMetadataPage() {
                 ]}
               />
             )}
-            <Button variant="ghost" onClick={() => openWiki('guide/openmetadata')}>
-              <BookOpen /> Guide
-            </Button>
-            <Button
-              variant="outline"
-              disabled={status.loading || counts.loading}
+            <IconAction label="Guide" onClick={() => openWiki('guide/openmetadata')}>
+              <BookOpen />
+            </IconAction>
+            <IconAction
+              label="Refresh"
+              disabled={busy}
               onClick={() => {
-                status.reload()
-                counts.reload()
+                reload()
+                setRefresh((n) => n + 1)
               }}
             >
-              {status.loading || counts.loading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Refresh
-            </Button>
+              {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            </IconAction>
           </>
         }
-      />
+      >
+        <PageTabs tabs={OM_TABS} active={tab.id} pathFor={tabPath} size="sm" sticky={false} hideIcons aria-label="OpenMetadata sections" />
+      </PageCommandBar>
 
-      {!status.data ? (
+      {tab.catalog && !status.data ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {status.error ? status.error : <><Loader2 className="size-4 animate-spin" /> Opening the catalog…</>}
         </div>
-      ) : status.data.block ? (
+      ) : tab.catalog && status.data?.block ? (
         <BlockedCard status={status.data} onRetry={status.reload} />
       ) : (
-        <div key={source ?? 'default'} className="flex flex-col gap-6">
-        {source === 'bigquery' && status.data.bigquery && (
-          <BigQueryNote
-            status={status.data.bigquery}
-            onChanged={() => {
-              status.reload()
-              counts.reload()
-            }}
-          />
-        )}
-        {source === 'local' && <LocalNote serverSetUp={!!status.data.serverSetUp} empty={!!counts.data && Object.values(counts.data).every((n) => n === 0)} />}
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <TypeNav current={view.type} counts={counts.data} onChoose={(type) => setView(type ? { type } : {})} />
-          <div className="min-w-0">
-            {!view.type ? (
-              <Overview status={status.data} counts={counts.data} countsError={counts.error} onOpen={setView} />
-            ) : view.fqn ? (
-              <EntityView key={`${view.type}|${view.fqn}`} type={view.type} fqn={view.fqn} onOpen={setView} />
-            ) : (
-              <EntityList key={view.type} type={view.type} total={counts.data?.[view.type]} onOpen={setView} />
-            )}
-          </div>
-        </div>
-        </div>
+        <Suspense
+          fallback={
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading…
+            </div>
+          }
+        >
+          <Tab key={`${tab.id}|${source ?? 'default'}|${refresh}`} {...props} />
+        </Suspense>
       )}
     </div>
   )
 }
 
-/** What the local catalog is, where it is filled from, and how to add a server. */
-function LocalNote({ serverSetUp, empty }: { serverSetUp: boolean; empty: boolean }) {
+/** A small icon button for the command bar, named in a tooltip. */
+function IconAction({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
   return (
-    <Card className="gap-0 py-0">
-      <div className="flex flex-wrap items-center gap-4 px-6 py-4">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
-          <Database className="size-4" />
-        </span>
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-          {empty ? 'Nothing here yet. ' : ''}This is MonoRail's local database: it stays on this PC and needs no server. Ingestion pipelines on this PC fill it with your SQLite and dbt sources.
-          {serverSetUp ? ' Switch to Server above to browse your OpenMetadata server.' : ' To browse an OpenMetadata server as well, add it on Connections.'}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate('/services')}>
-            <Workflow /> Services
-          </Button>
-          {!serverSetUp && (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/connections')}>
-              <Cable /> Add a server
-            </Button>
-          )}
-        </div>
-      </div>
-      {empty && <EmptyNextSteps />}
-    </Card>
-  )
-}
-
-/**
- * What to do next while the local database is empty, from the data sources
- * that are connected and the pipelines they have. Reads Services' overview,
- * which starts nothing and creates no database.
- */
-function EmptyNextSteps() {
-  const [overview, setOverview] = useState<IngestionOverview>()
-  useEffect(() => {
-    let live = true
-    ingestionCall<IngestionOverview>('overview').then(
-      (o) => live && setOverview(o),
-      () => undefined,
-    )
-    return () => {
-      live = false
-    }
-  }, [])
-  if (!overview) return null
-
-  const sources = overview.services.filter((s) => s.added && s.localTypes.length > 0)
-  const steps: { key: string; text: string; action: string; run: () => void }[] = []
-  if (!sources.length) {
-    steps.push({ key: 'none', text: 'No data source is connected yet. Add a SQLite database or a dbt project on Connections, then add an ingestion pipeline for it.', action: 'Add a data source', run: () => navigate('/connections') })
-  }
-  for (const s of sources) {
-    const name = s.displayName || s.title
-    const pipelines = overview.pipelines.filter((p) => p.extension?.monorail?.serviceKind === s.kind)
-    if (!pipelines.length) {
-      steps.push({ key: s.kind, text: `${name} is connected but has no ingestion pipeline yet, so nothing has been read from it.`, action: 'Add ingestion', run: () => openAddIngestion(s.kind) })
-    } else if (pipelines.some((p) => p.lastRun?.pipelineState === 'failed')) {
-      steps.push({ key: s.kind, text: `The last run of a ${name} pipeline failed. Open its runs on Services to see why.`, action: 'Open Services', run: () => navigate('/services') })
-    } else if (pipelines.every((p) => !p.lastRun)) {
-      steps.push({ key: s.kind, text: `${name} has ${pipelines.length === 1 ? 'a pipeline' : 'pipelines'} that ${pipelines.length === 1 ? "hasn't" : "haven't"} run yet. Run ${pipelines.length === 1 ? 'it' : 'one'} on Services.`, action: 'Open Services', run: () => navigate('/services') })
-    }
-  }
-  if (!steps.length) return null
-
-  return (
-    <ul className="divide-y border-t">
-      {steps.map((s) => (
-        <li key={s.key} className="flex flex-wrap items-center gap-4 px-6 py-3">
-          <p className="min-w-0 flex-1 text-sm">{s.text}</p>
-          <Button size="sm" onClick={s.run}>
-            {s.action}
-          </Button>
-        </li>
-      ))}
-    </ul>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7" aria-label={label} disabled={disabled} onClick={onClick}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
