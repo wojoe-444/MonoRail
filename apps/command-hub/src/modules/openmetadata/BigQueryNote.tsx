@@ -12,7 +12,7 @@ import type { BqStatus, BqSync } from './types'
 
 const EVERY: Record<string, string> = { '15m': 'every 15 minutes', '1h': 'every hour', '6h': 'every 6 hours', '24h': 'once a day' }
 /** Problems the setup SQL fixes. */
-const SETUP_CODES = new Set(['missing', 'empty', 'foreign'])
+const SETUP_CODES = new Set(['missing', 'empty', 'foreign', 'create-failed'])
 
 function bytes(n: number | undefined) {
   if (!n) return '0 MB'
@@ -69,7 +69,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
         <p>
-          <span className="font-medium">BigQuery {status.source ?? 'metadata'}</span> is the source of truth. MonoRail reads a copy on this PC, so browsing runs no BigQuery queries. It never writes to BigQuery.
+          <span className="font-medium">BigQuery {status.source ?? 'metadata'}</span> is the source of truth. MonoRail reads a copy on this PC, so browsing runs no BigQuery queries. It changes nothing in BigQuery, except creating the default METADATA dataset with empty tables when it does not exist yet.
         </p>
         <p className="text-muted-foreground">
           {busy ? (
@@ -136,7 +136,7 @@ export function BigQueryNote({ status, onChanged }: { status: BqStatus; onChange
   )
 }
 
-/** The SQL that creates MonoRail's layout in the chosen dataset. MonoRail never runs it; the user does, in BigQuery. */
+/** The SQL that creates MonoRail's layout in the chosen dataset. MonoRail runs it itself only for the default METADATA dataset when it does not exist; otherwise the user runs it, in BigQuery. */
 function SetupSqlDialog({ onClose }: { onClose: () => void }) {
   const [sql, setSql] = useState<{ sql: string; source: string }>()
   const [error, setError] = useState<string>()
@@ -150,7 +150,7 @@ function SetupSqlDialog({ onClose }: { onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>Setup SQL{sql ? ` for ${sql.source}` : ''}</DialogTitle>
           <DialogDescription>
-            Creates the dataset and MonoRail's tables, partitioned so each sync reads only recent rows. Run it yourself in the BigQuery console; MonoRail never changes BigQuery. Then fill the tables from your own pipeline.
+            Creates the dataset and MonoRail's tables, partitioned so each sync reads only recent rows, and is safe to run again. MonoRail runs it by itself for the default METADATA dataset when that does not exist yet; for any other dataset, run it yourself in the BigQuery console. Then fill the tables from your own pipeline.
           </DialogDescription>
         </DialogHeader>
         {error ? (

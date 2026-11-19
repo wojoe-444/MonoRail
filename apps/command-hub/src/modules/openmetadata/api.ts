@@ -15,7 +15,7 @@ let source: Source | undefined
 export function setSource(s: Source | undefined) {
   source = s
 }
-/** Whether the catalog being read takes edits. BigQuery is read-only for now: MonoRail never writes to it. */
+/** Whether the catalog being read takes edits. BigQuery is read-only for now: MonoRail does not write entities to it. */
 export const canEdit = () => source !== 'bigquery'
 
 /** Call the OpenMetadata backend; in the browser dev server, the fictional sample catalog. */

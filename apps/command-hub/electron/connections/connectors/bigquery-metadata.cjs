@@ -10,8 +10,11 @@
 // The check reads metadata only (the dataset, its table list and schemas,
 // and the small meta table through tabledata.list): no query, nothing
 // billed. It signs in with the user's own gcloud login, so Google Cloud must
-// be set up first. Removing the connection empties the copy on this PC; the
-// BigQuery dataset is never touched.
+// be set up first. The one write: when the dataset is the default METADATA
+// and does not exist yet (or has no tables), saving the connection and the
+// sync create it with empty tables (mirror.ensureDataset). Removing the
+// connection empties the copy on this PC; the BigQuery dataset is never
+// touched.
 
 const mirror = require('../../localdb/bigquery-mirror.cjs')
 
@@ -49,6 +52,15 @@ async function status(conn, deps = {}) {
     return { state: 'error', summary: `Could not read ${config.source}: ${e.message}`, details }
   }
   if (check.location) details.push({ label: 'Location', value: check.location })
+  if (check.state !== 'ok' && config.datasetId === mirror.DEFAULT_DATASET && (check.state === 'missing' || check.state === 'empty')) {
+    details.push({ label: 'Layout', value: `Not there yet: MonoRail creates it in ${config.location}`, ok: false })
+    return {
+      state: 'needs-setup',
+      summary: `${config.source} ${check.state === 'missing' ? 'does not exist yet' : 'has no tables yet'}. MonoRail creates it, with empty tables, at the next sync.`,
+      hint: 'Your Google account needs permission to create datasets in that project. Sync now on the OpenMetadata page does it right away.',
+      details,
+    }
+  }
   if (check.state !== 'ok') {
     details.push({ label: 'Layout', value: check.message, ok: false })
     return {
@@ -79,10 +91,11 @@ module.exports = {
   service: { category: 'metadataService', serviceType: 'BigQuery' },
   title: 'BigQuery metadata',
   icon: 'database',
-  description: "Make a BigQuery dataset the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on this PC; it never writes to it.",
+  description: `Make a BigQuery dataset the source of truth for MonoRail's metadata. MonoRail reads it and keeps a copy on this PC. If the default ${mirror.DEFAULT_DATASET} dataset does not exist yet, MonoRail creates it with empty tables; otherwise it never writes to BigQuery.`,
   fields: [
     { key: 'project', label: 'Project', type: 'text', placeholder: 'my-project', help: 'The Google Cloud project that holds the dataset.' },
-    { key: 'dataset', label: 'Dataset', type: 'text', defaultValue: mirror.DEFAULT_DATASET, placeholder: mirror.DEFAULT_DATASET, help: "The dataset with MonoRail's tables (entity, meta, and optionally entity_version and record). Names are case-sensitive." },
+    { key: 'dataset', label: 'Dataset', type: 'text', defaultValue: mirror.DEFAULT_DATASET, placeholder: mirror.DEFAULT_DATASET, help: `The dataset with MonoRail's tables (entity, meta, and optionally entity_version and record). Names are case-sensitive. ${mirror.DEFAULT_DATASET} is created for you when it does not exist; any other dataset must already exist.` },
+    { key: 'location', label: `Location for a new ${mirror.DEFAULT_DATASET} dataset`, type: 'text', defaultValue: mirror.DEFAULT_LOCATION, placeholder: mirror.DEFAULT_LOCATION, help: 'Only used when MonoRail creates the dataset: US, EU, or a region such as europe-west2. An existing dataset keeps its own location.' },
     { key: 'billingProject', label: 'Bill sync queries to', type: 'text', placeholder: 'Same project', help: 'Optional: a project where you may run queries, when the data project does not let you.' },
     {
       key: 'syncEvery',
@@ -112,6 +125,23 @@ module.exports = {
   status,
   /** For other backends in the main process: the dataset and sync settings. No secrets here. */
   credentials: (conn) => mirror.configOf(conn?.values),
+  /**
+   * Right after saving: create the default dataset when it does not exist yet,
+   * so the check that follows finds it. Never throws (that would refuse the
+   * save); a failure shows in the check and the next sync tries again.
+   */
+  async afterSave(conn, deps = {}) {
+    try {
+      const config = mirror.configOf(conn?.values)
+      if (config.datasetId !== mirror.DEFAULT_DATASET) return
+      const has = deps.hasConnection ?? ((k) => require('../index.cjs').hasConnection(k))
+      if (!(await has('gcloud'))) return
+      const client = deps.bigqueryClient ?? mirror.gcloudClient({ hasConnection: has, getCredentials: deps.getCredentials })
+      await mirror.ensureDataset(client, config)
+    } catch {
+      // reported by the check and the sync
+    }
+  },
   /** Empty the copy on this PC. The BigQuery dataset is never touched. */
   afterRemove() {
     const localdb = require('../../localdb/index.cjs')

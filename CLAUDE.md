@@ -1329,8 +1329,12 @@ metadata layout** `monorail.metadata/1`: the local database's tables as
 BigQuery tables (`entity` with OpenMetadata's full API JSON in `json`, `meta`
 with the `layout` row; optional `entity_version`, `record`), not
 OpenMetadata's own MySQL schema. Something else fills it; for this source,
-ingestion means connecting. MonoRail never writes to BigQuery (no DML/DDL;
-`setupSql()` is text the page shows for the user to run). It keeps a copy,
+ingestion means connecting. MonoRail writes to BigQuery only to create the
+default `METADATA` dataset when it is missing or has no tables
+(`ensureDataset()` runs `setupSql()`, all `IF NOT EXISTS`, as one script job at
+the connection's `location`, from `afterSave`, which never throws, and at the
+start of each sync); any other dataset gets the setup SQL as text to run. It
+keeps a copy,
 `databases\bigquery.sqlite3` (`mirrorDb()`, same schema, rows stored as-is
 with `putExact`, emptied when the source changes or the connection is
 removed), and the page's `bigquery` source reads only the copy, read-only

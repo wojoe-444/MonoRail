@@ -16,7 +16,9 @@ read goes to the copy, so browsing never runs a BigQuery query.
 
 Writing back (create, update, delete on the source of truth) is a later goal.
 The layout is MonoRail's own so that such writes will be plain DML with a
-version check. Today nothing writes to BigQuery.
+version check. Today MonoRail writes to BigQuery only to
+[create the default dataset](#creating-the-default-dataset) when it does not
+exist yet.
 
 ## The layout (`monorail.metadata/1`)
 
@@ -38,13 +40,29 @@ MySQL/Postgres schema (`table_entity` plus `entity_relationship` and
 `version` may also be NUMERIC or INT64; `json` may be STRING holding JSON.
 Partition `entity` and `entity_version` on `DATE(updated_at)` and `record` on
 `DATE(at)`. Without partitioning, each incremental sync scans the whole
-`json` column. `setupSql(project, dataset)` in
-`electron/localdb/bigquery-mirror.cjs` returns the DDL. The page shows it
-under **Setup SQL** for the user to run; MonoRail never runs DDL or DML.
+`json` column. `setupSql(project, dataset, location)` in
+`electron/localdb/bigquery-mirror.cjs` returns the DDL: every statement `IF NOT
+EXISTS`, and the layout row inserted only when missing, so it is safe to run
+again. The page shows it under **Setup SQL**. MonoRail runs it itself only
+for the default dataset (below); for any other dataset the user runs it.
 
 A dataset is accepted only when `entity` and `meta` exist with the columns
 above and `meta` has the layout row. A dataset that holds other tables is
 reported as foreign. A newer layout number is refused.
+
+## Creating the default dataset
+
+When the dataset is the default `METADATA` and it does not exist, or exists
+with no tables at all, MonoRail creates it: `ensureDataset()` runs
+`setupSql()` as one script job in the billing project, at the connection's
+location (default `US`; an existing dataset keeps its own). That makes the
+dataset, the four empty layout tables and the `meta` layout row. DDL is not
+billed; the layout row's `NOT EXISTS` check reads the empty `meta` table.
+It runs from the connection's `afterSave` (right after saving; a failure never
+refuses the save) and at the start of every sync. A refused create fails the
+sync with `create-failed` and says the account needs permission to create
+datasets. Any other dataset name, and a `METADATA` that already holds tables
+(foreign or not), is never created or changed.
 
 ## Files
 
@@ -62,14 +80,16 @@ reported as foreign. A newer layout number is refused.
 
 **BigQuery metadata** (`bigquery-metadata`, `parent: 'gcloud'`) on
 [Connections](guide/setup/connections.md): project, dataset (default
-`METADATA`), an optional project to bill sync queries to, how often to
+`METADATA`), the location for a new `METADATA` dataset (default `US`), an
+optional project to bill sync queries to, how often to
 refresh (15 minutes, hourly (default), 6 hours, daily, manual) and the most an
 incremental refresh may scan (1 (default), 10 or 100 GB). It signs in with
 the Google Cloud connection's `gcloud` login (`credentials()`), so it needs
 Google Cloud set up first. Its check reads only metadata: the dataset, the
 table list and schemas, and `meta` through `tabledata.list`. No query runs
-and nothing is billed. `afterRemove` empties the copy; the dataset is never
-touched. Opt-in like every connector: nothing runs before it is added.
+and nothing is billed; a missing `METADATA` is reported as "MonoRail creates
+it". `afterSave` creates it ([above](#creating-the-default-dataset)).
+`afterRemove` empties the copy; the dataset is never touched. Opt-in like every connector: nothing runs before it is added.
 
 ## The copy and the sync
 
