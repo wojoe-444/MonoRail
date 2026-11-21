@@ -1,7 +1,8 @@
-import { Component, Suspense, type ReactNode } from 'react'
+import { Suspense } from 'react'
 import { ArrowLeft, Moon, Sun } from 'lucide-react'
 
 import { BrandTile } from '@/components/layout/BrandMark'
+import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary'
 import { currentPath, navigate } from '@/lib/router'
 import { useTheme } from '@/lib/theme'
 
@@ -68,30 +69,10 @@ export function AppFrame({ app }: { app: AppDefinition }) {
 export function AppBody({ app }: { app: AppDefinition }) {
   const AppRoot = app.component
   return (
-    <AppErrorBoundary title={app.title} hint={app.placement === 'workspace' ? 'Open it again from the menu on the left.' : 'Use “Back to MonoRail” above, then open the app again.'}>
+    <RouteErrorBoundary title={app.title} hint={app.placement === 'workspace' ? 'Open it again from the menu on the left.' : 'Use “Back to MonoRail” above, then open the app again.'}>
       <Suspense fallback={null}>
         <AppRoot basePath={app.path} />
       </Suspense>
-    </AppErrorBoundary>
+    </RouteErrorBoundary>
   )
-}
-
-/** If an app crashes, keep the hub bar (or drawer) so the way back still works. */
-class AppErrorBoundary extends Component<{ title: string; hint: string; children: ReactNode }, { error?: Error }> {
-  state: { error?: Error } = {}
-
-  static getDerivedStateFromError(error: Error) {
-    return { error }
-  }
-
-  render() {
-    if (!this.state.error) return this.props.children
-    return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <h2 className="text-lg font-semibold">{this.props.title} stopped working</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{this.state.error.message}</p>
-        <p className="mt-4 text-sm text-muted-foreground">{this.props.hint}</p>
-      </div>
-    )
-  }
 }
