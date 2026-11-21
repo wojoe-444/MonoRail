@@ -40,6 +40,7 @@ function Form({ defaults }: { defaults: Partial<NewIssue> }) {
   const set = (patch: Partial<NewIssue>) => setD((x) => ({ ...x, ...patch }))
   // Changing team drops what belongs to the old one.
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Reset workflow fields and team-specific labels when the issue's team changes.
     setD((x) => (x.teamId === defaults.teamId ? x : { ...x, stateId: undefined, cycleId: undefined, labelIds: (x.labelIds ?? []).filter((l) => !snap.labels.find((y) => y.id === l)?.teamId) }))
   }, [d.teamId, defaults.teamId, snap.labels])
 

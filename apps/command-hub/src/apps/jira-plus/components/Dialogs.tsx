@@ -58,6 +58,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
   useEffect(() => {
     if (!open) return
     const first = defaultProject ?? projects.find((p) => p.source === 'local') ?? projects[0]
+    // oxlint-disable-next-line react/set-state-in-effect -- Initialize the issue form each time it opens.
     setProject(first ? projectId(first) : '')
     setSummary('')
     setDescription('')
@@ -75,6 +76,7 @@ function CreateIssueModal({ open, defaultProject, defaultParent, defaultType, su
 
   useEffect(() => {
     if (!open || !selSource || !selKey) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Update issue-type choices as the selected project or recurring mode changes.
     if (recurring) { setTypes(['Recurring']); setType('Recurring'); return }
     let live = true
     setTypes([])
@@ -310,6 +312,7 @@ function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void })
 
   useEffect(() => {
     if (!open) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Initialize the scope draft from the current connection when the dialog opens.
     setScopeJql(connection?.scopeJql ?? 'assignee = currentUser()')
     setError(undefined)
   }, [open, connection])

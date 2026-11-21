@@ -45,6 +45,7 @@ export default function ThreadView({ account, threadId, onClose, onPatch, onRemo
   useEffect(() => {
     if (!accountId) return
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the old thread and reply draft before loading the newly selected thread.
     setThread(null)
     setError(null)
     setReply(null)

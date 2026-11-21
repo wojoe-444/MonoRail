@@ -65,6 +65,7 @@ export function useCall<T>(method: string, args: Record<string, unknown> | null)
   useEffect(() => {
     if (key === null) return
     const id = ++seq.current
+    // oxlint-disable-next-line react/set-state-in-effect -- Mark the new catalog request as pending before delivering its result.
     setState((s) => ({ key, data: s.key === key ? s.data : undefined, loading: true }))
     call<T>(method, JSON.parse(key) as Record<string, unknown>).then(
       (data) => id === seq.current && setState({ key, data, loading: false }),

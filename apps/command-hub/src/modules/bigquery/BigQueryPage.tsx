@@ -73,9 +73,12 @@ export default function BigQueryPage() {
   const [renaming, setRenaming] = useState<string>()
 
   const loadStatus = useCallback(async () => {
-    setStatus(undefined)
     try {
-      setStatus(await bq.status())
+      const next = await bq.status()
+      setStatus(next)
+      if (next.state === 'ok' && next.defaultProject) {
+        setBilling((selected) => selected || next.defaultProject)
+      }
     } catch (e) {
       setStatus({ state: 'error', message: errorText(e) })
     }
@@ -86,24 +89,22 @@ export default function BigQueryPage() {
       const r = await bq.listProjects()
       setProjects(r.projects)
       setProjectsError(undefined)
+      if (r.projects.length) setBilling((selected) => selected || r.projects[0].id)
     } catch (e) {
       setProjectsError(errorText(e))
     }
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- The mount request sets status after the backend responds.
     void loadStatus()
   }, [loadStatus])
 
   useEffect(() => {
     if (status?.state !== 'ok') return
+    // oxlint-disable-next-line react/set-state-in-effect -- Load projects once the backend reports a usable connection.
     void loadProjects()
-    if (!billing && status.defaultProject) setBilling(status.defaultProject)
-  }, [status, loadProjects, billing])
-
-  useEffect(() => {
-    if (!billing && projects.length) setBilling(projects[0].id)
-  }, [billing, projects])
+  }, [status, loadProjects])
 
   useEffect(() => {
     if (billing) prefs.setItem(PROJECT_KEY, billing)
@@ -179,7 +180,7 @@ export default function BigQueryPage() {
           </div>
           <div className="flex gap-2">
             <Button onClick={() => navigate('/connections')}>{status.state === 'not-set-up' ? 'Set up Google Cloud' : 'Open Connections'}</Button>
-            <Button variant="ghost" onClick={() => void loadStatus()}>
+            <Button variant="ghost" onClick={() => { setStatus(undefined); void loadStatus() }}>
               <RotateCw /> Check again
             </Button>
           </div>

@@ -100,6 +100,7 @@ export function DecksView({ go }: { go: (v: View) => void }) {
                       </Button>
                     ) : (
                       <span className="text-right text-xs text-muted-foreground">
+                        {/* oxlint-disable-next-line react/purity -- Display the time remaining until the next card is due. */}
                         {d.counts.total === 0 ? 'No cards yet' : d.counts.nextDue ? `Done · next in ${formatSpan(d.counts.nextDue - Date.now())}` : 'Done for today'}
                       </span>
                     )}

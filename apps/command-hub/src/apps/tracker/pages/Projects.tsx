@@ -225,6 +225,7 @@ function ProjectOverview({ project }: { project: Project }) {
   const lead = snap.users.find((u) => u.id === project.leadId)
   const [name, setName] = useState(project.name)
   const [summary, setSummary] = useState(project.summary)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync project drafts when their saved values change.
   useEffect(() => (setName(project.name), setSummary(project.summary)), [project.name, project.summary])
   return (
     <div className="flex min-h-0 flex-1">
@@ -356,6 +357,7 @@ export function Brief({ text, onSave, placeholder = 'Write a brief: the goal, wh
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(text)
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Refresh the draft from saved text only while the editor is closed.
     if (!editing) setValue(text)
   }, [text, editing])
   return (

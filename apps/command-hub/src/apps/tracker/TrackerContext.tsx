@@ -56,6 +56,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Read the tracker snapshot from the backend when the provider mounts.
     void refresh()
   }, [refresh])
 

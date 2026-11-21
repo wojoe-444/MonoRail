@@ -4,7 +4,7 @@ import { api, isNotARepoError } from './api'
 import { takeGitHubPlusHandoff } from './handoff'
 
 /** Thrown by open() when the folder is not a repo and GitHub+ is offering to make it one. */
-export class InitOfferedError extends Error {
+class InitOfferedError extends Error {
   constructor() {
     super('Offered to make this folder a git repository')
     this.name = 'InitOfferedError'
@@ -139,6 +139,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
 /** Small async-data hook with loading and error state. */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): { data: T | null; error: string | null; loading: boolean } {
   const [state, set] = useState<{ data: T | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true })
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- The caller supplies the request keys; fn is an inline callback.
   useEffect(() => {
     let live = true
     set((s) => ({ ...s, loading: true, error: null }))

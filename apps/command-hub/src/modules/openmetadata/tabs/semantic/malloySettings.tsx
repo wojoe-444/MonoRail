@@ -87,6 +87,7 @@ export function MalloySettingsDialog() {
 
   useEffect(() => {
     if (!isOpen) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the previous dialog's error before reading the saved Malloy settings.
     setError(undefined)
     settingsCall('getSettings')
       .then((r) => {

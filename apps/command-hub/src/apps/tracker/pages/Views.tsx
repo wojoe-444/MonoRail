@@ -61,6 +61,7 @@ export function ViewDetail() {
   const navigate = useNavigate()
   const view = snap.views.find((v) => v.id === id)
   const [name, setName] = useState(view?.name ?? '')
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the name draft when the saved view name changes.
   useEffect(() => setName(view?.name ?? ''), [view?.name])
   if (!view) return <Navigate to="/views" replace />
   const team = view.teamId ? idx.team.get(view.teamId) : undefined

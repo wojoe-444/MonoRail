@@ -26,6 +26,7 @@ export function DeckDialog({ open, deck, onClose, onSaved }: { open: boolean; de
 
   useEffect(() => {
     if (!open) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Set the deck editor's draft from the selected deck when the dialog opens.
     setName(deck?.name ?? '')
     setDescription(deck?.description ?? '')
     setNewPerDay(String(deck?.newPerDay ?? 20))
@@ -133,6 +134,7 @@ export function CardDialog({
 
   useEffect(() => {
     if (!open) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Set the card editor's draft from the selected card when the dialog opens.
     setFront(card?.front ?? '')
     setBack(card?.back ?? '')
     setTarget(card?.deckId ?? deckId)
@@ -246,6 +248,7 @@ export function ImportDialog({ open, deck, onClose, onDone }: { open: boolean; d
 
   useEffect(() => {
     if (!open) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Start each import with an empty form and no previous result.
     setText('')
     setError(undefined)
     setResult(undefined)
@@ -331,6 +334,7 @@ export function ConfirmDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear a previous confirmation error when a new dialog opens.
     if (open) setError(undefined)
   }, [open])
   return (

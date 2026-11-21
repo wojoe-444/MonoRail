@@ -103,6 +103,7 @@ export default function SqlxPage() {
     }
   }, [])
 
+  // oxlint-disable-next-line react/set-state-in-effect -- Read the SQLX project list when the page mounts.
   useEffect(() => void loadProjects(), [loadProjects])
 
   const loadFiles = useCallback(async () => {
@@ -115,6 +116,7 @@ export default function SqlxPage() {
     }
   }, [projectId])
 
+  // oxlint-disable-next-line react/set-state-in-effect -- Sync the file list to the selected SQLX project.
   useEffect(() => void loadFiles(), [loadFiles])
 
   /** Run `fn` now, or after the user agrees to drop unsaved changes. */

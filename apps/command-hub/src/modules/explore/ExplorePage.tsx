@@ -207,6 +207,7 @@ export default function ExplorePage() {
 
   useEffect(() => {
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Set the loading state before requesting the workspace records.
     setLoading(true)
     void Promise.allSettled([
       notesCall<NoteList>('list'),

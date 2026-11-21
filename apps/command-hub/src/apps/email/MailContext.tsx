@@ -71,6 +71,7 @@ export function MailProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Load the account state from the mail backend when the provider mounts.
     void reloadState()
   }, [reloadState])
 
@@ -97,6 +98,7 @@ export function MailProvider({ children }: { children: ReactNode }) {
   }, [account])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear folders from the previous account before loading this account's folders.
     setFolders([])
     reloadFolders()
   }, [reloadFolders, version])

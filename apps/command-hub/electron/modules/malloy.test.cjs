@@ -228,11 +228,11 @@ describe('Malloy settings (built in, not a connection)', () => {
 
   test('defaults: nothing until a folder is picked, run off, 1 GB', () => {
     assert.equal(settingsLib.settingsOf({}), undefined)
-    const s = settingsLib.settingsOf({ folder: ' C:\models ' })
-    assert.equal(s.folder, 'C:\models')
+    const s = settingsLib.settingsOf({ folder: ' C:\\models ' })
+    assert.equal(s.folder, 'C:\\models')
     assert.equal(s.run, 'off')
     assert.equal(s.maxBytes, 1024 ** 3)
-    assert.equal(settingsLib.settingsOf({ folder: 'C:\m', run: 'on', maxScanGb: '0.1' }).maxBytes, Math.round(0.1 * 1024 ** 3))
+    assert.equal(settingsLib.settingsOf({ folder: 'C:\\m', run: 'on', maxScanGb: '0.1' }).maxBytes, Math.round(0.1 * 1024 ** 3))
     assert.equal(settingsLib.clean({ maxScanGb: '9999' }).maxScanGb, '1')
   })
 

@@ -51,6 +51,7 @@ export default function Mailbox() {
   const [reload, setReload] = useState(0)
   const [foldersOpen, setFoldersOpen] = useState(false)
 
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the editable search field when a route changes the committed query.
   useEffect(() => setSearch(query), [query])
 
   const label = useCallback((id: string) => accountLabel(accounts.find((a) => a.id === id)), [accounts])
@@ -61,6 +62,7 @@ export default function Mailbox() {
   useEffect(() => {
     if (!accountId) return
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Start the mailbox request in a loading state and discard notes from the previous view.
     setLoading(true)
     setError(null)
     setNotes([])

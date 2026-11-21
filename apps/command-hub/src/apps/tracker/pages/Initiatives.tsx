@@ -143,6 +143,7 @@ export function InitiativeDetail() {
   const ini = snap.initiatives.find((i) => i.id === id)
   const [name, setName] = useState(ini?.name ?? '')
   const [summary, setSummary] = useState(ini?.summary ?? '')
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync initiative drafts when their saved values change.
   useEffect(() => (setName(ini?.name ?? ''), setSummary(ini?.summary ?? '')), [ini?.name, ini?.summary])
   if (!ini) return <Navigate to="/initiatives" replace />
   const save = (patch: Partial<Initiative>) => void run(() => trackerApi.save('initiative', { id: ini.id, name: ini.name, ...patch }))

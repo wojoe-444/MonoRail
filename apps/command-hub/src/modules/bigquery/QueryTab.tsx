@@ -51,6 +51,7 @@ export function QueryTab({ sql, onSql, settings, onSettings, projectId, active, 
   // Dry-run as the user types, like the console's validator (dry runs are free).
   useEffect(() => {
     if (!active || !projectId || !toRun.trim()) {
+      // oxlint-disable-next-line react/set-state-in-effect -- Cancel the visible validation state when this query cannot be dry-run.
       setValidation({ state: 'idle' })
       return
     }

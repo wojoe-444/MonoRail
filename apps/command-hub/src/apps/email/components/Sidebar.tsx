@@ -128,6 +128,7 @@ function FolderTree({ folders, accountId }: { folders: Folder[]; accountId: stri
   const { folderId = 'INBOX' } = useParams()
   const storeKey = `monorail.email.openFolders.${accountId}`
   const [open, setOpen] = useState<Set<string>>(() => new Set(JSON.parse(prefs.getItem(storeKey) ?? '["INBOX"]') as string[]))
+  // oxlint-disable-next-line react/set-state-in-effect -- Restore the saved folder expansion state for the newly selected account.
   useEffect(() => setOpen(new Set(JSON.parse(prefs.getItem(storeKey) ?? '["INBOX"]') as string[])), [storeKey])
 
   const { roots, children, byId } = useMemo(() => {
@@ -151,6 +152,7 @@ function FolderTree({ folders, accountId }: { folders: Folder[]; accountId: stri
       add.push(p)
       p = byId.get(p)?.parentId
     }
+    // oxlint-disable-next-line react/set-state-in-effect -- Open the selected folder's ancestors when navigation comes from outside the folder tree.
     if (add.some((x) => !open.has(x))) setOpen((s) => new Set([...s, ...add]))
   }, [folderId, byId, open])
 

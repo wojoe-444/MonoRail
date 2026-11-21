@@ -28,6 +28,7 @@ export function IssueModal() {
   useEffect(() => {
     if (!selected) return
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the prior issue and error before loading the new selection.
     setIssue(undefined)
     setError(undefined)
     jiraApi()

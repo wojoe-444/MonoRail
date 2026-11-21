@@ -4,7 +4,7 @@ import { Check } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-import { activeCycle, addDays, cycleLabel, estimateLabel, estimateOptions, identifier, PRIORITY_LABEL, PRIORITY_ORDER, shortDate, teamStates, todayIso } from '../lib'
+import { activeCycle, addDays, cycleLabel, estimateLabel, estimateOptions, identifier, isoDate, PRIORITY_LABEL, PRIORITY_ORDER, shortDate, teamStates, todayIso } from '../lib'
 import { useTracker } from '../TrackerContext'
 import { Avatar, Dot, EntityIcon, PriorityIcon, StatusIcon } from './bits'
 
@@ -149,8 +149,9 @@ export function startedFill(states: { id: string; type: string }[], id: string):
 /** A date picker in a popover with quick choices. */
 export function DatePicker({ value, onChange, children, align }: { value: string | null; onChange: (v: string | null) => void; children: ReactNode; align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false)
-  const t = todayIso()
-  const dow = new Date().getDay()
+  const [openedAt, setOpenedAt] = useState(Date.now)
+  const t = isoDate(openedAt)
+  const dow = new Date(openedAt).getDay()
   const quick: [string, string][] = [
     ['Today', t],
     ['Tomorrow', addDays(t, 1)],
@@ -163,7 +164,10 @@ export function DatePicker({ value, onChange, children, align }: { value: string
     setOpen(false)
   }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(next) => {
+      if (next) setOpenedAt(Date.now())
+      setOpen(next)
+    }}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent align={align} className="trk w-60 p-2" onClick={(e) => e.stopPropagation()}>
         <input type="date" defaultValue={value ?? ''} onChange={(e) => e.target.value && set(e.target.value)} className="mb-2 h-8 w-full rounded-md border bg-card px-2 text-sm" aria-label="Date" />

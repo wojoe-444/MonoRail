@@ -48,6 +48,7 @@ export function LogTimeDialog({ issue, open, onClose, onLogged }: { issue?: Issu
 
   useEffect(() => {
     if (!open) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Start each time entry with a fresh draft and the current start time.
     setSpent('')
     setComment('')
     setError(undefined)

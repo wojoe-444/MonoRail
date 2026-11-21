@@ -540,6 +540,7 @@ export default function FilesPage() {
 
 function PathBar({ path, sep, home, editing, setEditing, onGo }: { path: string; sep: string; home?: string; editing: boolean; setEditing: (v: boolean) => void; onGo: (p: string) => void }) {
   const [text, setText] = useState(path)
+  // oxlint-disable-next-line react/set-state-in-effect -- Reset the location draft when starting a new edit or when navigation changes the path.
   useEffect(() => setText(path), [path, editing])
   if (!path && !editing) return <div className="h-8 min-w-48 flex-1 rounded-md border bg-muted/40" />
   if (editing)
@@ -596,6 +597,7 @@ function NameDialog({ state, onClose, onDone }: { state: NameDialogState; onClos
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear stale errors and busy state before initializing the next file dialog.
     setError(undefined)
     setBusy(false)
     if (!state) return

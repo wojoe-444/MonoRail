@@ -28,6 +28,7 @@ export function useFlashcards<T>(method: string, args?: Record<string, unknown>)
     }
   }, [method, key])
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Reload the flashcard data when the request changes.
     void reload()
   }, [reload])
   return { data, setData, error, reload }

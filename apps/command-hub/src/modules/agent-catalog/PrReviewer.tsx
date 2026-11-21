@@ -39,6 +39,7 @@ export function PrReviewer({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (!isDesktop()) return
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Read reviewer settings on mount, then poll the backend while the page is open.
     void refresh().then((data) => { if (live) { setRepository(data.repository || ''); setModel(data.model || '') } }).catch((e: unknown) => { if (live) setError(String(e)) })
     void invokeModule<Template>('pr-review', 'template').then((data) => { if (live) { setTemplate(data); setPrompt(data.prompt) } }, (e: unknown) => { if (live) setError(String(e)) })
     const timer = window.setInterval(() => void refresh().catch(() => {}), 10_000)

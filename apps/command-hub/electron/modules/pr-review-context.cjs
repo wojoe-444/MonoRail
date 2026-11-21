@@ -4,7 +4,7 @@ const github = require('../connections/github-api.cjs')
 
 const REPO_RE = /^[A-Za-z0-9_.-]+[/][A-Za-z0-9_.-]+$/
 const SHA_RE = /^[a-f0-9]{40}$/i
-const PATH_RE = /^[A-Za-z0-9_.\/-]+$/
+const PATH_RE = /^[A-Za-z0-9_./-]+$/
 const MAX_GUIDANCE_FILES = 100
 
 function guidancePaths(files) {

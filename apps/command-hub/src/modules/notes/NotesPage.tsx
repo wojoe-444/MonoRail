@@ -35,7 +35,7 @@ export default function NotesPage() {
   const [error, setError] = useState<string>()
   const [deleting, setDeleting] = useState<NoteSummary>()
   const [historyOf, setHistoryOf] = useState<NoteSummary>()
-  const lastOpen = useRef<NoteSummary>(undefined)
+  const [lastOpen, setLastOpen] = useState<NoteSummary>()
 
   const reload = useCallback(async (q = query) => {
     try {
@@ -56,6 +56,7 @@ export default function NotesPage() {
   // Open the newest note on first load.
   useEffect(() => {
     if (!openId && list?.notes[0] && !query) {
+      // oxlint-disable-next-line react/set-state-in-effect -- Select the newest note and mount its editor when the initial list arrives.
       setOpenId(list.notes[0].id)
       setEditorKey((k) => k + 1)
     }
@@ -81,8 +82,9 @@ export default function NotesPage() {
 
   const notes = list?.notes ?? []
   // While a just-renamed note is not in the reloaded list yet, keep showing it.
-  const current = notes.find((n) => n.id === openId) ?? (openId ? lastOpen.current : undefined)
-  if (current) lastOpen.current = current
+  const listed = notes.find((n) => n.id === openId)
+  if (listed && listed !== lastOpen) setLastOpen(listed)
+  const current = listed ?? (openId ? lastOpen : undefined)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6">
@@ -343,6 +345,7 @@ function HistoryDialog({ note, onClose }: { note?: NoteSummary; onClose: () => v
   const [versions, setVersions] = useState<NoteVersion[]>()
   const [shown, setShown] = useState<{ oid: string; body: string }>()
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear historical content before requesting versions for the selected note.
     setVersions(undefined)
     setShown(undefined)
     if (note) void call<NoteVersion[]>('history', { id: note.id }).then(setVersions).catch(() => setVersions([]))

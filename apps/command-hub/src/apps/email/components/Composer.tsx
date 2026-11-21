@@ -18,6 +18,7 @@ export default function Composer() {
 
   useEffect(() => {
     if (compose) {
+      // oxlint-disable-next-line react/set-state-in-effect -- A new compose request replaces the local draft and clears the previous composer state.
       setDraft({ ...EMPTY, ...compose })
       setMin(false)
       setError(null)

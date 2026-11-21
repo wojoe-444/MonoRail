@@ -312,6 +312,7 @@ function VersionsDialog({ flowId, open, onOpenChange, onRestore }: { flowId: str
   useEffect(() => {
     if (!open) return
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the previous flow's versions before loading the requested history.
     setVersions(undefined)
     setPicked(undefined)
     call('flush', {})

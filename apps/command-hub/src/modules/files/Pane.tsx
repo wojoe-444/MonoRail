@@ -597,6 +597,7 @@ function ColumnsView({ root, ctx, sort, foldersFirst, showHidden, version, onPic
   const [picked, setPicked] = useState<Record<number, string>>({})
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the column selections when the pane navigates to a different root.
     setChain([])
     setPicked({})
   }, [root])

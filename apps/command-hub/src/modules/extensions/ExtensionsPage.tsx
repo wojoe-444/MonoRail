@@ -36,7 +36,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { extensionIcon } from '@/extensions/ExtensionIcon'
+import { ExtensionIcon } from '@/extensions/ExtensionIcon'
 import { refreshExtensions, takePendingSettings, useExtensionList } from '@/extensions/store'
 import type { ExtensionList, ExtensionSource, ExtensionSummary, InstallPreview, LogLine, PermissionLine } from '@/extensions/types'
 import { formatRelative } from '@/lib/format'
@@ -497,8 +497,7 @@ function ExtensionRow({ ext, busy, onToggle, onApprove, onReload, onUpdate, onRe
 }
 
 function RowIcon({ ext }: { ext: ExtensionSummary }) {
-  const Icon = extensionIcon(ext.id, '', ext.hasIcon)
-  return <Icon className="size-5" />
+  return <ExtensionIcon extensionId={ext.id} hasIcon={ext.hasIcon} className="size-5" />
 }
 
 function Notice({ tone, children }: { tone: 'warning' | 'destructive'; children: ReactNode }) {
