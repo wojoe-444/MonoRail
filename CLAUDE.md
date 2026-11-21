@@ -780,9 +780,10 @@ Ctrl+K anywhere in the hub (not in full-screen apps), or the top bar's search
 field (`data-tour="search"`), opens one search over Pages, Catalog, Chats,
 Settings and Wiki (scope chips; Tab cycles). `store.ts` holds open state
 (`openSearch({ scope, section, query })`); `sources.ts` is the index
-(`usePageIndex`, shared with Home's search; `searchTypes` over the standard's
-entity types; wiki pages lazy-imported; Chat's `listSessions` read on each
-open, archived left out). Empty, it shows the last five opened results
+(`searchTypes` over the standard's entity types, Wiki titles and summaries,
+Chat's `listSessions` with archived chats left out). The palette body loads
+on open, and `page-index.ts` also powers Home's page and Settings search.
+Empty, it shows the last five opened results
 (`monorail.search.recent` in `prefs`, targets only, never a path) and the
 standard's sections as tiles; a section lists its types by category. A type
 opens Explore at it through `openInExplore` (`modules/explore/handoff.ts`, in
@@ -1264,9 +1265,10 @@ code does today: update them in the same PR as any change to the manifest,
 `ctx`, the bridge, permissions or error codes.
 
 `wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
-is bundled at build time (`import.meta.glob` `?raw` in
-`src/modules/wiki/content.ts`, so it is offline and matches the installed
-version). Open a page from elsewhere with `openWiki(id, anchor)` from
+is bundled at build time, so it is offline and matches the installed version.
+The Wiki opens with its title, summary, audience and link index. It loads
+each Markdown body when opened and the full-text index when searched.
+Open a page from elsewhere with `openWiki(id, anchor)` from
 `modules/wiki/store.ts` (a test checks every `openWiki('<id>')` exists).
 
 ### The wiki is a linked notebook (Obsidian-style): write docs that way
