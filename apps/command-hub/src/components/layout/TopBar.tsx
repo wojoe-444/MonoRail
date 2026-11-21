@@ -1,7 +1,7 @@
 import { ChevronRight, Maximize, Minimize, Search } from 'lucide-react'
 
 import { DevTopBarItems } from '@/components/dev/TestProfileBar'
-import { isSettingsPath } from '@/components/search/sources'
+import { isSettingsPath } from '@/components/search/page-index'
 import { openSearch } from '@/components/search/store'
 import { Button } from '@/components/ui/button'
 import { useFullScreen } from '@/lib/fullscreen'

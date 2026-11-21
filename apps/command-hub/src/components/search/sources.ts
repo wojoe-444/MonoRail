@@ -1,97 +1,16 @@
-import { useMemo } from 'react'
-
-import { allApps } from '@/apps/registry'
-import { flattenNav, SETTINGS_PATH, SETTINGS_SECTION, useNavSections } from '@/components/layout/nav'
-import { useExtensionList } from '@/extensions/store'
 import { prefs } from '@/lib/prefs'
 import { invokeModule, isDesktop } from '@/modules/client'
-import { allModules, findModuleByPath } from '@/modules/registry'
-import { searchSettings } from '@/modules/settings/search'
-import { useSettingsPages } from '@/modules/settings/SettingsLayout'
-import type { IconComponent } from '@/modules/types'
 import type { SessionSummary } from '@/modules/agent-chat/types'
-import type { WikiPage } from '@/modules/wiki/content'
+import { pages as wikiPages, type WikiPage } from '@/modules/wiki/index-data'
 import { CATEGORIES, ENTITY_TYPES, SECTIONS, category, type EntityType } from '@/standard'
 
+import { matchesAll, rank, words } from './matching'
+
 /**
- * What the command palette (and Home's search) look through. Every source
+ * What the command palette looks through. Every source
  * reads what MonoRail already has in memory or on demand; nothing is cached
  * to disk, and only the last few opened results are kept, in `prefs`.
  */
-
-/** A page or a Settings page, card or option. */
-export interface PageHit {
-  kind: 'page' | 'setting'
-  label: string
-  detail: string
-  path: string
-  anchor?: string
-  icon?: IconComponent
-}
-
-/** Words of a query, lower case. */
-export const words = (query: string) => query.toLowerCase().split(/\s+/).filter(Boolean)
-
-/** 0 when the label starts with the first word, 1 when it contains it, 2 otherwise. */
-export function rank(label: string, ws: string[]) {
-  const l = label.toLowerCase()
-  return !ws.length ? 0 : l.startsWith(ws[0]) ? 0 : l.includes(ws[0]) ? 1 : 2
-}
-
-const matchesAll = (hay: string, ws: string[]) => {
-  const h = hay.toLowerCase()
-  return ws.every((w) => h.includes(w))
-}
-
-/**
- * Every page in the drawer (with its module's or app's description) plus the
- * Settings search (pages, cards and options). Settings pages come from the
- * Settings search only, so each is listed once.
- */
-export function usePageIndex(): { pages: PageHit[]; settings: PageHit[]; search: (query: string) => PageHit[] } {
-  const list = useExtensionList()
-  const sections = useNavSections()
-  const settingsPages = useSettingsPages()
-  return useMemo(() => {
-    const described = new Map<string, string>()
-    for (const m of allModules(list)) described.set(m.path, m.description)
-    for (const a of allApps(list)) described.set(a.path, a.description)
-    const settingsPaths = new Set(settingsPages.map((p) => p.path))
-    const iconOf = new Map(settingsPages.map((p) => [p.path, p.icon]))
-    const pages: PageHit[] = flattenNav(sections)
-      .filter((i) => i.path !== '/' && i.path !== SETTINGS_PATH && !settingsPaths.has(i.path))
-      .map((i) => ({ kind: 'page', label: i.label, detail: described.get(i.path) ?? '', path: i.path, icon: i.icon }))
-    const settings: PageHit[] = settingsPages.map((p) => ({
-      kind: 'setting',
-      label: p.path === SETTINGS_PATH ? 'Settings' : p.title,
-      detail: p.description,
-      path: p.path,
-      icon: p.icon,
-    }))
-
-    const search = (query: string) => {
-      const ws = words(query)
-      if (!ws.length) return []
-      // Best first: name starts with the first word, then name contains it,
-      // then a match elsewhere. Pages come before Settings on a tie.
-      const pageHits = pages.filter((h) => matchesAll(`${h.label} ${h.detail}`, ws)).map((h) => ({ h, score: rank(h.label, ws) }))
-      // searchSettings already checks every word and orders its own hits.
-      const settingsHits = searchSettings(query, settingsPages).map((s, i) => ({
-        h: {
-          kind: 'setting' as const,
-          label: s.label,
-          detail: s.page === s.label ? `Settings · ${s.detail}` : `Settings › ${s.page} · ${s.detail}`,
-          path: s.path,
-          anchor: s.anchor,
-          icon: iconOf.get(s.path),
-        },
-        score: rank(s.label, ws) + 0.5 + i / 1000,
-      }))
-      return [...pageHits, ...settingsHits].sort((a, b) => a.score - b.score).map((x) => x.h)
-    }
-    return { pages, settings, search }
-  }, [list, sections, settingsPages])
-}
 
 /** Entity types of the MonoRail standard that match every word, best first; optionally only one section's. */
 export function searchTypes(query: string, section?: string): EntityType[] {
@@ -115,16 +34,10 @@ export const SECTION_SUMMARIES = SECTIONS.map((s) => {
   return { id: s.id, name: s.name, categories: cats.length, types: types.length, examples: types.slice(0, 4).map((t) => t.name) }
 })
 
-/** The wiki's pages, loaded on first use so the docs stay out of the main bundle. */
-let wikiPages: Promise<WikiPage[]> | undefined
-export function loadWikiPages(): Promise<WikiPage[]> {
-  return (wikiPages ??= import('@/modules/wiki/content').then((m) => m.pages))
-}
-
-export function searchWiki(pages: WikiPage[], query: string): WikiPage[] {
+export function searchWiki(query: string): WikiPage[] {
   const ws = words(query)
-  if (!ws.length) return pages.filter((p) => p.id.startsWith('guide/')).sort((a, b) => a.title.localeCompare(b.title))
-  return pages
+  if (!ws.length) return wikiPages.filter((p) => p.id.startsWith('guide/')).sort((a, b) => a.title.localeCompare(b.title))
+  return wikiPages
     .filter((p) => matchesAll(`${p.title} ${p.summary} ${p.id}`, ws))
     .map((p) => ({ p, score: rank(p.title, ws) + (p.audience.includes('human') ? 0 : 0.5) }))
     .sort((a, b) => a.score - b.score)
@@ -208,6 +121,3 @@ export function addRecent(r: Recent) {
   const next = [r, ...readRecents().filter((x) => !same(x.target, r.target))].slice(0, RECENT_MAX)
   prefs.setItem(RECENT_KEY, JSON.stringify(next))
 }
-
-/** True on a Settings page: the palette then opens on the Settings scope. */
-export const isSettingsPath = (path: string) => findModuleByPath(path)?.nav.section === SETTINGS_SECTION
