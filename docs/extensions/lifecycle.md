@@ -13,7 +13,7 @@ From **Settings > Extensions > Install extension**:
 | From a GitHub release | MonoRail downloads the asset ending in `.monorail.zip` from the latest release of `owner/name`. The manifest's `repository` must match that repository. |
 | From a .zip | Unpacked and copied in. |
 | From a folder | Copied in. |
-| Load a folder for development | **Not copied**: MonoRail reads the folder in place. Rebuild, then press **Reload**. |
+| Load a folder for development | MonoRail reads the folder in place. Generate the UI before the first load, then rebuild and press **Reload** after UI changes. See the [tutorial](tutorial.md#6-run-it-in-monorail). |
 
 Every install is staged first (in `extensions/.staging`) and checked: a valid
 manifest, no unsafe paths in the zip ("zip slip"), at most 200 MB zipped,

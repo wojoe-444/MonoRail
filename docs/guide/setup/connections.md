@@ -63,3 +63,4 @@ connections are healthy, never read secrets.
 ## Related
 
 - [Setup overview](README.md) · [Email sign-in](../workspace/email.md)
+- [Connections backend](../../contributing/connections.md)

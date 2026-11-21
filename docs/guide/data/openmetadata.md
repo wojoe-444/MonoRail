@@ -156,3 +156,4 @@ Google BigQuery via your `gcloud` login (mirrored in your
 - [Explore](explore.md) · [Services & ingestion](services.md) ·
   [BigQuery metadata reference](../../bigquery-metadata.md) ·
   [The MonoRail standard](../../standard/README.md)
+- [Catalog implementation reference](../../contributing/openmetadata.md)

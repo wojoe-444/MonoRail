@@ -84,5 +84,7 @@ can replace in tests.
 
 ## In CI
 
-The starter's release workflow runs `npm test` before packing. MonoRail's
-own CI runs the starter's tests on every pull request.
+Both the starter's release workflow and MonoRail's sample-extension job run
+`npm ci`, `npm test` and `npm run pack`. Packing builds the ignored `ui/`
+folder before writing the installable ZIP. The sample job uploads it as a
+CI artifact.

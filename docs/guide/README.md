@@ -61,5 +61,5 @@ starts on **People**):
 
 - **For people**: plain-language guides requiring no code.
 - **For agents**: dense technical reference (file paths, schemas, contracts)
-  such as [extensions](../extensions/README.md) and
-  [caching](../caching.md).
+  such as the [developer reference](../contributing/README.md),
+  [extensions](../extensions/README.md) and [caching](../caching.md).

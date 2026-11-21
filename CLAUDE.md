@@ -1,1573 +1,197 @@
 # CLAUDE.md
 
-Guidance for Claude (and anyone else) working in this repository.
+MonoRail is a Windows desktop workspace for agents, developer tools and data
+catalogs. The app is in [apps/command-hub](apps/command-hub): React, TypeScript,
+Vite, Tailwind, shadcn/ui and Electron. The owner reviews the Windows installer
+locally, so keep `npm run dist:win` working.
 
-## What this project is
+## Private data and compatibility
 
-**MonoRail** is a desktop app for managing agents. The agent definitions
-it manages are stored in this repository (`wojoe-444/MonoRail`) under
-`agents/`. The app itself lives in `apps/command-hub/`: React 19 + Vite +
-TypeScript + Tailwind CSS v4 + shadcn/ui, wrapped in Electron so it ships as a
-Windows `.exe`.
-
-The owner reviews changes by running the `.exe` locally, so keep
-`npm run dist:win` working and treat "it builds and opens as an .exe" as part
-of done.
-
-### Formerly "Command Hub" (then "MonoHub"): names that must not change
-
-The app was renamed from Command Hub to MonoHub, then to MonoRail to match
-the repo. Installed copies update
-themselves in place, so a few internal names keep the old spelling on
-purpose. Changing any of them breaks updates or strands the user's data:
-
-- `appId` `dev.monorail.commandhub` (electron-builder.json): the installer's
-  identity. A new appId installs a second app instead of upgrading.
-- `"name": "command-hub"` (package.json): sets the install folder
-  (`%LOCALAPPDATA%\Programs\command-hub`) and the updater cache folder.
-- The `publish` block (GitHub releases of `wojoe-444/MonoRail`) and the
-  `latest.yml` asset name. Installer asset names may change, because the
-  updater finds the installer through `latest.yml`.
-- `window.commandHub`, `CommandHubBridge` and the `commandHub.*`
-  localStorage keys are internal and were left as they are.
-
-`electron/userData.cjs` picks the data folder before the app is ready: the
-existing one that holds data, newest name first (`%APPDATA%\MonoRail`, then
-`MonoHub`, `command-hub`, `Command Hub`), or a new `MonoRail` folder on a
-clean machine. It **never moves, renames or copies** a data folder: an earlier
-version renamed the old folder on startup and caused trouble for a test
-user. Always reach the folder through `app.getPath('userData')` /
-`ctx.dataDir`; the paths below say `%APPDATA%\MonoRail`, but older installs
-keep their original folder.
-
-## The one hard rule: private data stays in AppData
-
-**This repository is public.** Never commit private or user-specific data:
-API keys, tokens, passwords, emails, personal settings, run history, logs, or
-anything copied from the user's machine.
-
-- At runtime that data lives in local AppData. In Electron, use
-  `app.getPath('userData')` (on Windows `%APPDATA%\MonoRail`). Do not
-  invent other locations, and never write it inside the repo folder.
-- Sample or demo data in the repo must be fictional (see
-  `apps/command-hub/src/data/sample.ts`).
-- The root `.gitignore` blocks common secret files (`.env*`, `AppData/`,
-  `secrets/`, `*.local.json`, keys, certificates). Do not weaken those rules.
-  If a new kind of private file appears, add a rule for it.
-- Before committing, check `git status` and the diff for anything personal.
-
-## Profiles: whose data a backend reads
-
-A **profile** is one person's settings and data (docs: `docs/profiles.md`,
-code: `electron/profiles/index.cjs`). No passwords, no sign-in, not a security
-boundary. Today there is one, the **default profile**, and its folder IS the
-data folder above: existing data is read in place and nothing is moved,
-renamed or copied to make it so. Every folder has a scope in `SCOPES`
-(`profile`: appearance, connections, backups, Flashcards, Jira+, GitHub+,
-Email, Chat state, Agent access; `machine`: updates, installed extensions,
-Claude Stats' report of this computer's logs, Storage, Remote access,
-`profiles.json`); a
-test fails when a backend or declared data folder has none. Later profiles
-live in `<data folder>\profiles\<id>\`. Backends reach other folders with
-`ctx.layout.folder('<folder>')` (main-process singletons: `appLayout()`),
-never `app.getPath('userData')`; pages keep per-person preferences with
-`prefs` (`src/lib/prefs.ts`) instead of `localStorage`, which keeps the old
-keys for the default profile. `profiles.json` is written only when the user
-changes a profile (Settings > Profile), never over a damaged file. Copying data
-into a new profile must be user-started and per item, never automatic.
-
-**New user tour** (`src/components/tour/`, guide
-`docs/guide/first-ten-minutes.md#take-the-tour`): a spotlight overlay
-(`TourHost` in `App.tsx`) that walks through the rail, Home, Bots, Tools,
-Wiki, Settings, the breadcrumb and the full screen button. Steps are in
-`steps.ts` and point at elements marked `data-tour="<target>"` (rail buttons
-are `nav:<path>`; a missing target shows the card centered). It opens by
-itself once per profile (pref `commandHub.tour.seen`, set when it closes; not
-below 768px wide) and again from Home's "Take the tour" or the Settings >
-General card (`TourCard.tsx`). It reads and stores nothing else.
-
-**Developer Mode** (Settings card `src/components/dev/DeveloperModeCard.tsx`,
-self-contained so it can move; guide `docs/guide/setup/developer-mode.md`):
-off by default, kept in the machine-wide `commandHub.devMode` key (not
-`prefs`, so it survives the test profile). It adds the element inspector
-(`components/dev/Inspector.tsx`, `inspect.ts`: names the React components
-above a hovered element from its fiber; production builds keep names via
-rolldown `output.keepNames` in `vite.config.ts`), F12 for Chromium DevTools
-(`electron/modules/developer.cjs`) and the hidden **New User** profile
-(`new-user`): switching restarts the app and `resetBlankProfile()` wipes only
-`profiles\new-user` at that start (docs/profiles.md). A top-bar chip with the
-way back shows whenever New User is open.
+- This repository is public. Keep settings, credentials, emails, run history
+  and logs out of the checkout. Use fictional samples. Review the final diff
+  for personal data and keep the secret exclusions in `.gitignore`.
+- Use the [profile layout](docs/profiles.md) for private data. Give each data
+  folder a scope in `electron/profiles/index.cjs`. Use `ctx.dataDir` for a
+  backend's own folder and `ctx.layout.folder(...)` or `appLayout()` to reach
+  other scoped folders. Use `src/lib/prefs.ts` for per-profile UI preferences.
+  Profiles organize local data and share the same OS account.
+- Preserve backward compatibility with existing installations.
+  `electron/userData.cjs` opens the first existing data-bearing folder in
+  this order: `MonoRail`, `MonoHub`, `command-hub`, `Command Hub` in
+  `%APPDATA%`. If none holds data, use the first existing folder or
+  `MonoRail` on a clean machine. Leave folders in place and get the resolved
+  root through `app.getPath('userData')`.
+- Keep the installer `appId` (`dev.monorail.commandhub`), npm package name
+  (`command-hub`), GitHub publish destination (`wojoe-444/MonoRail`), and
+  `latest.yml` stable. Keep `window.commandHub`, `CommandHubBridge` and
+  existing `commandHub.*` storage keys stable. Keep the legacy Tasks
+  identifiers and data paths in the [GitHub+ and Tasks reference](docs/contributing/git-workspace.md#tasks).
+- Treat damaged user files as errors. Keep the last usable data when a write
+  fails. [Local database](docs/local-database.md) migrations are additive and
+  require a backup before upgrading a database with rows.
+- Debug first-run behavior with [Developer Mode's New User profile](docs/profiles.md#new-user-developer-modes-test-profile).
+  Only that profile's folder is reset. Creating a profile copies data only at
+  the user's request, item by item.
 
 ## Commands
 
-Run from `apps/command-hub/`:
+Run these in `apps/command-hub/` with Node 22 as in CI.
 
-| Command | What it does |
+| Command | Purpose |
 | --- | --- |
-| `npm run dev` | Vite dev server in the browser |
-| `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. The HTTP server and codec are shared in `electron/bridge/` (`server.cjs`: token check, origin check, JSON only, server-sent events). Extension UIs (`monorail-ext://`) don't load in the browser. |
-| `npm run desktop` | Electron window pointed at the dev server (hot reload) |
-| `npm run build` | Type-check and build the web bundle to `dist/` |
-| `npm run lint` | Oxlint, with any warning treated as a failure |
-| `npm test` | Backend and frontend tests |
-| `npm run test:backend` | Node tests for backends (`electron/**/*.test.cjs`) |
-| `npm run test:frontend` | Vitest unit tests (`src/**/*.test.ts`) using Vite's module resolution in Node |
-| `npm run dist:win` | Build the installer `release/MonoRail-Setup-<version>.exe` |
-| `npm run dist:win:portable` | Build a portable `.exe` (cannot self-update) |
-
-Oxlint keeps the React rules active. Existing effect and render-clock exceptions
-name the rule and explain the specific site. Fast Refresh exceptions in
-`.oxlintrc.json` name individual helper exports and their files.
-
-CI (`.github/workflows/ci.yml`) builds and lints on every PR and produces the
-installer on a Windows runner as a downloadable artifact. On every push to
-`main` it stamps the version as `<major>.<minor>.<run number>` and publishes a
-GitHub release; the Settings page (`modules/settings`, backed by
-`electron-updater`) checks those releases and installs updates in place. Bump
-major/minor in `package.json` by hand; never publish from a local machine.
-The settings backend also checks on its own (`start()`: 30 s after startup,
-then every 4 hours), and `src/modules/settings/UpdateToast.tsx` shows a
-lower-right pop-up when an update is available: "Download and Restart",
-"Ignore for six hours" (kept in `commandHub.updateSnoozeUntil`) and X (hidden
-until the next check). It is self-contained, so it moves with Settings.
-
-**Release notes.** Each release's body is its "What's new" list, written by
-`scripts/release-notes.cjs` in the publish step from the PRs merged since the
-previous release (format and parser: `electron/release-notes.cjs`). Every PR
-description therefore gets a `## What's new` section (see
-`.github/pull_request_template.md`): one bullet per user-visible change,
-`- **Short title**: one plain sentence`, written for people using the app, not
-developers (no file names, no internals); without it the PR title is used.
-Release notes are public: no personal paths, names or test-user details (the
-script also strips home-folder paths and emails). When an update is
-available, the settings backend reads the public release list once
-(api.github.com) and keeps every release between the installed and the latest
-version (`changes`); `src/modules/settings/WhatsNew.tsx` shows them in Settings
-and, briefly, in the pop-up. The "Release notes" workflow (manual) rewrites
-older releases' notes.
-
-## Code layout (`apps/command-hub/src`)
-
-- `components/ui/` shadcn/ui primitives. These are owned source, edit freely.
-  Add new ones in the same style (Radix primitives from `radix-ui`, `cva`,
-  `cn()`); the shadcn CLI registry may not be reachable from every
-  environment.
-- `components/layout/` app shell: `SideNav`, `TopBar`, `PageHeader`, and
-  `nav.ts` (the single list of navigation items).
-- `pages/` built-in pages (Home and placeholders).
-- `modules/` feature modules (see below). `modules/registry.ts` lists them.
-- `apps/` apps with their own look: Workspace pages or full screen (see below). `apps/registry.ts` lists them.
-- `extensions/` the renderer half of installed extensions (store, frame host, contributions).
-- `components/charts/` data-viz primitives: series palette, `StatTile`,
-  `Legend`, `ChartTooltipContent`. Charts use Recharts.
-- `lib/router.ts` tiny hash router (`useRoute`, `navigate`); hash routes work
-  with Electron's `file://` loading.
-- `data/` fictional sample data only.
-- `index.css` design tokens (light and dark defaults = the "Sand & Ink"
-  palette), fonts, chart series.
-- `lib/palettes.ts` the color schemes (picture schemes add a `backdrop`: a
-  drawing from a module in `scripts/backdrops/`, rendered by `npm run backdrops`
-  into WebP files in `src/assets/backdrops/` with a pre-blurred copy that the
-  glass shows; the glass rules at the end of `index.css` never use a live
-  `backdrop-filter`, which made scrolling lag); `lib/theme.ts` applies the chosen
-  palette and light/dark mode; `components/theme/ThemePicker.tsx` holds the
-  Settings "Appearance" card, the only place to pick them.
-
-## Modules: the main building block
-
-New features ship as **modules**. A module owns one nav entry, one route, one
-page and, optionally, a backend that reads local data in the Electron main
-process. The contract is `ModuleDefinition` in `src/modules/types.ts`.
-
-To add a module:
-
-1. `src/modules/<id>/index.ts` exports a `ModuleDefinition` (id, title,
-   description, icon, `path`, `nav.section`, lazy `component`).
-2. Add it to `src/modules/registry.ts`. The nav, router and top bar pick it up.
-3. If it needs local data, write `electron/modules/<id>.cjs` exporting
-   `{ id, methods: { name: async (ctx, args) => result } }` and add it to
-   `electron/modules/index.cjs`. `ctx.dataDir` is the module's private folder
-   (`%APPDATA%\MonoRail\modules\<id>` for the default profile); keep caches
-   and settings there. Give the folder a scope in `SCOPES`
-   (`electron/profiles/index.cjs`). A method that needs this PC's screen (a
-   system dialog, Explorer, a terminal, DevTools, a restart, a link opened in
-   the PC's browser) goes in the backend's `desktopOnly: ['method']` list
-   (`electron/bridge/desktop-only.cjs`; a test fails when a method calls
-   `dialog`/`shell`/`BrowserWindow`/`autoUpdater` without it). The optional
-   Remote access mode (phone, off by default, see below) never runs those; in
-   the page, `hasLocalScreen()` says whether to offer them.
-4. In the page, call it with `useModuleQuery(id, method)` or
-   `invokeModule(id, method, args)` from `src/modules/client.ts`. In the
-   browser dev server there is no backend (`isDesktop()` is false), so ship
-   fictional sample data for that case.
-
-The renderer stays sandboxed: `electron/preload.cjs` exposes only
-`window.commandHub.invoke(moduleId, method, args)`, `on(channel, cb)` for
-the two extension push channels and `window:fullscreen`, and
-`toggleFullScreen()` / `isFullScreen()` (`electron/window-fullscreen.cjs`:
-F11 or the top-bar button toggles the window's full screen mode).
-
-`claude-stats` is the reference module (shown as the **Claude Stats** tab of
-Bots > Dashboard, `src/pages/agents/DashboardLayout.tsx`, not a drawer item:
-`nav.hidden`): its backend runs the bundled
-`ccusage` binary (native packages are unpacked from the asar via
-`asarUnpack`) for Claude Code's daily API-equivalent cost, and
-`electron/modules/claude-stats-scan.cjs` reads the raw logs of every source
-it knows (Claude Code, Gemini CLI, pi; one reader each, a missing source is
-reported as not found) into day x session x model x role x 50K context-step
-rows, plus per-turn prompt sizes, compactions and session phases (driver
-model + subagent models; new phase on driver change or a 2-hour idle gap).
-Both go into one cached JSON report in its data folder (cache
-`claude-stats.usage`: opening the page only reads it; it is rebuilt every 15
-minutes while the app runs, retried an hour after a failure, or on Refresh). List prices, with
-prompt-size tiers, live in one table, `claude-stats-prices.json`, shared by
-the backend and the page (`src/modules/claude-stats/pricing.ts`); a test
-fails if a model in the local logs has no row. The page turns the report into
-priced facts in `facts.ts`: Claude Code rows are scaled to ccusage's cost per
-day and model, pi's logged per-token-type cost is used as logged, anything
-else is priced from the table, and any split that is not logged is labelled
-an estimate. Effort comes from Claude Code's per-response `effort`
-field and pi's `thinking_level_change` entries (followed along the branch);
-thinking tokens from Claude Code's `output_tokens_details.thinking_tokens`
-and Gemini's `thoughts`. pi logs no thinking count, so its count is estimated
-from the thinking text (~4 characters a token) and shown with "~".
-The page charts both: spend, output and effort mix over time by level, cost per
-model call and per million output by model and level, and thinking share of
-output by model (`effort.ts`, `components/EffortCards.tsx`). Levels are ordinal,
-so they share one hue in steps of strength; "Not logged" is the Other grey.
-Only sessions that log on this computer are counted: cloud sessions (Claude
-project threads, Claude Code on the web) keep their transcripts on Anthropic's
-servers, there is no public API for their usage, and the page header says so.
-
-**Caches** go through the shared primitive in `electron/cache/` (rules and
-examples: `docs/caching.md`). Every cache, and every other file a backend keeps
-in its data folder, is declared in `electron/cache/declared.cjs` with its tier,
-version, time limits and content policy; opening an undeclared cache throws and
-a test fails on an undeclared `*_FILE`. Cache files are written atomically, a
-lock file lets one build run at a time, a failed build backs off and keeps the
-last good result, and pages only read a cache on open: slow builds run from a
-Refresh button or the background schedule (`cache.schedule` from `start(ctx)`).
-After each build a module may write a small summary file; Home reads only those
-(`home.getSummaries`). Pages show `CacheStatusBadge` for cached data.
-
-`agent-chat` (**Chat**, under Agents) lists every local Claude Code
-(`~/.claude/projects`, `~/.config/claude` or `CLAUDE_CONFIG_DIR`) and pi
-(`~/.pi/agent/sessions` or `PI_CODING_AGENT_DIR`) session and shows one as a
-read-only transcript (`electron/modules/agent-chat.cjs`). Logs are read in
-place, never copied or cached to disk, and the page only names a session by
-the id the backend handed out, never a path. pi sessions are trees; the
-transcript follows the branch ending at the last entry. **Allowed folders**
-(`agent-chat-folders.cjs`): a chat is listed, opened or run only if its
-folder resolves (real path, following symlinks and junctions) into a git repo
-directly under the Repos folder (default `~/Repos`) or a repo added in the
-page's Folders dialog; folders are picked in the system dialog, and every
-request re-resolves them. Read limits: the list reads the 300 newest logs and
-keeps 60 chats; a history is at most the last 4 MB and 300 messages, and the
-page says when it was cut.
-
-**Sending** (Claude for now): each message runs one turn in a worker process
-(`agent-chat-worker.mjs`, run with MonoRail's own executable in
-`ELECTRON_RUN_AS_NODE` mode) that drives the Claude Agent SDK against the
-user's own installed `claude` executable (the SDK's bundled native binary is
-excluded from the installer). The job and prompt go to the worker on stdin,
-never argv; `agent-chat-turns.cjs` keeps one turn per chat, kills the whole
-process tree on Stop, times out after 30 minutes and logs metadata only
-(session id, SDK, model, mode, outcome). The page polls `pollTurn` for events.
-Options come from `agent-chat-options.cjs`: **Ask** (default) offers only
-Read/Grep/Glob with no MCP servers; **Agent** uses Claude Code's normal
-permission rules. Every approval prompt is denied and shown in the thread.
-`assertNoBypass()` refuses any options that would bypass permissions, and the
-settings overlay disables bypass mode; never weaken either. A continued chat
-runs only in its own folder, re-checked against the allowed folders. The
-running cost total per session is kept in `costs.json` in the module's data
-folder (numbers only) so a resumed turn's own cost can be worked out.
-**Spending limit** (Settings > General card `src/components/spending/SpendingCard.tsx`,
-self-contained so it can move; Chat's meter and banner in
-`SpendingNotice.tsx`; backend `agent-chat-spending.cjs`; guide
-`docs/guide/setup/spending-limit.md`): off by default. When on, a daily and/or
-monthly USD limit for turns MonoRail runs (Chat, coordinator and its child
-turns, `ask_coordinator`), a warning at 50/80/90%, and at the limit either
-stop new turns (default; `checkBeforeTurn` in `startTurn`, so every caller is
-covered, and "Allow one more turn" lets one through) or only warn. A running
-turn is never cut off. Each finished turn's own cost is booked from its
-`onFinish` (Claude: the delta against `costs.json`, skipped when unknown; pi:
-the logged cost). `spending.json` in Chat's data folder holds settings and
-one total per day (numbers only), is written only while the limit is on,
-synchronous with a lock file (the coordinator worker and MCP server book
-turns too), and a damaged file pauses turns until the user resets it.
-**pi** (`agent-chat-worker-pi.mjs`) runs through the user's own pi coding
-agent SDK, found behind the `pi` command (`findPiSdk`: PATH plus the usual
-npm/pnpm/bun/Volta/scoop folders, reading the command's shim to find the
-package; `@earendil-works/pi-coding-agent`, or `@mariozechner/...` for pi
-0.x). MonoRail does not bundle it; the worker handles pi 1.x (`ModelRuntime`)
-and 0.x. pi has no approval prompts, so its limits are the tool list and a
-path guard: Ask gets read/grep/find/ls, Agent adds edit/write, every tool path
-must resolve (real path) inside the chat's repo, the user's pi extensions are
-not loaded, and no mode ever gets bash. Effort maps to pi's thinking level
-(Max = xhigh). A started chat keeps its SDK; new chats pick one in the
-status bar (remembered).
-
-**System prompts** (page header "Prompts", `agent-chat-prompts.cjs`,
-`system-prompts.json` in the data folder): one per agent (Claude, pi,
-coordinator), either added to the built-in prompt (default) or replacing it
-(the page warns that this drops Claude Code's tool guidance). The main process
-reads the file when a turn starts and puts the prompt on the job, never taken
-from the page's turn request, so coordinator child turns get it too. Claude
-gets the SDK's `systemPrompt` (preset + append, or custom; `snapshot: true`, so
-a started chat may keep its first prompt); pi gets the resource loader's
-`systemPromptOverride` / `appendSystemPromptOverride` (never the plain options,
-which pi reads as a file path), and an older pi that ignores them is refused.
-The coordinator can only append (its instructions are `coordinator.md`).
-`assertNoBypass` skips the prompt text only; a prompt never changes tools or
-permissions.
-
-**Plain / Detailed** (status bar, remembered; Plain is the default). Detailed
-shows reasoning above the tool rows and, after each reply, one row per model
-call (model, cost, input, cache read, cache write, output; subagent calls
-counted apart) with the reply's total and call count. Reasoning is only
-requested from the SDK in Detailed mode, so Plain replies never have it.
-History transcripts carry `usage` per assistant message, and Claude subagent
-logs (`<session>/subagents/`) supply subagent calls. A call's cost is the
-logged cost when there is one (pi); otherwise the reply's cost is split by
-token weight (output 5x input, cache write 1.25x, cache read 0.1x) and marked
-as an estimate (`src/modules/agent-chat/cost.ts`). **Totals**: Claude's comes
-from the last cost record in `costs.json` (marked incomplete if the log
-changed after it), pi's is every paid entry in the file, abandoned branches
-included; past the 4 MB read limit only spend since opening is counted, and
-the page says so. A total never reads complete when it is not.
-
-**List flags** (`agent-chat-state.cjs`, `chat-state.json` in the data folder,
-keyed by chat id, flags and times only): unread (the log changed after the
-chat was last seen, or marked by hand; an opened unread chat stays unread
-until it is left; a reply that finishes while watching counts as seen),
-archived, and started-here. Claude chats whose log says they were started
-headless (`entrypoint` `sdk-*`) and not from this page are tagged Scheduled.
-Scheduled and archived chats are hidden behind toggle buttons; the open chat
-always stays listed. Right-click a chat to mark it read/unread or archive it.
-The list is laid out like T3 Code's thread list: one flat newest-first list
-(repo above the title, branch below), then two sections pinned to the bottom,
-both closed by default (open state in the `commandHub.chat.listSections`
-pref): **Working** (a turn is running in this app: the page's own turns plus
-the backend's `runningChats`, ids only, polled every 5 s while the page is
-open; main-process turns only, so coordinator child turns and the MCP
-server's, which run in other processes, are not shown) and **Settled** (read and not updated for 2 days, `SETTLED_AFTER_MS`).
-
-**Side panels** (page header buttons): **Changes** runs `git status` and
-`git diff HEAD` for the chat's folder (`agent-chat-changes.cjs`; read-only,
-folder from the main process, external diff/textconv/fsmonitor off, diff cut
-at 1 MB). **Browser** shows any http(s) address in a sandboxed iframe, with
-"Open in new tab" going to the system browser.
-
-**Coordinator** (pinned above the chat list): opens the latest coordinator
-chat or starts one. It runs the user's `coordinator` subagent
-(`~/.claude/agents/coordinator.md`, found by `findCoordinator`) with the
-`agent` option, or, when there is none, MonoRail's built-in definition
-(`BUILTIN_COORDINATOR`, passed as the SDK's `agents` option; never when the
-user has their own), in the module's own `coordinator` folder in its data folder,
-with `dontAsk`, built-in tools limited to `Agent` and `Workflow`, and one
-MCP server: MonoRail's in-process chat tools (`agent-chat-coordinator.cjs`,
-served by the worker as `mcp__monorail__*`: list_chats, read_chat,
-send_to_chat, start_chat, wait_for_reply). Those run child turns through
-Chat's own `startTurn`, so the allowed folders, Ask/Agent and
-`assertNoBypass` all apply; coordinator chats are never targets, a chat whose
-log changed in the last minute is refused, and child turns stop when the
-coordinator's turn ends. Other agents reach it through the MCP server's
-`ask_coordinator` write tool (consent per agent, logged). A lock file per
-chat (`agent-chat-locks.cjs`, `turn-locks/` in the data folder, pid and time
-only) keeps one turn per chat across the app, coordinator workers and the
-MCP server, which also breaks loops. `coordinatorToolsNote` warns when the
-subagent's own `tools:` line would hide the chat tools. Claude only: pi has
-no subagents, so a coordinator job on pi is refused. Its chats are listed
-apart, first. The entry is greyed out only when Claude Code is missing.
-Subscription logins are fine here: MonoRail drives the user's own unmodified
-`claude` executable, signed in through Anthropic's own flow, and never
-handles the token.
-
-The **Agents** page (`/agents`, `src/pages/agents/`) is the overview over
-Runs, Library and Chat. Its backend (`electron/modules/agents.cjs`) keeps no
-files: it reuses Agent Chat's session list, composer info and running turns
-in process, reads the Claude Stats summary (never builds a report), and lists
-agent definitions (`agents-definitions.cjs`: Claude Code subagents in
-`.claude/agents`, skills in `.claude/skills/*/SKILL.md`, pi skills in
-`~/.pi/agent/skills` / `.pi/skills`, pi subagents in `~/.pi/agent/agents` /
-`.pi/agents`, from the home folder and each allowed
-repo; frontmatter only, bodies on demand by id, never a path). Archived chats
-are left out. Quick launch and "Open" hand over to Chat with
-`openInChat()` (`src/modules/agent-chat/handoff.ts`, in memory only); a
-handed-over prompt is prefilled in the composer, never sent by itself.
-
-**Agent Catalog** (`agent-catalog`, Agents > Catalog, docs:
-`docs/guide/agents/catalog.md`): Claude Code subagents (`~/.claude/agents`,
-`<repo>/.claude/agents`) and pi subagents (`~/.pi/agent/agents`,
-`<repo>/.pi/agents`, the files pi's subagent extension reads) from the home
-folder and Chat's allowed repos, plus the built-in coordinator (read-only,
-"Make my own copy"), and built-ins from `agent-catalog-builtins.cjs` (Storage
-Detective: look-only tools plus the MCP `storage_scan` read tool, a prompt that
-never deletes or moves; "Add to Claude Code" copies it to `~/.claude/agents`;
-the browser sample must carry the same text, a test checks). A plain-language explainer per subagent
-(`src/modules/agent-catalog/explain.ts`: tools in words, strength, "It
-cannot") and create / edit / duplicate / delete
-(`electron/modules/agent-catalog.cjs`). The page names subagents by id and a
-save place as `user` or an allowed repo's name, never a path; the agents
-folder must resolve inside its base; edits refuse a file changed on disk since
-it was opened and never touch a linked file; unknown header fields are kept.
-Every edit or delete first copies the file to `backups/` in the module's data
-folder (newest 200). Nothing is cached.
-
-**Mochi crew** (`src/components/mochi/`, docs: `docs/guide/agents/mochi-crew.md`): agent
-characters in the K1 Mochi app-icon family (dough body, dot eyes, never a
-mouth, never a robot). A character is a role (layers of static SVG in
-`characters.ts`: body, eyes, headwear, held props, tile props) times a flavor
-(`flavors.ts`: 42 flavors of three OKLCH numbers each, expanded with a 3:1
-accessory contrast check; `Classic` is the icon's own palette and belongs to
-the Coordinator). Layers use only the flavor's CSS variables, except the fixed
-props listed in the docs. `AgentMochi` picks the role from the name (last word
-first) and then the description (`match.ts`), and the flavor from the role
-default or a hash of the name. Nothing is stored. The SVG is inserted as
-markup, so only repo-authored strings may go into it, never agent or user text.
-Shown on Agents definitions, Chat's Agent/Task tool rows and the Coordinator
-entry; Agents > Characters is the gallery.
-
-`connections` (**Connections**, a Settings page) is the one place for the
-accounts MonoRail signs in with. Connectors live in `electron/connections/`
-(contract at the top of `index.cjs`): fields, a `status()` returning
-`ok | expired | needs-setup | error | unavailable`, actions such as "Sign in
-again" that run as polled jobs, and an optional `credentials()`. **Opt-in, always:** a
-connector runs nothing (no `status()`, action, process, file probe or network
-call) until the user sets it up; test users must never have MonoRail probing
-tools or accounts they did not ask about. `createConnections` enforces it
-centrally (a check of a connector that is not added returns a "not set up"
-status without calling `status()`, `runAction` and `getCredentials` refuse,
-`claudeAccount()` is undefined), there is no startup check, and the page
-checks only added connections (on open, Check, Check all, and on window focus
-only after a sign-in started there). New connectors need nothing extra, but
-must not run code outside `status()`, actions, `credentials()`, `afterSave`
-and `afterRemove`. Other
-backends get credentials with `require('../connections/index.cjs').getCredentials(kind)`
-in the main process; the page never receives secrets. Secret fields are
-encrypted with safeStorage in `%APPDATA%\MonoRail\modules\connections`
-(saving refuses without encryption). Connectors so far: `gcloud` (detects
-the CLI login and Application Default Credentials; sign-in runs
-`gcloud auth login` then `gcloud auth application-default login`),
-`atlassian` (site + email + API token, pasted or read each time from a named
-generic credential in Windows Credential Manager via PowerShell CredRead,
-never copied; Jira+ uses it) and `claude` (Claude Code / Agent SDK
-login read from `~/.claude/.credentials.json` without exposing tokens; sign-in
-opens a terminal running `claude auth login`). The Claude connector also sorts
-the login into an **account type** (Subscription, API, Enterprise, Unknown)
-from `claude auth status --json` (falling back to the credentials file and
-which auth environment variables are set, never their values), shown as a
-badge; its one setting, `accountType`, overrides the detection. Signing in
-through claude.ai does not mean a subscription: Enterprise logins bill at API
-prices. Anything that shows Claude costs uses it (`claudeAccount()` in
-`electron/connections/index.cjs`, `useClaudeAccount()` and
-`ClaudeAccountBadge` in `src/modules/connections`; Claude Stats shows it, Home
-reads it from `connections.summary`). `pi` detects the pi coding agent with
-Chat's `findPiSdk` (either npm package name), its version, and the providers
-in pi's `auth.json` (names and login kind only; credential values are dropped
-on parse). Its one setting is **scoped models** (default
-`anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5,
-anthropic/claude-opus-5-5`): saving the connection (connector `afterSave`) or
-its "Apply scoped models" action writes them as `enabledModels` in pi's global
-`settings.json` (`PI_CODING_AGENT_DIR` or `~/.pi/agent`), as pi's own
-`/scoped-models` does, under pi's `settings.json.lock` and keeping every other
-key; the check flags when pi's list has drifted. **openai** covers an OpenAI API key (OPENAI_API_KEY variable, pasted and
-encrypted, or a Credential Manager entry read each time) and the Codex CLI.
-Its check starts no program and makes no request: variables are checked for
-presence only, `codex` is found on PATH by file (version from its npm
-package.json), and Codex's `auth.json` (`CODEX_HOME` or `~/.codex`) yields only
-the login mode and ChatGPT plan claim; a keyring login is reported, not read.
-The one request, `GET /v1/models`, is the user's "Test API key" action (result
-kept in memory, keyed by a hash of the key). Connectors must not probe for
-accounts the user has not added. Connectors may be **subconnectors**
-(`parent: '<kind>'`), drawn as indented rows under the parent's row ("Add-on"). The
-first is **pi > Playwright browser** (`connectors/pi-playwright.cjs`): pi's
-`pi-playwright` skill package drives the user's own Chrome or Edge tabs via
-`@playwright/cli attach --extension`, which opens the Playwright Extension's
-connect page (extension id `mmlmfjhmonkocbjadbfplnigmagldckm`) where the user
-picks a tab. The check reads pi's `packages` list and the installed
-package.json files, and in the browser's user data folder only the last-used
-profile name and which profile folders have the extension. It reports whether
-`PLAYWRIGHT_MCP_EXTENSION_TOKEN` is set, never its value. Settings: browser,
-profile folder, and "Teach pi", which writes a MonoRail-marked
-`use-my-browser` skill to pi's skills folder (never overwrites a foreign one;
-removed when off or on removal). Actions: install in pi (terminal), get the
-extension (store page in the chosen browser), and Test connection (attach then
-detach, run with MonoRail's executable as Node, no shell). The second is
-**Claude > Playwright browser** (`connectors/claude-playwright.cjs`): saving
-runs `claude mcp add playwright-extension --scope user` (never edits
-`~/.claude.json`; only reads that one entry) for `npx -y @playwright/mcp@latest
---extension` (`cmd /c npx` on Windows; `--browser msedge` for Edge), with
-`MONORAIL_MANAGED=1`, the profile folder and the optional extension token as
-`-e` values (`quoteArg()` in `run.cjs` lets a value keep its space). It only
-replaces or removes an entry carrying that mark and refuses a foreign one.
-The token is a secret field, checked in `validate()` (which receives the
-secrets typed in that save) and redacted from every status, error and job
-note, since `claude mcp get` prints env values. Test connection runs `claude
-mcp get` (Claude Code starts the server; no browser window) and keeps only
-its Status line. Chat does not load user MCP servers, so it only affects
-`claude` in a terminal. **github** is the github.com account GitHub+ uses
-(`connectors/github.cjs`, client `electron/connections/github-api.cjs`): the
-user's own GitHub CLI login (default; MonoRail runs `gh api` with fixed
-arguments, request bodies on stdin, and never reads the token), a pasted token
-(encrypted) or a Credential Manager entry read each time. `credentials()`
-returns `{ via: 'gh' }` or `{ via: 'token', token }`; only api.github.com is
-called. `hasConnection(kind)` in `index.cjs` says whether a connection is
-added without running anything. `git` stores nothing and
-reports the version, global `user.name` / `user.email` and the credential
-helper's name; it never runs `git credential`. `docker` (optional) checks
-the user's own Docker and lazydocker for the Docker page (see below). `openmetadata` (optional) is an
-OpenMetadata server and a bot token or login for the OpenMetadata page (see
-"The MonoRail standard"). Command-line tools only get
-fixed arguments (`run.cjs`). Tests: `electron/connections/connections.test.cjs`.
-
-`mcp` (**Agent access**, a Settings page) shows how to connect agents to
-MonoRail's **MCP server** (`electron/mcp`, docs: `docs/mcp.md`). Agents start
-it as `MonoRail.exe --mcp`: `main.cjs` then opens no window and runs
-`electron/mcp/server.cjs` in `ELECTRON_RUN_AS_NODE` mode with stdio inherited
-(`launch.cjs`; the launcher's own Chromium files go to a temp folder, never a
-data folder). stdio only, never a network port; stdout carries protocol
-messages only (logs go to stderr, metadata only). The protocol layer
-(`protocol.cjs`, no SDK dependency) and tools (`tools.cjs`) run outside
-Electron, so tools read MonoRail's data folder from disk and never `require`
-Electron: summary files (`claude-stats.summary`, `connections.summary`, the
-latter written after every connection check), Storage's saved scans
-(`storage_scan`), Chat's `listSessions` (allowed
-folders only), GitHub+ issues for repos in its recents only, and Jira+'s local
-repo (never created by a read; `apps/jira-plus/data-dir.cjs` resolves the
-legacy folder). No tool returns secrets or tokens. **Write tools** (`write:
-true` in `tools.cjs`: create/comment on GitHub+ and Jira+ local issues,
-add Flashcards cards) are
-off for every agent until the user turns each one on per agent on the page;
-the server checks `access.json` on every call (`access.cjs`; the agent is the
-self-reported `clientInfo.name`, recorded on first connect with nothing
-allowed; only the page grants). Every call goes to `audit.jsonl` (agent, tool,
-outcome, ms, a one-line `did` for writes; never arguments or results),
-shown under Activity. Both files are in `modules/mcp`. `ask_coordinator` (write)
-runs a coordinator turn from the server process and `check_coordinator_reply`
-reads back only turns that connection started. A new write tool must
-set `write: true` and call `ctx.did()`. **Extension tools** (manifest
-`contributes.mcpTools`, API 1.2; `electron/mcp/extensions.cjs`) are named
-`<id with _>__<name>`, always need consent (`consent: true`, whatever
-`write` says), and run the extension's backend in the MCP server's own
-`BackendHost` (same sandbox and data folder, `ctx.runningIn = 'mcp'`, no
-secrets since safeStorage needs Electron, never `manager.init()`; refused
-until the app has recorded the extension's current data version, so
-`migrate()` only runs in the app). Jira+ local writes take a lock file
-in its `.git` so the app and the server never commit at once. Tests:
-`electron/mcp/mcp.test.cjs` (includes a real stdio run).
-
-`remote` (**Remote access**, a Settings page under "Accounts & access";
-docs: `docs/remote-access.md`, guide `docs/guide/setup/remote-access.md`)
-lets the user's own phone use MonoRail over the PC's private Tailscale
-address. **Fully optional, off by default:** while off there is no server, no
-port, no Tailscale command, no single-instance lock and closing the window
-quits as before; never change that. `electron/remote/`: `service.cjs` (one per
-process; `readEnabledSync` for `main.cjs`), `server.cjs` (127.0.0.1 only,
-default port 5170; Host must be the tailnet name or loopback; the
-`Tailscale-User-Login` header must be in `allowedLogins`; every path but
-`/__remote/pair` needs a paired device's HttpOnly cookie, stored as sha-256;
-pairing codes are single use, 2 minutes; serves `dist/` with
-`/__bridge/client.js` injected (`remote: true`) and the shared bridge handler),
-`policy.cjs` (`REMOTE_METHODS`: explicitly classify every built-in method
-as `phone` or `desktop`, including `desktopOnly` methods. A test requires
-complete coverage and the server refuses anything without an explicit phone
-classification), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
-machine-scope `modules/remote`; metadata only, damaged files never
-overwritten) and `tailscale.cjs` (status checks every 5 minutes while on; the
-one write is the user's "Set it up": `tailscale serve --bg`; a Funnel on the
-address stops the server). Phone calls get `ctx.remoteLimits.askOnly` from the
-current server setting. In Ask-only mode Flows refuses graphs with an
-Agent-mode step before starting, and Chat refuses Agent or coordinator
-turns at launch. While on, closing the window keeps MonoRail in the tray.
-Turning it off revokes every device. For a new backend method, review each
-caller's effect and update `REMOTE_METHODS`. Tests: `electron/remote/remote.test.cjs`.
-
-`storage` (**Storage**, a **Tools** subpage) is the Storage
-Manager (docs: `docs/guide/workspace/storage.md`): free/used space per drive (`fs.statfs`,
-read on open) and the size of known folders (MonoRail's data, older data
-folders, install and updater cache; Claude Code, Claude desktop, pi, Repos;
-npm/pnpm/Yarn/Bun/pip/Playwright/Electron caches; Temp, Downloads,
-hiberfil/pagefile), all built from environment folders. Folders are measured
-only when the user presses Scan (45 s per folder, links and junctions never
-followed). Each finished scan, and a drives-only sample every 6 hours while the
-app runs (`start(ctx)`), is saved to the `storage.history` cache
-(`history.json`, newest 500) for the "Over time" card and the per-folder change
-since the previous scan; after a restart the last saved scan is shown. A
-**free-space goal** per drive (`storage-goals.cjs`, `goals.json`, machine scope
-like the drives; never written over a damaged file) shows as progress on the
-drive card and a dashed line on the chart. It
-never deletes, moves, renames or copies anything it measures (a test greps the
-backend for write calls; history goes through the cache primitive, goals live
-in their own file); actions only open a folder in Explorer by location id or the Windows
-storage settings. Any future cleanup must be explicit, confirmed per item, and
-limited to caches marked safe.
-
-`docker` (**Docker**, a **Tools** subpage; docs: `docs/docker.md`, guide
-`docs/guide/workspace/docker.md`) is a lazydocker-style, read-only look at the
-user's own Docker: engine strip, KPI tiles, containers grouped by compose
-project with Logs (last 500, Follow re-reads every 3 s), Stats (one
-`docker stats --no-stream` every 5 s while open, in memory only) and Info
-(env variable names only, values dropped in the backend), plus Images,
-Volumes and Networks. Docker is **optional**: every method checks
-`hasConnection('docker')` first and runs nothing until the user adds the
-**Docker** connector (`connectors/docker.cjs`: docker CLI and engine version,
-lazydocker on PATH, actions Start Docker Desktop and Open lazydocker in a
-terminal). MonoRail never downloads or installs Docker or lazydocker. All
-docker calls go through `electron/modules/docker-cli.cjs` (no shell, fixed
-read-only arguments, container ids checked as hex; a test fails on write
-verbs such as run/stop/rm/prune). Nothing is cached or written to disk.
-
-`semantic` (docs: `docs/semantic.md`, guide `docs/guide/data/semantic.md`) is a
-dbt project's semantic layer, powered by the user's own MetricFlow (`mf`).
-It has no module or nav item of its own: its UI is the OpenMetadata page's
-Metrics tab and the MetricFlow side of the Semantic models and Query builder
-tabs (`src/modules/openmetadata/tabs/`; their engine switch defaults to
-Malloy, below).
-
-`malloy` (docs: `docs/malloy.md`, guide `docs/guide/data/malloy.md`) runs
-**real Malloy** (`@malloydata/malloy`, `@malloydata/db-bigquery`) for the
-OpenMetadata page's Semantic models, Query builder and Malloy models tabs.
-Malloy ships with MonoRail: it is **not a connector**. Its settings (models
-folder picked in the system dialog via `pickFolder`, billing project,
-location, "Run queries on BigQuery" off by default, scan limit 1 GB) are
-`settings.json` in its data folder (`malloy-settings.cjs`; read from an older
-version's `malloy` connection entry until first saved, never changing it),
-edited in the page's Malloy settings dialog (`tabs/semantic/malloySettings.tsx`);
-nothing is read until a folder is picked. Only BigQuery access comes from
-Connections (gcloud). All of it
-is in `electron/modules/malloy-lib.cjs` (no Electron): models are the folder's
-`*.malloy` files (relative paths only, real-path checked, links never
-followed, imports through a URL reader with the same checks, never written);
-`compile` returns the compiler's outline or problems (schemas via BigQuery
-`tables.get`, free); `sql` compiles and dry-runs; `run` only with running
-on, only SQL starting SELECT/WITH, dry-run first and refused over the limit,
-`maximumBytesBilled` set, 1000 rows, 2 at a time. Auth is the gcloud
-connector's access token in a `google-auth-library` `OAuth2Client`
-(`authClient`), memory only, refreshed once on a 401, redacted from errors.
-BigQuery is the only connection. Page client: `tabs/semantic/malloyClient.ts`.
-**Opt-in twice:** nothing runs until the user adds the
-**MetricFlow** connector (`connectors/metricflow.cjs`: project folder, and
-"Run queries with MetricFlow", off by default); browsing reads only
-`dbt_project.yml` and `target/semantic_manifest.json`, and `query`/`explain`
-refuse unless running is on. All of it is in `electron/modules/semantic-mf.cjs`
-(no Electron; the MCP server's `list_semantic_metrics` and consent-gated
-`query_semantic_metrics` use it): mf is found by file (project `.venv` first,
-PATH; only `mf.exe` on Windows), started without a shell with arguments checked
-against the manifest, versions come from dist-info folder names, and
-`profiles.yml` is never opened. Results come back through a CSV in a temp
-folder deleted at once; nothing is cached or kept, and the page never gets the
-project's full path. MonoRail never installs Python, dbt or MetricFlow.
-
-`ingestion` (**Services**, Settings group "Data", `/services`; docs:
-`docs/ingestion.md`, guide `docs/guide/data/services.md`) adopts
-OpenMetadata's services and ingestion pipelines; where the Connections model
-disagrees, OpenMetadata's shape wins. A connector with `service: { category,
-serviceType }` is a **data source** (today `sqlite`, `metricflow`,
-`openmetadata`; Connections tags them "Data service" and still owns their
-fields and secrets); the rest are accounts. Pipelines are `ingestionPipeline`
-entities with `extension.monorail.runner`: **`this-pc`** pipelines live in the
-local database (below) as entities, with runs (`pipelineStatus` records,
-newest 30) and results as catalog entities (older versions' `pipelines.json`,
-`runs.json`, `catalog.json` in `modules/ingestion` are copied in once and left
-as they are) and run in MonoRail on their cron (`airflowConfig.scheduleInterval`,
-`ingestion-cron.cjs`) only after the user deploys them; SQLite metadata and
-profiler run read-only in a worker thread, dbt reads `target/manifest.json`
-(`ingestion-local.cjs`); deployed ones are In-App rows. **`server`**
-pipelines are read live from the OpenMetadata connection and acted on by
-UUID (trigger, deploy, kill, toggleIngestion, logs, create); MonoRail never
-sends the server a connection or password. No Auto Pilot: adding a service
-creates no pipelines. Explore shows local services, pipelines and catalog
-tables (full names start at the service).
-
-**Local database** (`electron/localdb`, docs `docs/local-database.md`): one
-SQLite file per profile, `databases\local.sqlite3` (folder `databases`,
-profile scope), through the `node:sqlite` built into Electron's Node (nothing
-bundled). The home for in-app data in the standard's OpenMetadata shape:
-`entity` (OpenMetadata JSON by type and full name; `put` assigns UUIDs and
-bumps `version` by 0.1 only on a real change, keeping every version),
-`record` (non-entity JSON: pipeline statuses, schedules, table profiles),
-`lineage` (schema 2: edges keyed by from/to id, OpenMetadata's EntitiesEdge in
-`json`; dbt ingestion writes them, `lineageOf` walks any number of levels,
-`'all'` to the ends, 10,000 assets a side at most) and
-`meta`. Created on first use (OpenMetadata page, saving a pipeline); the
-scheduler and read-only views never create it (`localDbExists`). A damaged
-file or a newer schema is refused and never overwritten; secrets never go in
-it. **Updates never reset it**: migrations only add (a test greps `MIGRATIONS`
-for DROP/DELETE/RENAME/UPDATE), and before a database with rows is upgraded a
-whole `VACUUM INTO` copy goes next to it (`local.sqlite3.before-schema-<n>.bak`,
-never overwritten); if the copy fails, the upgrade does not run. It is also a
-global backup item (`local-database`, included before updates). Other modules keep their own stores; moving one in is a separate,
-never-automatic change that leaves old data in place.
-
-`flashcards` (**Flashcards**, under Workspace; docs: `docs/guide/workspace/flashcards.md`) keeps
-spaced repetition decks. Decks, cards (Markdown, rendered with Chat's
-`ChatMarkdown`) and per-day study counts (90 days) live in one file,
-`decks.json` in its data folder; nothing is cached or sent anywhere.
-`flashcards-store.cjs` has no Electron dependency because the MCP server uses
-it too: every change takes `decks.json.lock`, reads the file fresh and writes
-it atomically, and a damaged file is never treated as empty or overwritten.
-`flashcards-fsrs.cjs` is the scheduler: FSRS-5 with its default weights, learning
-steps 1m/10m, relearning 10m, per-deck target recall (default 0.9) and new
-cards per day (default 20); the page shows each rating's next interval from
-`study`. Undo keeps the last answer per deck in memory only. Do not call it or
-style it after any other product. MCP: `list_flashcard_decks`,
-`list_flashcards` (read) and `add_flashcards` (write, consent per agent).
-
-`notes` (**Notes**, a subpage of Tools; docs: `docs/guide/workspace/notes.md`) is an
-unstructured info dump. Each note is a Markdown file (`notes/<id>.md`, first
-line = title) in a local git repo in its data folder (`repo/`), via
-isomorphic-git in `notes-store.cjs` (no Electron, lock file in `.git`). Typing
-writes the file; commits are batched (a minute of quiet, leaving the note, or
-the next start), a blank new note is never committed, and a note's file
-follows its title only until its first commit. The repo never gets a remote.
-GitHub+ lists it as "Notes" (`linked.cjs` `SOURCES`) and it is a global backup
-item (`notes`, bundle).
-
-`files` (**Files**, a subpage of Tools; docs: `docs/guide/workspace/files.md`) is a file
-explorer for this PC: tabs and split panes (tabs, pins, color tags, recent
-folders and view options are prefs `monorail.files.*`, never backend files),
-Details / Grid (Windows shell thumbnails via
-`nativeImage.createThumbnailFromPath`, memory only) / Columns views, a preview
-panel (image, text, Markdown, folder size on request, git branch from
-`.git/HEAD` with "Open in GitHub+"), bounded recursive search and drag and
-drop between panes. Backend `electron/modules/files.cjs`: every path goes
-through `absPath`, typed names through `checkName`; walks never follow links.
-Writes only on the user's action: new folder/file (never overwrite), rename,
-copy/move (`uniqueTarget` "name (2)", never replaces), and `trash`
-(`shell.trashItem`; there is no permanent delete). `open`/`reveal`/`trash` are
-`desktopOnly`. All Files methods require the PC in `REMOTE_METHODS`.
-Keeps nothing on disk (`NOT_CACHED`).
-
-`scheduled` (**Scheduled**, under Workspace) has two subpages: Windows Task
-Scheduler (`scheduled.ps1`) and **In-App**, the timers MonoRail runs itself
-while it is open. In-App reads a registry (`electron/scheduled/in-app.cjs`, no
-Electron): a backend that owns a background job calls `registerProvider({ id,
-list, run? })` from its `start(ctx)`, where `list()` returns rows (title,
-schedule, state Ready/Running/Disabled, last/next run, result, owning page)
-read from state the job already keeps, and never starts work. Registered so
-far: Claude usage report, global backups, GitHub+ repo backups, update checks,
-drive samples, the PR reviewer watcher and Remote access's Tailscale check. A
-new timer (`setInterval`, `cache.schedule`, a scheduler `tick`) must register a
-provider so it shows there; `run` ("Run now") only for jobs that are safe to
-start by hand. `runInApp` requires the PC in `REMOTE_METHODS`. The registry keeps no
-files.
-
-**Settings** is a group of pages behind one button pinned to the bottom of
-the drawer (above the version footer; amber count = alerts). Every module
-with `nav.section: 'Settings'` is a Settings page: it is not listed in the
-drawer, `nav.group` names its heading in the Settings menu ("App": General
-`/settings`, the page the Settings button opens (the `settings` module,
-updates, about, profile, Developer Mode), Appearance, Backups; "Accounts & access": Connections,
-Agent access, Extensions), and `App.tsx` wraps it in
-`src/modules/settings/SettingsLayout.tsx` (menu plus search). There is no
-Settings Home page: the alerts show as a "Needs attention" card at the top of
-General (`SettingsAlerts.tsx`, nothing when there are none). Alerts (`alerts.ts`, one shared store) are read from what
-MonoRail already knows and never start a check: the `connections.summary`
-file (so connectors that are not set up are never looked at), the update
-state, global backups' last results and extensions waiting for approval or
-broken; read on start, on focus (at most once a minute), every 5 minutes and
-on `refreshSettingsAlerts()`. Search (`search.ts`) finds every Settings page
-by title and description plus the entries in `SEARCH_ENTRIES` (cards and
-options, with an element id to scroll to); add one when you add a card or an
-option to a Settings page. Ctrl+K opens the command palette on its Settings
-scope (below). Connections is a table (one row
-per connector, subconnectors indented under their parent; columns drop out
-as the card narrows via container queries) whose rows open to show the
-check's details, actions and running sign-ins.
-
-**Command palette** (`src/components/search/`, guide `docs/guide/search.md`):
-Ctrl+K anywhere in the hub (not in full-screen apps), or the top bar's search
-field (`data-tour="search"`), opens one search over Pages, Catalog, Chats,
-Settings and Wiki (scope chips; Tab cycles). `store.ts` holds open state
-(`openSearch({ scope, section, query })`); `sources.ts` is the index
-(`searchTypes` over the standard's entity types, Wiki titles and summaries,
-Chat's `listSessions` with archived chats left out). The palette body loads
-on open, and `page-index.ts` also powers Home's page and Settings search.
-Empty, it shows the last five opened results
-(`monorail.search.recent` in `prefs`, targets only, never a path) and the
-standard's sections as tiles; a section lists its types by category. A type
-opens Explore at it through `openInExplore` (`modules/explore/handoff.ts`, in
-memory). On a Settings page it opens on the Settings scope. Nothing else is
-stored or cached.
-
-Nav items may have one level of subpages (`NavItem.children` in `nav.ts`); a
-module nests under an item with `nav.parent: '<path>'`. They never expand inside
-the drawer: the item opens a panel just right of the drawer's edge (`NavFlyout`
-in `SideNav.tsx`) listing the item's own page first, then its subpages, the
-current one highlighted. The drawer is a permanent 72px icon rail: hovering
-or focusing an icon shows its name in a tooltip, and opening a subpage panel
-never changes the rail's width.
-
-**Tools** (`/tools`, `src/pages/ToolsPage.tsx`) groups GitHub+, Tasks,
-Tracker, Calendar, Email, Bookmarks, BigQuery, SQLX, Files, Notes and Flashcards behind one rail button.
-**BigQuery** (`bigquery`, `layout: 'full'`, guide `docs/guide/data/bigquery.md`)
-is a BigQuery console: explorer (starred projects > datasets > tables),
-editor tabs with a debounced free dry run for the bytes estimate, results
-(grid, JSON, job information, execution details from `queryPlan`, chart),
-table Schema/Details/Preview (`tabledata.list`, no query) and Personal/Project
-history (BigQuery's `jobs.list`). Opt-in: every method checks
-`hasConnection('gcloud')` first; the token comes from the gcloud connector's
-`credentials()` (`gcloud auth print-access-token`), kept in memory 30
-minutes, refetched on a 401. `electron/modules/bigquery-api.cjs` (no
-Electron) calls only `bigquery.googleapis.com` with fixed URL shapes and
-validated ids; rows are converted by schema (INT64/NUMERIC stay strings).
-Nothing is written to disk; tabs and starred projects live in `prefs`
-(`monorail.bigquery.*`). Queries run with the user's own permissions.
-**SQLX** (`sqlx`, guide `docs/guide/data/sqlx.md`) opens Dataform
-`.sqlx` files: file list left, the open file in tabs right. The `config { }`
-block is never shown as code outside the last tab: Query (SQL and its refs),
-Settings (`ConfigForm.tsx` limited to Target/About/Run/BigQuery/More; field
-specs in `fields.ts`: core 3 puts BigQuery options at the top, core 2 under
-`bigquery`), Columns (`columns` as a table with a Not null toggle that edits
-`assertions.nonNull`) and Tests (`assertions`) in `ConfigTabs.tsx`, Pre / post
-ops (`js` / `pre_operations` / `post_operations` as folding panels) and Raw
-file (the whole file as text).
-`parse.ts` splits a file into block and text pieces whose `raw` joins back byte
-for byte (line endings kept), and reads the config's object literal into
-values; anything else (variables, calls) stays as source text and is written
-back unchanged. Only an edited block is rewritten. Backend
-`electron/modules/sqlx.cjs`: projects are folders picked in the system dialog
-(`addProject`, desktop only; `projects.json` keeps id, name, path; the page
-never gets a path), files are named by project id plus a relative `.sqlx` path
-re-resolved (real path) inside the folder on every call, listing skips links,
-dot folders and `node_modules`, and `saveFile` refuses a file whose mtime
-changed since it was read and writes through a temp file. Nothing is cached.
-Dropped or pasted files open as scratch: copy, never save.
-Its overview lists the same destinations as its flyout. Modules join it with
-`nav.parent: '/tools'`; workspace apps are added from the app registry.
-Existing page URLs stay the same, and nested app routes resolve to their
-child item so the Tools rail button and breadcrumb stay current.
-
-### Charts
-
-Follow the data-viz rules already encoded in `components/charts/`: series
-colors come from `--series-1..6` in fixed order (never cycled; extra series
-fold into "Other"), rank entities on the full dataset so filters never
-repaint them, one y-axis per chart, a legend for 2+ series, a table view
-beside every chart, thin marks (bars <= 24px, 2px lines), and one hero
-figure per page.
-
-## Apps: experiences with their own look inside the hub
-
-An **app** is the second building block, next to modules. Where a module is
-one page in the hub's own style, an app may look and feel like its own
-product: its own colors, fonts, layout and in-app routing. The contract is
-`AppDefinition` in `src/apps/types.ts`; its `placement` says where it sits.
-
-**Workspace apps** (`placement: 'workspace'`: GitHub+, Tasks, Tracker, Calendar, Email) are
-Tools subpages. The hub's drawer and top bar stay on screen (breadcrumb
-`Workspace > Tools > <app>`) and the app fills the page body below them, scrolling on
-its own (`AppBody` in `App.tsx`). Each gets a nav item under Tools that
-stays current on all of the app's routes (`matchPrefix`). Going back to one
-from the nav resumes where it was left; clicking its item while in it goes to
-its start page (`src/apps/session.ts`).
-
-**Full-screen apps** (the default, and always for extension apps) take over
-the whole window. **Apps** is a single nav item right under Home, shown only
-while there is one; it opens the Apps page (`src/pages/AppsPage.tsx`) with a
-card per full-screen app. The one thing such an app never owns is the **hub
-bar**: `src/apps/AppFrame.tsx` renders a 48px bar above it, in the drawer
-colors of the current color scheme, with a "Back to MonoRail" button (filled
-like the active nav item), the app's icon and name, and an "App" chip. That is
-how users leave the app; do not hide, restyle or duplicate it inside an app.
-Leaving returns to the hub page the user came from, and reopening it resumes
-where it was left. An error boundary keeps the bar (or the drawer) on screen
-if an app crashes.
-
-To add an app:
-
-1. `src/apps/<id>/index.ts` exports an `AppDefinition` (id, title,
-   description, icon, `path: '/apps/<id>'`, `placement`, lazy `component`).
-2. Add it to `src/apps/registry.ts`. The nav (or Apps page) and router pick it up.
-3. The root component receives `basePath` (`/apps/<id>`). Everything under
-   that hash path belongs to the app, so it can run its own router, e.g.
-   react-router's `<HashRouter basename={basePath}>`.
-4. Scope all of the app's CSS under one root class (GitHub+ uses `.ghp` with
-   CSS nesting) so nothing leaks into the hub after the app is closed. Avoid
-   class names that are Tailwind utilities (`container`, `hidden`, ...).
-   Tailwind preflight still applies, so restore browser defaults you rely on
-   (heading sizes, list bullets) inside the scope.
-5. If it needs local data, write `electron/apps/<id>/index.cjs` exporting
-   `{ id, methods }` (same shape as a module backend) and add it to
-   `electron/apps/index.cjs`. Call it with `invokeApp(id, method, args)` from
-   `src/apps/client.ts`. `ctx.dataDir` is
-   `%APPDATA%\MonoRail\apps\<id>`. As with modules, ship fictional
-   sample data for the browser dev server. A module or app backend may also
-   export `start(ctx)`, called once at startup, for work that runs without
-   its page open (GitHub+ uses it for its backup scheduler).
-
-`github-plus` (**GitHub+**) is the reference app, a port of
-`wojoe-444/Local-Repo-UI`: a GitHub-style, read-only browser for local git
-repositories (code, README, file viewer, history, commits with diffs,
-branches, compare). Its backend (`electron/apps/github-plus/git.cjs`) only
-runs the local `git` CLI, validates refs and paths from the renderer, disables
-repo-configured textconv/external diff, and only serves repos the user opened.
-Recent repo paths are kept in its data folder, never in the repo. Repos other
-MonoRail apps create are listed with them automatically (`linked.cjs`): so
-far Jira+'s private projects repo (found with `resolveJiraDataDir`, shown as
-"Tasks projects" with a Tasks badge, not removable, never written to
-`recents.json` until opened). It is not added to Chat's allowed folders. It makes no
-network requests of its own (remote images in READMEs are blocked and external
-links do nothing) except through the GitHub connection below. Tests live in
-`git.test.cjs`.
-
-**Look**: GitHub+ is drawn like a native hub page (like Tasks). Its `--gh-*`
-variables in `styles.css` map onto the hub tokens (prefixed so they never
-shadow the tokens shadcn components use), and the whole file sits in
-`@layer components`. Home (`pages/Welcome.tsx`) is a page header, a view
-switcher (Overview / Repositories / Activity / Issues / Backups, `?view=`), a
-status strip of counts (no KPI tiles) and dense tables (`.ghp-table`);
-the repo frame (`RepoLayout.tsx`) has the same header, the tabs as a
-segmented control, the branch picker for ref-following pages and a status
-strip. Code and file pages show a lazy file tree (`components/FileTree.tsx`,
-listings memoized in memory by commit); the README card collapses,
-remembered per person with `prefs` (`commandHub.githubPlus.collapsed.*`).
-The Code page has no folder-listing table: the tree is the navigation.
-
-**GitHub repos and GitHub issues** (`github.cjs`, tests `github.test.cjs`):
-once the user has added the GitHub connection on Connections (never before;
-until then the page shows a "Set up GitHub" hint and nothing runs), Home lists
-their github.com repos under "On GitHub": `/user/repos` with its default
-affiliation (owned, collaborator, organization member), so team repos they do
-not own are included. Kept in memory for 10 minutes (Refresh forces), never on
-disk. Repos that are already local (matched by the github.com remote, origin
-first, read with `git.remotes`) are left out of that list and get a cloud mark
-instead. A listed repo can be cloned into a folder the user picks (only repos
-in the fetched list, https clone URL built from the name) or opened on
-github.com. **New issues stay local by default**: the New issue page offers
-"Also create it on GitHub in owner/name" only when the repo has a github.com
-remote, and it is off on every new issue. When on, the backend creates the
-issue on the repo's own remote (never a repo named by the page), then saves
-the local issue with a `github` link (`{ repo, number, url }`); later edits
-and comments stay local. The MCP server's GitHub+ tools never publish.
-
-**Search** (`electron/apps/github-plus/search.cjs`, tests `search.test.cjs`;
-page `pages/SearchPage.tsx` at `/repo/search` and `/search` for every Home
-repo; guide `docs/guide/workspace/search-code.md`). Kinds: code (`git grep`
-with one line of context), files (`ls-files` / `ls-tree`, fuzzy scored in
-JS), commits (`log --grep`, plus a sha prefix), history (the pickaxe, `log -S`
-or `-G` with `--name-only`; runs only when its tab is open) and issues (local
-issues read with `issues.readAll`, plus linked tasks). The default is the
-**working folder** (`git grep --untracked`, `ls-files -co --exclude-standard`;
-results open through `readWorkingBlob`, a real-path check that keeps reads
-inside the repo); `ref:` (up to 4, comma list) or the page's `in` option picks
-committed refs, each checked with `assertRef` and resolved first. `parseQuery`
-reads the qualifiers (`repo: path: -path: lang: ref: author: before: after:
-def: is: case: word: regex:`, `"phrases"`, `/regex/`). The search text goes to
-git only after `-e` or glued to its option (`--grep=`, `-S`), never as its own
-argument; paths are filtered in JS and passed only as pathspecs after `--`;
-textconv and external diff are off. Every process runs inside git.cjs's
-6-process `slot`, with per-kind caps and time limits, and a newer search on the
-same channel (`search.channel`) kills the older one. `searchAll` reads only
-Home's stored recents and linked repos, never paths from the page. "Since
-when?" (`lineHistory`: `blame --porcelain -L` plus `log -L`) opens from a line
-number on the file page. Saved searches are raw query strings in `prefs`
-(`commandHub.githubPlus.savedSearches`, max 8); Home counts them with
-`searchCounts` (`git grep -c`), reused per repo while `refsFingerprint` is
-unchanged only for committed-ref queries. Nothing is cached to disk.
-
-GitHub+ can show a repo's folder in File Explorer (repo header button and
-the home page's repo list, `openInExplorer`): only for a repo opened this
-session, on its recents list or linked, only a directory (`shell.openPath` would run a
-file).
-
-GitHub+ speed: starting a git process is the costly part (on Windows most of
-all, and Node starts each one on the main process), so every page uses as few
-as it can and `git.cjs` runs at most 6 at a time. A folder lists in one
-`ls-tree`; its last-commit column is a second call (`treeLastCommits`, one
-`git log --name-only` walk that stops when every entry is found). Ahead/behind
-is `branchDivergence`, asked for only by the Branches page (one
-`for-each-ref %(ahead-behind:)` on git 2.41+, else one `rev-list` per branch).
-Uncommitted files and unpushed commits are `workingState` (one read-only
-`git status --porcelain=v2 --branch`, never cached since it reads the working
-tree): Home asks for all of its repos in a second call (`getWorkingStates`,
-stored recents and linked paths only) so its tables paint first, and the repo
-status strip adds ahead/behind against main/master (`workingState`).
-Answers keyed by a commit sha (last commits, commit counts, ahead/behind,
-parsed issues) are memoized in memory; Home reuses a repo's summary while
-`refsFingerprint` is unchanged. Nothing of it is written to disk.
-
-GitHub+ also has **scheduled backups** (Backups tab, `backup.cjs`): per repo,
-"X times per hour/day/week" into a folder the user picks (e.g. one OneDrive
-already syncs). Each backup is a verified `git bundle --all` file, written as
-`.partial` and renamed when complete, with the newest N kept. The scheduler
-runs inside MonoRail (checks every minute and at startup, so a backup
-missed while the app was closed runs once when it opens; failures retry after
-15 minutes). Schedules live in the app's data folder (`backups.json`).
-
-**Global backup folder** (Settings > Backups, docs: `docs/backups.md`,
-`electron/backups/`, backend module `backups`): one folder plus the same
-"X times per hour/day/week, keep N" choices, saved in `modules/backups`
-(`settings.json`, `state.json`). When on, it is the default root for every
-page's backups, each in its own subfolder (`<folder>/github-plus/<repo>/`,
-`<folder>/jira-plus/`, `<folder>/flashcards/`); `pageRoot(global, id)` builds
-it. GitHub+ schedules may follow the global folder (`useGlobalFolder`) and/or
-frequency (`useGlobalFrequency`), read when each backup runs; a repo's own
-folder or frequency wins when its flag is off, and a schedule that follows a
-global folder that was turned off pauses with a reason. Jira+'s private
-projects repo (bundle), Flashcards' `decks.json` (copy, refused when
-damaged), Notes, Flows and the local database (`copyDatabase`, `VACUUM INTO`) run on the global schedule (`service.cjs`, one switch each). **Back up
-before updating** (`beforeUpdate`, on by default): while the global folder is
-on, the settings backend backs up every global item into
-`<folder>/before-update/` (newest 5 each) after the download and before the
-installer runs (`runBeforeUpdate`); a failure holds the update
-(`backup-failed`: Try again / Update without a backup), and with no folder the
-update is never held up, only hinted. Changing
-the folder only affects future backups: never move, copy or delete backups in
-an earlier folder; pruning touches only MonoRail's own files in the folder it
-writes to. New pages with backups add an entry to `PAGES` in `global.cjs`.
-
-GitHub+ also has **local issues** (Issues tab, `issues.cjs`): create, edit,
-comment, close and reopen, with Markdown. They are stored inside each repo,
-never in AppData: one JSON file per issue in the tree of a commit that
-`refs/local-issues` points at, written with git plumbing (`hash-object`,
-`mktree`, `commit-tree`, `update-ref` with the old value as a guard), so the
-working tree and index are never touched, every change is a commit, backups
-carry them and a normal push does not. Keep that ref out of commit feeds
-(`--exclude=refs/local-issues --all`).
-
-`jira-plus` (**Tasks**, formerly Jira+; guide `docs/guide/workspace/tasks.md`)
-applies the GitHub+ idea to Jira: a task tracker where a private local repo is
-a first-class project next to the team's real Jira projects. It is a
-Workspace app that looks like a native hub page (`TasksApp.tsx`: `PageHeader`,
-Overview / List / Board / Calendar views in a `Segmented`, project chips,
-`StatTile`s, cards; routes in `scope.ts`) and a task panel that slides in from
-the right (`IssueModal.tsx`, `?selectedIssue=`). Its `.jp` variables in
-`styles.css` map onto the hub's design tokens, so palettes and dark mode apply;
-never give it its own palette again. The Calendar page shares its calendar
-(`src/apps/calendar/TaskCalendar.tsx`). **Names that must not change**: the
-app id, route `/apps/jira-plus`, backend `electron/apps/jira-plus`, its data
-folder `apps\jira-plus`, the backup id `jira-plus` and the MCP tool names
-`*_jira_plus_*` (agents' consent is stored by tool name): renaming any of
-them strands the user's tasks or permissions. Only user-facing text says
-Tasks. Team issues go through the Jira Cloud REST API
-(`electron/apps/jira-plus/cloud.cjs`) with the Atlassian account from
-Connections (`getCredentials('atlassian')`); only shown when one is set up.
-Jira+ keeps only its JQL filter (`settings.json`). A `connection.json` token
-saved by older versions is still used when Connections has no Atlassian
-account, until the user forgets it. Private projects are a git repo in `<dataDir>/local-repo`
-(`local.cjs`, via `isomorphic-git`, one JSON file per issue, one commit per
-change, the issue's git log is its History). That repo never gets a remote;
-do not add push or sync to it. **Parents and time**: an issue may have a
-`parent` in the same project (no loops; deleting a parent clears its
-children's field in the same commit) and `worklogs` (started, seconds,
-comment; 1 minute to 1 week each); child lists and roll-up totals are worked
-out on read, never stored. Team Jira uses its own `parent` field, `parent =`
-JQL for children and real worklogs (`aggregatetimespent` for sub-tasks).
-**Comments**: add, edit and delete. Local comments are all `mine` (one commit
-each); team tickets post, `PUT` and `DELETE` real Jira comments, `mine` is
-worked out from the account id (`myAccount`), and Jira enforces who may edit.
-The composer always says who will read it (team: visible to everyone on the
-ticket, may email watchers).
-Jira+ started as the `jira` module, so if
-`%APPDATA%\MonoRail\modules\jira` holds data and the app folder doesn't,
-the backend keeps using the old folder in place. Tests live in
-`jira-plus.test.cjs`.
-
-**Task <-> repository links** (`repo-links.cjs`, `repo-links.json` in Jira+'s
-data folder): any Jira+ task (local or team Jira) can be linked to local git
-repos and to repos on github.com, many to many. A local repo is stored by the
-root git reports plus the `owner/name` of its github.com remote (checked with
-GitHub+'s `git.cjs` when linking); a GitHub-only repo by `owner/name`.
-GitHub+ matches a repo by folder or remote, so a link to the GitHub copy also
-shows on a local clone. Links are only ever in that file: never written to
-Jira, GitHub or a repo, and the file holds keys, folders and names only (team
-ticket text is fetched on demand). The issue dialog's **Repositories** card
-lists them (local opens in GitHub+ via `openInGitHubPlus`, in memory only;
-GitHub-only opens on github.com) and links from GitHub+'s recents, its linked
-repos, the "On GitHub" list (only once GitHub is set up) or any folder.
-GitHub+ reads them through Jira+'s exported `tasksForRepo` / `repoLinks`
-(`<userData>\apps\jira-plus`, legacy folder resolved): a **Tasks** tab per
-repo (link/unlink from that side too; tasks open in Jira+ via
-`openInJiraPlus`), task counts on Home, and the tasks of a GitHub-only repo
-in its "On GitHub" row. Deleting a local task drops its links.
-
-`tracker` (**Tracker**, a Workspace app under Tools; reference `docs/tracker.md`,
-guide `docs/guide/workspace/tracker.md`, types `docs/standard/monorail/tracker.md`)
-plans work on the model fast product teams use (Linear-style): teams with
-their own workflow (status types triage, backlog, unstarted, started,
-completed, canceled), issues (`<KEY>-<number>`, priority 0-4, estimates on
-the team's scale, labels with one-per-group label groups, sub-issues,
-blocks/related/duplicate relations, threaded comments, history), automatic
-cycles with rollover, projects with milestones and health updates, nested
-initiatives and saved views. Everything is an entity in the **local
-database** (never files of its own; `apps/tracker` stays empty): teams and
-members are OpenMetadata `team` / `user` with `extension.tracker` (only
-those belong to Tracker), the rest are MonoRail's own types carrying
-`entityType`. Rules live in `electron/apps/tracker/model.cjs` (no Electron;
-tests `tracker.test.cjs`): a child's full name starts with its parent's id so
-renames never cascade, a taken full name is refused before `put` (which
-would match and update it), issues are deleted softly (Undo restores),
-everything else is removed with its references cleared in one transaction,
-and an issue's history is diffed from its stored versions. The page
-(`src/apps/tracker`) reads one `snapshot`; every issue list is
-`IssueBrowser` (filters, list or board, grouping, ordering, drag and drop,
-bulk edit, save as view; per-page `prefs`), the open issue is `?issue=KEY-n`
-and C starts a new issue. It is separate from Tasks (Jira) and is never named
-or styled after another product in the UI.
-
-`email` (**Email**) is the third app: mail through pluggable **inbox
-connectors**. The connector contract is documented at the top of
-`electron/apps/email/connectors/index.cjs` (config fields, `signIn`,
-`createSession` returning folders/threads/modify/send); the backend
-(`electron/apps/email/index.cjs`) knows no provider. Gmail
-(`connectors/gmail.cjs`) is the first connector: Google sign-in via OAuth
-2.0 with PKCE and a loopback redirect (`oauth.cjs`, RFC 8252) and the Gmail
-REST API with the `gmail.modify` scope, plain `fetch`, no Google SDK. The
-user brings their own Google Cloud "Desktop app" OAuth client and pastes the
-client ID and secret into the app's setup screen (steps are on that screen).
-The secret and each account's refresh token are encrypted with safeStorage
-in `%APPDATA%\MonoRail\apps\email` (`store.cjs`, which refuses to save
-secrets when encryption is unavailable); never commit a client ID, secret or
-token. Mail is fetched on demand and never written to disk. HTML mail renders
-in a sandboxed iframe without scripts, with remote images blocked until the
-user asks. IMAP or other providers go in as new connector modules. The app is
-self-contained (only `src/apps/email` and `electron/apps/email`) so it can
-move into an extension later. Tests live in `email.test.cjs` and
-`outlook.test.cjs`.
-
-**Outlook** (`connectors/outlook.cjs`, setup `discover`) uses the classic
-Outlook already running and signed in on the PC, over COM, with no OAuth or
-app registration. Each call runs `connectors/outlook.ps1` once in a hidden
-Windows PowerShell 5.1 process (`helper.cjs`: script on stdin, arguments as
-base64 JSON in `MONORAIL_ARGS`, never on the command line or pasted into code;
-minimal environment; hard timeout; at most 3 at a time; one JSON answer). The
-script attaches with `GetActiveObject` (never starts Outlook), checks Outlook
-is running first (error code `not-running`, shown with Retry) and must never
-read `Namespace.CurrentUser` (it raises Outlook's address-access prompt; a
-test checks). New Outlook has no COM. Setup lists the stores Outlook has open;
-an account is one store keyed by StoreID (`account.key`; Gmail's key is the
-address), with a display name and an optional address. Shared stores start
-**read-only**: the backend refuses every write method for a read-only account
-(`assertWritable`), and the page hides write actions. Folders are a tree with
-path ids (`Inbox\Reports`); the standard folders use INBOX, DRAFT, SENT, SPAM,
-TRASH in any language; a per-account skip list (paths) hides subtrees and
-keeps slow mailboxes from being walked. Message ids carry the long EntryID and
-the internet message ID: when the EntryID fails (mail moved, e.g. to Archive)
-the helper looks it up again and the new id is handed back; lists are
-deduplicated by internet message ID. Search looks in the open folder; **All
-folders** is an opt-in that stops after 60 s and returns what it found, marked.
-All connectors take a days-back and unread filter, and `searchAccounts`
-searches several chosen inboxes at once (`search.cjs`: merged newest first,
-deduplicated across accounts, per-account errors kept apart). The Windows CI
-job runs the real script (expects `not-running`), so syntax errors fail CI.
-
-## Extensions: modules and apps from other repositories
-
-The third building block. An **extension** is a module and/or app built and
-released in its own repository and installed into a running copy of the app
-without rebuilding it (e.g. a Minecraft bot as its own repo). Built-in modules
-and apps stay in this repo; anything user- or situation-specific should be an
-extension. The user-facing name is MonoRail.
-
-**Package.** A folder or `.zip` with `monorail.json` at its root:
-
-```json
-{
-  "manifestVersion": 1,
-  "id": "minecraft-bot",
-  "name": "Minecraft Bot",
-  "version": "0.3.0",
-  "publisher": "wojoe-444",
-  "repository": "wojoe-444/minecraft-bot",
-  "engines": { "monorail": "^1.0.0" },
-  "icon": "icon.svg",
-  "ui": "ui",
-  "contributes": {
-    "modules": [{ "id": "status", "title": "Bot status", "entry": "index.html#/status", "nav": { "section": "Minecraft" } }],
-    "apps": [{ "id": "console", "title": "Bot console", "entry": "index.html#/console" }]
-  },
-  "backend": { "main": "backend/index.cjs", "activation": "onDemand" },
-  "permissions": { "network": ["*.mojang.com", "localhost:25565"], "process": ["java"], "filesystem": { "read": ["~/.minecraft"], "pickFolders": true } }
-}
-```
-
-Rules live in `electron/extensions/manifest.cjs` (with tests). Routes are
-`/x/<ext>/<module>` for modules and `/apps/<ext>.<app>` for apps; the nav,
-router and `AppFrame` pick them up through `allModules()` / `allApps()` in
-the registries, fed by `src/extensions/store.ts`.
-
-**Versioned API.** `API_VERSION` in `manifest.cjs` (currently 1.2.0) covers
-the manifest, the backend `ctx`, and bridge protocol 1. Extensions declare
-`engines.monorail`; a non-matching extension stays installed but is not loaded.
-Adding things is a minor bump; changing or removing anything an extension can
-see is a major bump. Keep all three in step with `packages/extension-sdk`.
-
-**UI isolation.** Extension pages are static files served from the
-extension's `ui` folder over `monorail-ext://<id>/` (registered in
-`main.cjs` before ready) into a sandboxed iframe (`src/extensions/ExtensionFrame.tsx`).
-Each extension is its own origin with a strict CSP: no inline scripts, no
-network (`connect-src 'self'`), no remote assets, and `will-frame-navigate`
-keeps frames on their origin. A page only reaches the hub through
-postMessage, and the hub only forwards: call its own backend, ask the user for
-a folder, open an https link. Module pages sit under a hub `PageHeader` and
-report their height; apps fill the window under the hub bar.
-
-**Backend sandbox.** Each backend runs in its own child process
-(`host.cjs` forks `runner.cjs` with MonoRail's own executable in
-`ELECTRON_RUN_AS_NODE` mode), never in the main process. Node's permission
-model confines it: read its own files, read/write
-`%APPDATA%\<app>\extension-data\<id>` (`ctx.dataDir`), plus exactly the
-folders the manifest or the user granted; `--allow-child-process` only with
-the `process` permission; no workers, addons or WASI. Node does not police the
-network, so `runner.cjs` gates `Socket#connect` (covers net, tls, http(s),
-fetch, WebSocket), UDP and DNS against `permissions.network`. The child gets
-a minimal environment (no inherited tokens). `process` is full trust (a
-spawned program is not sandboxed) and the UI says so. `runner.cjs` must stay
-self-contained: it is `asarUnpack`ed and is the only app file the child may
-read. Backends crash in isolation; 3 crashes in a minute stop it until reload.
-API 1.1 added: `ctx.secrets` (safeStorage, stored in
-`%APPDATA%\<app>\extension-secrets\<id>.json`, outside every sandbox,
-`secrets.cjs`); the error contract (`errors.cjs`: every failed call carries
-`code`, `message`, `details`; `EXT_*` codes are MonoRail's, `ctx.fail()` sends
-the extension's own; pages call through `extensions.call`, which returns an
-envelope because Electron IPC drops error fields); `migrate(ctx, fromVersion)`
-before `start()` when the version that last used the data folder changed
-(`state.json` `dataVersions`); `ctx.emit` is fire and forget (dropped with no
-page open, JSON under 1 MB). Program names in `permissions.process` match
-without `.exe`/`.cmd`/`.bat`/`.com` on both sides.
-Settings (`settings.cjs`, API 1.1): the manifest's `settings` list (string,
-text, number, boolean, select, secret) becomes a generated form in Settings >
-Extensions (`modules/extensions/SettingsDialog.tsx`). MonoRail validates and
-stores values in `extension-settings/<id>.json`, secret fields encrypted in
-`extension-secrets/<id>.settings.json`; backends read `ctx.settings.get()`,
-pages `monorail.getSettings()` (no secret values) and get
-`monorail.onSettings` via the reserved `monorail.settings` event channel. On
-save a backend's `settingsChanged(ctx, values)` runs, or it is restarted.
-
-**Install, update, remove** (`manager.cjs`, `install.cjs`). Sources: a
-folder (copied), a `.zip`, the latest GitHub release of `owner/name` (the
-`*.monorail.zip` asset; its manifest `repository` must match), or a
-development folder loaded in place (Reload picks up a rebuild). Everything is
-staged in `extensions/.staging` and validated (zip-slip, size limits) and
-nothing runs until the user approves the permissions in the consent dialog.
-Installed files live in `%APPDATA%\<app>\extensions\<id>`, state (enabled,
-source, granted permissions and folders) in `extensions/state.json`. An
-update or reload that asks for more permissions turns the extension off
-(`needs-approval`) until approved. Removing keeps its data unless the user
-ticks "Also delete its data". The UI is Settings > Extensions
-(`src/modules/extensions`). Tests: `electron/extensions/extensions.test.cjs`
-(runs the real sandbox under Node).
-
-**SDK and starter.** `packages/extension-sdk` is the source of truth for what
-every extension carries in its `monorail-sdk/` folder: `client.js` (page
-bridge), `backend.d.ts`, `theme.css` (generated from `src/index.css`) and
-`pack.mjs` (zero-dependency packer to `<id>-<version>.monorail.zip`).
-`extensions/hello-monorail` is the starter and working sample (Vite + React +
-Tailwind page and app, notes backend, release workflow); new extension repos
-start with `npx degit wojoe-444/MonoRail/extensions/hello-monorail`. After
-changing the SDK or the design tokens run `node packages/extension-sdk/sync.mjs`;
-`npm test` fails if the copies are stale, and CI builds and packs the sample.
-The author docs are `docs/extensions/` (README index, concepts, tutorial,
-manifest, page-api, backend-api, permissions, lifecycle, testing,
-troubleshooting; plans only in roadmap.md). Reference pages describe what the
-code does today: update them in the same PR as any change to the manifest,
-`ctx`, the bridge, permissions or error codes.
-
-`wiki` (**Wiki**, under Help) is the in-app copy of `docs/`: every `docs/**/*.md`
-is bundled at build time, so it is offline and matches the installed version.
-The Wiki opens with its title, summary, audience and link index. It loads
-each Markdown body when opened and the full-text index when searched.
-Open a page from elsewhere with `openWiki(id, anchor)` from
-`modules/wiki/store.ts` (a test checks every `openWiki('<id>')` exists).
-
-### The wiki is a linked notebook (Obsidian-style): write docs that way
-
-The owner wants the wiki read by **hopping between linked pages**, not by
-hunting in the page list: if a reader has to use the nav panel, the docs have
-failed. Treat every doc as a node in a web of knowledge:
-
-- **Link heavily, inline.** Every time a page mentions an idea another page
-  explains (a feature, a term from `docs/guide/glossary.md`, a rule, a
-  setting), link it, to the heading if there is one (`page.md#heading`).
-  Use normal relative Markdown links so they also work on GitHub; the wiki
-  turns them into in-app links with a hover preview. Link both ways: when you
-  add a page, also add links *to* it from the pages that mention its topic.
-- **No orphans, no dead ends.** `electron/docs.test.cjs` fails when a doc has
-  no audience tag, a link points at a missing file or heading, a doc is
-  linked from nowhere, or a guide links to fewer than four other pages.
-- **Folders nest to any depth.** The page list is a collapsible tree built
-  from the folders under `docs/` (open state in `commandHub.wiki.open`; the
-  folders around the open page always open). A folder's `README.md` is its
-  index page: it introduces the section and links each page in it; the wiki
-  adds an "In this section" grid below it. Give it front matter `folder:
-  <short name>` for the tree. Order inside a folder is `ORDER` in
-  `content.ts` (optional; unlisted pages follow by title). Prefer a new
-  subfolder over a long flat folder.
-- **Every page shows its neighbours**: clickable breadcrumbs (folder index
-  pages), "Linked from" (backlinks) and "Links on this page", plus
-  previous/next in reading order. Keep pages short and focused so they link
-  rather than repeat.
-
-**Audience tags.** Every doc starts with front matter
-`---\naudience: human, ai\n---` (one or both; optional `summary:` for cards
-and previews, `folder:` on a README). `human` pages are plain-language guides
-anyone can follow without code; `ai` pages are dense reference for agents and
-developers (exact files, contracts, rules). The wiki filters on it (People /
-Agents / All, `commandHub.wiki.audience`, default People) and badges each
-page. `docs/guide/` holds the human guides, in subfolders (`agents/`,
-`workspace/`, `setup/`), shown as "Start here" cards (icons in `ICONS` in
-`WikiPage.tsx`); Home's "Get started" cards open them. A user-facing feature
-should get a guide page (or a section in one) in the same PR, linked from its
-folder index and from the pages that mention it. Guides must not contain
-personal paths, names or test-user details.
-
-## The MonoRail standard: entity types
-
-Every kind of thing MonoRail knows about (subagent, note, database, user,
-glossary term, ...) is an **entity type** in the MonoRail standard (wiki
-section `docs/standard/`, featured on the wiki home). The standard is **every
-entity type of [OpenMetadata 2.1](https://docs.open-metadata.org/v2.1.x-SNAPSHOT/api-reference)**
-(91, fields from the `2.1.0-rc2-release` JSON schemas) plus MonoRail's own
-types for things OpenMetadata has no word for (21: subagent, flow, note,
-bookmark, bookmarkFolder, scheduledTask, flashcardDeck, flashcard,
-semanticModel, semanticMetric, savedQuery, and Tracker's issue,
-workflowState, issueLabel, project, projectMilestone, projectUpdate, cycle,
-initiative, customView, comment). The one definition is
-`apps/command-hub/src/standard/standard.json` (sections > categories >
-entity types > fields; OpenMetadata types also carry `schema`, `basePath`,
-`reference` and, for the 9 types new in 2.1, `since`), read through
-`src/standard/index.ts`. Rules (`docs/standard/README.md`):
-
-- An OpenMetadata entity is adopted whole: its type name (`databaseSchema`,
-  `eventsubscription`, as OpenMetadata's `Entity.java` spells it), field
-  names, types and meanings unchanged. Fields may stay unset, never be
-  renamed or repurposed; MonoRail's extra fields go in `extension`. When
-  OpenMetadata adds a type for something MonoRail had, MonoRail moves to it:
-  prompt templates are OpenMetadata's `promptTemplate` since 2.1 (Explore
-  maps the stored template onto it in `promptTemplateRecord`; versions go in
-  `extension.versions`).
-- **MonoRail may add values to OpenMetadata's enum types, never change
-  theirs** (rule 5 in `docs/standard/README.md`): `standard.json` `enums`
-  lists each enum MonoRail extends, with OpenMetadata's values (`openMetadata`,
-  refreshed by `standard-openmetadata.cjs`, which also flags a MonoRail value
-  OpenMetadata has since added) and MonoRail's (`monorail`: value, summary,
-  docs). `allowedValues(type)` in `src/standard/index.ts`; field tables say
-  "MonoRail adds ...", a `<!-- standard:enum <type> -->` block lists them all;
-  tests check no overlap with OpenMetadata and that every data-service
-  connector's `serviceType` is allowed. So far: `metadataServiceType`
-  `BigQuery`. An OpenMetadata server does not accept MonoRail's values.
-- MonoRail's own types are camelCase and never reuse an OpenMetadata type name
-  (the MetricFlow metric is `semanticMetric`); the test checks against every
-  OpenMetadata type in the file plus OpenMetadata's non-entity record names.
-  `subagent` and `flow` stay MonoRail's: `aiApplication` is a running AI
-  system and `workflowDefinition` a governance workflow.
-- Entity types are OpenMetadata's: schemas whose top-level `javaInterfaces`
-  names an EntityInterface. Results, runs, feed threads and similar records
-  are not entity types.
-- **Every entity type is on Explore** (`src/modules/explore`): its tree is
-  sections (overline labels) > categories > types > items > fields, built from
-  the standard; items are made with `entry('<type>', ...)` (a test fails on a
-  type not in the standard), and field details show the standard's type and
-  description with a link to the type's wiki page. Types with no items still
-  show, with 0.
-- Each type has a wiki page with a `<!-- standard:fields <type> -->` block
-  (OpenMetadata types: `docs/standard/<category folder>/<kebab name>.md`,
-  data asset categories under `docs/standard/data-assets/`; MonoRail's in
-  `docs/standard/monorail/`). The tables between `<!-- standard:... -->` and
-  `<!-- /standard -->` are generated: run `node scripts/standard-docs.cjs`
-  from `apps/command-hub` after changing `standard.json`
-  (`electron/standard.test.cjs` fails when stale).
-- **New OpenMetadata version:** `node scripts/standard-openmetadata.cjs
-  <OpenMetadata checkout>` rewrites every OpenMetadata type's fields from its
-  schema (following `$ref`s for descriptions) and lists entity schemas the
-  standard lacks and entries whose schema is gone; then add new types by hand
-  (category, name, summary, REST path from the server's `@Path`, page, the
-  OpenMetadata page's lists) and bump `openMetadata.pinned`.
-- MonoRail fills one OpenMetadata category itself so far: Explore lists
-  database, schema and table from the semantic project's models (`relation`,
-  from the manifest's `node_relation`). The OpenMetadata page (below) shows
-  every type from the user's own server. The wider goal is to bring the
-  separate MonoRail-Metadata app (a UI over headless OpenMetadata) into
-  MonoRail, starting with Database.
-
-**OpenMetadata** (`openmetadata` module, in the Insights slot the Semantic
-page had, `nav: { section: 'Insights' }`, `/semantic` redirects here; guide `docs/guide/data/openmetadata.md`) is that
-app's UI side, reading **MonoRail's local database by default** and a connected
-server on request (`createLocalService` / `createServerService` behind
-`createService` in `openmetadata.cjs`; every method takes `source: 'local' |
-'bigquery' | 'server'`, default BigQuery while it is set up, then the server
-once its connection is set up, local until then; the page has **no source
-switch**: once BigQuery sync is set up everything is served from its local
-copy, the sync only keeps it fresh. Search (Explore, Lineage picker, Catalog
-list filter) goes through the backend's `search` (local: SQL over every
-entity, `localdb` `search()`; server: `/search/query`), never a filter
-over a capped load (`useAssetSearch` in `tabs/assets.ts`)):
-every OpenMetadata 2.1 entity type that has a REST collection
-(90, in OpenMetadata's groups, `src/modules/openmetadata/catalog.ts`; `std()`
-rows take their wording from the standard) on one page, read live from the
-user's own OpenMetadata server (2.0 or 2.1; a type the server lacks answers
-404 and is greyed out). The type navigator has counts; the overview,
-one type's list (owners, tags, include deleted, load more) and one entity
-(owners, tier, tags, domains, Markdown description, every field, custom
-properties, columns or fields, references, lineage (data and AI assets;
-`getLineage`: `GET /lineage/{type}/{id}` on the server, the lineage table for
-local and BigQuery, one EntityLineage shape; depths are any number or `'all'`,
-the server read 3 levels a request with `deepLineage` walking on from the edge,
-at most 120 requests, then `truncated`; `lineage.ts` holds the depth options and
-`endProducts`, the downstream sinks an entity's page lists under its header as
-**Downstream end products**), versions, raw JSON) follow. Field
-descriptions come from the standard for adopted types. **Tabs**: the page is
-a set of tabs after the MonoRail-Metadata app's drawer (`tabs.ts` `OM_TABS`:
-Home, Catalog (the every-type browser above, `tabs/CatalogTab.tsx`), Explore,
-Lineage, Semantic models, Metrics, Query builder, Malloy models, Glossary,
-Classifications, Domains, Data quality, Insights, Services, Teams and users;
-one file each in `tabs/`). Each tab is its own route, `/openmetadata/<id>`
-(Home is `/openmetadata`; `findModuleByPath` / `findNavItem` map the prefix to
-the module), shown as chips in a **command bar** in the top bar
-(`PageCommandBar` + `PageTabs` in `components/layout/`, monorail-ui's header
-style A; `TopBarSlot.tsx` lets a page take the breadcrumb's place). The shell
-(`OpenMetadataPage.tsx`) owns status, the source switch and Refresh;
-`catalog: true` tabs wait for the catalog and get `OmTabProps`, the semantic
-tabs (Malloy and MetricFlow) render without it. Other tabs open an
-entity in Catalog with `openInCatalog({ type, fqn })` (in memory). Catalog
-keeps its place in component state. Connector `openmetadata` (`electron/connections/connectors/`): server
-(https, or http on localhost) plus a bot token, or an email and password
-exchanged at `POST /api/v1/users/login` (password base64); opt-in like every
-connector. Backend `electron/modules/openmetadata.cjs`: the page sends an
-entity type, never a path; `TYPES` maps types to REST collections (tests
-check it matches `catalog.ts` and the standard's `basePath`s), ids must be UUIDs, list and get fall back from
-`fields=owners,tags` / `*` when OpenMetadata answers 400 and remember the
-refusal. The only write is `setDescription` (one JSON Patch op on
-`/description`). Keeps no files. The browser dev server uses the fictional
-catalog in `sample.ts`. Descriptions render with links and images inert.
-
-**BigQuery as the source of truth** (docs: `docs/bigquery-metadata.md`): the
-connector `bigquery-metadata` (subconnector of `gcloud`, signs in with its
-login) names a project and dataset (default `METADATA`) that holds **MonoRail's
-metadata layout** `monorail.metadata/2`: the local database's tables as
-BigQuery tables (`entity` with OpenMetadata's full API JSON in `json`, `meta`
-with the `layout` row; optional `entity_version`, `record`, and `lineage`:
-one edge per `from_id` + `to_id`, `json` OpenMetadata's EntitiesEdge), not
-OpenMetadata's own MySQL schema. `/1` datasets (no lineage table) are still
-read; a newer number is refused. Something else fills it; for this source,
-ingestion means connecting. MonoRail writes to BigQuery only to create the
-default `METADATA` dataset when it is missing or has no tables
-(`ensureDataset()` runs `setupSql()`, all `IF NOT EXISTS`, as one script job at
-the connection's `location`, from `afterSave`, which never throws, and at the
-start of each sync); any other dataset gets the setup SQL as text to run. It
-keeps a copy,
-`databases\bigquery.sqlite3` (`mirrorDb()`, same schema, rows stored as-is
-with `putExact`, emptied when the source changes or the connection is
-removed), and the page's `bigquery` source reads only the copy, read-only
-(`setDescription` refused, pencil hidden). Sync (`localdb/bigquery-mirror.cjs`,
-run by `modules/openmetadata-bigquery.cjs` from `openmetadata`'s `start()`):
-**SQLite is the first-class database**: never emptied or re-downloaded to
-update it. Every sync is one dry-run-checked SELECT per table `WHERE <time> >=
-TIMESTAMP_SECONDS(<second the last sync started>)`, refused over the
-connection's scan limit; a table SQLite does not hold yet (first sync, new
-source, a table the layout gained) is seeded once through free
-`tabledata.list`; removals arrive as `deleted = TRUE` rows (no id listing). A
-full re-read happens only on the user's confirmed Rebuild (OpenMetadata page
-only). Hourly by default while the app runs, retries
-after 15 minutes, one at a time, an In-App row. On Services it is a
-connect-only service (`LOCAL_SERVICES` `ingestion: 'connect'`,
-`bigquery_metadata`, `metadataService` of type `BigQuery`, a value MonoRail
-adds): no pipelines, its copy's state, `syncConnected`. Explore lists the
-copy's entities (`openmetadata.explore`: not deleted, at most 5,000, read
-only, never syncs). CRUD on the source of
-truth is a later goal; the layout is MonoRail's own so it can be plain DML
-with a version check.
-
-## Diagrams
-
-Process and decision diagrams follow the MonoRail diagrams standard (BPMN 2.0 and DMN),
-repository `wojoe-444/MonoRail-Diagrams` (private; usually checked out at `~/Repos/MonoRail-Diagrams`).
-Before drawing or changing one, read its `AGENTS.md`. Diagrams live in `docs/diagrams/<process>/`.
-If an agent cannot reach that repository it says so and asks; it does not draw from memory. Files
-placed under `docs/` are bundled by the wiki, so each `.md` there needs an `audience:` tag and a link
-from a folder index (see [Audience tags](#the-wiki-is-a-linked-notebook-obsidian-style-write-docs-that-way)).
-
-## Design guidance
-
-The visual direction is **the Bot Dashboard from `wojoe-444/MC-Player`**
-(`dashboard/web` there): shadcn/ui components, MUI-style page composition,
-and its palette suite with a theme picker. When in doubt, match that app.
-Build everything with shadcn/ui. Do **not** add MUI (or any second component
-library) as a dependency; borrow MUI's conventions, not its code.
-
-### Component look
-
-Clean, quiet components: cards rest flat on a hairline ring
-(`ring-1 ring-foreground/10`, no shadow), generous radius (`--radius` 10px),
-subtle focus rings, restrained typography. Type is Inter Variable (bundled
-via `@fontsource-variable`, so it works offline in the .exe), code and
-numbers in Cascadia Mono (`font-mono`, a Windows system font with Consolas
-as fallback, nothing bundled). **JetBrains Mono is banned app-wide**: never use
-it, bundle it or name it in a font stack, SVG or extension theme; pick another
-font if `font-mono` ever needs replacing. Use the primitives in
-`components/ui/` rather than hand-rolled one-off styles. Scrollbars are one
-app-wide floating pill (`::-webkit-scrollbar` rules in `@layer base` of
-`index.css`: no track or arrows, a 6px capsule in `--foreground` ink); never
-set `scrollbar-width` or `scrollbar-color` globally, which makes Chromium
-drop those rules, and don't restyle a page's scrollbar one-off.
-
-### Layout, spacing, hierarchy
-
-- **8px grid.** Spacing values come from multiples of 8 (Tailwind `2`, `4`,
-  `6`, `8`, ...). Page gutters 24px (32px on large screens), gaps between
-  cards 24px, page sections 32px apart.
-- **App frame.** Permanent 72px left icon rail + a 64px top bar. The rail's
-  brand tile header is the same height as the top bar and has a bottom border.
-  The rail stays narrow on hover, keyboard focus, and while a subpage panel
-  is open.
-- **Top bar.** Drawer toggle, a divider, a `Section > Page` breadcrumb, and
-  on the right the search field (opens the command palette, Ctrl+K; an icon
-  below md) and the full screen toggle (F11). Color scheme and light/dark mode
-  are only in Settings > Appearance. Nothing else lives there unless it is
-  page-wide status (the Bot Dashboard puts live pills there).
-- **Navigation.** Items grouped into sections with dividers and names shown
-  in tooltips on hover or focus; 40px rows on soft pills (`bg-sidebar-accent`);
-  the active item is filled with `bg-sidebar-primary` and a soft colored shadow. Count badges
-  are amber. Every destination lives in `nav.ts`.
-- **Page structure.** Every page starts with `PageHeader`: overline
-  (optional), 24px semibold title, one-line subtitle, actions aligned right.
-  Content sits in a centered container (max 1536px).
-- **KPI tiles.** `StatTile` (or the same markup): uppercase xs label, 30px
-  tabular value, a colored delta line with an arrow (green good, amber bad),
-  and an optional `Sparkline` on the right. 4-up on desktop.
-- **Content hierarchy.** Responsive grids (1 / 2 / 3-4 columns). Cards have
-  a header (title + description + action), a divider, then content. Lists
-  use dividers and hover states.
-- **Elevation.** Cards are flat. Use `shadow-elevation-2/3` for raised and
-  overlay surfaces (menus, dialogs, hover lift), never ad-hoc shadows.
-- **Saving forms.** A form that keeps a draft and saves as a unit uses
-  `SaveBar` (`components/ui/save-bar.tsx`, guide
-  `docs/guide/setup/saving.md`): sticky at the bottom while there are unsaved
-  changes ("2 unsaved changes", Discard, Save; `blocked` says why Save can't
-  run), then "Saved. Safe to leave." only after the backend confirmed the
-  write (`savedAt`), and save errors with Try again. Put it last in the form's
-  container, outside anything with `overflow: hidden`. Used by Spending limit,
-  Profile, global Backups and GitHub+ repo backups. Dialogs keep their footer
-  buttons; switches that act at once (Remote access) stay immediate.
-
-### Color system: palettes
-
-Colors are OKLCH CSS variables mapped to Tailwind via `@theme inline` in
-`src/index.css`. Use tokens, never raw hex values in components.
-
-- **Palettes.** `src/lib/palettes.ts` holds the color schemes ported from
-  the Bot Dashboard plus the Nature schemes, shown in collapsible sets
-  (`PALETTE_GROUPS`: Paper, Nature, Ocean & Night, Warm, Neutrals; collapsed
-  by default below 1280px wide). Each is a few numbers (primary
-  hue/chroma, neutral hue/chroma, drawer style dark/light/bold) that
-  `tokens()` expands into every token for light and dark. `lib/theme.ts`
-  writes them on `<html>`; the choice is kept in `commandHub.palette`, the
-  mode in `commandHub.theme`. **Defaults: Sand & Ink, light mode.** The
-  values in `index.css` are Sand & Ink so the first paint matches; change a
-  scheme in `palettes.ts`, not there.
-- **Primary:** the palette's primary (Sand & Ink: deep khaki-brown) for
-  primary actions, active nav and links. `primary-soft` for tinted tiles.
-- **Highlight:** the palette's complementary hue, for secondary emphasis.
-- **Semantic:** `success`, `warning`, `info`, `destructive` keep the same
-  hues in every palette. Each has a solid (`bg-success`) and a soft variant
-  (`bg-success-soft text-success-soft-foreground`). Prefer soft variants for
-  badges, status chips, and icon tiles; save solid colors for primary
-  actions and small indicators.
-- **Sidebar:** `--sidebar-*` follows the palette's drawer style (white for
-  light-drawer palettes like Sand & Ink, near-black or brand-colored for the
-  others). The app frame's hub bar uses the same tokens.
-- **Charts** do not follow the palette: `--series-*` stay fixed (see Charts).
-- Check new UI in light and dark, and in at least one dark-drawer palette
-  (e.g. Indigo Ink) besides Sand & Ink.
+| `npm ci` | Install locked dependencies |
+| `npm run dev` | Vite browser preview with fictional data |
+| `npm run dev:browser` | Browser at localhost:5199 with a token-guarded Electron bridge and a separate dev data folder |
+| `npm run desktop` | Electron and Vite with hot reload |
+| `npm run desktop:prod` | Build and open the desktop app |
+| `npm run lint` | Run oxlint with warnings treated as failures |
+| `npm test` | Run backend and frontend tests |
+| `npm run test:backend` | Run the Node tests under `electron/` |
+| `npm run test:frontend` | Run Vitest unit tests under `src/` |
+| `npm run build` | Type-check and build the renderer to `dist/` |
+| `npm run dist:win` | Build `release/MonoRail-Setup-<version>.exe` |
+| `npm run dist:win:portable` | Build a portable executable without self-updates |
+
+[CI](.github/workflows/ci.yml) runs checks and builds the Windows installer.
+Pushes to `main` publish from CI as `<major>.<minor>.<run number>`. Set
+major/minor in the app's `package.json` and leave publishing to CI. See
+[updates and release notes](docs/contributing/desktop-shell.md#updates-and-release-notes).
+
+Keep the React lint rules active. Explain a necessary local exception
+and name its rule. Fast Refresh exceptions in `.oxlintrc.json` name the
+individual helper exports and their files.
+
+Follow the [PR template](.github/pull_request_template.md). For changes users
+will notice, use `## What's new` with `- **Short title**: one plain sentence`
+per change. These bullets ship in public release notes and in the app. Keep
+personal paths, names, test-user details and implementation terms out of
+them. Omit the section for changes users will not notice.
+
+## App and backend architecture
+
+Paths in this section are relative to `apps/command-hub/`.
+
+- `src/components/layout/` owns the shell. `nav.ts` assembles navigation.
+  `src/lib/router.ts` uses hash routing so routes work under Electron's
+  `file://`. Keep existing route URLs working.
+- `src/modules/` holds built-in pages. Export a lazy `ModuleDefinition`
+  from `src/modules/<id>/index.ts` and add it to `src/modules/registry.ts`.
+  Put its optional backend in `electron/modules/<id>.cjs` and register
+  `{ id, methods }` in `electron/modules/index.cjs`.
+- `src/apps/` holds Workspace and full-screen apps. Export a lazy
+  `AppDefinition` and register it in `src/apps/registry.ts`. Give it
+  `/apps/<id>`, own its route prefix, and scope CSS to the app root.
+  Register backends in `electron/apps/index.cjs`. Keep the host's
+  [full-screen exit bar](docs/contributing/desktop-shell.md#workspace-and-full-screen-apps)
+  visible.
+- Access backends with `useModuleQuery`, `invokeModule` or `invokeApp`.
+  Keep the sandboxed preload bridge narrow. Use fictional data when Vite
+  runs without a backend. The separate browser bridge carries backend calls
+  and events. Extension pages require Electron's `monorail-ext://` scheme.
+- Add actions that need this PC's screen (dialogs, Explorer, terminals,
+  DevTools, restart or opening external links) to the backend's
+  `desktopOnly` list. Use `hasLocalScreen()` in the renderer. Classify every
+  built-in backend method in `electron/remote/policy.cjs` (`REMOTE_METHODS`).
+  Keep desktop-only actions and methods that change secrets, permissions,
+  accounts or MonoRail itself on the PC. The server requires an explicit
+  phone classification. [Remote access](docs/remote-access.md) is optional,
+  off by default and tailnet-only.
+- Declare backend data files in `electron/cache/declared.cjs` with policy,
+  tier and version. Use the [shared cache](docs/caching.md) with atomic
+  writes, one build at a time and backoff. Opening a page reads the cache.
+  Refresh or the scheduler builds it. Home reads small summaries. Show
+  freshness using `CacheStatusBadge`.
+- Backends may export `start(ctx)`. Register background work with
+  `electron/scheduled/in-app.cjs` so it appears in Scheduled > In-App.
+  List the job from existing state. Expose Run now only for jobs safe to
+  start by hand. Register global backup items in `electron/backups/global.cjs`
+  using the [backup contract](docs/backups.md).
+- Use [Connections](docs/contributing/connections.md) for account setup and
+  credentials. An unconfigured connector performs no checks or probes.
+  Keep credentials in the main process, encrypt stored secrets and refuse
+  to save them if encryption is unavailable.
+- [Agent access](docs/mcp.md) is stdio-only. Read existing stores without
+  copying private content. New write tools require per-agent consent
+  (`write: true`) and an audit summary (`ctx.did()`). Extension tools need
+  consent whether they read or write. Keep arguments and results out of logs.
+
+## Feature references
+
+Use the [developer reference index](docs/contributing/README.md) to find code
+paths, compatibility rules and detailed behavior.
+
+- [Desktop shell](docs/contributing/desktop-shell.md) covers navigation,
+  Settings, command palette, onboarding and scheduled jobs. New Settings
+  cards/options need a target in `src/modules/settings/search.ts`.
+- [Agent Chat](docs/contributing/agent-chat.md) covers real-path repo checks,
+  Claude and pi workers, permissions, spending and Coordinator. All turn
+  callers go through the shared checks. Preserve the refusal of permission
+  bypass and agent access to out-of-scope folders.
+- [Agent usage and catalog](docs/contributing/agents.md) covers cost
+  accounting, available agent definitions and Mochi. See also [Flows](docs/flows.md).
+- [GitHub+ and Tasks](docs/contributing/git-workspace.md),
+  [Workspace tools](docs/contributing/workspace-tools.md) and
+  [Tracker](docs/tracker.md) document the apps and their local storage.
+- The [MonoRail standard](docs/standard/README.md) defines all entity types
+  in `src/standard/standard.json`. Preserve OpenMetadata names, meanings and
+  values. Put additions in `extension` and document enum additions separately.
+  Every type appears in Explore and has a generated Wiki field table.
+  Run `node scripts/standard-docs.cjs` from the app after changing the
+  standard. See [OpenMetadata](docs/contributing/openmetadata.md) for catalog
+  routing, search, lineage and schema refresh.
+- See [ingestion](docs/ingestion.md), [BigQuery metadata](docs/bigquery-metadata.md),
+  [Malloy](docs/malloy.md), [MetricFlow](docs/semantic.md) and
+  [Docker](docs/docker.md) for their storage, opt-in and execution contracts.
+
+## Extensions
+
+Use extensions for user- or situation-specific features. See the
+[extension author docs](docs/extensions/README.md) for the manifest, routes,
+page API, backend hooks, permissions and testing. Keep the extension frame
+on its own origin and the backend in its permission-scoped child process.
+`electron/extensions/runner.cjs` is self-contained and unpacked from the
+asar. The sandbox can read only that app file. Treat process permission as
+full trust and require consent when permissions grow.
+
+`packages/extension-sdk/` owns the API files copied into extension repos.
+Keep the manifest, backend context, bridge and SDK in step with
+`API_VERSION`. Bump minor for additions and major for breaking changes.
+Update reference docs with contract changes. Run
+`node packages/extension-sdk/sync.mjs` from the root after editing the
+SDK or design tokens. Tests check the copies.
+
+The [sample extension](extensions/hello-monorail/README.md) builds `ui/`
+locally and in CI. In its folder, run `npm ci`, `npm test` and
+`npm run pack`. Build before loading a development folder in MonoRail.
+Keep generated `ui/` and release ZIPs out of Git.
+
+## Wiki and diagrams
+
+- Every `docs/**/*.md` page starts with `audience: human`, `audience: ai`
+  or `audience: human, ai` in front matter and has an H1. Add `summary:`
+  for previews and `folder:` to label a folder index.
+- Use relative Markdown links to related pages and headings. Link new pages
+  from their folder's `README.md` and from relevant existing pages. The
+  Wiki follows these links offline and shows backlinks. Keep each guide
+  linked to at least four other pages.
+- Update [user guides](docs/guide/README.md) with user-visible features. Keep
+  code contracts and deep dives in AI reference pages. Run
+  `node --test electron/docs.test.cjs` from the app to verify links, anchors,
+  audience and `openWiki(id, anchor)` targets.
+- For BPMN 2.0 or DMN, read `AGENTS.md` in `wojoe-444/MonoRail-Diagrams`
+  (usually in `~/Repos/MonoRail-Diagrams`) before drawing. Ask for access
+  if it is unavailable. Place diagrams in `docs/diagrams/<process>/` and
+  link any accompanying Markdown in the Wiki.
+
+## UI rules
+
+- Use the owned shadcn/ui primitives and the existing [design system](docs/contributing/design-system.md).
+  Match the Bot Dashboard in `wojoe-444/MC-Player` (`dashboard/web`).
+  Keep shadcn/ui as the sole component library.
+- Use tokenized colors, Inter Variable and the Cascadia Mono/Consolas
+  stack. JetBrains Mono is banned across the app and extension theme.
+  Keep layout on the 8px grid, use `PageHeader` and share `SaveBar` for
+  draft forms. Review light/dark and a dark-drawer palette.
+- Use `src/components/charts/` with fixed series colors, consistent
+  ranking across filters, one axis, a legend for multiple series and
+  a table view. Favor thin marks and one main figure per page.
