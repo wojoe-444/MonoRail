@@ -110,10 +110,10 @@ export function PipelineDialog({ target, types, existing, onClose, onSaved }: Pr
     setError('')
     try {
       if (local) {
-        await call('savePipeline', { pipeline: { ...pipeline, deploy } })
+        await call('savePipeline', { pipeline: { ...pipeline, serviceKind: target.service.kind, deploy } })
         onSaved(existing ? `Saved ${pipeline.name}.` : deploy ? `${pipeline.name} is deployed to this PC.` : `Saved ${pipeline.name}. Deploy it to start its schedule.`)
       } else {
-        const res = await call<{ deployError?: string }>('serverCreate', { service: { id: target.service.id, category }, pipeline, deploy })
+        const res = await call('serverCreate', { service: { id: target.service.id, category }, pipeline, deploy })
         onSaved(res.deployError ? `Created ${pipeline.name} on the server, but deploying failed: ${res.deployError}` : deploy ? `Created and deployed ${pipeline.name} on the server.` : `Created ${pipeline.name} on the server.`)
       }
     } catch (e) {

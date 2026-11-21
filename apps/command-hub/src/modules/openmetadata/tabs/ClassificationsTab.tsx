@@ -118,7 +118,7 @@ function ClassificationDetail({
   tags: AllState;
   counts: OmTabProps["counts"]["data"];
 }) {
-  const q = useCall<OmEntity>("get", { type: "classification", fqn });
+  const q = useCall("get", { type: "classification", fqn });
   const scan = useAssetScan(counts, { tagPrefix: `${fqn}.` });
   const [open, setOpen] = useState<string>();
   const mine = useMemo(

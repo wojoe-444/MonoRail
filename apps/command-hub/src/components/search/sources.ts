@@ -47,7 +47,7 @@ export function searchWiki(query: string): WikiPage[] {
 /** Chat's session list (allowed folders only), or the fictional one in the browser dev server. Archived chats are left out. */
 export async function loadChats(): Promise<SessionSummary[]> {
   const list = isDesktop()
-    ? await invokeModule<{ sessions: SessionSummary[] }>('agent-chat', 'listSessions')
+    ? await invokeModule('agent-chat', 'listSessions')
     : (await import('@/modules/agent-chat/sample')).sampleSessions
   return list.sessions.filter((s) => !s.archived).sort((a, b) => b.updatedAt - a.updatedAt)
 }
@@ -75,7 +75,7 @@ export interface AssetHit {
  */
 export async function searchAssets(query: string, limit: number): Promise<{ rows: AssetHit[]; total: number }> {
   const [{ call }, { ASSET_TYPES }] = await Promise.all([import('@/modules/openmetadata/api'), import('@/modules/openmetadata/tabs/assets')])
-  const res = await call<{ data: { id: string; entityType: string; name?: string; displayName?: string; fullyQualifiedName?: string; deleted?: boolean }[]; total: number }>('search', {
+  const res = await call('search', {
     q: query,
     types: [...ASSET_TYPES],
     limit,

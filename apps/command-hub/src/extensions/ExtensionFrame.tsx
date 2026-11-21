@@ -29,7 +29,6 @@ import type { ExtensionSummary } from './types'
 const BRIDGE = 1
 
 /** What the "extensions" backend's call() returns (see electron/extensions/errors.cjs). */
-type CallResult = { ok: true; value: unknown } | { ok: false; error: { code: string; message: string; details?: unknown } }
 
 interface ExtensionFrameProps {
   ext: ExtensionSummary
@@ -105,7 +104,7 @@ export function ExtensionFrame({ ext, contribution, kind, apiVersion }: Extensio
         let value: unknown
         if (msg.op === 'invoke') {
           if (typeof msg.method !== 'string') throw new Error('invoke needs a method name')
-          const res = await invokeModule<CallResult>('extensions', 'call', { id, method: msg.method, args: msg.args })
+          const res = await invokeModule('extensions', 'call', { id, method: msg.method, args: msg.args })
           if (!res.ok) {
             post({ type: 'response', id: msg.id, ok: false, error: res.error })
             return
@@ -114,9 +113,10 @@ export function ExtensionFrame({ ext, contribution, kind, apiVersion }: Extensio
         } else if (msg.op === 'pickFolder') {
           value = await invokeModule('extensions', 'requestFolder', { id, write: msg.write === true })
         } else if (msg.op === 'openExternal') {
+          if (typeof msg.url !== 'string') throw new Error('Only https:// links can be opened')
           value = await invokeModule('extensions', 'openExternal', { url: msg.url })
         } else if (msg.op === 'getSettings') {
-          const snap = await invokeModule<{ values: unknown; secrets: unknown }>('extensions', 'getSettings', { id })
+          const snap = await invokeModule('extensions', 'getSettings', { id })
           value = { values: snap.values, secrets: snap.secrets }
         } else if (msg.op === 'openSettings') {
           requestExtensionSettings(id)

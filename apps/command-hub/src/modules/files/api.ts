@@ -1,15 +1,13 @@
 import { useSyncExternalStore } from 'react'
 
 import { prefs } from '@/lib/prefs'
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 import type { TagColor } from './types'
 
 /** Call the Files backend; in the browser dev server, the fictional sample. */
-export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
-  return isDesktop() ? invokeModule<T>('files', method, args) : sampleInvoke<T>(method, args)
-}
+export const call = moduleClient('files', sampleInvoke)
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
@@ -22,7 +20,7 @@ export function thumbnail(path: string, modified: number, size = 160): Promise<s
   let p = thumbs.get(key)
   if (!p) {
     p = new Promise<void>((go) => (running < 4 ? (running++, go()) : waiting.push(() => (running++, go()))))
-      .then(() => call<string | null>('thumbnail', { path, size }))
+      .then(() => call('thumbnail', { path, size }))
       .catch(() => null)
       .finally(() => {
         running--

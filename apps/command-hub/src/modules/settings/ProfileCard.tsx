@@ -8,7 +8,7 @@ import { SaveBar } from '@/components/ui/save-bar'
 import { savedNow } from '@/lib/changes'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient } from '@/modules/client'
 
 import type { ProfilesView } from './types'
 
@@ -23,13 +23,11 @@ let sample: ProfilesView = {
   scopes: { profile: [], machine: [] },
 }
 
-const call = <T,>(method: string, args?: { id: string; name: string }): Promise<T> =>
-  isDesktop()
-    ? invokeModule<T>(MODULE_ID, method, args)
-    : new Promise<T>((r) => {
-        if (method === 'rename' && args) sample = { ...sample, profiles: sample.profiles.map((p) => (p.id === args.id ? { ...p, name: args.name.trim() } : p)) }
-        setTimeout(() => r(sample as T), 60)
-      })
+const call = moduleClient(MODULE_ID, (method, input) => new Promise((resolve) => {
+  const args = input as { id: string; name: string } | undefined
+  if (method === 'rename' && args) sample = { ...sample, profiles: sample.profiles.map((p) => (p.id === args.id ? { ...p, name: args.name.trim() } : p)) }
+  setTimeout(() => resolve(sample), 60)
+}))
 
 /** What a profile holds, in the page's words. electron/profiles SCOPES is the source of truth. */
 const PROFILE_ITEMS = [
@@ -62,7 +60,7 @@ export function ProfileCard({ className }: { className?: string }) {
 
   useEffect(() => {
     let live = true
-    call<ProfilesView>('getProfiles').then(
+    call('getProfiles').then(
       (v) => {
         if (!live) return
         setView(v)
@@ -83,7 +81,7 @@ export function ProfileCard({ className }: { className?: string }) {
     setBusy(true)
     setSaveError(undefined)
     try {
-      const v = await call<ProfilesView>('rename', { id: active.id, name })
+      const v = await call('rename', { id: active.id, name })
       setView(v)
       setName(v.profiles.find((p) => p.active)?.name ?? '')
       setSavedAt(savedNow())

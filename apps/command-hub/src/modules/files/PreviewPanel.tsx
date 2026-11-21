@@ -34,7 +34,7 @@ export function PreviewPanel({ target, count, tags, pinned, ops }: { target: { p
     if (!path) return
     let alive = true
     const t = setTimeout(() => {
-      call<Preview>('preview', { path })
+      call('preview', { path })
         .then((p) => {
           if (!alive) return
           setPreview(p)
@@ -142,7 +142,7 @@ export function PreviewPanel({ target, count, tags, pinned, ops }: { target: { p
                       className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
                       onClick={() => {
                         setSize('busy')
-                        void call<FolderSize>('folderSize', { path: preview.path })
+                        void call('folderSize', { path: preview.path })
                           .then(setSize)
                           .catch((e) => (setSize(null), setError(errorText(e))))
                       }}

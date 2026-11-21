@@ -25,8 +25,8 @@ function toDraft(snap: SettingsSnapshot): Draft {
 }
 
 /** Only what changed, in the shape the backend validates. */
-function toInput(fields: SettingField[], draft: Draft, initial: Draft, cleared: Set<string>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
+function toInput(fields: SettingField[], draft: Draft, initial: Draft, cleared: Set<string>): Record<string, string | number | boolean | null> {
+  const out: Record<string, string | number | boolean | null> = {}
   for (const f of fields) {
     const v = draft[f.key]
     if (f.type === 'secret') {
@@ -53,7 +53,7 @@ export function SettingsDialog({ ext, onClose }: { ext: ExtensionSummary; onClos
   useEffect(() => {
     let alive = true
     const load = isDesktop()
-      ? invokeModule<SettingsSnapshot>('extensions', 'getSettings', { id: ext.id })
+      ? invokeModule('extensions', 'getSettings', { id: ext.id })
       : Promise.resolve<SettingsSnapshot>({
           fields: ext.settings,
           values: Object.fromEntries(ext.settings.filter((f) => f.type !== 'secret').map((f) => [f.key, f.default ?? null])),

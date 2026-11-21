@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { sampleInfo, sampleLogs, sampleOverview, sampleStats } from './sample'
-import type { ContainerInfo, ContainerLogs, ContainerState, ContainerStats, DockerBlock, DockerContainer, DockerOverview, StatsSample } from './types'
+import type { ContainerLogs, ContainerState, ContainerStats, DockerBlock, DockerContainer, DockerOverview, StatsSample } from './types'
 
 type Tab = 'containers' | 'images' | 'volumes' | 'networks'
 type Detail = 'logs' | 'stats' | 'info'
@@ -41,7 +41,7 @@ const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digi
 
 export default function DockerPage() {
   const desktop = isDesktop()
-  const overviewQuery = useModuleQuery<DockerOverview>('docker', 'getOverview')
+  const overviewQuery = useModuleQuery('docker', 'getOverview')
   const overview = overviewQuery.data ?? (desktop ? undefined : sampleOverview)
   const { reload } = overviewQuery
   const ready = !!overview && !overview.block
@@ -113,7 +113,7 @@ function useStatsSamples(enabled: boolean): StatsSample[] {
     let timer: ReturnType<typeof setTimeout>
     async function tick() {
       try {
-        const s = await invokeModule<StatsSample>('docker', 'getStats')
+        const s = await invokeModule('docker', 'getStats')
         if (!stopped) setSamples((prev) => [...prev, s].slice(-STATS_KEEP))
       } catch {
         // A missed sample is fine: the next one comes in a few seconds.
@@ -353,7 +353,7 @@ function LogsView({ container: c }: { container: DockerContainer }) {
     let timer: ReturnType<typeof setTimeout>
     async function read() {
       try {
-        const l = await invokeModule<ContainerLogs>('docker', 'getLogs', { id: c.id })
+        const l = await invokeModule('docker', 'getLogs', { id: c.id })
         if (!stopped) {
           setLogs(l)
           setError(undefined)
@@ -484,7 +484,7 @@ function MiniChart({ title, rows, dataKey, format }: { title: string; rows: { t:
 
 function InfoView({ id }: { id: string }) {
   const desktop = isDesktop()
-  const query = useModuleQuery<ContainerInfo>('docker', 'getContainer', { id })
+  const query = useModuleQuery('docker', 'getContainer', { id })
   const info = query.data ?? (desktop ? undefined : { ...sampleInfo, id })
   if (!info) return <Empty icon={Loader2} text={query.error?.message ?? 'Reading…'} />
   return (

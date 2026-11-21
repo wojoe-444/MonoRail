@@ -1,24 +1,38 @@
+// @ts-check
 const fs = require('node:fs')
 const path = require('node:path')
 const { randomUUID } = require('node:crypto')
 
 const DATA_FILE = 'bookmarks.json'
+
+/** @typedef {import('../../src/ipc/modules').Bookmark} Bookmark */
+/** @typedef {import('../../src/ipc/contract').BackendContext} BackendContext */
+
+/** @param {BackendContext} ctx
+ * @returns {Bookmark[]}
+ */
 function read(ctx) {
   let raw
   try { raw = fs.readFileSync(path.join(ctx.dataDir, DATA_FILE), 'utf8') } catch (e) {
-    if (e.code === 'ENOENT') return []
+    if (e instanceof Error && 'code' in e && e.code === 'ENOENT') return []
     throw e
   }
   const data = JSON.parse(raw)
   if (!Array.isArray(data)) throw new Error('Bookmarks data is invalid.')
   return data
 }
+/** @param {BackendContext} ctx
+ * @param {Bookmark[]} items
+ */
 function write(ctx, items) {
   const file = path.join(ctx.dataDir, DATA_FILE)
   const temp = `${file}.${randomUUID()}.tmp`
   try { fs.writeFileSync(temp, JSON.stringify(items, null, 2), 'utf8'); fs.renameSync(temp, file) }
   finally { try { fs.unlinkSync(temp) } catch { /* Already renamed, or cleanup failed. */ } }
 }
+/** @param {import('../../src/ipc/contract').Args<'bookmarks', 'save'>} args
+ * @returns {Omit<Bookmark, 'id'>}
+ */
 function fields(args) {
   const name = typeof args?.name === 'string' ? args.name.trim() : ''
   const description = typeof args?.description === 'string' ? args.description.trim() : ''
@@ -35,12 +49,16 @@ function fields(args) {
   }
   return { name, description, target: kind === 'folder' ? '' : target, kind, parentId: args?.parentId || null, color }
 }
+/** @param {Bookmark[]} items
+ * @param {string} id
+ */
 function find(items, id) {
   const index = items.findIndex((item) => item.id === id)
   if (index < 0) throw new Error('Bookmark not found.')
   return index
 }
-module.exports = {
+/** @satisfies {import('../../src/ipc/contract').ModuleBackend<'bookmarks'>} */
+const backend = {
   id: 'bookmarks',
   desktopOnly: ['open'],
   methods: {
@@ -75,7 +93,7 @@ module.exports = {
       let count
       do {
         count = removed.size
-        for (const item of items) if (removed.has(item.parentId)) removed.add(item.id)
+        for (const item of items) if (item.parentId && removed.has(item.parentId)) removed.add(item.id)
       } while (removed.size !== count)
       write(ctx, items.filter((item) => !removed.has(item.id)))
     },
@@ -93,3 +111,5 @@ module.exports = {
     },
   },
 }
+
+module.exports = backend

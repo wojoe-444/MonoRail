@@ -82,8 +82,8 @@ export function Pane(props: PaneProps) {
     let alive = true
     setLoading(true)
     const load = tagColor
-      ? call<FileEntry[]>('statMany', { paths: tagKey ? tagKey.split('\n') : [] }).then((entries): Listing => ({ path, name: `${tagColor} tag`, parent: null, entries, hiddenCount: 0, truncated: false, git: null }))
-      : call<Listing>('list', { path, showHidden })
+      ? call('statMany', { paths: tagKey ? tagKey.split('\n') : [] }).then((entries): Listing => ({ path, name: `${tagColor} tag`, parent: null, entries, hiddenCount: 0, truncated: false, git: null }))
+      : call('list', { path, showHidden })
     load
       .then((l) => {
         if (!alive) return
@@ -116,7 +116,7 @@ export function Pane(props: PaneProps) {
     let alive = true
     setSearching(true)
     const t = setTimeout(() => {
-      call<SearchResult>('search', { dir: path, query: filter, showHidden })
+      call('search', { dir: path, query: filter, showHidden })
         .then((r) => alive && setSearch(r))
         .catch((e) => alive && setError(errorText(e)))
         .finally(() => alive && setSearching(false))
@@ -630,7 +630,7 @@ function LoadedColumn({ dir, ctx, sort, foldersFirst, showHidden, version, picke
   const [error, setError] = useState<string>()
   useEffect(() => {
     let alive = true
-    call<Listing>('list', { path: dir, showHidden })
+    call('list', { path: dir, showHidden })
       .then((l) => alive && setEntries(sortEntries(l.entries, sort, foldersFirst)))
       .catch((e) => alive && setError(errorText(e)))
     return () => {

@@ -14,7 +14,7 @@ import { CardDialog, ConfirmDialog, DeckDialog, ImportDialog } from './dialogs'
 import { DueCounts } from './DueCounts'
 import { formatDue, formatSpan, plainLine } from './format'
 import type { View } from './FlashcardsPage'
-import type { Card as FlashCard, CardList, CardState, DeckList } from './types'
+import type { Card as FlashCard, CardState } from './types'
 
 const STATE: Record<CardState, { label: string; variant: 'info' | 'warning' | 'success' | 'destructive' }> = {
   new: { label: 'New', variant: 'info' },
@@ -31,8 +31,8 @@ export function CardsView({ deckId, go }: { deckId: string; go: (v: View) => voi
     const t = setTimeout(() => setQ(query), 200)
     return () => clearTimeout(t)
   }, [query])
-  const { data, error: loadError, reload } = useFlashcards<CardList>('listCards', { deckId, query: q })
-  const decks = useFlashcards<DeckList>('listDecks')
+  const { data, error: loadError, reload } = useFlashcards('listCards', { deckId, query: q })
+  const decks = useFlashcards('listDecks')
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const [editingDeck, setEditingDeck] = useState(false)

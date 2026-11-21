@@ -15,10 +15,10 @@ import { ConfirmDialog, DeckDialog } from './dialogs'
 import { DueCounts } from './DueCounts'
 import { formatSpan } from './format'
 import type { View } from './FlashcardsPage'
-import type { Deck, DeckList } from './types'
+import type { Deck } from './types'
 
 export function DecksView({ go }: { go: (v: View) => void }) {
-  const { data, error, reload } = useFlashcards<DeckList>('listDecks')
+  const { data, error, reload } = useFlashcards('listDecks')
   const [editing, setEditing] = useState<{ deck?: Deck } | undefined>()
   const [deleting, setDeleting] = useState<Deck>()
 

@@ -40,7 +40,7 @@ export function DeckDialog({ open, deck, onClose, onSaved }: { open: boolean; de
     setError(undefined)
     try {
       const args = { name, description, newPerDay: Number(newPerDay), retention }
-      const saved = await call<Deck>(deck ? 'updateDeck' : 'createDeck', deck ? { id: deck.id, ...args } : args)
+      const saved = await (deck ? call('updateDeck', { id: deck.id, ...args }) : call('createDeck', args))
       onSaved(saved)
       onClose()
     } catch (err) {
@@ -149,11 +149,11 @@ export function CardDialog({
     setError(undefined)
     try {
       if (card) {
-        const saved = await call<Card>('updateCard', { id: card.id, front, back, deckId: target })
+        const saved = await call('updateCard', { id: card.id, front, back, deckId: target })
         onSaved(saved)
         onClose()
       } else {
-        const saved = await call<Card>('addCard', { deckId: target, front, back })
+        const saved = await call('addCard', { deckId: target, front, back })
         onSaved(saved)
         setAdded((n) => n + 1)
         setFront('')
@@ -258,7 +258,7 @@ export function ImportDialog({ open, deck, onClose, onDone }: { open: boolean; d
     setBusy(true)
     setError(undefined)
     try {
-      const r = await call<{ added: number; skipped: number }>('importCards', { deckId: deck.id, text, separator })
+      const r = await call('importCards', { deckId: deck.id, text, separator })
       setResult(r)
       setText('')
       onDone()

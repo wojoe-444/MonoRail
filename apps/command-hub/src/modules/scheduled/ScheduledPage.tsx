@@ -7,15 +7,15 @@ import { Input } from '@/components/ui/input'
 import { hasLocalScreen, invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 import { prefs } from '@/lib/prefs'
 
-type Task = { name: string; path: string; description: string; command: string; schedule: string; state: string; lastRun: string | null; nextRun: string | null; result: number | null; writable: boolean }
-type Report = { tasks: Task[]; readAt: string }
+import type { ScheduledAction, ScheduledTask as Task } from '@/ipc/modules'
+
 const key = (t: Task) => t.path + t.name
 const date = (s: string | null) => s ? new Date(s).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 const HIDDEN = 'commandHub.scheduled.hidden'
 function initialHidden(): string[] { try { const v = JSON.parse(prefs.getItem(HIDDEN) ?? '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [] } catch { return [] } }
 
 export default function ScheduledPage() {
-  const query = useModuleQuery<Report>('scheduled', 'list')
+  const query = useModuleQuery('scheduled', 'list')
   const [filter, setFilter] = useState('')
   const [hidden, setHidden] = useState<string[]>(initialHidden)
   const [busy, setBusy] = useState(false)
@@ -27,7 +27,7 @@ export default function ScheduledPage() {
   const system = visible.filter((t) => !t.writable)
   const hiddenTasks = tasks.filter((t) => hidden.includes(key(t)))
   function hide(t: Task, value: boolean) { const next = value ? [...hidden, key(t)] : hidden.filter((k) => k !== key(t)); setHidden(next); prefs.setItem(HIDDEN, JSON.stringify(next)) }
-  async function change(t: Task, action: string) {
+  async function change(t: Task, action: ScheduledAction) {
     if (action === 'delete' && !window.confirm(`Delete the scheduled task “${t.name}”?`)) return
     setBusy(true); setError('')
     try { await invokeModule('scheduled', 'change', { action, name: t.name, path: t.path }); await query.refresh() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }

@@ -5,8 +5,10 @@
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["vite/client"],
+    "allowJs": true,
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
+    "strict": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -24,5 +26,12 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "electron/preload.cjs",
+    "electron/bridge/client-script.cjs",
+    "electron/modules/bookmarks.cjs",
+    "electron/modules/developer.cjs",
+    "electron/remote/policy.cjs"
+  ]
 }

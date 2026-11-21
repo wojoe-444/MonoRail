@@ -378,7 +378,7 @@ export default function QualityTab(_props: OmTabProps) {
 }
 
 function TestCaseDetail({ fqn, onBack }: { fqn: string; onBack: () => void }) {
-  const q = useCall<OmEntity>("get", { type: "testCase", fqn });
+  const q = useCall("get", { type: "testCase", fqn });
   const c = q.data;
   const back = (
     <button

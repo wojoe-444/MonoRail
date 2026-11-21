@@ -1,3 +1,4 @@
+// @ts-check
 // Developer Mode backend (Settings > Developer Mode, docs/developer-mode.md).
 //
 // Keeps no files. Developer Mode itself is a renderer switch; this backend
@@ -9,7 +10,8 @@ function mainWindow() {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
 }
 
-module.exports = {
+/** @satisfies {import('../../src/ipc/contract').ModuleBackend<'developer'>} */
+const backend = {
   id: 'developer',
   // Methods that act on this PC's own screen (a dialog, Explorer, a terminal,
   // a restart). Remote access never runs them (electron/bridge/desktop-only.cjs).
@@ -26,3 +28,5 @@ module.exports = {
     },
   },
 }
+
+module.exports = backend

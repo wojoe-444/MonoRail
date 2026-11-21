@@ -50,7 +50,7 @@ function ChangesPanel({ target }: { target?: { chatId?: string; repo?: string } 
     setLoading(true)
     setError(undefined)
     try {
-      setData(await invokeModule<ChangesResult>('agent-chat', 'getChanges', target?.chatId ? { chatId: target.chatId } : { repo: target?.repo }))
+      setData(await invokeModule('agent-chat', 'getChanges', target?.chatId ? { chatId: target.chatId } : { repo: target?.repo }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {

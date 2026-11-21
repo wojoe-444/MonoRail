@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 import { navigate } from '@/lib/router'
-import { hasLocalScreen, invokeModule, isDesktop } from '@/modules/client'
+import { hasLocalScreen, moduleClient } from '@/modules/client'
 
 /*
  * Malloy's own settings. Malloy ships with MonoRail (it is not a connection),
@@ -65,10 +65,7 @@ export function useMalloySettingsVersion() {
 
 const sample: MalloySettings = { folderName: 'lantern-models', project: 'lantern-demo', location: 'US', run: 'on', maxScanGb: '1', gcloud: true }
 
-function settingsCall(method: string, args?: Record<string, unknown>): Promise<MalloySettings & { canceled?: boolean; files?: number }> {
-  if (isDesktop()) return invokeModule('malloy', method, args)
-  return Promise.resolve({ ...sample, ...(args as Partial<MalloySettings>) })
-}
+const settingsCall = moduleClient('malloy', (_method, args) => Promise.resolve({ ...sample, ...args }))
 
 /** Asks for the models folder in the system dialog; true when one was picked. */
 export async function pickMalloyFolder(): Promise<boolean> {

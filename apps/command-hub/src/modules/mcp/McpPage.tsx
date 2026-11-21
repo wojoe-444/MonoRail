@@ -13,7 +13,6 @@ import { openWiki } from '@/modules/wiki/store'
 
 import { ActivityCard, AgentsCard } from './AccessCards'
 import { sampleSetup } from './sample'
-import type { McpSetup } from './types'
 
 type Client = 'claudeCode' | 'json'
 
@@ -24,7 +23,7 @@ const CLIENTS: { value: Client; label: string; help: string }[] = [
 
 export default function McpPage() {
   const desktop = isDesktop()
-  const query = useModuleQuery<McpSetup>('mcp', 'getSetup')
+  const query = useModuleQuery('mcp', 'getSetup')
   const setup = query.data ?? (desktop ? undefined : sampleSetup)
   const [client, setClient] = useState<Client>('claudeCode')
   const current = CLIENTS.find((c) => c.value === client)!

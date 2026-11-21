@@ -85,6 +85,9 @@ Paths in this section are relative to `apps/command-hub/`.
   [full-screen exit bar](docs/contributing/desktop-shell.md#workspace-and-full-screen-apps)
   visible.
 - Access backends with `useModuleQuery`, `invokeModule` or `invokeApp`.
+  Declare built-in methods, payloads and results in `src/ipc/modules.ts`
+  or `src/ipc/apps.ts`. The phone policy and registry tests enforce
+  matching method names.
   Keep the sandboxed preload bridge narrow. Use fictional data when Vite
   runs without a backend. The separate browser bridge carries backend calls
   and events. Extension pages require Electron's `monorail-ext://` scheme.

@@ -26,7 +26,7 @@ export function refreshExtensions(): Promise<void> {
     again = true
     return inflight
   }
-  inflight = invokeModule<ExtensionList>('extensions', 'list')
+  inflight = invokeModule('extensions', 'list')
     .then((next) => {
       list = next
       loaded = true

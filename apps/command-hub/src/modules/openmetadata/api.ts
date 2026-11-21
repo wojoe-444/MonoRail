@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import { invokeModule, isDesktop } from '@/modules/client'
+import type { Args, Method, MethodCall, MethodResult, Result } from '@/ipc/contract'
+import { isDesktop, moduleClient } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 
@@ -20,9 +21,13 @@ export function setSource(s: Source | undefined) {
 export const canEdit = () => source !== 'bigquery'
 
 /** Call the OpenMetadata backend; in the browser dev server, the fictional sample catalog. */
-export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
+const live = moduleClient('openmetadata')
+export function call<C extends MethodCall<'openmetadata'>>(...request: C): Promise<MethodResult<'openmetadata', C>> {
+  const [method, args] = request
   const withSource = source && !(args && 'source' in args) ? { source, ...args } : args
-  return isDesktop() ? invokeModule<T>('openmetadata', method, withSource) : sampleInvoke<T>(method, args)
+  // The catalog source is the only transport detail added by this adapter.
+  const enriched = (withSource !== args ? [method, withSource] : request) as C
+  return isDesktop() ? live(...enriched) : sampleInvoke(method, args)
 }
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
@@ -55,8 +60,14 @@ export interface CallState<T> {
  * Load from the backend when `args` change (compared as JSON). `null` args load nothing.
  * Keeps the last data while reloading the same request.
  */
-export function useCall<T>(method: string, args: Record<string, unknown> | null): CallState<T> {
-  const key = args === null ? null : JSON.stringify(args)
+type CatalogQuery = {
+  [M in Method<'openmetadata'>]: [method: M, args: Args<'openmetadata', M> | null, refreshKey?: unknown]
+}[Method<'openmetadata'>]
+
+export function useCall<C extends CatalogQuery>(...query: C): CallState<Result<'openmetadata', C[0]>> {
+  const [method, args, refreshKey] = query
+  type T = Result<'openmetadata', C[0]>
+  const key = args === null ? null : JSON.stringify([args, refreshKey])
   const [state, setState] = useState<{ key: string | null; data?: T; error?: string; loading: boolean }>({ key: null, loading: false })
   const [tick, setTick] = useState(0)
   const seq = useRef(0)
@@ -67,8 +78,10 @@ export function useCall<T>(method: string, args: Record<string, unknown> | null)
     const id = ++seq.current
     // oxlint-disable-next-line react/set-state-in-effect -- Mark the new catalog request as pending before delivering its result.
     setState((s) => ({ key, data: s.key === key ? s.data : undefined, loading: true }))
-    call<T>(method, JSON.parse(key) as Record<string, unknown>).then(
-      (data) => id === seq.current && setState({ key, data, loading: false }),
+    const [payload] = JSON.parse(key)
+    const request = [method, payload ?? undefined] as MethodCall<'openmetadata'>
+    call(...request).then(
+      (data) => id === seq.current && setState({ key, data: data as T, loading: false }),
       (e: unknown) => id === seq.current && setState({ key, error: errorText(e), loading: false }),
     )
   }, [method, key, tick, version])

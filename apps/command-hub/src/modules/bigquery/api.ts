@@ -3,7 +3,7 @@
  * (electron/modules/bigquery.cjs), fictional sample data in the browser dev
  * server (sample.ts).
  */
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient, isDesktop } from '@/modules/client'
 
 import { SAMPLE_DATA, SAMPLE_PROJECT, SAMPLE_PROJECTS, sampleJob, sampleJobList, samplePage, sampleQuery, sampleTable } from './sample'
 import type { BqDataset, BqDatasetInfo, BqJob, BqPreview, BqProject, BqQueryResult, BqStatus, BqTable, BqTableItem } from './types'
@@ -18,7 +18,7 @@ export interface QueryArgs {
 }
 
 const live = () => isDesktop()
-const call = <T,>(method: string, args?: unknown) => invokeModule<T>('bigquery', method, args)
+const call = moduleClient('bigquery')
 
 export const bq = {
   status: (): Promise<BqStatus> => (live() ? call('status') : Promise.resolve({ state: 'ok', defaultProject: SAMPLE_PROJECT })),

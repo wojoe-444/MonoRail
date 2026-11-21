@@ -41,7 +41,7 @@ export function useClaudeAccount(): ClaudeAccount | undefined {
   useEffect(() => {
     if (!desktop) return
     let live = true
-    invokeModule<ClaudeAccount | undefined>('connections', 'claudeAccount').then(
+    invokeModule('connections', 'claudeAccount').then(
       (a) => live && setAccount(a),
       () => {},
     )

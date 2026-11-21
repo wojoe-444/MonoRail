@@ -3,7 +3,6 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { getExtensionList, subscribeExtensions } from '@/extensions/store'
 import { invokeModule, isDesktop } from '@/modules/client'
 
-import type { AppStatus, BackupStatus } from './types'
 
 /**
  * Settings alerts: the few things in the user's setup that need them now.
@@ -66,7 +65,7 @@ async function read(): Promise<SettingsAlert[]> {
   if (!isDesktop()) return SAMPLE
   const alerts: SettingsAlert[] = []
 
-  const summaries = await invokeModule<Record<string, { summary?: { connections?: Record<string, ConnectionSummary> } }>>('home', 'getSummaries').catch(
+  const summaries = await invokeModule('home', 'getSummaries').catch(
     () => undefined,
   )
   for (const [kind, c] of Object.entries(summaries?.['connections.summary']?.summary?.connections ?? {})) {
@@ -82,7 +81,7 @@ async function read(): Promise<SettingsAlert[]> {
     })
   }
 
-  const app = await invokeModule<AppStatus>('settings', 'getStatus').catch(() => undefined)
+  const app = await invokeModule('settings', 'getStatus').catch(() => undefined)
   if (app && (app.state === 'available' || app.state === 'downloaded')) {
     alerts.push({
       id: 'update',
@@ -95,7 +94,7 @@ async function read(): Promise<SettingsAlert[]> {
     })
   }
 
-  const backups = await invokeModule<BackupStatus>('backups', 'getStatus').catch(() => undefined)
+  const backups = await invokeModule('backups', 'getStatus').catch(() => undefined)
   if (backups?.settings.enabled) {
     for (const p of backups.pages) {
       const last = p.lastResult

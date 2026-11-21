@@ -1,3 +1,4 @@
+// @ts-check
 // The page half of the HTTP bridge (electron/bridge/server.cjs): defines
 // window.commandHub the way the Electron preload does, over fetch and
 // server-sent events. Never overrides a real preload. Used by the browser dev
@@ -5,13 +6,17 @@
 // /__bridge/client.js, with remote: true so pages hide PC-only actions).
 // The decoder mirrors electron/bridge/codec.cjs.
 
-/** @param {{ platform: string, remote?: boolean }} opts */
-function bridgeClientScript({ platform, remote = false }) {
-  return `
-(() => {
+/** @typedef {{ platform: string, remote?: boolean }} BridgeOptions */
+
+/** Runs in the page. Keep all of its dependencies inside the function.
+ * @param {BridgeOptions} options
+ */
+function installBridge({ platform, remote = false }) {
   if (window.commandHub) return
   const TAG = '__monorailBridge'
+  /** @param {string} s */
   const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+  /** @param {string} text */
   const decode = (text) => JSON.parse(text, (_k, v) => {
     if (!v || typeof v !== 'object' || typeof v[TAG] !== 'string') return v
     switch (v[TAG]) {
@@ -23,7 +28,9 @@ function bridgeClientScript({ platform, remote = false }) {
       default: return v
     }
   })
+  /** @type {Map<string, Set<(payload: unknown) => void>>} */
   const listeners = new Map()
+  /** @type {EventSource | undefined} */
   let source
   const connect = () => {
     if (source) return
@@ -33,37 +40,45 @@ function bridgeClientScript({ platform, remote = false }) {
       for (const cb of listeners.get(channel) ?? []) cb(payload)
     }
   }
+  /** @param {import('../../src/ipc/contract').InvokeRequest} request */
+  async function invoke(request) {
+    const res = await fetch('/__bridge/invoke', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(request),
+    })
+    const text = await res.text()
+    let body
+    try { body = decode(text) } catch { throw new Error('Bridge error (' + res.status + '): ' + text.slice(0, 200)) }
+    if (!body.ok) {
+      const err = new Error(body.error?.message ?? 'Bridge error')
+      if (body.error?.name) err.name = body.error.name
+      throw err
+    }
+    return body.result
+  }
+
   window.commandHub = {
-    platform: ${JSON.stringify(platform)},
-    ${remote ? 'remote: true' : 'devBridge: true'},
-    async invoke(moduleId, method, args) {
-      const res = await fetch('/__bridge/invoke', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ moduleId, method, args }),
-      })
-      const text = await res.text()
-      let body
-      try { body = decode(text) } catch { throw new Error('Bridge error (' + res.status + '): ' + text.slice(0, 200)) }
-      if (!body.ok) {
-        const err = new Error(body.error?.message ?? 'Bridge error')
-        if (body.error?.name) err.name = body.error.name
-        throw err
-      }
-      return body.result
-    },
+    platform,
+    ...(remote ? { remote: true } : { devBridge: true }),
+    invoke: (moduleId, ...[method, args]) => invoke({ moduleId, method, args }),
+    invokeExtension: (extensionId, method, args) => invoke({ moduleId: `ext:${extensionId}`, method, args }),
     on(channel, cb) {
       if (channel !== 'extension:event' && channel !== 'extension:changed') return () => {}
       if (typeof cb !== 'function') return () => {}
       connect()
-      if (!listeners.has(channel)) listeners.set(channel, new Set())
-      listeners.get(channel).add(cb)
-      return () => listeners.get(channel)?.delete(cb)
+      const subscribers = listeners.get(channel) ?? new Set()
+      listeners.set(channel, subscribers)
+      subscribers.add(cb)
+      return () => subscribers.delete(cb)
     },
   }
-})()
-`
+}
+
+/** @param {BridgeOptions} options */
+function bridgeClientScript(options) {
+  return `;(${installBridge.toString()})(${JSON.stringify(options)})\n`
 }
 
 module.exports = { bridgeClientScript }

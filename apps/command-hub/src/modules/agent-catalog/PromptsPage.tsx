@@ -1,3 +1,4 @@
+import type { PromptTemplate as Template } from '@/ipc/modules'
 import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -6,8 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { invokeModule, isDesktop } from '@/modules/client'
 
-type Version = { version: number; name: string; text: string; savedAt: string }
-type Template = { id: string; versions: Version[] }
 const fields = (text: string) => [...new Set(Array.from(text.matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g), (m) => m[1]))]
 const label = (key: string) => key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
@@ -24,7 +23,7 @@ export default function PromptsPage() {
   const [busy, setBusy] = useState(false)
   const current = items.find((item) => item.id === selected)
   const revision = current?.versions.find((v) => v.version === version)
-  useEffect(() => { if (isDesktop()) void invokeModule<Template[]>('prompt-templates', 'list').then(setItems, (e) => setError(String(e))) }, [])
+  useEffect(() => { if (isDesktop()) void invokeModule('prompt-templates', 'list').then(setItems, (e) => setError(String(e))) }, [])
   function select(item: Template, v = item.versions.length) {
     setSelected(item.id); setVersion(v); setValues({}); setEditing(false); setError(''); setNotice('')
   }
@@ -37,7 +36,7 @@ export default function PromptsPage() {
     try {
       const args = { id: current?.id, baseVersion: current?.versions.length, name, text }
       let saved: Template
-      if (isDesktop()) saved = await invokeModule<Template>('prompt-templates', 'save', args)
+      if (isDesktop()) saved = await invokeModule('prompt-templates', 'save', args)
       else {
         if (!name.trim() || !text.trim()) throw new Error('Provide a name and prompt text.')
         // oxlint-disable-next-line react/purity -- The UUID and timestamp are created in the Save button's event handler.

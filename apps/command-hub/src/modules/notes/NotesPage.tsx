@@ -39,7 +39,7 @@ export default function NotesPage() {
 
   const reload = useCallback(async (q = query) => {
     try {
-      const l = await call<NoteList>('list', { query: q })
+      const l = await call('list', { query: q })
       setList(l)
       setError(undefined)
       return l
@@ -64,7 +64,7 @@ export default function NotesPage() {
 
   async function newNote() {
     try {
-      const n = await call<Note>('create', { body: '' })
+      const n = await call('create', { body: '' })
       setQuery('')
       await reload('')
       setOpenId(n.id)
@@ -200,7 +200,7 @@ function Editor({ id: firstId, onSaved, onHistory, onDelete }: { id: string; onS
 
   useEffect(() => {
     let alive = true
-    call<Note>('get', { id: idRef.current })
+    call('get', { id: idRef.current })
       .then((n) => {
         if (!alive) return
         setNote(n)
@@ -218,7 +218,7 @@ function Editor({ id: firstId, onSaved, onHistory, onDelete }: { id: string; onS
     clearTimeout(timer.current)
     setState('saving')
     try {
-      const n = await call<Note>('save', { id: idRef.current, body: latest.current })
+      const n = await call('save', { id: idRef.current, body: latest.current })
       idRef.current = n.id
       setNote(n)
       setState(n.body === latest.current ? 'idle' : 'dirty')
@@ -348,7 +348,7 @@ function HistoryDialog({ note, onClose }: { note?: NoteSummary; onClose: () => v
     // oxlint-disable-next-line react/set-state-in-effect -- Clear historical content before requesting versions for the selected note.
     setVersions(undefined)
     setShown(undefined)
-    if (note) void call<NoteVersion[]>('history', { id: note.id }).then(setVersions).catch(() => setVersions([]))
+    if (note) void call('history', { id: note.id }).then(setVersions).catch(() => setVersions([]))
   }, [note])
   return (
     <Dialog open={!!note} onOpenChange={(o) => !o && onClose()}>
@@ -364,7 +364,7 @@ function HistoryDialog({ note, onClose }: { note?: NoteSummary; onClose: () => v
                 <button
                   type="button"
                   className={cn('w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted', shown?.oid === v.oid && 'bg-muted')}
-                  onClick={async () => note && setShown({ oid: v.oid, ...(await call<{ body: string }>('version', { id: note.id, oid: v.oid })) })}
+                  onClick={async () => note && setShown({ oid: v.oid, ...(await call('version', { id: note.id, oid: v.oid })) })}
                 >
                   <div className="truncate">{v.message}</div>
                   <div className="font-mono text-xs text-muted-foreground">

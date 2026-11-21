@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { Args, BackendId, Method, MethodCall, MethodResult, Result, ScopedRequest, SingleId } from '@/ipc/contract'
 
 /**
  * True when real backends are reachable: the Electron window (preload), the
@@ -31,35 +32,64 @@ export class ModuleUnavailableError extends Error {
   }
 }
 
-/** Call a method on a module's backend in the Electron main process. */
-export async function invokeModule<T>(moduleId: string, method: string, args?: unknown): Promise<T> {
+/** The wire result is paired to the request by the selected backend. */
+async function invokeRequest(id: BackendId, method: string, args?: unknown): Promise<unknown> {
   if (!window.commandHub) throw new ModuleUnavailableError()
-  return window.commandHub.invoke<T>(moduleId, method, args)
+  const invoke = window.commandHub.invoke as (id: BackendId, method: string, args?: unknown) => Promise<unknown>
+  return invoke(id, method, args)
 }
 
-export interface ModuleQuery<T> {
+/** Call a method on a module's backend in the Electron main process. */
+export async function invokeModule<const Id extends BackendId, const M extends Method<Id>>(
+  id: Id & SingleId<NoInfer<Id>>,
+  ...request: ScopedRequest<NoInfer<Id>, M>
+): Promise<Result<Id, M>> {
+  return invokeRequest(id, request[0], request[1]) as Promise<Result<Id, M>>
+}
+
+/** Bind a known backend to its feature API, optionally with a browser sample. */
+export function moduleClient<Id extends BackendId>(
+  id: Id & SingleId<NoInfer<Id>>,
+  sample?: (method: string, args?: Record<string, unknown>) => Promise<unknown>,
+) {
+  return async <C extends MethodCall<Id>>(...call: C): Promise<MethodResult<Id, C>> => {
+    if (sample && !isDesktop()) return await sample(call[0], call[1] as Record<string, unknown> | undefined) as MethodResult<Id, C>
+    return invokeRequest(id, call[0], call[1]) as Promise<MethodResult<Id, C>>
+  }
+}
+
+export interface ModuleQuery<T, A> {
   data: T | undefined
   error: Error | undefined
   /** True for the first load (no data yet). */
   loading: boolean
   /** True while any request is in flight, including refreshes. */
   fetching: boolean
-  refresh: (args?: unknown) => Promise<void>
+  refresh: (args?: A) => Promise<void>
   /** Fetch again without marking the query as fetching (background polling, no fade). */
-  reload: (args?: unknown) => Promise<void>
+  reload: (args?: A) => Promise<void>
 }
+
+type QueryOptions = { enabled?: boolean }
+// A query can change its captured method between renders. A caller with a
+// method union may refresh its captured request but cannot supply an override.
+type QueryOverride<Id extends BackendId, M extends Method<Id>> = [M] extends [SingleId<M>] ? Args<Id, M> : never
+type QueryCall<Id extends BackendId, M extends Method<Id>> = {
+  [K in M]: undefined extends Args<Id, K>
+    ? [method: K, args?: Args<Id, K>, options?: QueryOptions]
+    : [method: K, args: Args<Id, K>, options?: QueryOptions]
+}[M]
 
 /**
  * Load data from a module backend. Keeps the previous data while refetching
  * so views can hold their frame instead of flashing a skeleton.
  */
-export function useModuleQuery<T>(
-  moduleId: string,
-  method: string,
-  args?: unknown,
-  { enabled = isDesktop() }: { enabled?: boolean } = {},
-): ModuleQuery<T> {
-  const [data, setData] = useState<T>()
+export function useModuleQuery<const Id extends BackendId, const M extends Method<Id>>(
+  moduleId: Id & SingleId<NoInfer<Id>>,
+  ...call: [method: M, ...unknown[]] & NoInfer<QueryCall<NoInfer<Id>, M>>
+): ModuleQuery<Result<Id, M>, QueryOverride<Id, M>> {
+  const [method, args, { enabled = isDesktop() } = {}] = call
+  const [data, setData] = useState<Result<Id, M>>()
   const [error, setError] = useState<Error>()
   const [fetching, setFetching] = useState(enabled)
   const argsRef = useRef(args)
@@ -69,11 +99,11 @@ export function useModuleQuery<T>(
   const seq = useRef(0)
 
   const run = useCallback(
-    async (override?: unknown, silent = false) => {
+    async (override?: Args<Id, M>, silent = false) => {
       const id = ++seq.current
       if (!silent) setFetching(true)
       try {
-        const result = await invokeModule<T>(moduleId, method, override ?? argsRef.current)
+        const result = await invokeRequest(moduleId, method, override ?? argsRef.current) as Result<Id, M>
         if (id === seq.current) {
           setData(result)
           setError(undefined)
@@ -92,8 +122,8 @@ export function useModuleQuery<T>(
     if (enabled) void run()
   }, [run, enabled])
 
-  const reload = useCallback((override?: unknown) => run(override, true), [run])
-  const refresh = useCallback((override?: unknown) => run(override), [run])
+  const reload = useCallback((override?: Args<Id, M>) => run(override, true), [run])
+  const refresh = useCallback((override?: Args<Id, M>) => run(override), [run])
 
   return { data, error, loading: fetching && data === undefined, fetching, refresh, reload }
 }

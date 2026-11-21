@@ -191,7 +191,7 @@ function EmptyNextSteps() {
   const [overview, setOverview] = useState<IngestionOverview>()
   useEffect(() => {
     let live = true
-    ingestionCall<IngestionOverview>('overview').then(
+    ingestionCall('overview').then(
       (o) => live && setOverview(o),
       () => undefined,
     )

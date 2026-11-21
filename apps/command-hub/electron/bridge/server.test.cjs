@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const { runInNewContext } = require('node:vm')
+const { bridgeClientScript } = require('./client-script.cjs')
 const { createBridgeServer, tokenMatches } = require('./server.cjs')
 const { decode } = require('./codec.cjs')
 
@@ -40,6 +42,35 @@ test('invokes a backend and keeps Dates through the codec', async (t) => {
   assert.equal(body.ok, true)
   assert.ok(body.result.at instanceof Date)
   assert.deepEqual(calls, [['home', 'getSummaries', { x: 1 }]])
+})
+
+test('browser and phone clients send built-ins and installed extensions on the same wire', async (t) => {
+  const { server, base, calls } = await start()
+  t.after(() => server.close())
+
+  for (const remote of [false, true]) {
+    const window = {}
+    runInNewContext(bridgeClientScript({ platform: 'test', remote }), {
+      window,
+      fetch: (route, opts) => {
+        assert.equal(opts.credentials, 'same-origin')
+        return fetch(base + route, { ...opts, headers: { ...opts.headers, 'x-token': TOKEN, origin: ORIGIN } })
+      },
+    })
+    const bridge = window.commandHub
+    assert.equal(bridge.platform, 'test')
+    assert.equal(remote ? bridge.remote : bridge.devBridge, true)
+    const reply = await bridge.invoke('notes', 'get', { id: 'sample' })
+    assert.equal(reply.at.toISOString(), '2026-01-02T03:04:05.000Z')
+    await bridge.invoke('profiles', 'getProfiles')
+    await bridge.invokeExtension('example', 'customMethod', { value: 1 })
+  }
+  const expected = [
+    ['notes', 'get', { id: 'sample' }],
+    ['profiles', 'getProfiles', undefined],
+    ['ext:example', 'customMethod', { value: 1 }],
+  ]
+  assert.deepEqual(calls, [...expected, ...expected])
 })
 
 test('refuses a wrong token, a foreign origin and a non-JSON body', async (t) => {

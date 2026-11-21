@@ -393,7 +393,7 @@ function ServiceDetail({
   onBack: () => void;
   onOpenPipeline: (fqn: string) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type, fqn });
+  const q = useCall("get", { type, fqn });
   const s = q.data;
   if (!s)
     return (
@@ -539,7 +539,7 @@ function PipelineDetail({
   manage: ReactNode;
   onBack: () => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "ingestionPipeline", fqn });
+  const q = useCall("get", { type: "ingestionPipeline", fqn });
   const p = q.data;
   if (!p)
     return (

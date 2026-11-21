@@ -22,11 +22,6 @@ interface SummaryEntry {
   summary: UsageSummary
 }
 
-/** The part of Connections' summary file this widget reads (no names or emails in it). */
-type ConnectionsSummaries = Record<
-  string,
-  { summary?: { connections?: Record<string, { account?: { type: ClaudeAccountType; billedAtApiPrices: boolean } }> } } | undefined
->
 
 const ACCOUNT_LABEL: Record<ClaudeAccountType, string> = { subscription: 'Subscription', api: 'API', enterprise: 'Enterprise', unknown: 'Unknown' }
 
@@ -61,9 +56,9 @@ function sampleSummary(): SummaryEntry {
  */
 export function ClaudeStatsHomeWidget() {
   const desktop = isDesktop()
-  const query = useModuleQuery<Record<string, SummaryEntry>>('home', 'getSummaries')
+  const query = useModuleQuery('home', 'getSummaries')
   // Home reads summary files only, so the account type comes from Connections' summary.
-  const claudeAccount = desktop ? (query.data as ConnectionsSummaries | undefined)?.['connections.summary']?.summary?.connections?.claude?.account : undefined
+  const claudeAccount = desktop ? query.data?.['connections.summary']?.summary?.connections?.claude?.account : undefined
   const sample = useMemo(() => (desktop ? undefined : sampleSummary()), [desktop])
   const entry = desktop ? query.data?.['claude-stats.summary'] : sample
   const s = entry?.summary

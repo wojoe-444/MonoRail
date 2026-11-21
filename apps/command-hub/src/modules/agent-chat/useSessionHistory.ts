@@ -20,11 +20,11 @@ export function useSessionHistory(session: SessionSummary | undefined, skipHisto
   useEffect(() => {
     if (!desktop || noHistory || !sessionId) return
     let live = true
-    invokeModule<SessionTranscript>('agent-chat', 'getSession', { id: sessionId }).then(
+    invokeModule('agent-chat', 'getSession', { id: sessionId }).then(
       (t) => live && setTranscript(t),
       (e: unknown) => live && setError(e instanceof Error ? e : new Error(String(e))),
     )
-    invokeModule<string | null>('agent-chat', 'runningTurn', { chatId: sessionId }).then(
+    invokeModule('agent-chat', 'runningTurn', { chatId: sessionId }).then(
       (turnId) => live && turnId && attach(turnId),
       () => undefined,
     )

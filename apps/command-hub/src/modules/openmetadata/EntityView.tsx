@@ -36,7 +36,7 @@ const LINEAGE_TYPES = new Set(GROUPS.filter((g) => g.id === 'assets' || g.id ===
  */
 export function EntityView({ type, fqn, onOpen }: { type: string; fqn: string; onOpen: (v: View) => void }) {
   const info = typeInfo(type)
-  const q = useCall<OmEntity>('get', { type, fqn })
+  const q = useCall('get', { type, fqn })
   const [tab, setTab] = useState<Tab>('details')
   const [editing, setEditing] = useState(false)
   const entity = q.data
@@ -438,7 +438,7 @@ const PRODUCTS_SHOWN = 12
  * reader sees at a glance who depends on it.
  */
 function DownstreamProducts({ type, entity, onOpen, onShowLineage }: { type: string; entity: OmEntity; onOpen: (v: View) => void; onShowLineage: () => void }) {
-  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: 0, downstreamDepth: 'all' })
+  const q = useCall('getLineage', { type, id: entity.id, upstreamDepth: 0, downstreamDepth: 'all' })
   const [showAll, setShowAll] = useState(false)
   const result = useMemo(() => (q.data ? endProducts(q.data) : undefined), [q.data])
   if (q.data?.missing) return null
@@ -580,7 +580,7 @@ function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onO
   const [depth, setDepth] = useState<LineageDepth>('3')
   const [shape, setShape] = useState<'graph' | 'list'>('graph')
   const [listAll, setListAll] = useState(false)
-  const q = useCall<OmLineage>('getLineage', { type, id: entity.id, upstreamDepth: depthArg(depth), downstreamDepth: depthArg(depth) })
+  const q = useCall('getLineage', { type, id: entity.id, upstreamDepth: depthArg(depth), downstreamDepth: depthArg(depth) })
   const sides = useMemo(() => (q.data && !q.data.missing ? { up: sideOf(q.data, true), down: sideOf(q.data, false) } : undefined), [q.data])
   const graphNodes = useMemo(() => (q.data ? [q.data.entity, ...q.data.nodes] : []), [q.data])
   const graphEdges = useMemo(() => (q.data ? [...q.data.upstreamEdges, ...q.data.downstreamEdges] : []), [q.data])
@@ -725,7 +725,7 @@ function SchemaList({ columns }: { columns: OmColumn[] }) {
 }
 
 function Versions({ type, entity }: { type: string; entity: OmEntity }) {
-  const q = useCall<OmEntity[]>('versions', { type, id: entity.id, at: entity.version })
+  const q = useCall('versions', { type, id: entity.id }, entity.version)
   if (q.error) return <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">{q.error}</p>
   if (!q.data)
     return (

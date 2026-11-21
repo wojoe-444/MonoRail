@@ -13,7 +13,7 @@ import { useCall } from '../api'
 import { typeInfo } from '../catalog'
 import { TypeTile } from '../parts'
 import { openInCatalog } from '../tabs'
-import type { OmEntity, OmLineage, OmLineageEdge, OmRef } from '../types'
+import type { OmLineage, OmLineageEdge, OmRef } from '../types'
 import { LineageGraph } from '../lineage-graph/LineageGraph'
 import { LINEAGE_DEPTHS, depthArg, type LineageDepth } from '../lineage'
 import { displayName } from '../util'
@@ -132,7 +132,7 @@ function AssetPicker({ types, picked, onPick }: { types: string[] | null; picked
 
 /** Before an asset is picked: a few changed lately to start from. */
 function Suggestions({ none, onPick }: { none: boolean; onPick: (a: Asset) => void }) {
-  const recent = useCall<(OmEntity & { entityType: string })[]>('recent', { size: 50 })
+  const recent = useCall('recent', { size: 50 })
   const isAsset = (t: string) => (ASSET_TYPES as readonly string[]).includes(t)
   const start: Asset[] = (recent.data ?? []).filter((e) => isAsset(e.entityType)).slice(0, 6).map((e) => ({ ...e, assetType: e.entityType }))
   if (!recent.data && !recent.error && !none) return <Loading>Reading the data assets…</Loading>
@@ -168,7 +168,7 @@ function Suggestions({ none, onPick }: { none: boolean; onPick: (a: Asset) => vo
 }
 
 function LineageView({ picked, up, down, onRecenter }: { picked: Picked; up: number | 'all'; down: number | 'all'; onRecenter: (r: OmRef) => void }) {
-  const q = useCall<OmLineage>('getLineage', { type: picked.type, id: picked.id, upstreamDepth: up, downstreamDepth: down })
+  const q = useCall('getLineage', { type: picked.type, id: picked.id, upstreamDepth: up, downstreamDepth: down })
   if (q.error) return <ErrorNote>{q.error}</ErrorNote>
   if (!q.data) return <Loading>Loading lineage…</Loading>
   if (q.data.missing === 'no-lineage-table')

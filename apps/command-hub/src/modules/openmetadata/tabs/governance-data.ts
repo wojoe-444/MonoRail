@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { call, errorText } from "../api";
 import { GROUPS } from "../catalog";
-import type { OmCounts, OmEntity, OmPage, OmRef } from "../types";
+import type { OmCounts, OmEntity, OmRef } from "../types";
 import { countOf, displayName } from "../util";
 
 /**
@@ -39,7 +39,7 @@ export function useAll(type: string | null, max = 500): AllState {
       const rows: OmEntity[] = [];
       let after: string | undefined;
       do {
-        const page = await call<OmPage>("list", {
+        const page = await call("list", {
           type,
           limit: 100,
           ...(after ? { after } : {}),
@@ -96,7 +96,7 @@ export function useFull(
           names
             .slice(i, i + 6)
             .map((fqn) =>
-              call<OmEntity>("get", { type, fqn }).catch(() => undefined),
+              call("get", { type, fqn }).catch(() => undefined),
             ),
         );
         if (!live) return;
@@ -177,7 +177,7 @@ export function useAssetScan(
     let live = true;
     Promise.all(
       ts.map((type) =>
-        call<OmPage>("list", { type, limit: 100 }).then((page) => ({
+        call("list", { type, limit: 100 }).then((page) => ({
           type,
           page,
         })),

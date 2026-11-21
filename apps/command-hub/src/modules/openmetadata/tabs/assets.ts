@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { call, errorText, useDataVersion, type CallState } from '../api'
 import { typeInfo } from '../catalog'
-import type { OmCounts, OmEntity, OmPage, OmRef, OmSearch } from '../types'
+import type { OmCounts, OmEntity, OmRef } from '../types'
 import { countOf, tierOf } from '../util'
 
 /**
@@ -57,7 +57,7 @@ async function listType(type: string, total: number): Promise<{ rows: Asset[]; t
   const rows: Asset[] = []
   let after: string | undefined
   do {
-    const page = await call<OmPage>('list', { type, limit: PAGE, ...(after ? { after } : {}) })
+    const page = await call('list', { type, limit: PAGE, ...(after ? { after } : {}) })
     for (const e of page.data) rows.push({ ...e, assetType: type })
     after = page.paging?.after
   } while (after && rows.length < PER_TYPE_CAP)
@@ -168,7 +168,7 @@ export function useAssetSearch(q: string, types: string[] | null, { limit = SEAR
     let live = true
     const t = setTimeout(
       () => {
-        call<OmSearch>('search', args).then(
+        call('search', args).then(
           (res) => live && setState({ key, version, rows: res.data.map((e) => ({ ...e, assetType: e.entityType })), total: res.total }),
           (e: unknown) => live && setState((s) => ({ ...s, key, version, error: errorText(e) })),
         )

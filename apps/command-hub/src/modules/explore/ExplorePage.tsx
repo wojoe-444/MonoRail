@@ -1,3 +1,4 @@
+import type { Bookmark, PromptTemplate as Prompt, ScheduledTask } from '@/ipc/modules'
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, Compass, RefreshCw, Search } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -19,8 +20,6 @@ import type { NoteList } from '@/modules/notes/types'
 import type { DeckList, CardList } from '@/modules/flashcards/types'
 import { SECTIONS, STANDARD, allowedValues, categoriesIn, category, docsTarget, entityType, entityTypesIn, standardField, type EntityType } from '@/standard'
 
-type Bookmark = { id: string; name: string; description: string; target: string; kind?: 'folder' | 'bookmark'; parentId?: string | null; color?: string }
-type Prompt = { id: string; versions: { version: number; name: string; text: string; savedAt: string }[] }
 
 /**
  * A MonoRail prompt template in the shape of OpenMetadata's promptTemplate
@@ -40,7 +39,6 @@ function promptTemplateRecord(p: Prompt) {
     extension: { versions: p.versions.map((v) => ({ version: v.version, name: v.name, savedAt: v.savedAt })) },
   }
 }
-type ScheduledTask = { name: string; path: string; description: string; command: string; schedule: string; state: string; lastRun: string | null; nextRun: string | null; result: number | null; writable: boolean }
 
 /** One item of one entity type in the MonoRail standard (src/standard), with its fields flattened. */
 type Entry = { category: string; type: string; name: string; description?: string; fields: Record<string, unknown> }
@@ -106,7 +104,7 @@ function databaseEntries(project?: SemanticProject): Entry[] {
 }
 
 type CatalogTable = { name: string; tableType?: string; description?: string; deleted?: boolean; columns?: object[]; profile?: object; tags?: string[]; extension?: object }
-type IngestionExplore = {
+export type IngestionExplore = {
   services: { kind: string; name: string; displayName: string; category: string; serviceType: string }[]
   pipelines: ({ name: string; displayName?: string; description?: string } & Record<string, unknown>)[]
   catalog: Record<string, { serviceType?: string; updatedAt?: string; databases?: { name: string; schemas?: { name: string; tables?: CatalogTable[] }[] }[]; lineage?: { from: string; to: string }[] }>
@@ -160,7 +158,7 @@ function ingestionEntries(data?: IngestionExplore): Entry[] {
 }
 
 type BigQueryEntity = Record<string, unknown> & { entityType: string; name?: string; displayName?: string; fullyQualifiedName?: string; description?: string }
-type BigQueryExplore = { setUp?: boolean; source?: string; synced?: boolean; entities: BigQueryEntity[]; total: number; truncated?: boolean }
+export type BigQueryExplore = { setUp?: boolean; source?: string; synced?: boolean; entities: BigQueryEntity[]; total: number; truncated?: boolean }
 
 /**
  * Every entity in the copy of the BigQuery metadata dataset (the source of
@@ -210,15 +208,15 @@ export default function ExplorePage() {
     // oxlint-disable-next-line react/set-state-in-effect -- Set the loading state before requesting the workspace records.
     setLoading(true)
     void Promise.allSettled([
-      notesCall<NoteList>('list'),
-      cardsCall<DeckList>('listDecks').then(async (d) => ({ d, cards: await Promise.all(d.decks.map((deck) => cardsCall<CardList>('listCards', { deckId: deck.id }))) })),
-      isDesktop() ? invokeModule<SemanticProject>('semantic', 'getProject') : Promise.resolve(sampleProject),
-      isDesktop() ? invokeModule<Bookmark[]>('bookmarks', 'list') : Promise.resolve([]),
-      flowsCall<FlowList>('list'),
-      isDesktop() ? invokeModule<Prompt[]>('prompt-templates', 'list') : Promise.resolve([]),
-      isDesktop() ? invokeModule<{ tasks: ScheduledTask[] }>('scheduled', 'list') : Promise.resolve({ tasks: [] }),
-      isDesktop() ? invokeModule<IngestionExplore>('ingestion', 'explore') : Promise.resolve(undefined),
-      isDesktop() ? invokeModule<BigQueryExplore>('openmetadata', 'explore') : Promise.resolve(undefined),
+      notesCall('list'),
+      cardsCall('listDecks').then(async (d) => ({ d, cards: await Promise.all(d.decks.map((deck) => cardsCall('listCards', { deckId: deck.id }))) })),
+      isDesktop() ? invokeModule('semantic', 'getProject') : Promise.resolve(sampleProject),
+      isDesktop() ? invokeModule('bookmarks', 'list') : Promise.resolve([]),
+      flowsCall('list'),
+      isDesktop() ? invokeModule('prompt-templates', 'list') : Promise.resolve([]),
+      isDesktop() ? invokeModule('scheduled', 'list') : Promise.resolve({ tasks: [] }),
+      isDesktop() ? invokeModule('ingestion', 'explore') : Promise.resolve(undefined),
+      isDesktop() ? invokeModule('openmetadata', 'explore') : Promise.resolve(undefined),
     ]).then(([n, c, p, b, f, t, s, g, q]) => {
       if (!live) return
       const failures: string[] = []

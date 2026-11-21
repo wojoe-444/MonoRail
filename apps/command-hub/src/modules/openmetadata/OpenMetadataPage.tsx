@@ -14,7 +14,7 @@ import { call, refreshData, setSource, useCall } from './api'
 import { OM_TABS, tabFromPath, tabPath } from './tabs'
 import { MalloySettingsDialog } from './tabs/semantic/malloySettings'
 import type { OmTabProps } from './tabs/types'
-import type { BqStatus, OmCounts, OmStatus } from './types'
+import type { BqStatus, OmStatus } from './types'
 
 const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
   home: lazy(() => import('./tabs/HomeTab')),
@@ -48,12 +48,12 @@ const TAB_COMPONENTS: Record<string, ComponentType<OmTabProps>> = {
 export default function OpenMetadataPage() {
   const [path] = useRoute()
   const tab = tabFromPath(path)
-  const status = useCall<OmStatus>('status', {})
+  const status = useCall('status', {})
   // Every call below names the catalog that answered status, and the content remounts when it changes.
   const source = status.data?.source
   setSource(source)
   const ready = !!status.data && !status.data.block
-  const counts = useCall<OmCounts>('counts', ready ? { source } : null)
+  const counts = useCall('counts', ready ? { source } : null)
   const [refresh, setRefresh] = useState(0)
   const reload = () => {
     status.reload()
@@ -150,7 +150,7 @@ function useBigQuerySyncWatch(bq: BqStatus | undefined, reloadStatus: () => void
     let live = true
     const t = setInterval(() => {
       if (document.hidden) return
-      call<OmStatus>('status', { source: 'bigquery' }).then(
+      call('status', { source: 'bigquery' }).then(
         (s) => {
           if (!live) return
           const next = s.bigquery
