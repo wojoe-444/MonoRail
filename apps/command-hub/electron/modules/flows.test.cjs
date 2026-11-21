@@ -172,7 +172,7 @@ describe('flows runner', () => {
     assert.ok(Math.abs(r.costUsd - 0.03) < 1e-9)
   })
 
-  test('a saved flow cannot start an Agent turn from an Ask-only phone', async () => {
+  test('the Flows backend checks saved Agent and Subagent steps before starting a phone run', async (t) => {
     const rootDir = tmp()
     const ctx = { rootDir, dataDir: path.join(rootDir, 'modules', 'flows'), remoteLimits: { askOnly: true } }
     const chatDir = path.join(rootDir, 'modules', 'agent-chat')
@@ -181,18 +181,25 @@ describe('flows runner', () => {
     fs.mkdirSync(chatDir, { recursive: true })
     fs.writeFileSync(path.join(chatDir, 'folders.json'), JSON.stringify({ reposRoot: rootDir }))
     const flows = require('./flows.cjs').methods
-    const { flow } = await flows.create(ctx, {
-      flow: {
-        folder: 'demo',
-        nodes: [node('in', 'chat-input'), node('agent', 'agent', { mode: 'agent' }), node('out', 'chat-output')],
-        edges: [edge('e1', 'in', 'message', 'agent', 'input'), edge('e2', 'agent', 'reply', 'out', 'input')],
-      },
-    })
-    const { runId } = await flows.run(ctx, { id: flow.id, input: 'hello' })
-    const run = await finished(runId)
-    assert.equal(run.status, 'failed')
-    assert.match(run.error, /Agent mode from the phone is off/)
-    assert.equal(run.steps.find((s) => s.nodeId === 'agent').turnId, undefined)
+    const startRun = t.mock.method(runner, 'startRun', () => ({ runId: 'stub' }))
+    for (const [kind, mode] of [['agent', 'agent'], ['subagent', 'agent'], ['agent', 'ask']]) {
+      const { flow } = await flows.create(ctx, {
+        flow: {
+          folder: 'demo',
+          nodes: [node('in', 'chat-input'), node('step', kind, { mode }), node('out', 'chat-output')],
+          edges: [edge('e1', 'in', 'message', 'step', 'input'), edge('e2', 'step', 'reply', 'out', 'input')],
+        },
+      })
+      const args = { id: flow.id, input: 'hello', remoteLimits: { askOnly: false } }
+      if (mode === 'agent') {
+        const count = startRun.mock.callCount()
+        await assert.rejects(flows.run(ctx, args), /Agent mode from the phone is off/)
+        assert.equal(startRun.mock.callCount(), count)
+      }
+      const allowedCtx = mode === 'ask' ? ctx : { ...ctx, remoteLimits: { askOnly: false } }
+      assert.deepEqual(await flows.run(allowedCtx, args), { runId: 'stub' })
+    }
+    assert.equal(startRun.mock.callCount(), 3)
   })
 
   test('a subagent step runs its instructions with a matching model', async () => {

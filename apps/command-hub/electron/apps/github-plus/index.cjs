@@ -202,7 +202,11 @@ module.exports = {
       return r.canceled ? null : r.filePaths[0]
     },
     async openRepo(ctx, { dir } = {}) {
+      if (ctx.remoteLimits && !(await homeRepos(ctx)).some((r) => r.path === dir)) {
+        throw new Error('Open this repository on your PC before opening it on your phone.')
+      }
       const info = await git.openRepo(dir)
+      if (ctx.remoteLimits && info.path !== dir) throw new Error('This repository has moved. Open it again on your PC.')
       openedRepos.add(info.path)
       const recents = await readRecents(ctx)
       await writeRecents(ctx, [info.path, ...recents.filter((p) => p !== info.path)])

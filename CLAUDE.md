@@ -569,18 +569,19 @@ default port 5170; Host must be the tailnet name or loopback; the
 `/__remote/pair` needs a paired device's HttpOnly cookie, stored as sha-256;
 pairing codes are single use, 2 minutes; serves `dist/` with
 `/__bridge/client.js` injected (`remote: true`) and the shared bridge handler),
-`policy.cjs` (`REMOTE_DENY`: settings that stay on the PC, plus every
-`desktopOnly` method and extension backends; a test checks every name
-exists), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
+`policy.cjs` (`REMOTE_METHODS`: explicitly classify every built-in method
+as `phone` or `desktop`, including `desktopOnly` methods. A test requires
+complete coverage and the server refuses anything without an explicit phone
+classification), `store.cjs` (`settings.json`, `devices.json`, `audit.jsonl` in
 machine-scope `modules/remote`; metadata only, damaged files never
 overwritten) and `tailscale.cjs` (status checks every 5 minutes while on; the
 one write is the user's "Set it up": `tailscale serve --bg`; a Funnel on the
 address stops the server). Phone calls get `ctx.remoteLimits.askOnly` from the
-server unless "Agent mode from the phone" is on (`startTurn` refuses Agent
-mode and the coordinator in Chat and Flows otherwise). While on, closing the
-window keeps MonoRail in the tray; turning it off revokes every device. A new backend
-method that changes accounts, secrets, permissions or MonoRail itself goes in
-`REMOTE_DENY`. Tests: `electron/remote/remote.test.cjs`.
+current server setting. In Ask-only mode Flows refuses graphs with an
+Agent-mode step before starting, and Chat refuses Agent or coordinator
+turns at launch. While on, closing the window keeps MonoRail in the tray.
+Turning it off revokes every device. For a new backend method, review each
+caller's effect and update `REMOTE_METHODS`. Tests: `electron/remote/remote.test.cjs`.
 
 `storage` (**Storage**, a **Tools** subpage) is the Storage
 Manager (docs: `docs/guide/workspace/storage.md`): free/used space per drive (`fs.statfs`,
@@ -735,7 +736,7 @@ through `absPath`, typed names through `checkName`; walks never follow links.
 Writes only on the user's action: new folder/file (never overwrite), rename,
 copy/move (`uniqueTarget` "name (2)", never replaces), and `trash`
 (`shell.trashItem`; there is no permanent delete). `open`/`reveal`/`trash` are
-`desktopOnly`, and Remote access refuses the whole backend (`files: ['*']`).
+`desktopOnly`. All Files methods require the PC in `REMOTE_METHODS`.
 Keeps nothing on disk (`NOT_CACHED`).
 
 `scheduled` (**Scheduled**, under Workspace) has two subpages: Windows Task
@@ -749,7 +750,7 @@ far: Claude usage report, global backups, GitHub+ repo backups, update checks,
 drive samples, the PR reviewer watcher and Remote access's Tailscale check. A
 new timer (`setInterval`, `cache.schedule`, a scheduler `tick`) must register a
 provider so it shows there; `run` ("Run now") only for jobs that are safe to
-start by hand, and `runInApp` stays in `REMOTE_DENY`. The registry keeps no
+start by hand. `runInApp` requires the PC in `REMOTE_METHODS`. The registry keeps no
 files.
 
 **Settings** is a group of pages behind one button pinned to the bottom of

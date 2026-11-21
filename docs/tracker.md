@@ -68,7 +68,7 @@ sent), `createTeam` (with the default workflow and a member for you),
 `addProjectUpdate`, `scheduleCycles`, `addExample` (fictional, empty tracker
 only), and the generic `save({ type, entity })` / `remove({ type, id,
 moveTo })`. No method needs this PC's screen, and none changes accounts or
-secrets, so none is in `desktopOnly` or `REMOTE_DENY`.
+secrets. They are listed under `phone` in the [Remote access policy](remote-access.md#phone-coverage).
 
 ## The page
 

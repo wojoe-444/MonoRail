@@ -5,7 +5,9 @@
 // %APPDATA%\MonoRail. That folder is outside the repo and is never committed.
 
 const path = require('node:path')
+const { pathToFileURL } = require('node:url')
 const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require('electron')
+const { guardNavigation, isMainWindowSender } = require('./renderer-security.cjs')
 
 // `MonoRail.exe --mcp`: an agent started the MCP server (electron/mcp). No
 // window, no app: hand stdio to the server and exit with it.
@@ -42,12 +44,8 @@ function startApp() {
   const { registerFullScreenIpc, attachFullScreen } = require('./window-fullscreen.cjs')
 
   const isDev = !app.isPackaged && process.env.VITE_DEV_SERVER_URL
-
-  /** "monorail-ext://<id>" for an extension page URL, else undefined. */
-  function extensionOrigin(url) {
-    const m = /^monorail-ext:\/\/([^/?#]+)/i.exec(url ?? '')
-    return m ? `monorail-ext://${m[1].toLowerCase()}` : undefined
-  }
+  const rendererUrl = isDev || pathToFileURL(path.join(__dirname, '..', 'dist', 'desktop.html')).href
+  let mainWindow
 
   function createWindow() {
     const win = new BrowserWindow({
@@ -63,6 +61,7 @@ function startApp() {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        webviewTag: false,
         preload: path.join(__dirname, 'preload.cjs'),
       },
     })
@@ -70,30 +69,16 @@ function startApp() {
     win.once('ready-to-show', () => win.show())
     attachFullScreen(win)
 
-    // Open external links in the user's browser, not inside the app.
-    win.webContents.setWindowOpenHandler(({ url }) => {
-      if (/^https?:\/\//.test(url)) shell.openExternal(url)
-      return { action: 'deny' }
+    guardNavigation(win.webContents, rendererUrl, (url) => {
+      void shell.openExternal(url).catch((err) => console.error('[window] could not open link:', err.message))
     })
-
-    // Extension pages run in iframes and must stay on their own monorail-ext://
-    // origin: a frame can't navigate itself to the web (which could leak data).
-    // Other iframes (e.g. Email's srcdoc mail bodies) are not affected.
-    win.webContents.on('will-frame-navigate', (event) => {
-      if (event.isMainFrame) return
-      const from = extensionOrigin(event.frame?.url)
-      if (from && extensionOrigin(event.url) !== from) event.preventDefault()
-    })
-
-    if (isDev) {
-      win.loadURL(process.env.VITE_DEV_SERVER_URL)
-    } else {
-      win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
-    }
+    mainWindow = win
+    win.on('closed', () => { if (mainWindow === win) mainWindow = undefined })
+    void win.loadURL(rendererUrl)
   }
 
   app.whenReady().then(() => {
-    registerModuleBackends()
+    registerModuleBackends((event) => isMainWindowSender(event, mainWindow, rendererUrl))
     registerFullScreenIpc()
     createWindow()
     app.on('activate', () => {
@@ -129,7 +114,7 @@ function startApp() {
   }
 
   function openWindow() {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = mainWindow
     if (win) {
       win.show()
       win.focus()

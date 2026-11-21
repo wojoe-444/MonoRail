@@ -58,7 +58,7 @@ import { Separator } from '@/components/ui/separator'
 import { codeLanguages } from '@/lib/highlight'
 import { cn } from '@/lib/utils'
 import { useAsyncResource } from '@/lib/useAsyncResource'
-import { invokeModule, isDesktop } from '@/modules/client'
+import { hasLocalScreen, invokeModule } from '@/modules/client'
 
 import {
   findFolder,
@@ -92,7 +92,7 @@ const wikiLanguages = { arduino, ...codeLanguages, objectivec, 'php-template': p
 const REPO_DOCS = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/'
 
 function openExternal(url: string) {
-  if (isDesktop()) void invokeModule('extensions', 'openExternal', { url }).catch(() => {})
+  if (hasLocalScreen()) void invokeModule('extensions', 'openExternal', { url }).catch(() => {})
   else window.open(url, '_blank', 'noopener')
 }
 

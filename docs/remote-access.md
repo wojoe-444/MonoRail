@@ -17,7 +17,7 @@ no single-instance lock, closing the window quits.
 | --- | --- |
 | `electron/remote/service.cjs` | One per process: state, start/stop, Tailscale checks every 5 minutes, pairing codes. `readEnabledSync` for `main.cjs` before ready. |
 | `electron/remote/server.cjs` | The HTTP server on `127.0.0.1:<port>` (default 5170): host, login and device checks, pairing page, the [bridge](#the-bridge), static files from `dist/`. No Electron dependency. |
-| `electron/remote/policy.cjs` | `REMOTE_DENY` and `remoteRefusal`, quiet methods for the log. |
+| `electron/remote/policy.cjs` | `REMOTE_METHODS` classifies each built-in backend method. `remoteRefusal` enforces phone access. |
 | `electron/remote/store.cjs` | `settings.json`, `devices.json`, `audit.jsonl`. |
 | `electron/remote/tailscale.cjs` | `tailscale status --json`, `tailscale serve status --json`, and the one write, `tailscale serve --bg http://127.0.0.1:<port>` (the person's "Set it up" button). |
 | `electron/modules/remote.cjs` | The `remote` backend for Settings > Remote access (`src/modules/remote`). |
@@ -46,24 +46,51 @@ defines `window.commandHub` with `remote: true`, so `hasLocalScreen()`
 
 ## The bridge
 
-The same handler as `npm run dev:browser` (`electron/bridge/server.cjs`,
-`createBridgeHandler`): `POST /__bridge/invoke` and server-sent events at
-`/__bridge/events`, JSON only, Origin checked. The remote invoke refuses, and
-logs:
+The phone server uses the shared JSON and Origin-checked
+`POST /__bridge/invoke` handler. Only methods explicitly listed under `phone`
+in `REMOTE_METHODS` can run. A backend's `desktopOnly` declaration still
+takes priority. Refusals go in the activity log. The test compares the
+classification with the actual module, app and built-in Extensions registries
+and requires exactly one decision for every method. An unclassified method
+or module is refused at runtime.
 
-- every backend's `desktopOnly` methods (needs the PC's screen);
-- `REMOTE_DENY`: settings that stay on the PC (connections, spending limit,
-  system prompts, agent access, extensions, backups, updates, profiles,
-  subagent definitions, Developer Mode, the `remote` backend itself);
-- extension backends (`ext:*`), for now.
+### Phone coverage
 
-A test fails when a `REMOTE_DENY` entry names a method that does not exist.
+The phone serves the same renderer. A visible control can still receive a
+server refusal. `hasLocalScreen()` hides some PC actions, and the extension
+store hides extension app and module contributions on the phone.
 
-Phone requests get `remoteLimits: { askOnly: !agentFromPhone }` in their
-server-supplied context. Chat and Flows both pass that context to `startTurn`,
-which refuses Agent mode and coordinator turns unless the person turned on
-Agent mode from the phone. The
-[spending limit](guide/setup/spending-limit.md) applies as everywhere.
+| Surface | Available from a paired phone | Requires the PC |
+| --- | --- | --- |
+| Agents and Flows | Read Chat and catalog data, create or resume chats, manage chat state, edit and run flows, and save ordinary prompt templates | Change allowed folders, system prompts, spending settings, built-in subagents and PR reviewer settings. Run or retry a PR review |
+| Data tools | Explore metadata, preview BigQuery tables and dry-run SQL, view jobs, read SQLX files, browse ingestion status and logs. Configured MetricFlow and Malloy queries use their existing settings | Run arbitrary BigQuery SQL or cancel jobs, write SQLX files or change projects, change OpenMetadata descriptions or sync BigQuery metadata, and configure or run ingestion |
+| Workspace apps | Manage notes, flashcards and Tracker records, work with connected mail accounts and Tasks, and browse and work with issues in recent or MonoRail-linked GitHub+ repos | Configure accounts or mail write access, link new repositories, initialize repos, manage Jira trigger templates or local project setup, change bookmarks or manage GitHub+ backups |
+| PC and settings | View selected status, schedules, storage information and extension inventory | Files, Developer Mode, Remote access, desktop dialogs, system links, installation and update actions, account and access changes, storage scans, and scheduled or backup actions |
+
+Extension backend calls, including the `extensions.call` wrapper, stay on the
+PC. The phone bridge does not receive extension push events. The token-protected
+local Vite dev bridge retains its existing backend and event access.
+
+The server supplies `ctx.remoteLimits.askOnly` from the current setting. Chat
+refuses coordinator and Agent turns in Ask-only mode. Flows checks the saved
+graph before it starts any steps, and each turn checks the live setting again in
+Chat. The [spending limit](guide/setup/spending-limit.md) applies to both.
+
+### Desktop renderer
+
+Vite emits `desktop.html` with a CSP for Electron's local file renderer. Scripts
+and bundled fonts are local, styles can use inline values, and renderer
+requests use IPC. The policy allows data and blob images, extension frames
+and icons, email's sandboxed HTML with its image opt-in, and Chat's sandboxed
+HTTP(S) preview. Vite hot reload uses its development entry. Remote access
+loads `index.html` and applies its own HTTP policy.
+
+`renderer-security.cjs` guards window and frame navigation, including
+redirects. The main frame stays on its configured app document, including its
+hash routes. Extension frames stay on their own origin. External HTTP(S)
+pop-ups open in the system browser. Electron webview attachment is disabled.
+The `module:invoke` IPC handler accepts calls only from the current main
+window's main frame at its app document.
 
 ## Funnel and the address
 

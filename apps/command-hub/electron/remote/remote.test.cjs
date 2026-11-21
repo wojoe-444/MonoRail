@@ -8,7 +8,7 @@ const path = require('node:path')
 const { createRemoteStore, describeAgent, cleanLogin } = require('./store.cjs')
 const { createRemoteServer, createPairing, COOKIE, PAIR_PATH } = require('./server.cjs')
 const { parseStatus, parseServe, checkTailscale } = require('./tailscale.cjs')
-const { REMOTE_DENY, remoteRefusal, isQuiet } = require('./policy.cjs')
+const { REMOTE_METHODS, remoteRefusal, isQuiet } = require('./policy.cjs')
 const { createRemoteService, readEnabledSync } = require('./service.cjs')
 const { decode } = require('../bridge/codec.cjs')
 
@@ -67,7 +67,7 @@ async function start({ agentFromPhone = false } = {}) {
   await new Promise((r) => server.listen(0, '127.0.0.1', r))
   const base = `http://127.0.0.1:${server.address().port}`
   const close = () => new Promise((r) => server.close(r))
-  return { dir, store, pairing, calls, base, close }
+  return { dir, store, pairing, calls, base, close, setAgentFromPhone: (enabled) => { settings.agentFromPhone = enabled } }
 }
 
 const headers = (extra = {}) => ({ host: HOST, 'tailscale-user-login': LOGIN, ...extra })
@@ -131,7 +131,7 @@ test('pairing: a code works once, then the device reaches the app with its cooki
     const js = await fetch(`${t.base}/__bridge/client.js`, { headers: headers({ cookie: `${COOKIE}=${encodeURIComponent(key)}` }) })
     assert.match(await js.text(), /remote: true/)
 
-    const r = await invoke(t, key, { moduleId: 'claude-stats', method: 'getReport', args: {} })
+    const r = await invoke(t, key, { moduleId: 'claude-stats', method: 'getUsage', args: {} })
     assert.equal(r.status, 200)
     assert.deepEqual(decode(await r.text()), { ok: true, result: { ok: true } })
   } finally {
@@ -167,7 +167,7 @@ test('refused: wrong host, no login, wrong login, no cookie, wrong cookie, wrong
     assert.equal((await fetch(`${t.base}/`, { headers: headers({ cookie: `${COOKIE}=${'x'.repeat(43)}` }) })).status, 401)
     const noCookie = await fetch(`${t.base}/__bridge/invoke`, { method: 'POST', headers: headers({ origin: ORIGIN, 'content-type': 'application/json' }), body: '{}' })
     assert.equal(noCookie.status, 401)
-    const badOrigin = await invoke(t, key, { moduleId: 'claude-stats', method: 'getReport' }, { origin: 'https://evil.example' })
+    const badOrigin = await invoke(t, key, { moduleId: 'claude-stats', method: 'getUsage' }, { origin: 'https://evil.example' })
     assert.equal(badOrigin.status, 403)
     assert.equal(t.calls.length, 0)
   } finally {
@@ -217,6 +217,25 @@ test('Agent mode from the phone lifts only the Ask-only limit', async () => {
     const key = keyFrom(await pairDevice(t))
     await invoke(t, key, { moduleId: 'agent-chat', method: 'startTurn', args: {} })
     assert.deepEqual(t.calls[0][3], { askOnly: false })
+    await invoke(t, key, { moduleId: 'flows', method: 'run', args: {} })
+    const limits = t.calls[1][3]
+    assert.equal(limits.askOnly, false)
+    t.setAgentFromPhone(false)
+    assert.equal(limits.askOnly, true, 'later flow steps see the new setting')
+
+    t.setAgentFromPhone(true)
+    for (const [moduleId, method] of [
+      ['pr-review', 'configure'], ['pr-review', 'saveTemplate'], ['pr-review', 'resetTemplate'],
+      ['pr-review', 'disable'], ['pr-review', 'check'], ['pr-review', 'retry'], ['ingestion', 'savePipeline'],
+      ['ingestion', 'deletePipeline'], ['ingestion', 'setFlags'], ['ingestion', 'syncConnected'], ['ingestion', 'run'],
+      ['ingestion', 'kill'], ['ingestion', 'serverAction'], ['ingestion', 'serverCreate'], ['bigquery', 'runQuery'],
+      ['sqlx', 'saveFile'], ['sqlx', 'removeProject'], ['extensions', 'call'], ['files', 'list'],
+      ['agent-chat', 'newUnclassifiedMethod'], ['unclassified-backend', 'list'], ['__proto__', 'constructor'],
+    ]) {
+      const reply = decode(await (await invoke(t, key, { moduleId, method })).text())
+      assert.equal(reply.error?.name, 'BridgeRefused', `${moduleId}.${method}`)
+    }
+    assert.equal(t.calls.length, 2)
   } finally {
     await t.close()
   }
@@ -349,42 +368,47 @@ test('tailscale: status and serve parsing, Funnel detection', async () => {
 test('policy: refusals and quiet reads', () => {
   const desk = (m, x) => m === 'storage' && x === 'openLocation'
   assert.match(remoteRefusal('storage', 'openLocation', desk), /PC screen/)
-  assert.match(remoteRefusal('remote', 'getStatus', desk), /stay on the PC/)
-  assert.match(remoteRefusal('developer', 'anything', desk), /stay on the PC/)
-  assert.equal(remoteRefusal('claude-stats', 'getReport', desk), undefined)
+  assert.match(remoteRefusal('remote', 'getStatus', desk), /only on the PC/)
+  assert.match(remoteRefusal('developer', 'anything', desk), /only on the PC/)
+  assert.equal(remoteRefusal('claude-stats', 'getUsage', desk), undefined)
   assert.equal(remoteRefusal('agent-chat', 'startTurn', desk), undefined)
   assert.equal(isQuiet('getReport'), true)
   assert.equal(isQuiet('pollTurn'), true)
   assert.equal(isQuiet('startTurn'), false)
 })
 
-test('every REMOTE_DENY entry names a real backend method', () => {
-  const electronDir = path.join(__dirname, '..')
-  const index = fs.readFileSync(path.join(electronDir, 'modules', 'index.cjs'), 'utf8')
-  const start = index.indexOf('const moduleBackends = [')
-  const block = index.slice(start, index.indexOf(']', start))
-  const backends = new Map()
-  for (const m of block.matchAll(/require\('\.\/([\w-]+\.cjs)'\)/g)) {
-    const b = require(path.join(electronDir, 'modules', m[1]))
-    backends.set(b.id, Object.keys(b.methods))
+test('every registered backend method has exactly one phone access decision', () => {
+  const { moduleBackends, appBackends } = require('../modules/index.cjs')
+  const { extensionsBackend } = require('../extensions/index.cjs')
+  const backends = new Map([
+    ...[...moduleBackends, extensionsBackend].map((b) => [b.id, b]),
+    ...appBackends.map((b) => [`app:${b.id}`, b]),
+  ])
+  assert.deepEqual(Object.keys(REMOTE_METHODS).sort(), [...backends.keys()].sort())
+  for (const [id, backend] of backends) {
+    const { phone, desktop } = REMOTE_METHODS[id]
+    const methods = Object.keys(backend.methods)
+    assert.deepEqual([...phone, ...desktop].sort(), methods.sort(), `Classify each ${id} method once in remote/policy.cjs`)
+    for (const name of backend.desktopOnly ?? []) assert.ok(desktop.includes(name), `${id}.${name} needs the PC screen`)
   }
-  for (const b of require(path.join(electronDir, 'apps', 'index.cjs'))) backends.set(`app:${b.id}`, Object.keys(b.methods))
-  // The extensions backend lives in electron/extensions: read its method names from the source.
-  const extSrc = fs.readFileSync(path.join(electronDir, 'extensions', 'index.cjs'), 'utf8')
-  const missing = []
-  for (const [id, names] of Object.entries(REMOTE_DENY)) {
-    if (id === 'extensions') {
-      for (const n of names) if (!new RegExp(`\\b${n}\\b\\s*[:(]`).test(extSrc)) missing.push(`${id}.${n}`)
-      continue
-    }
-    const methods = backends.get(id)
-    if (!methods) {
-      missing.push(id)
-      continue
-    }
-    for (const n of names) if (n !== '*' && !methods.includes(n)) missing.push(`${id}.${n}`)
-  }
-  assert.deepEqual(missing, [])
+})
+
+test('GitHub+ phones can only reopen a known repo at the same root', async (t) => {
+  const { methods } = require('../apps/github-plus/index.cjs')
+  const git = require('../apps/github-plus/git.cjs')
+  const dataDir = tmp()
+  const known = '/example/repo'
+  const other = '/example/other'
+  const ctx = { dataDir, remoteLimits: { askOnly: true } }
+  fs.writeFileSync(path.join(dataDir, 'recents.json'), JSON.stringify([known]))
+  const open = t.mock.method(git, 'openRepo', async (dir) => ({ path: dir }))
+
+  await assert.rejects(methods.openRepo(ctx, { dir: other }), /on your PC/)
+  assert.equal(open.mock.callCount(), 0)
+  assert.equal((await methods.openRepo(ctx, { dir: known })).path, known)
+
+  open.mock.mockImplementation(async () => ({ path: other }))
+  await assert.rejects(methods.openRepo(ctx, { dir: known }), /repository has moved/)
 })
 
 test('a "last seen" touch racing a revoke never brings the device back', async () => {

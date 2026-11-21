@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-import { invokeModule, isDesktop } from '@/modules/client'
+import { hasLocalScreen, invokeModule, isDesktop } from '@/modules/client'
 
 import type { ExtensionList, ExtensionSummary } from './types'
 
@@ -44,7 +44,7 @@ export function refreshExtensions(): Promise<void> {
 }
 
 if (typeof window !== 'undefined' && window.commandHub) {
-  window.commandHub.on?.('extension:changed', () => void refreshExtensions())
+  if (hasLocalScreen()) window.commandHub.on?.('extension:changed', () => void refreshExtensions())
   void refreshExtensions()
 }
 
@@ -71,6 +71,7 @@ export function useExtensionList(): ExtensionList {
 
 /** Only extensions whose pages and apps should appear in the hub. */
 export function activeExtensions(l: ExtensionList = list): ExtensionSummary[] {
+  if (!hasLocalScreen()) return []
   return l.extensions.filter((e) => e.status === 'active')
 }
 

@@ -59,6 +59,10 @@ function prune(now = Date.now()) {
   for (const [id, r] of runs) if (r.endedAt && now - r.endedAt > KEEP_FINISHED_MS) runs.delete(id)
 }
 
+function isAgentStep(node) {
+  return (node.kind === 'agent' || node.kind === 'subagent') && graph.valueOf(node, 'mode') === 'agent'
+}
+
 /**
  * Start a run. `flow` is a cleaned flow; `input` the Playground message.
  * deps: {
@@ -172,13 +176,13 @@ function startRun({ flow, input = '', deps }) {
         const prompt = instructions ? `${instructions}\n\n---\n\n${task}` : task
         let model = graph.valueOf(node, 'model') || 'default'
         if (!deps.models[sdk].some((m) => m.id === model)) model = 'default'
-        return { reply: await turn(step, { sdk, folder: graph.valueOf(node, 'folder'), prompt, mode: graph.valueOf(node, 'mode') === 'agent' ? 'agent' : 'ask', model }) }
+        return { reply: await turn(step, { sdk, folder: graph.valueOf(node, 'folder'), prompt, mode: isAgentStep(node) ? 'agent' : 'ask', model }) }
       }
       case 'subagent': {
         const sub = await deps.getSubagent(graph.valueOf(node, 'subagent'))
         const sdk = sub.tool === 'pi' ? 'pi' : 'claude'
         const prompt = `You are acting as the "${sub.name}" subagent. Its instructions:\n\n${sub.prompt}\n\n---\n\nYour task:\n\n${val(node, inputs, 'input')}`
-        return { reply: await turn(step, { sdk, folder: graph.valueOf(node, 'folder'), prompt, mode: graph.valueOf(node, 'mode') === 'agent' ? 'agent' : 'ask', model: modelFor(sdk, sub.model, deps.models) }) }
+        return { reply: await turn(step, { sdk, folder: graph.valueOf(node, 'folder'), prompt, mode: isAgentStep(node) ? 'agent' : 'ask', model: modelFor(sdk, sub.model, deps.models) }) }
       }
       case 'chat-output': {
         const reply = String(val(node, inputs, 'input'))
@@ -314,4 +318,4 @@ function runningRunFor(flowId) {
   return undefined
 }
 
-module.exports = { startRun, pollRun, stopRun, runningRunFor, replyText, modelFor, MAX_PARALLEL, _runs: runs }
+module.exports = { startRun, pollRun, stopRun, runningRunFor, isAgentStep, replyText, modelFor, MAX_PARALLEL, _runs: runs }
