@@ -1,49 +1,47 @@
 # MonoRail
 
-Home of **MonoRail**, a desktop app for managing agents, and the agent
-definitions it manages.
+MonoRail is a Windows desktop workspace for running agents, browsing repositories
+and working with local tools and data catalogs. The app ships as an Electron
+installer.
 
-| Path | What it is |
+| Path | What it contains |
 | --- | --- |
-| `apps/command-hub/` | React + shadcn/ui app, packaged for Windows with Electron |
-| `agents/` | Agent definitions (public, no secrets) |
+| [`apps/command-hub/`](apps/command-hub) | The MonoRail renderer and Electron backends |
+| [`agents/`](agents/README.md) | A placeholder for public agent definitions. MonoRail discovers agents on the user's machine. |
+| [`packages/extension-sdk/`](packages/extension-sdk/README.md) | Source for the SDK files shipped with extensions |
+| [`extensions/`](extensions/README.md) | The Hello MonoRail starter and working extension sample |
+| [`docs/`](docs) | The in-app Wiki, including the [user guide](docs/guide/README.md), [developer reference](docs/contributing/README.md), [extension author docs](docs/extensions/README.md) and [entity standard](docs/standard/README.md) |
 
-## Run it
+## Run from source
+
+Use Node.js 22 to match CI.
 
 ```bash
 cd apps/command-hub
-npm install
-npm run dev        # browser at http://localhost:5173
-npm run desktop    # same app in an Electron window, with hot reload
+npm ci
+npm run desktop    # Electron with hot reload
+npm run dev        # Vite browser preview with fictional data
 npm run dist:win   # builds release/MonoRail-Setup-<version>.exe
 ```
 
-## Install and update (Windows)
+Run `npm run lint`, `npm test` and `npm run build` from the same folder.
+See the [repository guide](CLAUDE.md) for commands, contribution rules and
+backend architecture.
 
-Every merge to `main` publishes a GitHub release with
-`MonoRail-Setup-<version>.exe`. Install it once; after that, open
-**Settings > Check for updates** in the app and click **Download and
-restart**. The installer is per-user (no admin prompt) and installs to
-`%LOCALAPPDATA%\Programs\command-hub` (the folder kept its pre-rename name so
-existing installs upgrade in place).
+## Install and update on Windows
 
-First install from PowerShell:
+Download `MonoRail-Setup-<version>.exe` from the
+[latest GitHub release](https://github.com/wojoe-444/MonoRail/releases/latest).
+The installer is per-user and installs to
+`%LOCALAPPDATA%\Programs\command-hub`. That folder name lets older installs
+upgrade in place. The installer is unsigned, so SmartScreen may prompt for
+confirmation.
 
-```powershell
-$rel   = Invoke-RestMethod https://api.github.com/repos/wojoe-444/MonoRail/releases/latest
-$asset = $rel.assets | Where-Object name -like 'MonoRail-Setup-*.exe' | Select-Object -First 1
-$out   = Join-Path $env:TEMP $asset.name
-Invoke-WebRequest $asset.browser_download_url -OutFile $out
-Unblock-File $out
-Start-Process $out -Wait
-```
-
-The installer is not code-signed yet, so SmartScreen may still ask you to
-confirm (More info > Run anyway).
+After the initial install, open **Settings > Check for updates**, then choose
+**Download and restart**. See [Backups and updates](docs/guide/setup/backups-and-updates.md#updates).
 
 ## Private data
 
-This repo is public. Anything personal (API keys, tokens, settings, run
-history) is stored in `%APPDATA%\MonoRail` on your machine (older installs
-keep their original `command-hub` or `MonoHub` folder; Settings shows which)
-and is never committed. See [CLAUDE.md](CLAUDE.md).
+This repository is public. Credentials, settings and run history live on your
+machine in `%APPDATA%\MonoRail`. Older installs continue to use their existing
+data folder, shown in Settings. See [Private data stays local](docs/guide/private-data.md).

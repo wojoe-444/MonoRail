@@ -48,3 +48,6 @@ Click **Settings** at the bottom of the sidebar to open its sub-navigation:
 
 Use the search box above the Settings menu (or **Ctrl+K** for app-wide
 [search](../search.md)) to jump straight to any option.
+
+See the [desktop shell reference](../../contributing/desktop-shell.md#settings-and-search)
+for how Settings pages, alerts and search are wired.

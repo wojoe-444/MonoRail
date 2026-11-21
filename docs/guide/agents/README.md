@@ -42,3 +42,8 @@ into [Chat](chat.md) or elsewhere.
 Every save creates a new version so earlier versions stay intact. Prompts live
 in your local [profile](../../profiles.md). (Unlike [Flows](flows.md) prompt
 steps, catalog prompts are filled in directly on the Prompts page.)
+
+## Technical reference
+
+- [Agent usage and catalog](../../contributing/agents.md)
+- [Agent Chat backend](../../contributing/agent-chat.md)

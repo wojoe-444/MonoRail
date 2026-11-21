@@ -38,3 +38,7 @@ workspace tools. Every tool keeps its data on your computer
 
 For data catalogs, BigQuery, SQLX, Malloy and MetricFlow, see
 [Data & catalog](../data/README.md).
+
+See the [workspace tool backends](../../contributing/workspace-tools.md) and
+[GitHub+ and Tasks reference](../../contributing/git-workspace.md) for storage
+and implementation details.

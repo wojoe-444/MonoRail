@@ -108,7 +108,7 @@ in your extension is a snapshot of MonoRail's design tokens from when you
 copied it. To pick up a newer SDK or newer tokens, refresh the folder:
 
 ```bash
-npx degit wojoe-444/MonoRail/packages/extension-sdk monorail-sdk --force
+npx degit wojoe-444/MonoRail/packages/extension-sdk#main monorail-sdk --force
 ```
 
 Your extension keeps working without a refresh. Refresh when you want a

@@ -39,4 +39,4 @@ Your choice saves immediately and stays local on your PC
 ## Related
 
 - [Setup overview](README.md) · [The mochi crew](../agents/mochi-crew.md) ·
-  [Saving your changes](saving.md)
+  [Saving your changes](saving.md) · [Design system reference](../../contributing/design-system.md)

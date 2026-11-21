@@ -28,7 +28,7 @@ Extensions). Every failed call is logged there with its code, e.g.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Blank page | A script failed, or the `entry` path is wrong. | Check the entry against the files in `ui/`. Vite needs `base: './'` so asset paths are relative (the starter sets it). |
+| Blank page | A fresh source folder has no `ui/` build, a script failed, or the `entry` path is wrong. | [Build, then load or reload](tutorial.md#6-run-it-in-monorail) and check the entry against the files in `ui/`. Vite needs `base: './'` so asset paths are relative (the starter sets it). |
 | Inline `<script>` doesn't run | The CSP forbids inline scripts. | Move the code into a `.js` file. |
 | `fetch('https://...')` fails | Pages have no network. | Call a backend method, and declare the host in `permissions.network`. |
 | Remote images, fonts or styles don't load | Only the extension's own files are allowed. | Bundle them into `ui/`. |

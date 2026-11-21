@@ -8,9 +8,9 @@ folder the user picks.
 Copy it to start your own extension:
 
 ```bash
-npx degit wojoe-444/MonoRail/extensions/hello-monorail my-extension
+npx degit wojoe-444/MonoRail/extensions/hello-monorail#main my-extension
 cd my-extension
-npm install
+npm ci
 ```
 
 Then change `id`, `name`, `publisher` and `repository` in `monorail.json`.
@@ -29,9 +29,12 @@ Then change `id`, `name`, `publisher` and `repository` in `monorail.json`.
 ## Develop
 
 - `npm run dev` previews the UI in a browser with sample data (no backend).
-- In MonoRail: **Settings > Extensions > Install extension > Load a folder for
-  development**, pick this folder, then `npm run build` and press **Reload**
-  after each change. Backend logs are under the extension's **…** menu.
+- Run `npm run build` before loading a fresh copy. It generates `ui/`, which
+  stays out of Git.
+- In MonoRail, open **Settings > Extensions > Install extension > Load a
+  folder for development** and select the folder containing `monorail.json`.
+  After a UI change, rebuild and press **Reload**. Backend logs are under the
+  extension's **…** menu.
 
 Pages can't use the network or inline scripts (MonoRail's CSP); do network
 work in the backend and declare the hosts in `permissions.network`.
@@ -43,8 +46,8 @@ npm version patch          # bumps package.json and monorail.json, commits and t
 git push --follow-tags     # the workflow builds, packs and publishes the release
 ```
 
-`npm run pack` writes `release/<id>-<version>.monorail.zip` locally, which can
-also be installed with **From a .zip**.
+`npm run pack` builds the UI and writes `release/<id>-<version>.monorail.zip`.
+Install the ZIP with **From a .zip**.
 
 ## Test
 

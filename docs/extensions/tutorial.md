@@ -10,9 +10,9 @@ and MonoRail installed on Windows.
 ## 1. Copy the starter
 
 ```bash
-npx degit wojoe-444/MonoRail/extensions/hello-monorail my-extension
+npx degit wojoe-444/MonoRail/extensions/hello-monorail#main my-extension
 cd my-extension
-npm install
+npm ci
 ```
 
 You get:
@@ -20,7 +20,7 @@ You get:
 | Path | What it is |
 | --- | --- |
 | `monorail.json` | The [manifest](manifest.md) |
-| `src/` | The UI (Vite + React + Tailwind). `npm run build` writes it to `ui/` |
+| `src/` | The UI (Vite + React + Tailwind). `npm run build` generates the ignored `ui/` folder. |
 | `backend/index.cjs` | The backend: notes in the data folder, events, a setting, a migrate hook |
 | `test/backend.test.mjs` | Backend tests (`npm test`) |
 | `monorail-sdk/` | The SDK: page client, types, test helper, theme, packer |
@@ -85,7 +85,8 @@ this for layout work.
 
 ## 6. Run it in MonoRail
 
-1. `npm run build`.
+1. Run `npm run build` from the extension folder. A fresh copy has UI source
+   and needs this step to generate the files MonoRail serves.
 2. In MonoRail: **Settings > Extensions > Install extension > Load a folder
    for development**, and pick your extension folder.
 3. Review the consent dialog and install. Your module appears in the menu
@@ -124,7 +125,8 @@ git push --follow-tags   # the workflow builds, packs and publishes the release
 Users install it with **Install extension > From a GitHub release** and your
 `owner/name`, and get updates with **Check for updates**. `npm run pack`
 writes the same `release/<id>-<version>.monorail.zip` locally, which can be
-installed with **From a .zip**.
+installed with **From a .zip**. It builds `ui/` before packing, so both local
+packaging and the release workflow work from a clean checkout.
 
 ## Next
 

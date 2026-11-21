@@ -26,6 +26,8 @@ credentials*.json
 token*.json
 
 # Build output
+/build/
+/output/
 node_modules/
 dist/
 release/
