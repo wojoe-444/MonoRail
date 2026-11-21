@@ -44,6 +44,7 @@ export default function BackupsPage() {
   }, [rp])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- The initial load updates state after reading the repository's backup status.
     void load(true)
     // The scheduler runs in the background; keep the status current while this page is open.
     const t = setInterval(() => void load(false), 30_000)
@@ -244,6 +245,7 @@ export default function BackupsPage() {
             <span>
               {!saved.enabled ? <span className="muted">Automatic backups are off</span>
                 : state?.problem ? <span className="muted">Paused: the global backup folder is off</span>
+                /* oxlint-disable-next-line react/purity -- The backup countdown uses the current clock when its polled status renders. */
                 : state?.nextDueAt ? (Date.parse(state.nextDueAt) <= Date.now() ? 'Due now' : <span title={fullDate(state.nextDueAt)}>{timeAgo(state.nextDueAt)}</span>)
                 : '—'}
             </span>

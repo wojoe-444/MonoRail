@@ -118,6 +118,7 @@ export function TableTab({ projectId, datasetId, tableId, onQuery }: TableProps)
   }, [projectId, datasetId, tableId])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Start table metadata loading when the requested table changes.
     void load()
   }, [load])
 

@@ -67,10 +67,7 @@ export function Inspector() {
 
   // While inspecting: follow the pointer, swallow clicks, pin on click.
   useEffect(() => {
-    if (!active) {
-      setHover(undefined)
-      return
-    }
+    if (!active) return
     const own = (t: EventTarget | null) => t instanceof Element && !!t.closest(`[${OWN}]`)
     const onMove = (e: PointerEvent) => {
       cancelAnimationFrame(frame.current)
@@ -105,6 +102,7 @@ export function Inspector() {
     document.documentElement.style.cursor = 'crosshair'
     return () => {
       cancelAnimationFrame(frame.current)
+      setHover(undefined)
       document.removeEventListener('pointermove', onMove, true)
       for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick', 'contextmenu'] as const) document.removeEventListener(t, block, true)
       document.removeEventListener('click', onClick, true)

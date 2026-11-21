@@ -425,6 +425,7 @@ function Logins({ logins, disabled, onChange }: { logins: string[]; disabled: bo
 function DeviceRow({ device, disabled, onRename, onRevoke }: { device: RemoteDevice; disabled: boolean; onRename: (name: string) => void; onRevoke: () => void }) {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(device.name)
+  // oxlint-disable-next-line react/purity -- Use the current clock to show how recently this device was seen.
   const seenMs = Date.now() - Date.parse(device.lastSeen)
   const active = seenMs < 2 * 60_000
   const tablet = /iPad|Tablet/i.test(device.agent) || /tablet/i.test(device.name)
@@ -537,7 +538,7 @@ function ActivityRow({ entry }: { entry: RemoteAuditEntry }) {
 }
 
 function PairingCode({ url, expiresAt, onNew }: { url: string; expiresAt: number; onNew: () => void }) {
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(t)

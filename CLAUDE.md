@@ -108,10 +108,16 @@ Run from `apps/command-hub/`:
 | `npm run dev:browser` | Browser tab at http://localhost:5199 with real backends: a window-less Electron process (`electron/dev-bridge.cjs`) serves them over a token-guarded local bridge. Own data folder (`%APPDATA%\MonoRail Dev`), so it runs beside the installed app. The HTTP server and codec are shared in `electron/bridge/` (`server.cjs`: token check, origin check, JSON only, server-sent events). Extension UIs (`monorail-ext://`) don't load in the browser. |
 | `npm run desktop` | Electron window pointed at the dev server (hot reload) |
 | `npm run build` | Type-check and build the web bundle to `dist/` |
-| `npm run lint` | oxlint |
-| `npm test` | Node tests for backends (`electron/**/*.test.cjs`) |
+| `npm run lint` | Oxlint, with any warning treated as a failure |
+| `npm test` | Backend and frontend tests |
+| `npm run test:backend` | Node tests for backends (`electron/**/*.test.cjs`) |
+| `npm run test:frontend` | Vitest unit tests (`src/**/*.test.ts`) using Vite's module resolution in Node |
 | `npm run dist:win` | Build the installer `release/MonoRail-Setup-<version>.exe` |
 | `npm run dist:win:portable` | Build a portable `.exe` (cannot self-update) |
+
+Oxlint keeps the React rules active. Existing effect and render-clock exceptions
+name the rule and explain the specific site. Fast Refresh exceptions in
+`.oxlintrc.json` name individual helper exports and their files.
 
 CI (`.github/workflows/ci.yml`) builds and lints on every PR and produces the
 installer on a Windows runner as a downloadable artifact. On every push to

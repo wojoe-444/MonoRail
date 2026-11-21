@@ -193,6 +193,7 @@ function ProjectNode({
 
   useEffect(() => {
     if (!open || datasets) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Mark the first load as pending to avoid a duplicate request when reopening the project.
     setDatasets({ state: 'loading' })
     bq.listDatasets(projectId)
       .then((r) => setDatasets({ state: 'ok', items: r.datasets, truncated: r.truncated }))
@@ -243,6 +244,7 @@ function DatasetNode({
 
   useEffect(() => {
     if (!open || tables) return
+    // oxlint-disable-next-line react/set-state-in-effect -- Mark the first load as pending to avoid a duplicate request when reopening the dataset.
     setTables({ state: 'loading' })
     bq.listTables(projectId, dataset.id)
       .then((r) => setTables({ state: 'ok', items: r.tables, truncated: r.truncated }))
@@ -307,9 +309,11 @@ function History({ projectId, onQuery, refreshKey }: { projectId?: string; onQue
   }, [projectId, scope])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear history from the previous project or scope before loading new jobs.
     setJobs(undefined)
   }, [projectId, scope])
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Start a history request when its source or refresh key changes.
     load()
   }, [load, refreshKey])
 

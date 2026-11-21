@@ -44,6 +44,7 @@ export function JiraProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Load Jira settings and project state when the provider mounts.
     void refresh()
   }, [refresh])
 

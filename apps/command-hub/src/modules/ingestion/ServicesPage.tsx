@@ -62,9 +62,11 @@ export default function ServicesPage() {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Start loading the local ingestion overview on mount.
     void load()
   }, [load])
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Load server details when the local overview confirms a configured server.
     if (overview?.serverSetUp && !server && !serverLoading) void loadServer()
   }, [overview?.serverSetUp, server, serverLoading, loadServer])
 

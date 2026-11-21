@@ -35,6 +35,7 @@ export function RunsDialog({ pipeline, onClose }: { pipeline: Pipeline; onClose:
   }, [pipeline, server])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Start loading run history when the selected pipeline changes.
     void load()
   }, [load])
 

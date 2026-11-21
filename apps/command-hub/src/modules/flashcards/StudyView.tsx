@@ -137,6 +137,7 @@ export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => voi
           <div className="flex flex-col gap-1">
             <span className="text-lg font-semibold">{done > 0 ? 'All done for now' : 'Nothing to study right now'}</span>
             <span className="text-sm text-muted-foreground">
+              {/* oxlint-disable-next-line react/purity -- Display the time remaining until the next card returns. */}
               {counts?.nextDue ? `The next card comes back in ${formatSpan(counts.nextDue - Date.now())}.` : counts?.newTotal ? 'You have reached today\'s limit of new cards.' : 'Add cards to this deck to study them.'}
             </span>
           </div>

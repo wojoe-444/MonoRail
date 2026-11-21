@@ -54,6 +54,7 @@ export function CardsView({ deckId, go }: { deckId: string; go: (v: View) => voi
     }
   }
 
+  // oxlint-disable-next-line react/purity -- Use one clock reading to display due status for every card in this render.
   const now = Date.now()
 
   return (

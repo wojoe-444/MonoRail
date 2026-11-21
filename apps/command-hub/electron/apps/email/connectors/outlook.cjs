@@ -78,6 +78,7 @@ function daslFilter({ query, unreadOnly } = {}) {
   const parts = []
   const words = String(query ?? '')
     .slice(0, MAX_QUERY)
+    // oxlint-disable-next-line no-control-regex -- Strip control characters from Outlook search terms.
     .replace(/[\u0000-\u001f%]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)

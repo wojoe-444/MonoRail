@@ -111,6 +111,7 @@ export default function ConnectionsPage() {
   // checked: MonoRail runs nothing for a tool or account the user has not
   // asked it to look at.
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Load configured connections from the backend before checking them.
     void load().then((l) => l?.connections.forEach((c) => void check(c.kind)))
   }, [load, check])
 

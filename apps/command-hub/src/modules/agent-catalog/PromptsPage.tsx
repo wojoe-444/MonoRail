@@ -40,6 +40,7 @@ export default function PromptsPage() {
       if (isDesktop()) saved = await invokeModule<Template>('prompt-templates', 'save', args)
       else {
         if (!name.trim() || !text.trim()) throw new Error('Provide a name and prompt text.')
+        // oxlint-disable-next-line react/purity -- The UUID and timestamp are created in the Save button's event handler.
         saved = { id: current?.id ?? crypto.randomUUID(), versions: [...(current?.versions ?? []), { version: (current?.versions.length ?? 0) + 1, name: name.trim(), text, savedAt: new Date().toISOString() }] }
       }
       setItems((old) => [...old.filter((item) => item.id !== saved.id), saved]); select(saved); setNotice('Version saved.')

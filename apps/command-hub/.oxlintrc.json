@@ -4,5 +4,105 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  // Grandfather named helper exports in their current files so other exports
+  // still get checked for Fast Refresh. New helpers belong in separate modules.
+  "overrides": [
+    {
+      "files": ["src/apps/email/MailContext.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useMail"] }]
+      }
+    },
+    {
+      "files": ["src/apps/github-plus/RepoContext.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useRepo", "useAsync"] }]
+      }
+    },
+    {
+      "files": ["src/apps/jira-plus/JiraContext.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useJira"] }]
+      }
+    },
+    {
+      "files": ["src/apps/jira-plus/bits.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["CATEGORY_LABEL"] }]
+      }
+    },
+    {
+      "files": ["src/apps/tracker/TrackerContext.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useTracker"] }]
+      }
+    },
+    {
+      "files": ["src/apps/tracker/components/Picker.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useItems", "startedFill"] }]
+      }
+    },
+    {
+      "files": ["src/apps/tracker/pages/Projects.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["statusItems"] }]
+      }
+    },
+    {
+      "files": ["src/components/layout/TopBarSlot.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useTopBarSlot"] }]
+      }
+    },
+    {
+      "files": ["src/components/ui/badge.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["badgeVariants"] }]
+      }
+    },
+    {
+      "files": ["src/components/ui/button.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["buttonVariants"] }]
+      }
+    },
+    {
+      "files": ["src/extensions/ExtensionIcon.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["extensionIcon"] }]
+      }
+    },
+    {
+      "files": ["src/modules/agent-chat/Composer.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["modelsFor", "useComposerPrefs"] }]
+      }
+    },
+    {
+      "files": ["src/modules/openmetadata/tabs/semantic/malloySettings.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["openMalloySettings", "useMalloySettingsVersion", "pickMalloyFolder"] }]
+      }
+    },
+    {
+      "files": ["src/modules/settings/BeforeUpdate.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["BACKING_UP"] }]
+      }
+    },
+    {
+      "files": ["src/modules/settings/SettingsLayout.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["useSettingsPages"] }]
+      }
+    },
+    {
+      "files": ["src/pages/agents/DashboardLayout.tsx"],
+      "rules": {
+        "react/only-export-components": ["warn", { "allowConstantExport": true, "allowExportNames": ["isDashboardPath"] }]
+      }
+    }
+  ]
 }

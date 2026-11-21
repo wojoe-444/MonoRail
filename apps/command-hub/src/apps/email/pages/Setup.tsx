@@ -301,6 +301,7 @@ function GmailSetup({ connector, onSaved, onSignedIn }: { connector: ConnectorIn
   const dirty = clientId.trim() !== savedId || clientSecret.trim() !== ''
   const [showSteps, setShowSteps] = useState(!ready)
 
+  // oxlint-disable-next-line react/set-state-in-effect -- Reset the editable client ID when the saved connector configuration changes.
   useEffect(() => setClientId(connector.config.values.clientId ?? ''), [connector.config.values.clientId])
 
   const save = async () => {

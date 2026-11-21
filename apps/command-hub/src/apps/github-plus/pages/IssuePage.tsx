@@ -24,6 +24,7 @@ export default function IssuePage() {
 
   useEffect(() => {
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the prior issue before loading the selected issue.
     setIssue(null); setError(null)
     api.getIssue(rp, number).then((i) => live && setIssue(i), (e: Error) => live && setError(e.message))
     return () => { live = false }

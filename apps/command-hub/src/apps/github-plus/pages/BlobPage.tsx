@@ -34,6 +34,7 @@ export default function BlobPage() {
   // A linked line shows the code, not the Markdown preview.
   const showRaw = raw || !!line
 
+  // oxlint-disable-next-line react/set-state-in-effect -- Clear the selected history line when the displayed blob changes.
   useEffect(() => setHistoryLine(null), [rp, ref, path, working])
   useEffect(() => {
     if (!line || b?.kind !== 'text') return

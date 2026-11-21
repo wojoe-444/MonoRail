@@ -123,6 +123,7 @@ function MemberRow({ id }: { id: string }) {
   const { snap, run } = useTracker()
   const u = snap.users.find((x) => x.id === id)!
   const [name, setName] = useState(u.name)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the name draft when the saved user name changes.
   useEffect(() => setName(u.name), [u.name])
   const save = (patch: { name?: string; color?: string }) => void run(() => trackerApi.save('user', { id: u.id, name: u.name, color: u.color, ...patch }))
   return (
@@ -200,6 +201,7 @@ function AddLabel({ teamId, parentId }: { teamId: string | null; parentId: strin
 function LabelRow({ label }: { label: Label }) {
   const { snap, run } = useTracker()
   const [name, setName] = useState(label.name)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the name draft when the saved label name changes.
   useEffect(() => setName(label.name), [label.name])
   const used = snap.issues.filter((i) => i.labelIds.includes(label.id)).length
   const save = (patch: Partial<Label>) => void run(() => trackerApi.save('issueLabel', { id: label.id, name: label.name, color: label.color, ...patch }))
@@ -255,6 +257,7 @@ function General({ team }: { team: Team }) {
   const [name, setName] = useState(team.name)
   const [key, setKey] = useState(team.key)
   const [desc, setDesc] = useState(team.description)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the team settings drafts when their saved values change.
   useEffect(() => (setName(team.name), setKey(team.key), setDesc(team.description)), [team.name, team.key, team.description])
   return (
     <Card title="General">
@@ -320,6 +323,7 @@ function Workflow({ team }: { team: Team }) {
 function StateRow({ state, states, isDefault, onDefault }: { state: WorkflowState; states: WorkflowState[]; isDefault: boolean; onDefault?: () => void }) {
   const { snap, run, toast } = useTracker()
   const [name, setName] = useState(state.name)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the name draft when the saved workflow state changes.
   useEffect(() => setName(state.name), [state.name])
   const used = snap.issues.filter((i) => i.stateId === state.id).length
   const save = (patch: Partial<WorkflowState>) => void run(() => trackerApi.save('workflowState', { id: state.id, name: state.name, color: state.color, ...patch }))

@@ -18,6 +18,7 @@ export function TriggerTemplates({ project }: { project: Project }) {
   const [formError, setFormError] = useState<string>()
   useEffect(() => {
     let live = true
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear templates from the previous project before loading the new project.
     setItems(undefined); setError(undefined)
     jiraApi().listTriggerTemplates({ source: project.source, projectKey: project.key }).then((result) => { if (live) setItems(result) }, (err) => { if (live) setError(errorText(err)) })
     return () => { live = false }

@@ -88,6 +88,7 @@ export function useModuleQuery<T>(
   )
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Start the bridge request when enabled or its method changes, keeping previous data during the fetch.
     if (enabled) void run()
   }, [run, enabled])
 

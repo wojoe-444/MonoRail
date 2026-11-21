@@ -103,6 +103,7 @@ function Panel({ issue }: { issue: Issue }) {
 function TitleEditor({ issue }: { issue: Issue }) {
   const { updateIssues } = useTracker()
   const [title, setTitle] = useState(issue.title)
+  // oxlint-disable-next-line react/set-state-in-effect -- Resync the title draft when the persisted issue title changes.
   useEffect(() => setTitle(issue.title), [issue.title])
   const save = () => {
     const t = title.trim()
@@ -127,6 +128,7 @@ function DescriptionEditor({ issue }: { issue: Issue }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(issue.description)
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Refresh the description draft only while the editor is closed.
     if (!editing) setText(issue.description)
   }, [issue.description, editing])
   const save = () => {

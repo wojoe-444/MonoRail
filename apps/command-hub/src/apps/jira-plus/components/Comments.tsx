@@ -49,7 +49,10 @@ export function Comments({
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && body.trim()) submit()
-              if (e.key === 'Escape' && !body) (e.currentTarget.blur(), setFocused(false))
+              if (e.key === 'Escape' && !body) {
+                e.currentTarget.blur()
+                setFocused(false)
+              }
             }}
             className="jp-field"
           />

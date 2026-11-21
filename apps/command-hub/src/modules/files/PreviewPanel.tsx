@@ -26,6 +26,7 @@ export function PreviewPanel({ target, count, tags, pinned, ops }: { target: { p
 
   const path = target?.path
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- Clear the previous preview before reading the newly selected file.
     setPreview(null)
     setError(undefined)
     setThumb(null)
