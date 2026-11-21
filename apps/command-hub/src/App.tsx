@@ -5,6 +5,7 @@ import { findAppByPath, isWorkspaceApp } from '@/apps/registry'
 import { appEntryPath, rememberAppPath, rememberHubPath } from '@/apps/session'
 
 import { findNavItem, flattenNav, SETTINGS_SECTION, useNavSections, type NavItem } from '@/components/layout/nav'
+import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary'
 import { SideNav } from '@/components/layout/SideNav'
 import { TopBar } from '@/components/layout/TopBar'
 import { TopBarSlotProvider } from '@/components/layout/TopBarSlot'
@@ -33,7 +34,13 @@ import { ToolsPage } from '@/pages/ToolsPage'
 const PromptsPage = lazy(() => import('@/modules/agent-catalog/PromptsPage'))
 const CatalogPage = lazy(() => import('@/modules/agent-catalog/CatalogPage'))
 
-function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem[]; onOpen: (path: string) => void }) {
+interface RouteProps {
+  path: string
+  navItems: NavItem[]
+  onOpen: (path: string) => void
+}
+
+function RouteView({ path, navItems, onOpen }: RouteProps) {
   if (path === PROMPTS_PATH) return <Suspense fallback={null}><PromptsPage /></Suspense>
   if (path === SUBAGENTS_PATH) return <Suspense fallback={null}><CatalogPage /></Suspense>
   const mod = findModuleByPath(path)
@@ -54,6 +61,37 @@ function RouteView({ path, navItems, onOpen }: { path: string; navItems: NavItem
   if ((path.startsWith('/x/') || path.startsWith('/apps/')) && isDesktop() && !extensionsLoaded()) return null
   const item = navItems.find((i) => i.path === path)
   return <PlaceholderPage title={item?.label ?? 'Not found'} />
+}
+
+function HubRoute({ title, ...route }: RouteProps & { title: string }) {
+  const { path } = route
+  const module = findModuleByPath(path)
+  const page = (
+    <RouteErrorBoundary title={title} resetKey={path}>
+      <RouteView {...route} />
+    </RouteErrorBoundary>
+  )
+
+  if (module?.layout === 'full') {
+    return <main className="min-h-0 flex-1 overflow-hidden">{page}</main>
+  }
+
+  const Layout = module?.nav.section === SETTINGS_SECTION ? SettingsLayout
+    : isDashboardPath(path) ? DashboardLayout
+    : [CATALOG_PATH, PROMPTS_PATH, SUBAGENTS_PATH, '/agents/pr-review'].includes(path) ? CatalogLayout
+    : undefined
+
+  return (
+    <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
+        {Layout ? (
+          <RouteErrorBoundary title={title} resetKey={path}>
+            <Layout path={path}>{page}</Layout>
+          </RouteErrorBoundary>
+        ) : page}
+      </div>
+    </main>
+  )
 }
 
 export default function App() {
@@ -126,28 +164,8 @@ export default function App() {
             <main className="min-h-0 flex-1 overflow-auto">
               <AppBody key={workspaceApp.id} app={workspaceApp} />
             </main>
-          ) : findModuleByPath(path, extensionList)?.layout === 'full' ? (
-            // A canvas page fills the body edge to edge.
-            <main className="min-h-0 flex-1 overflow-hidden">
-              <RouteView path={path} navItems={navItems} onOpen={openPath} />
-            </main>
           ) : (
-            // Scroll at the app edge; constrain only the content inside it.
-            <main className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[96rem] p-6 lg:p-8">
-                {findModuleByPath(path, extensionList)?.nav.section === SETTINGS_SECTION ? (
-                  <SettingsLayout path={path}>
-                    <RouteView path={path} navItems={navItems} onOpen={openPath} />
-                  </SettingsLayout>
-                ) : isDashboardPath(path) ? (
-                  <DashboardLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></DashboardLayout>
-                ) : (path === CATALOG_PATH || path === PROMPTS_PATH || path === SUBAGENTS_PATH || path === '/agents/pr-review') ? (
-                  <CatalogLayout path={path}><RouteView path={path} navItems={navItems} onOpen={openPath} /></CatalogLayout>
-                ) : (
-                  <RouteView path={path} navItems={navItems} onOpen={openPath} />
-                )}
-              </div>
-            </main>
+            <HubRoute path={path} title={current?.label ?? 'This page'} navItems={navItems} onOpen={openPath} />
           )}
         </div></HeaderRevealProvider>
       </div>

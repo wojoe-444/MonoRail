@@ -1,5 +1,6 @@
 import { frontMatter, resolveLink as resolveDocumentLink } from './document'
 import { findPage, pages, wikiDocPath, type WikiPage } from './index-data'
+import type { AudienceFilter } from './store'
 
 const bodies = import.meta.glob<string>(['../../../../../docs/**/*.md', '!../../../../../docs/extensions.md'], {
   query: '?raw',
@@ -56,6 +57,23 @@ const ROOT_TITLE = 'Reference'
 
 /** A folder's README is its index page. */
 export const isIndex = (p: WikiPage) => p.id === 'README' || p.id.endsWith('/README')
+
+export function shows(filter: AudienceFilter, page: WikiPage) {
+  return filter === 'all' || page.audience.includes(filter)
+}
+
+export function folderPages(folder: WikiFolder): WikiPage[] {
+  return [...(folder.index ? [folder.index] : []), ...folder.children.flatMap((c) => (c.kind === 'page' ? [c.page] : folderPages(c.folder)))]
+}
+
+export function folderShows(filter: AudienceFilter, folder: WikiFolder) {
+  return folderPages(folder).some((p) => shows(filter, p))
+}
+
+/** Short labels for the page list and links between articles. */
+export function navLabel(page: WikiPage) {
+  return page.title.replace(/\s*\(.*\)\s*$/, '').replace(/^Extensions roadmap$/, 'Roadmap').replace(/^Tutorial: .*/, 'Tutorial')
+}
 const baseName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 const titleCase = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, ' ')
 

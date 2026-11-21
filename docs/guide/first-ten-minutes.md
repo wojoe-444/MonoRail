@@ -54,6 +54,8 @@ Open **Settings > Backups** and point it at a synced folder such as OneDrive
 ## Where next
 
 - Press **Ctrl+K** anywhere to [find anything](search.md).
+- If a page stops working, select **Try again** or use the rail or command palette
+  to open another page. If the retry fails, you can select **Reload MonoRail**.
 - Build a custom helper: [create an agent](agents/create-an-agent.md).
 - Expose MonoRail tools to Claude Code: [agent access](agents/agent-access.md).
 - Browse by area: [Agents](agents/README.md), [Workspace](workspace/README.md),
