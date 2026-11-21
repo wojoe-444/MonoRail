@@ -50,7 +50,6 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
       pairing,
       invoke: b.invoke,
       isDesktopOnly: b.isDesktopOnly,
-      subscribe: b.subscribe,
       distDir,
     })
     await new Promise((resolve) => {
@@ -109,8 +108,8 @@ function createRemoteService({ distDir = path.join(__dirname, '..', '..', 'dist'
       settings = await store.readSettings()
     },
     /** Called once the backends' invoke exists (electron/modules/index.cjs). */
-    attach({ invoke, isDesktopOnly, subscribe }) {
-      backends = { invoke, isDesktopOnly, subscribe }
+    attach({ invoke, isDesktopOnly }) {
+      backends = { invoke, isDesktopOnly }
       backendsReady(backends)
     },
     /** At startup: if the person left it on, start again. */

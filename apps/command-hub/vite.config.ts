@@ -50,10 +50,48 @@ function devBridge(): Plugin {
   }
 }
 
+// The file:// renderer needs its CSP in the document. Keep index.html for the
+// phone server, which injects its own bridge and sends its own CSP header.
+function desktopEntry(): Plugin {
+  const policy = [
+    "default-src 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    // Email's srcdoc inherits this policy and adds its own image opt-in.
+    "img-src 'self' data: blob: monorail-ext: https: http:",
+    "font-src 'self' data:",
+    "connect-src 'none'",
+    // Extension pages, email srcdoc, and Chat's sandboxed Browser panel.
+    'frame-src monorail-ext: about: https: http:',
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ')
+
+  return {
+    name: 'monorail-desktop-entry',
+    apply: 'build',
+    generateBundle: {
+      order: 'post',
+      handler(_options, bundle) {
+        const entry = bundle['index.html']
+        if (entry?.type !== 'asset' || typeof entry.source !== 'string' || !entry.source.includes('<head>')) {
+          this.error('Could not find the built renderer HTML for the desktop CSP.')
+        }
+        this.emitFile({
+          type: 'asset',
+          fileName: 'desktop.html',
+          source: entry.source.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${policy}">`),
+        })
+      },
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
-  plugins: [react(), tailwindcss(), wikiIndexes(), ...(bridgeToken ? [devBridge()] : [])],
+  plugins: [react(), tailwindcss(), wikiIndexes(), desktopEntry(), ...(bridgeToken ? [devBridge()] : [])],
   // Shown in the drawer footer. CI stamps package.json before it builds the installer.
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // Keep function names in the production build so Developer Mode's element

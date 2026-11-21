@@ -147,6 +147,11 @@ module.exports = {
     /** Run the saved flow with the Playground's message. */
     async run(ctx, args = {}) {
       const { flow } = await store(ctx).get(args.id)
+      // Refuse the whole run before an independent branch can start a turn.
+      // Chat checks the live limit again before launching each individual turn.
+      if (ctx.remoteLimits?.askOnly && flow.nodes.some(runner.isAgentStep)) {
+        throw new Error('Agent mode from the phone is off. Set the Agent and Subagent steps to Ask, or turn it on in Settings > Remote access on your PC.')
+      }
       const input = typeof args.input === 'string' ? args.input.slice(0, 100_000) : ''
       return runner.startRun({ flow, input, deps: await runDeps(ctx) })
     },

@@ -3,8 +3,8 @@
 // request must carry an allowed Tailscale login (the header Tailscale serve
 // adds) and, except for the pairing page, a paired device's key cookie.
 //
-// No Electron dependency: the service hands in invoke, the desktop-only check
-// and the push channel source, so tests run it under Node.
+// No Electron dependency: the service hands in invoke and the desktop-only
+// check, so tests run it under Node.
 
 const crypto = require('node:crypto')
 const fs = require('node:fs/promises')
@@ -99,12 +99,11 @@ function readForm(req) {
  * @param {{ take(code: string): boolean }} o.pairing one-time pairing codes
  * @param {(moduleId: string, method: string, args: unknown, remoteLimits: { askOnly: boolean }) => Promise<unknown>} o.invoke
  * @param {(moduleId: string, method: string) => boolean} o.isDesktopOnly
- * @param {(fn: (channel: string, payload: unknown) => void) => void} [o.subscribe]
  * @param {string} o.distDir the built web app
  * @param {string} [o.platform]
  * @param {(entry: object) => void} [o.onPaired]
  */
-function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, subscribe, distDir, platform = process.platform, onPaired }) {
+function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, distDir, platform = process.platform, onPaired }) {
   const clientJs = bridgeClientScript({ platform, remote: true })
   const touched = new Map()
 
@@ -122,10 +121,9 @@ function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, subs
   async function remoteInvoke(moduleId, method, args, req) {
     const device = req.remoteDevice
     const started = Date.now()
-    const { settings } = state()
     const log = (outcome, extra = {}) =>
       void store.appendAudit({ device: device.name, deviceId: device.id, module: moduleId, method, outcome, ms: Date.now() - started, ...extra }).catch(() => {})
-    const refusal = moduleId.startsWith('ext:') ? 'Extension pages are not available on the phone yet.' : remoteRefusal(moduleId, method, isDesktopOnly)
+    const refusal = remoteRefusal(moduleId, method, isDesktopOnly)
     if (refusal) {
       log('refused', { reason: refusal })
       const err = new Error(refusal)
@@ -133,8 +131,9 @@ function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, subs
       throw err
     }
     try {
-      // Request context is set here, separately from the page's arguments.
-      const result = await invoke(moduleId, method, args, { askOnly: !settings.agentFromPhone })
+      // Keep this live for later steps of a flow. The page cannot set it.
+      const remoteLimits = { get askOnly() { return state().settings.agentFromPhone !== true } }
+      const result = await invoke(moduleId, method, args, remoteLimits)
       if (!isQuiet(method)) log('ok')
       return result
     } catch (err) {
@@ -143,7 +142,8 @@ function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, subs
     }
   }
 
-  const bridge = createBridgeHandler({ invoke: remoteInvoke, allowedOrigins: origins, subscribe })
+  // Extension events are only broadcast to the desktop and the local dev bridge.
+  const bridge = createBridgeHandler({ invoke: remoteInvoke, allowedOrigins: origins })
 
   async function serveFile(req, res, urlPath) {
     let rel

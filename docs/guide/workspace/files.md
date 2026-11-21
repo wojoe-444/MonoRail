@@ -77,4 +77,4 @@ UI `src/modules/files/` (`sample.ts` for browser preview). Paths validated via
 `absPath`/`checkName`; limits: 20k entries/dir, 256 KB text / 12 MB image
 preview, 60k entries / 500 hits / 8 s search, 400k entries / 20 s folder size;
 symlinks/junctions never followed; `trash` uses `shell.trashItem` only;
-`files: ['*']` in `REMOTE_DENY`. Prefs under `monorail.files.*`.
+the [Remote access policy](../../remote-access.md#phone-coverage). Prefs under `monorail.files.*`.

@@ -30,16 +30,22 @@ while off, no port opens and Tailscale is never queried.
 
 ## What the phone can and can't do
 
-Actions that belong on the PC show *"Do this on your PC"*:
+You can read and message agents, run eligible [flows](../agents/flows.md),
+and use workspace apps such as Notes and Tasks. Actions that belong on the
+PC show *"Do this on your PC"*:
 
 - Local desktop tools (folder pickers, Explorer, terminals, [Files](../workspace/files.md)).
 - Sensitive settings: [connections](connections.md),
   [spending limits](spending-limit.md), [agent access](../agents/agent-access.md),
   [extensions](extensions.md), [backups](backups-and-updates.md), updates and
   Remote access pairing.
+- Changing or running the PR reviewer, managing ingestion, running SQL
+  in BigQuery, and editing SQLX files.
 
-Phone chats default to **Ask** mode unless you enable **Agent mode from the
-phone**, and count toward your [spending limit](spending-limit.md).
+Chat and Flows use **Ask** mode from the phone by default. Enable **Agent
+mode from the phone** on your PC to use the Coordinator, Agent mode in Chat,
+or flows with any Agent-mode step. Both count toward your
+[spending limit](spending-limit.md).
 
 ## Closing the window
 

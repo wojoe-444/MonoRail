@@ -288,4 +288,4 @@ function invokeExtension(id, method, args) {
   return manager.invoke(id, method, args)
 }
 
-module.exports = { registerExtensionScheme, setupExtensions, invokeExtension, onBroadcast, SCHEME }
+module.exports = { registerExtensionScheme, setupExtensions, invokeExtension, onBroadcast, extensionsBackend, SCHEME }

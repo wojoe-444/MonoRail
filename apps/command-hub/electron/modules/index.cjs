@@ -56,7 +56,7 @@ const moduleBackends = [
   require('./scheduled.cjs'),
 ]
 const appBackends = require('../apps/index.cjs')
-const { setupExtensions, invokeExtension, onBroadcast } = require('../extensions/index.cjs')
+const { setupExtensions, invokeExtension } = require('../extensions/index.cjs')
 const { remoteService } = require('../remote/service.cjs')
 const { auditAll } = require('../cache/index.cjs')
 const { profiles } = require('../profiles/index.cjs')
@@ -104,13 +104,14 @@ function startModuleBackends() {
   }
   invoke.isDesktopOnly = desktopOnly.isDesktopOnly
   // Remote access (off by default) serves these same backends to a paired phone.
-  remoteService().attach({ invoke, isDesktopOnly: desktopOnly.isDesktopOnly, subscribe: onBroadcast })
+  remoteService().attach({ invoke, isDesktopOnly: desktopOnly.isDesktopOnly })
   return invoke
 }
 
-function registerModuleBackends() {
+function registerModuleBackends(isTrustedSender) {
   const invoke = startModuleBackends()
-  ipcMain.handle('module:invoke', async (_event, payload) => {
+  ipcMain.handle('module:invoke', async (event, payload) => {
+    if (!isTrustedSender(event)) throw new Error('Only the MonoRail window can call this backend.')
     const { moduleId, method, args } = payload ?? {}
     return invoke(moduleId, method, args)
   })
@@ -134,4 +135,4 @@ function makeCtx(key, entry) {
   }
 }
 
-module.exports = { registerModuleBackends, startModuleBackends }
+module.exports = { registerModuleBackends, startModuleBackends, moduleBackends, appBackends }
