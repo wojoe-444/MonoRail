@@ -11,7 +11,7 @@ import { navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
 import { useSettingsAlerts, type AlertTone, type SettingsAlert } from '@/modules/settings/alerts'
 import { scrollToAnchor } from '@/modules/settings/search'
-import { usePageIndex, type PageHit } from '@/components/search/sources'
+import { usePageIndex, type PageHit } from '@/components/search/page-index'
 
 const toneDot: Record<AlertTone, string> = {
   warning: 'bg-warning',

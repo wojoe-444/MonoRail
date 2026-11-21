@@ -1,7 +1,15 @@
-import { Children, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
+import arduino from 'highlight.js/lib/languages/arduino'
+import objectivec from 'highlight.js/lib/languages/objectivec'
+import phpTemplate from 'highlight.js/lib/languages/php-template'
+import plaintext from 'highlight.js/lib/languages/plaintext'
+import pythonRepl from 'highlight.js/lib/languages/python-repl'
+import shell from 'highlight.js/lib/languages/shell'
+import vbnet from 'highlight.js/lib/languages/vbnet'
+import wasm from 'highlight.js/lib/languages/wasm'
 import {
   ArrowLeft,
   ArrowRight,
@@ -47,7 +55,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { codeLanguages } from '@/lib/highlight'
 import { cn } from '@/lib/utils'
+import { useAsyncResource } from '@/lib/useAsyncResource'
 import { invokeModule, isDesktop } from '@/modules/client'
 
 import {
@@ -58,9 +68,9 @@ import {
   isIndex,
   linksFrom,
   linksTo,
+  loadMarkdown,
   openPathsFor,
   pages,
-  plainText,
   readingOrder,
   resolveLink,
   slug,
@@ -71,7 +81,13 @@ import {
   type WikiPage as Page,
 } from './content'
 import { setWikiAudience, setWikiFolderOpen, showWikiPage, useWikiAudience, useWikiFolders, useWikiLocation, type AudienceFilter } from './store'
+import type { Hit } from './wiki-search'
 import './wiki.css'
+
+const loadSearch = () => import('./wiki-search')
+
+// Also keep the extra languages that rehype-highlight supported by default.
+const wikiLanguages = { arduino, ...codeLanguages, objectivec, 'php-template': phpTemplate, plaintext, 'python-repl': pythonRepl, shell, vbnet, wasm }
 
 const REPO_DOCS = 'https://github.com/wojoe-444/MonoRail/blob/main/docs/'
 
@@ -103,9 +119,6 @@ export default function WikiPage() {
     const target = location?.anchor ? document.getElementById(location.anchor) : null
     ;(target ?? top.current)?.scrollIntoView({ block: 'start' })
   }, [location])
-
-  const results = useMemo(() => search(query), [query])
-  const shown = results.filter((r) => shows(audience, r.page))
 
   function open(id: string | undefined, anchor?: string) {
     setQuery('')
@@ -155,9 +168,9 @@ export default function WikiPage() {
         </Card>
 
         {query ? (
-          <SearchResults query={query} results={shown} hidden={results.length - shown.length} onOpen={open} />
+          <WikiSearch query={query} audience={audience} onOpen={open} />
         ) : page ? (
-          <Article page={page} audience={audience} onOpen={open} />
+          <ArticleLoader key={page.id} page={page} location={location} audience={audience} onOpen={open} />
         ) : (
           <WikiHome audience={audience} onOpen={open} />
         )}
@@ -610,28 +623,12 @@ function FolderListCard({ folder, audience, onOpen }: { folder: WikiFolder; audi
 
 // ---------------------------------------------------------------- search
 
-interface Hit {
-  page: Page
-  snippet: string
-  score: number
-}
-
-function search(query: string): Hit[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-  if (!words.length) return []
-  const hits: Hit[] = []
-  for (const page of pages) {
-    const text = plainText(page.markdown)
-    const lower = text.toLowerCase()
-    const title = page.title.toLowerCase()
-    if (!words.every((w) => lower.includes(w) || title.includes(w))) continue
-    const at = Math.max(0, lower.indexOf(words[0]))
-    const start = Math.max(0, at - 60)
-    const snippet = (start > 0 ? '…' : '') + text.slice(start, at + 140).trim() + (at + 140 < text.length ? '…' : '')
-    const score = words.reduce((s, w) => s + (title.includes(w) ? 10 : 0) + lower.split(w).length - 1, 0)
-    hits.push({ page, snippet, score })
-  }
-  return hits.sort((a, b) => b.score - a.score)
+function WikiSearch({ query, audience, onOpen }: { query: string; audience: AudienceFilter; onOpen: Open }) {
+  const [resource, retry, retried] = useAsyncResource(loadSearch)
+  const results = useMemo(() => resource.status === 'ready' ? resource.data.search(query) : [], [query, resource])
+  if (resource.status !== 'ready') return <WikiLoadStatus status={resource.status} label="search" onRetry={retry} retried={retried} />
+  const shown = results.filter((r) => shows(audience, r.page))
+  return <SearchResults query={query} results={shown} hidden={results.length - shown.length} onOpen={onOpen} />
 }
 
 function SearchResults({ query, results, hidden, onOpen }: { query: string; results: Hit[]; hidden: number; onOpen: Open }) {
@@ -741,7 +738,54 @@ function PagePreview({ page }: { page: Page }) {
   )
 }
 
-function Article({ page, audience, onOpen }: { page: Page; audience: AudienceFilter; onOpen: Open }) {
+interface ArticleProps {
+  page: Page
+  location: ReturnType<typeof useWikiLocation>
+  audience: AudienceFilter
+  onOpen: Open
+}
+
+function ArticleLoader(props: ArticleProps) {
+  const id = props.page.id
+  const load = useCallback(() => loadMarkdown(id), [id])
+  const [resource, retry, retried] = useAsyncResource(load)
+  if (resource.status !== 'ready') return <WikiLoadStatus status={resource.status} label="page" onRetry={retry} retried={retried} />
+  return <Article {...props} markdown={resource.data} />
+}
+
+function WikiLoadStatus({ status, label, onRetry, retried }: {
+  status: 'loading' | 'error'
+  label: 'search' | 'page'
+  onRetry: () => void
+  retried: boolean
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between gap-4 p-6 text-sm text-muted-foreground">
+        {status === 'loading' ? (
+          <p role="status">Loading Wiki {label}…</p>
+        ) : (
+          <>
+            <p role="alert">This Wiki {label} couldn’t load.</p>
+            <Button size="sm" variant="outline" onClick={retried ? () => window.location.reload() : onRetry}>
+              {retried ? 'Reload MonoRail' : 'Try again'}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Article({ page, markdown, location, audience, onOpen }: ArticleProps & { markdown: string }) {
+  const article = useRef<HTMLElement>(null)
+
+  // The heading is present only once this article's Markdown has loaded.
+  useEffect(() => {
+    if (!location?.anchor) return
+    article.current?.querySelector(`#${CSS.escape(location.anchor)}`)?.scrollIntoView({ block: 'start' })
+  }, [location])
+
   // Previous and next follow the reading order within the page's top folder.
   const top = page.group.split('/')[0]
   const order = readingOrder.filter((p) => p.group.split('/')[0] === top && (shows(audience, p) || p.id === page.id))
@@ -749,7 +793,7 @@ function Article({ page, audience, onOpen }: { page: Page; audience: AudienceFil
   const prev = order[i - 1]
   const next = order[i + 1]
   const folder = isIndex(page) ? findFolder(page.group) : undefined
-  const headings = useMemo(() => headingsOf(page), [page])
+  const headings = useMemo(() => headingsOf(markdown), [markdown])
 
   const components = useMemo<Components>(() => {
     const heading = (Tag: 'h2' | 'h3' | 'h4') =>
@@ -821,9 +865,9 @@ function Article({ page, audience, onOpen }: { page: Page; audience: AudienceFil
               ))}
             </nav>
           )}
-          <article className="wiki-md">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={components}>
-              {page.markdown}
+          <article ref={article} className="wiki-md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[[rehypeHighlight, { languages: wikiLanguages }]]} components={components}>
+              {markdown}
             </ReactMarkdown>
           </article>
         </CardContent>
