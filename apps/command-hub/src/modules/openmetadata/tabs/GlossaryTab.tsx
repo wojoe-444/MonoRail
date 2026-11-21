@@ -160,7 +160,7 @@ function GlossaryDetail({
   terms: AllState;
   onOpenTerm: (fqn: string) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "glossary", fqn });
+  const q = useCall("get", { type: "glossary", fqn });
   const g = q.data;
   const mine = useMemo(
     () => (terms.data ?? []).filter((t) => glossaryOf(t) === fqn),
@@ -363,7 +363,7 @@ function TermDetail({
   onOpenTerm: (fqn: string) => void;
   onBack: () => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "glossaryTerm", fqn });
+  const q = useCall("get", { type: "glossaryTerm", fqn });
   const assets = useAssetScan(counts, { tag: fqn });
   const t = q.data;
   const children = useMemo(

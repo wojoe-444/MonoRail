@@ -78,7 +78,7 @@ export default function FilesPage() {
   const filterRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    call<Places>('places')
+    call('places')
       .then(setPlaces)
       .catch((e) => setNotice({ text: errorText(e), tone: 'error' }))
   }, [])
@@ -193,7 +193,7 @@ export default function FilesPage() {
     paste: (dir) => {
       if (!clipboard) return
       const mode = clipboard.mode === 'cut' ? 'move' : 'copy'
-      void call<BatchResult & { pairs?: { from: string; to: string }[] }>('paste', { sources: clipboard.paths, dir, mode })
+      void call('paste', { sources: clipboard.paths, dir, mode })
         .then((r) => {
           if (mode === 'move') {
             r.pairs?.forEach((x) => movePrefs(x.from, x.to))
@@ -223,7 +223,7 @@ export default function FilesPage() {
         return n
       }),
     drop: (paths, dir, copy) => {
-      void call<BatchResult & { pairs?: { from: string; to: string }[] }>('paste', { sources: paths, dir, mode: copy ? 'copy' : 'move' })
+      void call('paste', { sources: paths, dir, mode: copy ? 'copy' : 'move' })
         .then((r) => {
           if (!copy) r.pairs?.forEach((x) => movePrefs(x.from, x.to))
           report(r, copy ? 'copied' : 'moved')
@@ -526,7 +526,7 @@ export default function FilesPage() {
           const paths = trashing?.map((e) => e.path) ?? []
           setTrashing(null)
           try {
-            const r = await call<BatchResult>('trash', { paths })
+            const r = await call('trash', { paths })
             setTags((t) => Object.fromEntries(Object.entries(t).filter(([p]) => !r.done.some((d) => samePath(d, p)))))
             report(r, 'moved to the Recycle Bin')
           } catch (e) {
@@ -618,10 +618,10 @@ function NameDialog({ state, onClose, onDone }: { state: NameDialogState; onClos
     setBusy(true)
     try {
       if (state.kind === 'rename') {
-        const r = await call<{ path: string }>('rename', { path: state.entry.path, name })
+        const r = await call('rename', { path: state.entry.path, name })
         onDone(r.path, state.entry.path)
       } else {
-        const r = await call<{ path: string }>(state.kind === 'folder' ? 'createFolder' : 'createFile', { dir: state.dir, name })
+        const r = await call(state.kind === 'folder' ? 'createFolder' : 'createFile', { dir: state.dir, name })
         onDone(r.path)
       }
     } catch (e) {

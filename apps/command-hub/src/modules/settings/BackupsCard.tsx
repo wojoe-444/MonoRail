@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { formatBytes, formatIn, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient, isDesktop } from '@/modules/client'
 
 import { refreshSettingsAlerts } from './alerts'
 
@@ -49,16 +49,12 @@ function sampleSave(s: GlobalBackupSettings): BackupStatus {
   return sample
 }
 
-const call = <T,>(method: string, args?: unknown): Promise<T> =>
-  isDesktop()
-    ? invokeModule<T>(MODULE_ID, method, args)
-    : new Promise<T>((r) => {
-        const v =
-          method === 'save' ? sampleSave((args as { settings: GlobalBackupSettings }).settings)
-          : method === 'pickFolder' ? SAMPLE_FOLDER
-          : sample
-        setTimeout(() => r(v as T), 60)
-      })
+const call = moduleClient(MODULE_ID, (method, args) => new Promise((resolve) => {
+  const value = method === 'save' ? sampleSave((args as { settings: GlobalBackupSettings }).settings)
+    : method === 'pickFolder' ? SAMPLE_FOLDER
+    : sample
+  setTimeout(() => resolve(value), 60)
+}))
 
 const same = (a: GlobalBackupSettings, b: GlobalBackupSettings) =>
   a.enabled === b.enabled && a.folder === b.folder && a.times === b.times && a.unit === b.unit && a.keep === b.keep &&
@@ -81,7 +77,7 @@ export function BackupsCard({ className }: { className?: string }) {
   useEffect(() => {
     let live = true
     const load = (reset: boolean) =>
-      call<BackupStatus>('getStatus').then(
+      call('getStatus').then(
         (s) => {
           if (!live) return
           setStatus(s)
@@ -123,7 +119,7 @@ export function BackupsCard({ className }: { className?: string }) {
 
   async function choose() {
     try {
-      const dir = await call<string | null>('pickFolder')
+      const dir = await call('pickFolder')
       if (dir) setForm((f) => f && { ...f, folder: dir })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

@@ -153,8 +153,8 @@ function VersionsDialog({ flowId, open, onOpenChange, onRestore }: { flowId: str
     // oxlint-disable-next-line react/set-state-in-effect -- Clear the previous flow's versions before loading the requested history.
     setVersions(undefined)
     setPicked(undefined)
-    call('flush', {})
-      .then(() => call<Version[]>('history', { id: flowId }))
+    call('flush')
+      .then(() => call('history', { id: flowId }))
       .then((v) => live && setVersions(v), () => live && setVersions([]))
     return () => {
       live = false
@@ -162,7 +162,7 @@ function VersionsDialog({ flowId, open, onOpenChange, onRestore }: { flowId: str
   }, [open, flowId])
   const pick = (oid: string) => {
     setPicked({ oid })
-    call<{ flow: Flow }>('version', { id: flowId, oid }).then(
+    call('version', { id: flowId, oid }).then(
       (r) => setPicked({ oid, flow: r.flow }),
       (e) => setPicked({ oid, error: errorText(e) }),
     )
@@ -268,7 +268,7 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
     const flow = latest.current()
     saving.current = saving.current
       .catch(() => {})
-      .then(() => call<FlowDoc>('save', { id: flow.id, flow }))
+      .then(() => call('save', { id: flow.id, flow }))
       .then(
         () => setSave({ kind: 'saved' }),
         (e) => {
@@ -298,7 +298,7 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
     () => () => {
       void saveNow()
         .catch(() => {})
-        .then(() => call('flush', {}))
+        .then(() => call('flush'))
         .catch(() => {})
     },
     [saveNow],
@@ -314,17 +314,17 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
   useEffect(() => {
     if (!run || run.status !== 'running') return
     const t = setTimeout(() => {
-      call<RunSnapshot>('pollRun', { runId: run.id }).then(applyRun, (e) => applyRun({ ...run, status: 'failed', error: errorText(e) }))
+      call('pollRun', { runId: run.id }).then(applyRun, (e) => applyRun({ ...run, status: 'failed', error: errorText(e) }))
     }, 600)
     return () => clearTimeout(t)
   }, [run, applyRun])
 
   // A run that was going when the page was left is picked up again.
   useEffect(() => {
-    call<{ runId?: string }>('runningRun', { id: doc.flow.id })
+    call('runningRun', { id: doc.flow.id })
       .then(async (r) => {
         if (!r.runId) return
-        const snap = await call<RunSnapshot>('pollRun', { runId: r.runId })
+        const snap = await call('pollRun', { runId: r.runId })
         setRun(snap)
         setMsgs([{ from: 'flow', run: snap }])
       })
@@ -337,8 +337,8 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
       setMsgs((m) => [...m, { from: 'you', text }])
       try {
         await saveNow()
-        const { runId } = await call<{ runId: string }>('run', { id: doc.flow.id, input: text })
-        const snap = await call<RunSnapshot>('pollRun', { runId })
+        const { runId } = await call('run', { id: doc.flow.id, input: text })
+        const snap = await call('pollRun', { runId })
         setRun(snap)
         setMsgs((m) => [...m, { from: 'flow', run: snap }])
       } catch (e) {
@@ -535,7 +535,7 @@ function Editor({ doc, options, onBack }: { doc: FlowDoc; options?: EditorOption
               run={run}
               busy={starting}
               onSend={(t) => void send(t)}
-              onStop={() => run && void call('stopRun', { runId: run.id }).then(() => call<RunSnapshot>('pollRun', { runId: run.id })).then(applyRun).catch(() => {})}
+              onStop={() => run && void call('stopRun', { runId: run.id }).then(() => call('pollRun', { runId: run.id })).then(applyRun).catch(() => {})}
               onClose={() => setShowPlay(false)}
             />
           )}
@@ -552,8 +552,8 @@ export function FlowEditor({ flowId, onBack }: { flowId: string; onBack: () => v
   const [error, setError] = useState<string>()
   useEffect(() => {
     let live = true
-    call<FlowDoc>('get', { id: flowId }).then((d) => live && setDoc(d), (e) => live && setError(errorText(e)))
-    call<EditorOptions>('options').then((o) => live && setOptions(o), () => {})
+    call('get', { id: flowId }).then((d) => live && setDoc(d), (e) => live && setError(errorText(e)))
+    call('options').then((o) => live && setOptions(o), () => {})
     return () => {
       live = false
     }

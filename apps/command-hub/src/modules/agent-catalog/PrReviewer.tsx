@@ -6,12 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import type { ReviewerState as State, ReviewerTemplate as Template } from '@/ipc/modules'
+import type { MethodCall } from '@/ipc/contract'
 import { invokeModule, isDesktop } from '@/modules/client'
 import { SourceViewer, TemplateTabs } from './TemplateCode'
 
-type Run = { number: number; title: string; status: string; error?: string; startedAt: number }
-type State = { enabled: boolean; repository: string; model: string; lastCheckedAt?: number; error?: string; runs: Run[] }
-type Template = { prompt: string; updatedAt: number; customized: boolean }
 
 export function PrReviewer({ onBack }: { onBack: () => void }) {
   const [state, setState] = useState<State>()
@@ -28,11 +27,11 @@ export function PrReviewer({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (tab !== 'code' || source || !isDesktop()) return
     let live = true
-    void invokeModule<{ name: string; text: string }[]>('pr-review', 'source').then((files) => { if (live) setSource(files) }, (e: unknown) => { if (live) setSourceError(e instanceof Error ? e.message : String(e)) })
+    void invokeModule('pr-review', 'source').then((files) => { if (live) setSource(files) }, (e: unknown) => { if (live) setSourceError(e instanceof Error ? e.message : String(e)) })
     return () => { live = false }
   }, [tab, source])
   const refresh = useCallback(async () => {
-    const data = await invokeModule<State>('pr-review', 'get')
+    const data = await invokeModule('pr-review', 'get')
     setState(data)
     return data
   }, [])
@@ -41,18 +40,21 @@ export function PrReviewer({ onBack }: { onBack: () => void }) {
     let live = true
     // oxlint-disable-next-line react/set-state-in-effect -- Read reviewer settings on mount, then poll the backend while the page is open.
     void refresh().then((data) => { if (live) { setRepository(data.repository || ''); setModel(data.model || '') } }).catch((e: unknown) => { if (live) setError(String(e)) })
-    void invokeModule<Template>('pr-review', 'template').then((data) => { if (live) { setTemplate(data); setPrompt(data.prompt) } }, (e: unknown) => { if (live) setError(String(e)) })
+    void invokeModule('pr-review', 'template').then((data) => { if (live) { setTemplate(data); setPrompt(data.prompt) } }, (e: unknown) => { if (live) setError(String(e)) })
     const timer = window.setInterval(() => void refresh().catch(() => {}), 10_000)
     return () => { live = false; window.clearInterval(timer) }
   }, [refresh])
-  async function action(method: string, args?: object) {
+  async function action(...request: MethodCall<'pr-review', 'configure' | 'disable' | 'check' | 'retry'>) {
     setBusy(true); setError('')
-    try { setState(await invokeModule<State>('pr-review', method, args)) } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+    try { setState(await invokeModule('pr-review', ...request)) } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
   async function templateAction(method: 'saveTemplate' | 'resetTemplate') {
     setBusy(true); setError('')
     try {
-      const next = await invokeModule<Template>('pr-review', method, { prompt, updatedAt: template?.updatedAt })
+      const updatedAt = template?.updatedAt
+      const next = await (method === 'saveTemplate'
+        ? invokeModule('pr-review', method, { prompt, updatedAt })
+        : invokeModule('pr-review', method, { updatedAt }))
       setTemplate(next); setPrompt(next.prompt); setEditing(false)
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }

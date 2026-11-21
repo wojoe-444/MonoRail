@@ -1,3 +1,4 @@
+import type { MethodCall } from '@/ipc/contract'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Download, Loader2, Sparkles, X } from 'lucide-react'
 
@@ -54,7 +55,7 @@ export function UpdateToast() {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
-    invokeModule<AppStatus>(MODULE_ID, 'getStatus').then(
+    invokeModule(MODULE_ID, 'getStatus').then(
       (s) => {
         setNow(Date.now())
         setStatus(s)
@@ -78,11 +79,11 @@ export function UpdateToast() {
   const following = started && (downloading || status.state === 'error')
   if (!offer && !following) return null
 
-  async function call(method: string) {
+  async function call(...request: MethodCall<'settings'>) {
     setBusy(true)
     setStarted(true)
     try {
-      setStatus(await invokeModule<AppStatus>(MODULE_ID, method))
+      setStatus(await invokeModule(MODULE_ID, ...request))
     } catch {
       load()
     } finally {

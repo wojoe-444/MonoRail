@@ -1,12 +1,12 @@
-import { invokeApp } from '../client'
-import { isDesktop } from '@/modules/client'
+import type { TrackerSave } from '@/ipc/apps'
+import type { Args } from '@/ipc/contract'
+import { moduleClient } from '@/modules/client'
 
 import { createSampleBackend } from './sample'
-import type { Comment, CustomView, Cycle, HistoryEntry, Initiative, Issue, Label, Member, Milestone, Project, RemoveType, SaveType, Snapshot, Team, WorkflowState } from './types'
+import type { Comment, CustomView, Cycle, Initiative, Issue, Label, Member, Milestone, Project, RemoveType, SaveType, Team, WorkflowState } from './types'
 
-type Call = <T>(method: string, args?: unknown) => Promise<T>
-let sample: Call | undefined
-const call: Call = (method, args) => (isDesktop() ? invokeApp('tracker', method, args) : (sample ??= createSampleBackend())(method, args))
+let sample: ReturnType<typeof createSampleBackend> | undefined
+const call = moduleClient('app:tracker', (method, args) => (sample ??= createSampleBackend())(method, args))
 
 export interface IssuePatch {
   ids: string[]
@@ -17,7 +17,7 @@ export interface IssuePatch {
 
 export type NewIssue = Partial<Pick<Issue, 'description' | 'stateId' | 'priority' | 'estimate' | 'assigneeId' | 'labelIds' | 'projectId' | 'projectMilestoneId' | 'cycleId' | 'parentId' | 'dueDate' | 'relations' | 'sortOrder'>> & { teamId: string; title: string; triage?: boolean }
 
-interface SaveMap {
+export interface SaveMap {
   user: Member
   workflowState: WorkflowState
   issueLabel: Label
@@ -31,17 +31,17 @@ interface SaveMap {
 
 /** The Tracker backend (electron/apps/tracker), or the in-memory sample in the browser dev server. */
 export const trackerApi = {
-  snapshot: () => call<Snapshot>('snapshot'),
-  createTeam: (t: Partial<Team> & { name: string; key: string }) => call<Team>('createTeam', t),
-  updateTeam: (t: Partial<Team> & { id: string }) => call<Team>('updateTeam', t),
-  createIssue: (i: NewIssue) => call<Issue>('createIssue', i),
-  updateIssues: (p: IssuePatch) => call<Issue[]>('updateIssues', p),
-  deleteIssues: (ids: string[]) => call<void>('deleteIssues', { ids }),
-  restoreIssues: (ids: string[]) => call<void>('restoreIssues', { ids }),
-  issueDetail: (id: string) => call<{ comments: Comment[]; history: HistoryEntry[] }>('issueDetail', { id }),
-  addProjectUpdate: (u: { projectId: string; health: string; body: string }) => call<void>('addProjectUpdate', u),
-  scheduleCycles: (teamId: string) => call<{ created: number; rolledOver: number }>('scheduleCycles', { teamId }),
-  addExample: () => call<Snapshot>('addExample'),
-  save: <K extends SaveType>(type: K, entity: Partial<SaveMap[K]> & Record<string, unknown>) => call<SaveMap[K]>('save', { type, entity }),
-  remove: (type: RemoveType, id: string, moveTo?: string) => call<void>('remove', { type, id, moveTo }),
+  snapshot: () => call('snapshot'),
+  createTeam: (t: Partial<Team> & { name: string; key: string }) => call('createTeam', t),
+  updateTeam: (t: Partial<Team> & { id: string }) => call('updateTeam', t),
+  createIssue: (i: NewIssue) => call('createIssue', i),
+  updateIssues: (p: IssuePatch) => call('updateIssues', p),
+  deleteIssues: (ids: string[]) => call('deleteIssues', { ids }),
+  restoreIssues: (ids: string[]) => call('restoreIssues', { ids }),
+  issueDetail: (id: string) => call('issueDetail', { id }),
+  addProjectUpdate: (u: Args<'app:tracker', 'addProjectUpdate'>) => call('addProjectUpdate', u),
+  scheduleCycles: (teamId: string) => call('scheduleCycles', { teamId }),
+  addExample: () => call('addExample'),
+  save: <K extends SaveType>(type: K, entity: Partial<SaveMap[K]> & Record<string, unknown>) => call('save', { type, entity } as TrackerSave) as Promise<SaveMap[K]>,
+  remove: (type: RemoveType, id: string, moveTo?: string) => call('remove', { type, id, moveTo }),
 }

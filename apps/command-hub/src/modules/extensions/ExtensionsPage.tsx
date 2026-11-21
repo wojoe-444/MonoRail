@@ -1,3 +1,5 @@
+import type { MethodCall } from '@/ipc/contract'
+import type { ExtensionInstall } from '@/ipc/modules'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   AlertTriangle,
@@ -136,21 +138,22 @@ export default function ExtensionsPage() {
     }
   }
 
-  async function inspect(args: Record<string, unknown>) {
-    const p = await run('inspect', () => invokeModule<InstallPreview | null>(BACKEND, 'inspect', args))
+  async function inspect(args: ExtensionInstall) {
+    const p = await run('inspect', () => invokeModule(BACKEND, 'inspect', args))
     if (p) setPreview(p)
     return !!p
   }
 
   async function checkUpdates() {
-    const res = await run('updates', () => invokeModule<{ checkedAt: string; results: { id: string; ok: boolean; error?: string }[] }>(BACKEND, 'checkUpdates'))
+    const res = await run('updates', () => invokeModule(BACKEND, 'checkUpdates'))
     if (!res) return
     setCheckedAt(res.checkedAt)
     const failed = res.results.filter((r) => !r.ok)
     if (failed.length) setError(failed.map((f) => `${f.id}: ${f.error}`).join('\n'))
   }
 
-  const call = (method: string, args: Record<string, unknown>) => run(method, () => invokeModule(BACKEND, method, args))
+  const call = (...request: MethodCall<typeof BACKEND, 'setEnabled' | 'approve' | 'reload' | 'revokeFolder' | 'openFolder' | 'uninstall'>) =>
+    run(request[0], () => invokeModule(BACKEND, ...request))
   const hasGitHub = list.extensions.some((e) => e.source.type === 'github')
 
   return (
@@ -206,7 +209,7 @@ export default function ExtensionsPage() {
                     onApprove={() => void call('approve', { id: ext.id })}
                     onReload={() => void call('reload', { id: ext.id })}
                     onUpdate={async () => {
-                      const p = await run('inspect', () => invokeModule<InstallPreview>(BACKEND, 'stageUpdate', { id: ext.id }))
+                      const p = await run('inspect', () => invokeModule(BACKEND, 'stageUpdate', { id: ext.id }))
                       if (p) setPreview(p)
                     }}
                     onRevokeFolder={(path) => void call('revokeFolder', { id: ext.id, path })}
@@ -242,7 +245,7 @@ export default function ExtensionsPage() {
             setPreview(undefined)
           }}
           onConfirm={async () => {
-            const done = await run('confirm', () => invokeModule<ExtensionSummary>(BACKEND, 'confirm', { token: preview.token }))
+            const done = await run('confirm', () => invokeModule(BACKEND, 'confirm', { token: preview.token }))
             setPreview(undefined)
             const first = done?.contributes.modules[0]
             if (done && !preview.installedVersion && first) navigate(`/x/${done.id}/${first.id}`)
@@ -703,7 +706,7 @@ function LogsDialog({ ext, onClose }: { ext: ExtensionSummary; onClose: () => vo
   async function load() {
     setLoading(true)
     try {
-      setLines(await invokeModule<LogLine[]>(BACKEND, 'logs', { id: ext.id }))
+      setLines(await invokeModule(BACKEND, 'logs', { id: ext.id }))
     } catch {
       setLines([])
     } finally {

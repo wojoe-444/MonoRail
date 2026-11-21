@@ -34,7 +34,7 @@ export default function ServicesPage() {
 
   const load = useCallback(async () => {
     try {
-      const o = await call<Overview>('overview')
+      const o = await call('overview')
       setOverview(o)
       const kind = wanted.current
       wanted.current = undefined
@@ -53,7 +53,7 @@ export default function ServicesPage() {
   const loadServer = useCallback(async () => {
     setServerLoading(true)
     try {
-      setServer(await call<ServerOverview>('serverOverview'))
+      setServer(await call('serverOverview'))
     } catch (e) {
       setServer({ block: 'unreachable', error: errorText(e) })
     } finally {
@@ -406,7 +406,7 @@ function ServiceDetail({ target, pipelines, canAdd, onBack, onAdd, onEdit, onVie
     setTesting(true)
     setTestError('')
     try {
-      setTest(await call<TestResult>('testConnection', { kind: target.service.kind }))
+      setTest(await call('testConnection', { kind: target.service.kind }))
     } catch (e) {
       setTestError(errorText(e))
     } finally {
@@ -590,7 +590,7 @@ function ConnectedIngestion({ kind, copy, act }: { kind: string; copy?: ServiceC
 
 function PipelineRow({ pipeline: p, local, onEdit, onViewRuns, onDelete, act }: { pipeline: Pipeline; local: boolean; onEdit: () => void; onViewRuns: () => void; onDelete: () => void; act: DetailProps['act'] }) {
   const after = local ? 'local' : 'server'
-  const runNow = () => act(local ? `Started ${p.name}.` : `Asked the server to run ${p.name}.`, () => call(local ? 'run' : 'serverAction', local ? { id: p.id } : { id: p.id, action: 'run' }), after)
+  const runNow = () => act(local ? `Started ${p.name}.` : `Asked the server to run ${p.name}.`, () => local ? call('run', { id: p.id }) : call('serverAction', { id: p.id, action: 'run' }), after)
   const deploy = (on: boolean) => act(on ? `Deployed ${p.name}.` : `Undeployed ${p.name}: its schedule is off.`, () => (local ? call('setFlags', { id: p.id, deployed: on }) : call('serverAction', { id: p.id, action: 'deploy' })), after)
   const pause = () => act(p.enabled ? `Paused ${p.name}.` : `Resumed ${p.name}.`, () => (local ? call('setFlags', { id: p.id, enabled: !p.enabled }) : call('serverAction', { id: p.id, action: 'toggle' })), after)
   const kill = () => act(`Stopped ${p.name}.`, () => (local ? call('kill', { id: p.id }) : call('serverAction', { id: p.id, action: 'kill' })), after)

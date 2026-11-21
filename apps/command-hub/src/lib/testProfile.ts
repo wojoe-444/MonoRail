@@ -17,7 +17,7 @@ let cached: ProfilesView | undefined
 async function load(): Promise<ProfilesView | undefined> {
   if (!isDesktop()) return undefined
   try {
-    cached = await invokeModule<ProfilesView>('profiles', 'getProfiles')
+    cached = await invokeModule('profiles', 'getProfiles')
     window.dispatchEvent(new Event(EVENT))
   } catch {
     /* no backend */
@@ -43,10 +43,10 @@ export function useProfiles(): ProfilesView | undefined {
  * Returns false when MonoRail could not restart (browser dev bridge).
  */
 export async function switchProfile(id: string): Promise<boolean> {
-  await invokeModule<ProfilesView>('profiles', 'switchTo', { id })
+  await invokeModule('profiles', 'switchTo', { id })
   if (id === NEW_USER_ID) clearProfilePrefs(NEW_USER_ID)
   setActiveProfileId(id)
-  const { restarting } = await invokeModule<{ restarting: boolean }>('profiles', 'restart')
+  const { restarting } = await invokeModule('profiles', 'restart')
   return restarting
 }
 

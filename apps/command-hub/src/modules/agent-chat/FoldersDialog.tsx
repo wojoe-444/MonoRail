@@ -4,6 +4,7 @@ import { AlertTriangle, FolderGit2, FolderOpen, Loader2, Plus, X } from 'lucide-
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { MethodCall } from '@/ipc/contract'
 import { invokeModule, isDesktop } from '@/modules/client'
 
 import { sampleFolders } from './sample'
@@ -31,7 +32,7 @@ export function FoldersDialog({
   useEffect(() => {
     if (!open || !desktop) return
     let live = true
-    invokeModule<AllowedFolders>('agent-chat', 'getFolders').then(
+    invokeModule('agent-chat', 'getFolders').then(
       (f) => live && setFolders(f),
       (e: unknown) => live && setError(e instanceof Error ? e.message : String(e)),
     )
@@ -40,13 +41,13 @@ export function FoldersDialog({
     }
   }, [open, desktop])
 
-  async function run(method: string, args?: unknown) {
+  async function run(...request: MethodCall<'agent-chat', 'pickReposRoot' | 'addRepo' | 'removeRepo'>) {
     if (!desktop) return
     setBusy(true)
     setError(undefined)
     try {
-      await invokeModule('agent-chat', method, args)
-      setFolders(await invokeModule<AllowedFolders>('agent-chat', 'getFolders'))
+      await invokeModule('agent-chat', ...request)
+      setFolders(await invokeModule('agent-chat', 'getFolders'))
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

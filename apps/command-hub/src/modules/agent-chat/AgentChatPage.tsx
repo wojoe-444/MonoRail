@@ -30,9 +30,7 @@ import { FoldersDialog } from './FoldersDialog'
 import { SystemPromptsDialog } from './SystemPromptsDialog'
 import { sampleComposer, sampleSessions } from './sample'
 import {
-  type ComposerInfo,
   type LiveTurn,
-  type SessionList,
   type SessionSource,
   type SessionSummary,
   type TurnPoll,
@@ -46,7 +44,7 @@ type Filter = 'all' | SessionSource
 const SETTLED_AFTER_MS = 2 * 24 * 60 * 60 * 1000
 export default function AgentChatPage() {
   const desktop = isDesktop()
-  const list = useModuleQuery<SessionList>('agent-chat', 'listSessions')
+  const list = useModuleQuery('agent-chat', 'listSessions')
   const data = desktop ? list.data : sampleSessions
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
@@ -57,7 +55,7 @@ export default function AgentChatPage() {
   const [foldersOpen, setFoldersOpen] = useState(false)
   const [promptsOpen, setPromptsOpen] = useState(false)
   const [panel, setPanel] = useState<PanelKind>()
-  const composerQuery = useModuleQuery<ComposerInfo>('agent-chat', 'getComposer')
+  const composerQuery = useModuleQuery('agent-chat', 'getComposer')
   const composerInfo = desktop ? composerQuery.data : sampleComposer
   const prefs = useComposerPrefs(composerInfo)
   /** A new chat being composed: its key and the project it will run in. */
@@ -130,7 +128,8 @@ export default function AgentChatPage() {
     setLocalFlags((f) => ({ ...f, [id]: { ...f[id], [flag]: value } }))
     if (flag === 'unread' && !value) stickyUnread.current.delete(id)
     if (!desktop) return
-    await invokeModule('agent-chat', flag === 'unread' ? 'setUnread' : 'setArchived', { id, [flag]: value })
+    if (flag === 'unread') await invokeModule('agent-chat', 'setUnread', { id, unread: value })
+    else await invokeModule('agent-chat', 'setArchived', { id, archived: value })
     await list.refresh()
     setLocalFlags((f) => {
       const { [id]: _drop, ...rest } = f
@@ -196,7 +195,7 @@ export default function AgentChatPage() {
         if (!t) continue
         let p: TurnPoll
         try {
-          p = await invokeModule<TurnPoll>('agent-chat', 'pollTurn', { turnId: id, after: t.next })
+          p = await invokeModule('agent-chat', 'pollTurn', { turnId: id, after: t.next })
         } catch (e) {
           p = { status: 'failed', startedAt: t.startedAt, endedAt: Date.now(), next: t.next + 1, events: [{ t: 'error', message: e instanceof Error ? e.message : String(e) }] }
         }
@@ -259,7 +258,7 @@ export default function AgentChatPage() {
     setSendError(undefined)
     const repo = draft ? composerInfo?.repos.find((r) => r.path === draft.repo) : undefined
     try {
-      const { turnId } = await invokeModule<{ turnId: string }>('agent-chat', 'startTurn', {
+      const { turnId } = await invokeModule('agent-chat', 'startTurn', {
         ...(draft ? (draft.coordinator ? { coordinator: true } : { repo: draft.repo, sdk: chatSdk }) : { chatId: selected?.id }),
         prompt,
         mode: prefs.mode,

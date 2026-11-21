@@ -10,7 +10,7 @@ import { useCall } from './api'
 import { GROUPS, TYPES, typeInfo, type TypeInfo } from './catalog'
 import { CountText, TypeTile } from './parts'
 import { ago, countOf, displayName, type View } from './util'
-import type { OmCounts, OmEntity, OmStatus } from './types'
+import type { OmCounts, OmStatus } from './types'
 
 /** The landing view: how much of each kind there is, the server, and what changed lately. */
 export function Overview({ status, counts, countsError, onOpen }: { status: OmStatus; counts?: OmCounts; countsError?: string; onOpen: (v: View) => void }) {
@@ -94,7 +94,7 @@ export function Overview({ status, counts, countsError, onOpen }: { status: OmSt
 }
 
 function RecentCard({ onOpen, className }: { onOpen: (v: View) => void; className?: string }) {
-  const recent = useCall<OmEntity[]>('recent', {})
+  const recent = useCall('recent', {})
   const items = (recent.data ?? []).filter((e) => typeInfo(e.entityType)).slice(0, 8)
   return (
     <Card className={className}>

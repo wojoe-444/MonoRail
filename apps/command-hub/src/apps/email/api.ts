@@ -1,5 +1,6 @@
 import { isDesktop } from '@/modules/client'
 
+import type { MethodCall, MethodResult } from '@/ipc/contract'
 import { invokeApp } from '../client'
 import { sampleApi } from './sample'
 import type { Account, DiscoverResult, Draft, EmailState, Folder, FolderList, ListOptions, SearchResult, Thread, ThreadPage } from './types'
@@ -62,9 +63,9 @@ export function toMailError(msg: string): Error {
 export const errorCode = (e: unknown) => (e instanceof MailError ? e.code : null)
 
 /** Electron wraps errors as "Error invoking remote method '…': Error: msg"; keep just msg. */
-async function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
+async function call<C extends MethodCall<'app:email'>>(...request: C): Promise<MethodResult<'app:email', C>> {
   try {
-    return await invokeApp<T>(APP_ID, method, args)
+    return await invokeApp(APP_ID, ...request)
   } catch (e) {
     const msg = (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
     throw toMailError(msg)

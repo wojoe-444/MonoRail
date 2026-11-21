@@ -36,7 +36,7 @@ import {
   type SqlxFile,
 } from './parse'
 import { SqlxCode } from './SqlxCode'
-import type { SqlxFileContent, SqlxFileEntry, SqlxFileList, SqlxProject, SqlxSaved } from './types'
+import type { SqlxFileEntry, SqlxFileList, SqlxProject } from './types'
 
 type Source = { kind: 'project'; projectId: string; path: string } | { kind: 'scratch'; name: string }
 
@@ -95,7 +95,7 @@ export default function SqlxPage() {
 
   const loadProjects = useCallback(async (select?: string) => {
     try {
-      const ps = await call<SqlxProject[]>('listProjects')
+      const ps = await call('listProjects')
       setProjects(ps)
       setProjectId((cur) => select ?? (ps.some((p) => p.id === cur) ? cur : ps[0]?.id))
     } catch (e) {
@@ -109,7 +109,7 @@ export default function SqlxPage() {
   const loadFiles = useCallback(async () => {
     if (!projectId) return setList(undefined)
     try {
-      setList(await call<SqlxFileList>('listFiles', { projectId }))
+      setList(await call('listFiles', { projectId }))
     } catch (e) {
       setList({ files: [], truncated: false })
       setError(errorText(e))
@@ -129,7 +129,7 @@ export default function SqlxPage() {
     guard(async () => {
       setBusy('open')
       try {
-        const r = await call<SqlxFileContent>('readFile', { projectId, path: entry.path })
+        const r = await call('readFile', { projectId, path: entry.path })
         setDoc({ source, original: r.text, mtimeMs: r.mtimeMs, file: parseSqlx(r.text) })
         setError(undefined)
         setConflict(false)
@@ -153,7 +153,7 @@ export default function SqlxPage() {
     if (doc?.source.kind !== 'project') return
     const { projectId: pid, path } = doc.source
     try {
-      const r = await call<SqlxFileContent>('readFile', { projectId: pid, path })
+      const r = await call('readFile', { projectId: pid, path })
       setDoc({ source: doc.source, original: r.text, mtimeMs: r.mtimeMs, file: parseSqlx(r.text) })
       setConflict(false)
       setError(undefined)
@@ -166,7 +166,7 @@ export default function SqlxPage() {
     if (!doc || doc.source.kind !== 'project' || !dirty || busy) return
     setBusy('save')
     try {
-      const r = await call<SqlxSaved>('saveFile', { projectId: doc.source.projectId, path: doc.source.path, text, mtimeMs: doc.mtimeMs })
+      const r = await call('saveFile', { projectId: doc.source.projectId, path: doc.source.path, text, mtimeMs: doc.mtimeMs })
       setDoc((d) => d && { ...d, original: text, mtimeMs: r.mtimeMs })
       setError(undefined)
       setSaved(true)
@@ -202,7 +202,7 @@ export default function SqlxPage() {
 
   async function addProject() {
     try {
-      const p = await call<SqlxProject | null>('addProject')
+      const p = await call('addProject')
       if (p) await loadProjects(p.id)
     } catch (e) {
       setError(errorText(e))

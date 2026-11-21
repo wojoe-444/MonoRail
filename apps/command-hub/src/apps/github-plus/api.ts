@@ -1,3 +1,4 @@
+import type { MethodCall, MethodResult } from '@/ipc/contract'
 import { invokeApp } from '../client'
 import { isDesktop } from '@/modules/client'
 
@@ -92,9 +93,9 @@ const APP_ID = 'github-plus'
 export const isNotARepoError = (e: unknown): boolean => e instanceof Error && /is not inside a git repository/.test(e.message)
 
 /** Electron wraps errors as "Error invoking remote method '…': Error: msg"; keep just msg. */
-async function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
+async function call<C extends MethodCall<'app:github-plus'>>(...request: C): Promise<MethodResult<'app:github-plus', C>> {
   try {
-    return await invokeApp<T>(APP_ID, method, args)
+    return await invokeApp(APP_ID, ...request)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     throw new Error(msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))

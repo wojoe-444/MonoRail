@@ -14,7 +14,7 @@ import { highlightLines } from '@/lib/highlight'
 import { cn } from '@/lib/utils'
 import { invokeModule, isDesktop } from '@/modules/client'
 import { sampleExplain, sampleQuery } from '@/modules/semantic/sample'
-import type { ExplainResult, QueryRequest, QueryResult, SemanticProject, TimeGrain } from '@/modules/semantic/types'
+import type { QueryRequest, QueryResult, SemanticProject, TimeGrain } from '@/modules/semantic/types'
 
 import type { QueryDraft } from './handoff'
 import { filterToWhere, GRAINS, mfCommand, sharedDimensions, shortName, type FilterOp, type FilterRow } from './query'
@@ -80,9 +80,9 @@ export function QueryBuilder({ project, initial }: { project: SemanticProject; i
     setError(undefined)
     try {
       if (kind === 'run') {
-        setResult(desktop ? await invokeModule<QueryResult>('semantic', 'query', req) : sampleQuery(req))
+        setResult(desktop ? await invokeModule('semantic', 'query', req) : sampleQuery(req))
       } else {
-        setSql((desktop ? await invokeModule<ExplainResult>('semantic', 'explain', req) : sampleExplain(req)).sql)
+        setSql((desktop ? await invokeModule('semantic', 'explain', req) : sampleExplain(req)).sql)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

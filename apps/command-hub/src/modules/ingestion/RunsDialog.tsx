@@ -23,10 +23,10 @@ export function RunsDialog({ pipeline, onClose }: { pipeline: Pipeline; onClose:
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await call<PipelineStatus[]>(server ? 'serverRuns' : 'runs', server ? { fqn: pipeline.fullyQualifiedName ?? pipeline.name } : { id: pipeline.id })
+      const list = await (server ? call('serverRuns', { fqn: pipeline.fullyQualifiedName ?? pipeline.name }) : call('runs', { id: pipeline.id }))
       setRuns(list)
       setError('')
-      if (server) setServerLog(await call<{ lines: string[]; truncated: boolean }>('serverLogs', { id: pipeline.id }).catch(() => undefined))
+      if (server) setServerLog(await call('serverLogs', { id: pipeline.id }).catch(() => undefined))
     } catch (e) {
       setError(errorText(e))
     } finally {

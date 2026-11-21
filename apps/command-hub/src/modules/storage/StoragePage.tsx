@@ -14,7 +14,7 @@ import { GoalDialog } from './GoalDialog'
 import { HistoryCard } from './HistoryCard'
 import { StorageInsights } from './StorageInsights'
 import { sampleDrives, sampleHistory, sampleScan } from './sample'
-import type { Advice, Drive, DriveGoal, DrivesResult, LocationGroup, ScanState, StorageHistory, StorageLocation } from './types'
+import type { Advice, Drive, DriveGoal, LocationGroup, ScanState, StorageLocation } from './types'
 
 const GROUPS: { id: LocationGroup; title: string }[] = [
   { id: 'monorail', title: 'MonoRail' },
@@ -39,11 +39,11 @@ function isLow(d: Drive) {
 
 export default function StoragePage() {
   const desktop = isDesktop()
-  const drivesQuery = useModuleQuery<DrivesResult>('storage', 'getDrives')
-  const scanQuery = useModuleQuery<ScanState>('storage', 'getScan')
+  const drivesQuery = useModuleQuery('storage', 'getDrives')
+  const scanQuery = useModuleQuery('storage', 'getScan')
   const drives = drivesQuery.data ?? (desktop ? undefined : sampleDrives)
   const scan = scanQuery.data ?? (desktop ? undefined : sampleScan)
-  const historyQuery = useModuleQuery<StorageHistory>('storage', 'getHistory')
+  const historyQuery = useModuleQuery('storage', 'getHistory')
   const history = historyQuery.data ?? (desktop ? undefined : sampleHistory)
   const { reload: reloadHistory } = historyQuery
   const running = scan?.state === 'running'

@@ -15,7 +15,7 @@ import { openWiki } from '@/modules/wiki/store'
 import { call, errorText } from './api'
 import { COMPONENT_BY_KIND, KIND_ICON } from './components'
 import { FlowEditor } from './FlowEditor'
-import type { EditorOptions, FlowDoc, FlowList, FlowSummary } from './types'
+import type { EditorOptions, FlowList, FlowSummary } from './types'
 
 /** The flow open in the editor, kept while the app runs so leaving and coming back resumes it. */
 let openFlowId: string | undefined
@@ -105,7 +105,7 @@ export default function FlowsPage() {
   }
 
   const load = useCallback(() => {
-    call<FlowList>('list').then((l) => {
+    call('list').then((l) => {
       setList(l)
       setError(undefined)
     }, (e) => setError(errorText(e)))
@@ -114,13 +114,13 @@ export default function FlowsPage() {
   useEffect(() => {
     if (openId) return
     load()
-    call<EditorOptions>('options').then(setOptions, () => {})
+    call('options').then(setOptions, () => {})
   }, [openId, load])
 
   const create = async (args: Record<string, unknown>, key: string) => {
     setBusy(key)
     try {
-      const doc = await call<FlowDoc>('create', args)
+      const doc = await call('create', args)
       open(doc.flow.id)
     } catch (e) {
       setError(errorText(e))

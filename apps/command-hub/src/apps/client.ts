@@ -1,7 +1,11 @@
-import { ModuleUnavailableError } from '@/modules/client'
+import type { AppId, MethodCall, MethodResult, SingleId } from '@/ipc/contract'
+import { moduleClient } from '@/modules/client'
 
 /** Call a method on an app's backend (electron/apps/<id>) in the Electron main process. */
-export async function invokeApp<T>(appId: string, method: string, args?: unknown): Promise<T> {
-  if (!window.commandHub) throw new ModuleUnavailableError()
-  return window.commandHub.invoke<T>(`app:${appId}`, method, args)
+export function invokeApp<Id extends AppId, C extends MethodCall<`app:${NoInfer<Id>}`>>(
+  appId: Id & SingleId<NoInfer<Id>>,
+  ...call: C
+): Promise<MethodResult<`app:${Id}`, C>> {
+  const backendId = `app:${appId}` as `app:${Id}` & SingleId<NoInfer<`app:${Id}`>>
+  return moduleClient<`app:${Id}`>(backendId)(...call)
 }

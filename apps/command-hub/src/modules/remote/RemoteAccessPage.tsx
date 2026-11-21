@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import type { MethodCall } from '@/ipc/contract'
 import { hasBackends, hasLocalScreen, invokeModule, useModuleQuery } from '@/modules/client'
 import { openWiki } from '@/modules/wiki/store'
 
@@ -22,7 +23,7 @@ const PAIR_POLL_MS = 2_000
 export default function RemoteAccessPage() {
   const backends = hasBackends()
   const local = hasLocalScreen()
-  const query = useModuleQuery<RemoteStatus>('remote', 'getStatus', undefined, { enabled: local })
+  const query = useModuleQuery('remote', 'getStatus', undefined, { enabled: local })
   const status = query.data ?? (backends ? undefined : sampleStatus)
   const [busy, setBusy] = useState<string>()
   const [error, setError] = useState<string>()
@@ -39,12 +40,12 @@ export default function RemoteAccessPage() {
 
   /** Run a backend method that returns the new status. */
   const act = useCallback(
-    async (name: string, method: string, args?: unknown) => {
+    async (name: string, ...request: MethodCall<'remote'>) => {
       if (!local) return
       setBusy(name)
       setError(undefined)
       try {
-        await invokeModule('remote', method, args)
+        await invokeModule('remote', ...request)
         await reload()
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -61,7 +62,7 @@ export default function RemoteAccessPage() {
     setBusy('pair')
     setError(undefined)
     try {
-      const p = await invokeModule<{ url: string; expiresAt: number }>('remote', 'startPairing')
+      const p = await invokeModule('remote', 'startPairing')
       setPair({ ...p, devices: status.devices.length })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

@@ -1,8 +1,7 @@
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient } from '@/modules/client'
 
 import { parseMalloy } from './malloy'
 import { sampleListing } from './malloySample'
-import type { MalloyListing } from './malloyTypes'
 
 /*
  * The page side of the Malloy backend (electron/modules/malloy.cjs,
@@ -106,15 +105,9 @@ export interface MalloyRun extends MalloySql {
   ms?: number
 }
 
-export function malloyCall(method: 'status'): Promise<MalloyStatus>
-export function malloyCall(method: 'listModels'): Promise<MalloyListing>
-export function malloyCall(method: 'compile', args: { path: string }): Promise<MalloyCompiled>
-export function malloyCall(method: 'sql', args: { path: string; query: string }): Promise<MalloySql>
-export function malloyCall(method: 'run', args: { path: string; query: string }): Promise<MalloyRun>
-export function malloyCall<T>(method: string, args?: Record<string, unknown>): Promise<T> {
-  if (isDesktop()) return invokeModule<T>('malloy', method, args)
-  return new Promise((resolve) => setTimeout(() => resolve(sampleAnswer(method, args) as T), 150))
-}
+export const malloyCall = moduleClient('malloy', (method, args) =>
+  new Promise((resolve) => setTimeout(() => resolve(sampleAnswer(method, args)), 150)),
+)
 
 /** A Malloy query as text, quoted the way Malloy reads names. */
 export const malloyName = (name: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `\`${name.replace(/`/g, '')}\``)

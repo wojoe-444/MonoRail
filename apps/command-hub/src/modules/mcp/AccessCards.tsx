@@ -8,24 +8,25 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import type { MethodCall } from '@/ipc/contract'
 import { invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 
 import { sampleAccess, sampleAudit } from './sample'
-import type { McpAccess, McpAuditEntry } from './types'
+import type { McpAccess } from './types'
 
 /** Agents that have connected, with a switch per write tool. Everything starts off. */
 export function AgentsCard({ className }: { className?: string }) {
   const desktop = isDesktop()
-  const query = useModuleQuery<McpAccess>('mcp', 'getAccess')
+  const query = useModuleQuery('mcp', 'getAccess')
   const [live, setLive] = useState<McpAccess>()
   const [error, setError] = useState<string>()
   const data = live ?? query.data ?? (desktop ? undefined : sampleAccess)
 
-  async function change(method: string, args: unknown) {
+  async function change(...request: MethodCall<'mcp', 'setAllowed' | 'forgetAgent'>) {
     setError(undefined)
     if (!desktop) return
     try {
-      setLive(await invokeModule<McpAccess>('mcp', method, args))
+      setLive(await invokeModule('mcp', ...request))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -89,7 +90,7 @@ export function AgentsCard({ className }: { className?: string }) {
 /** The audit log: every tool call, newest first. */
 export function ActivityCard({ className }: { className?: string }) {
   const desktop = isDesktop()
-  const query = useModuleQuery<McpAuditEntry[]>('mcp', 'getAudit', { limit: 200 })
+  const query = useModuleQuery('mcp', 'getAudit', { limit: 200 })
   const [writesOnly, setWritesOnly] = useState(false)
   const all = query.data ?? (desktop ? undefined : sampleAudit) ?? []
   const rows = writesOnly ? all.filter((e) => e.write) : all

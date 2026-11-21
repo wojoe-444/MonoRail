@@ -65,38 +65,34 @@ export interface JiraApi {
 }
 
 function desktopApi(): JiraApi {
-  const call =
-    <A, R>(method: string) =>
-    (args?: A) =>
-      invokeApp<R>(APP_ID, method, args)
   return {
-    listTriggerTemplates: call('listTriggerTemplates'),
-    saveTriggerTemplate: call('saveTriggerTemplate'),
-    deleteTriggerTemplate: call('deleteTriggerTemplate'),
-    calendarIssues: call('calendarIssues'),
-    getOverview: call('getOverview'),
-    listIssues: call('listIssues'),
-    getIssue: call('getIssue'),
-    getIssueTypes: call('getIssueTypes'),
-    createIssue: call('createIssue'),
-    updateIssue: call('updateIssue'),
-    transitionIssue: call('transitionIssue'),
-    addComment: call('addComment'),
-    updateComment: call('updateComment'),
-    deleteComment: call('deleteComment'),
-    deleteIssue: call('deleteIssue'),
-    setParent: call('setParent'),
-    parentOptions: call('parentOptions'),
-    logWork: call('logWork'),
-    deleteWorklog: call('deleteWorklog'),
-    createLocalProject: call('createLocalProject'),
-    saveSettings: call('saveSettings'),
-    forgetLegacyConnection: call('forgetLegacyConnection'),
-    getRepoLinks: call('getRepoLinks'),
-    linkRepo: call('linkRepo'),
-    unlinkRepo: call('unlinkRepo'),
-    pickRepoFolder: call('pickRepoFolder'),
-  } as JiraApi
+    listTriggerTemplates: (args) => invokeApp(APP_ID, 'listTriggerTemplates', args),
+    saveTriggerTemplate: (args) => invokeApp(APP_ID, 'saveTriggerTemplate', args),
+    deleteTriggerTemplate: (args) => invokeApp(APP_ID, 'deleteTriggerTemplate', args),
+    calendarIssues: (args) => invokeApp(APP_ID, 'calendarIssues', args),
+    getOverview: () => invokeApp(APP_ID, 'getOverview'),
+    listIssues: (args) => invokeApp(APP_ID, 'listIssues', args),
+    getIssue: (args) => invokeApp(APP_ID, 'getIssue', args),
+    getIssueTypes: (args) => invokeApp(APP_ID, 'getIssueTypes', args),
+    createIssue: (args) => invokeApp(APP_ID, 'createIssue', args),
+    updateIssue: (args) => invokeApp(APP_ID, 'updateIssue', args),
+    transitionIssue: (args) => invokeApp(APP_ID, 'transitionIssue', args),
+    addComment: (args) => invokeApp(APP_ID, 'addComment', args),
+    updateComment: (args) => invokeApp(APP_ID, 'updateComment', args),
+    deleteComment: (args) => invokeApp(APP_ID, 'deleteComment', args),
+    deleteIssue: (args) => invokeApp(APP_ID, 'deleteIssue', args),
+    setParent: (args) => invokeApp(APP_ID, 'setParent', args),
+    parentOptions: (args) => invokeApp(APP_ID, 'parentOptions', args),
+    logWork: (args) => invokeApp(APP_ID, 'logWork', args),
+    deleteWorklog: (args) => invokeApp(APP_ID, 'deleteWorklog', args),
+    createLocalProject: (args) => invokeApp(APP_ID, 'createLocalProject', args),
+    saveSettings: (args) => invokeApp(APP_ID, 'saveSettings', args),
+    forgetLegacyConnection: () => invokeApp(APP_ID, 'forgetLegacyConnection'),
+    getRepoLinks: (args) => invokeApp(APP_ID, 'getRepoLinks', args),
+    linkRepo: (args) => invokeApp(APP_ID, 'linkRepo', args),
+    unlinkRepo: (args) => invokeApp(APP_ID, 'unlinkRepo', args),
+    pickRepoFolder: () => invokeApp(APP_ID, 'pickRepoFolder'),
+  }
 }
 
 let api: JiraApi | undefined

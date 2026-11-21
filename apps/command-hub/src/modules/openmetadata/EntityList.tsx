@@ -13,13 +13,13 @@ import { typeInfo } from './catalog'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, type View } from './util'
 import { useAssetSearch } from './tabs/assets'
-import type { OmEntity, OmPage } from './types'
+import type { OmEntity } from './types'
 
 /** Every entity of one type, a page at a time, as OpenMetadata lists them. */
 export function EntityList({ type, total, onOpen }: { type: string; total?: number | { error: string }; onOpen: (v: View) => void }) {
   const info = typeInfo(type)
   const [deleted, setDeleted] = useState(false)
-  const first = useCall<OmPage>('list', { type, deleted })
+  const first = useCall('list', { type, deleted })
   const [more, setMore] = useState<{ key: string; rows: OmEntity[]; after?: string }>()
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState<string>()
@@ -44,7 +44,7 @@ export function EntityList({ type, total, onOpen }: { type: string; total?: numb
     setLoadingMore(true)
     setMoreError(undefined)
     try {
-      const page = await call<OmPage>('list', { type, deleted, after })
+      const page = await call('list', { type, deleted, after })
       setMore({ key, rows: [...(extra?.rows ?? []), ...page.data], after: page.paging?.after })
     } catch (e) {
       setMoreError(errorText(e))

@@ -38,7 +38,7 @@ import { isDesktop, useModuleQuery } from '@/modules/client'
 
 import { MochiCrewDialog } from './MochiCrewDialog'
 import { sampleDetail, sampleOverview } from './sample'
-import type { AgentDefinition, AgentsOverview, DefinitionDetail, RecentSession, SessionState } from './types'
+import type { AgentDefinition, AgentsOverview, RecentSession, SessionState } from './types'
 import { prefs } from '@/lib/prefs'
 
 type KindFilter = 'all' | 'subagent' | 'skill'
@@ -64,7 +64,7 @@ const KIND_LABEL = { subagent: 'Subagent', skill: 'Skill' } as const
 
 export function AgentsPage() {
   const desktop = isDesktop()
-  const query = useModuleQuery<AgentsOverview>('agents', 'getOverview')
+  const query = useModuleQuery('agents', 'getOverview')
   const sample = useMemo(() => (desktop ? undefined : sampleOverview()), [desktop])
   const data = desktop ? query.data : sample
   const [openDef, setOpenDef] = useState<AgentDefinition>()
@@ -469,7 +469,7 @@ function EmptyDefinitions() {
 
 function DefinitionDialog({ def, repos, onClose }: { def?: AgentDefinition; repos: AgentsOverview['repos']; onClose: () => void }) {
   const desktop = isDesktop()
-  const detail = useModuleQuery<DefinitionDetail>('agents', 'getDefinition', { id: def?.id }, { enabled: desktop && !!def })
+  const detail = useModuleQuery('agents', 'getDefinition', { id: def?.id ?? '' }, { enabled: desktop && !!def })
   const shown = desktop ? (detail.data?.id === def?.id ? detail.data : undefined) : sampleDetail
   const repoPath = def?.scope === 'project' ? repos.find((r) => r.name === def.repo)?.path : repos[0]?.path
 

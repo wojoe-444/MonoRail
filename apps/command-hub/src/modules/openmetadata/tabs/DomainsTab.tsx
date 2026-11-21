@@ -140,7 +140,7 @@ function DomainDetail({
   counts: OmTabProps["counts"]["data"];
   onOpen: (s: Selection) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "domain", fqn });
+  const q = useCall("get", { type: "domain", fqn });
   const assets = useAssetScan(counts, { domain: fqn });
   const d = q.data;
   const subdomains = useMemo(
@@ -307,7 +307,7 @@ function ProductDetail({
   onBack: () => void;
   onOpenDomain: (fqn: string) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "dataProduct", fqn });
+  const q = useCall("get", { type: "dataProduct", fqn });
   const p = q.data;
   const back = (
     <button

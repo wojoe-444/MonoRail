@@ -1,4 +1,5 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
+import type { BuiltinInvoke } from '@/ipc/contract'
 
 /** A nav/header icon: any Lucide icon, or an extension's SVG icon (src/extensions/ExtensionIcon). */
 export type IconComponent = ComponentType<{ className?: string }>
@@ -60,10 +61,12 @@ export interface ModuleDefinition {
   dataMethods?: readonly string[]
 }
 
-/** Shape of the bridge the Electron preload exposes as `window.commandHub`. */
+/** Shared surface of the Electron preload, browser dev bridge, and phone bridge. */
 export interface CommandHubBridge {
   platform: string
-  invoke<T = unknown>(moduleId: string, method: string, args?: unknown): Promise<T>
+  invoke: BuiltinInvoke
+  /** Installed extension methods are defined by the extension at runtime. */
+  invokeExtension(extensionId: string, method: string, args?: unknown): Promise<unknown>
   /** Toggle the window's full screen mode (F11 does the same). Resolves to the new state. Desktop app only. */
   toggleFullScreen?(): Promise<boolean>
   isFullScreen?(): Promise<boolean>

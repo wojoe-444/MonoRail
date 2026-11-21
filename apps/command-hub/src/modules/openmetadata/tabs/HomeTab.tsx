@@ -12,7 +12,7 @@ import { useCall } from '../api'
 import { typeInfo } from '../catalog'
 import { CountText, TypeTile } from '../parts'
 import { OM_TABS, openInCatalog, openTab } from '../tabs'
-import type { OmCounts, OmEntity } from '../types'
+import type { OmCounts } from '../types'
 import { ago, countOf, displayName } from '../util'
 import { ASSET_TYPES, fqnOf, hasDescription, hasOwner, setExploreQuery, useAssets } from './assets'
 import { EmptyNote, ErrorNote, Loading } from './assets-parts'
@@ -139,7 +139,7 @@ export default function HomeTab({ counts }: OmTabProps) {
 }
 
 function RecentCard({ className }: { className?: string }) {
-  const recent = useCall<OmEntity[]>('recent', { size: 12 })
+  const recent = useCall('recent', { size: 12 })
   const items = (recent.data ?? []).filter((e) => typeInfo(e.entityType)).slice(0, 10)
   return (
     <Card className={className}>

@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { MethodCall, MethodResult } from '@/ipc/contract'
 
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 
 /** Call the Flashcards backend; in the browser dev server, the in-memory sample. */
-export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
-  return isDesktop() ? invokeModule<T>('flashcards', method, args) : sampleInvoke<T>(method, args)
-}
+export const call = moduleClient('flashcards', sampleInvoke)
 
 /** Load once and on reload(); keeps the previous data while reloading. */
-export function useFlashcards<T>(method: string, args?: Record<string, unknown>) {
+export function useFlashcards<C extends MethodCall<'flashcards'>>(...request: C) {
+  const [method, args] = request
+  type T = MethodResult<'flashcards', C>
   const [data, setData] = useState<T>()
   const [error, setError] = useState<string>()
   const key = JSON.stringify(args ?? null)
@@ -18,7 +19,7 @@ export function useFlashcards<T>(method: string, args?: Record<string, unknown>)
   const reload = useCallback(async () => {
     const n = ++seq.current
     try {
-      const r = await call<T>(method, key === 'null' ? undefined : JSON.parse(key))
+      const r = await call(...([method, key === 'null' ? undefined : JSON.parse(key)] as C))
       if (n === seq.current) {
         setData(r)
         setError(undefined)

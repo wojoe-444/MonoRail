@@ -41,7 +41,7 @@ function sampleWrite(tool: SubagentTool, draft: SubagentDraft, id?: string): str
 
 export function useCatalog() {
   const desktop = isDesktop()
-  const query = useModuleQuery<CatalogData>(ID, 'list')
+  const query = useModuleQuery(ID, 'list')
   const [local, setLocal] = useState(() => (desktop ? undefined : sampleData()))
   const refresh = useCallback(async () => {
     if (desktop) await query.refresh()
@@ -56,12 +56,12 @@ export async function getSubagent(id: string): Promise<SubagentDetail> {
     if (!s) throw new Error('Subagent not found.')
     return s
   }
-  return invokeModule<SubagentDetail>(ID, 'get', { id })
+  return invokeModule(ID, 'get', { id })
 }
 
 export async function createSubagent(tool: SubagentTool, draft: SubagentDraft): Promise<string> {
   if (!isDesktop()) return sampleWrite(tool, draft)
-  return (await invokeModule<{ id: string }>(ID, 'create', { tool, draft })).id
+  return (await invokeModule(ID, 'create', { tool, draft })).id
 }
 
 export async function updateSubagent(s: SubagentDetail, draft: SubagentDraft): Promise<string> {
@@ -70,7 +70,7 @@ export async function updateSubagent(s: SubagentDetail, draft: SubagentDraft): P
     return s.id
   }
   if (!isDesktop()) return sampleWrite(s.tool, draft, s.id)
-  return (await invokeModule<{ id: string }>(ID, 'update', { id: s.id, draft, updatedAt: s.updatedAt })).id
+  return (await invokeModule(ID, 'update', { id: s.id, draft, updatedAt: s.updatedAt })).id
 }
 
 export async function resetSubagent(s: SubagentDetail): Promise<void> {

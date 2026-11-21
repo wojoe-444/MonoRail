@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { hasLocalScreen, invokeModule, isDesktop, useModuleQuery } from '@/modules/client'
 import { navigate } from '@/lib/router'
 import { prefs } from '@/lib/prefs'
-import { SAMPLE_REPORT, type InAppJob, type InAppReport } from './inAppSample'
+import { SAMPLE_REPORT, type InAppJob } from './inAppSample'
 
 const date = (s: string | null) => (s ? new Date(s).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—')
 const HIDDEN = 'commandHub.scheduled.inAppHidden'
@@ -35,7 +35,7 @@ function LastRun({ job }: { job: InAppJob }) {
 
 export default function InAppPage() {
   const desktop = isDesktop()
-  const query = useModuleQuery<InAppReport>('scheduled', 'inApp')
+  const query = useModuleQuery('scheduled', 'inApp')
   const [filter, setFilter] = useState('')
   const [hidden, setHidden] = useState<string[]>(initialHidden)
   const [busy, setBusy] = useState('')

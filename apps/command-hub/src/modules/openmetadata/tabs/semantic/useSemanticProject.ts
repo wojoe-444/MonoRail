@@ -19,7 +19,7 @@ export interface ProjectState {
 }
 
 export function useSemanticProject(): ProjectState {
-  const q = useModuleQuery<SemanticProject>('semantic', 'getProject')
+  const q = useModuleQuery('semantic', 'getProject')
   useEffect(() => {
     if (q.data) cache.project = q.data
   }, [q.data])

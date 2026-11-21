@@ -1,6 +1,8 @@
+// @ts-check
 // Method-by-method audit of the built-in backends (docs/remote-access.md).
 // A phone can call only methods explicitly listed under `phone`. `desktop`
 // records the decisions for every other known method, including desktopOnly.
+/** @satisfies {import('../../src/ipc/contract').BackendAccessPolicy} */
 const REMOTE_METHODS = {
   'agent-catalog': {
     phone: ['list', 'get'],
@@ -118,6 +120,7 @@ const REMOTE_METHODS = {
   },
 }
 
+/** @type {Map<string, Set<string>>} */
 const allowed = new Map(Object.entries(REMOTE_METHODS).map(([id, { phone }]) => [id, new Set(phone)]))
 
 const DESKTOP_MESSAGE = 'Do this on your PC: it needs the PC screen.'
@@ -125,6 +128,8 @@ const DENY_MESSAGE = 'Do this on your PC: this action is available only on the P
 
 /**
  * Why a remote call is refused, or undefined when it is allowed.
+ * @param {unknown} moduleId
+ * @param {unknown} method
  * @param {(moduleId: string, method: string) => boolean} isDesktopOnly
  */
 function remoteRefusal(moduleId, method, isDesktopOnly) {
@@ -138,6 +143,7 @@ function remoteRefusal(moduleId, method, isDesktopOnly) {
 // when refused or failed, so the Activity list shows what the person did.
 const QUIET = /^(get|list|poll|read|count|running|check|search|preview|tree|branch|compare|linked|issueCounts|study|claudeAccount|logs|call$)/
 
+/** @param {string} method */
 function isQuiet(method) {
   return QUIET.test(method)
 }

@@ -41,7 +41,7 @@ export function SystemPromptsDialog({ open, onOpenChange }: { open: boolean; onO
   useEffect(() => {
     if (!open || !desktop) return
     let live = true
-    invokeModule<SystemPrompts>('agent-chat', 'getSystemPrompts').then(
+    invokeModule('agent-chat', 'getSystemPrompts').then(
       (p) => {
         if (!live) return
         setError(undefined)
@@ -73,7 +73,7 @@ export function SystemPromptsDialog({ open, onOpenChange }: { open: boolean; onO
     setBusy(true)
     setError(undefined)
     try {
-      const next = await invokeModule<SystemPrompts>('agent-chat', 'setSystemPrompts', { prompts: draft })
+      const next = await invokeModule('agent-chat', 'setSystemPrompts', { prompts: draft })
       setSaved(next)
       setDraft(next)
       onOpenChange(false)

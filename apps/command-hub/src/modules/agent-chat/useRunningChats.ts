@@ -12,7 +12,7 @@ export function useRunningChats(desktop: boolean) {
     if (!desktop) return
     let stopped = false
     const read = () =>
-      invokeModule<string[]>('agent-chat', 'runningChats').then(
+      invokeModule('agent-chat', 'runningChats').then(
         (ids) => {
           if (!stopped) setBackendRunning((prev) => (prev.join() === ids.join() ? prev : ids))
         },

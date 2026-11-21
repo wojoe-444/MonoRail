@@ -366,7 +366,7 @@ function TeamDetail({
   onOpenTeam: (fqn: string) => void;
   onOpenUser: (r: OmRef) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "team", fqn });
+  const q = useCall("get", { type: "team", fqn });
   const assets = useAssetScan(counts, q.data ? { owner: q.data.id } : null);
   return (
     <Detail q={q} what="team">
@@ -493,7 +493,7 @@ function UserDetail({
   onOpenTeam: (fqn: string) => void;
   onOpenRole: (fqn: string) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "user", fqn });
+  const q = useCall("get", { type: "user", fqn });
   const owns = refs(q.data?.owns);
   const assets = useAssetScan(
     counts,
@@ -606,7 +606,7 @@ function RoleDetail({
   onOpenUser: (r: OmRef) => void;
   onOpenTeam: (fqn: string) => void;
 }) {
-  const q = useCall<OmEntity>("get", { type: "role", fqn });
+  const q = useCall("get", { type: "role", fqn });
   return (
     <Detail q={q} what="role">
       {(r) => {

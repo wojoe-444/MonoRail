@@ -1,3 +1,4 @@
+import type { Bookmark as Item } from '@/ipc/modules'
 import { useState } from 'react'
 import { Bookmark, ChevronRight, Folder, FolderOpen, Globe, LayoutGrid, ListTree, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -10,14 +11,14 @@ import { Label } from '@/components/ui/label'
 import { hasLocalScreen, invokeModule, useModuleQuery } from '@/modules/client'
 import { ConfirmDialog } from '@/modules/flashcards/dialogs'
 
-type Item = { id: string; name: string; description: string; target: string; kind?: 'folder' | 'bookmark'; parentId?: string | null; color?: string }
+
 type Editor = { item?: Item; kind: 'folder' | 'bookmark'; parentId: string | null }
 const message = (e: unknown) => e instanceof Error ? e.message : String(e)
 const folder = (item?: Item) => item?.kind === 'folder'
 const web = (item: Item) => /^https?:\/\//i.test(item.target)
 
 export default function BookmarksPage() {
-  const query = useModuleQuery<Item[]>('bookmarks', 'list')
+  const query = useModuleQuery('bookmarks', 'list')
   const [editing, setEditing] = useState<Editor>()
   const [deleting, setDeleting] = useState<Item>()
   const [error, setError] = useState<string>()
@@ -51,7 +52,7 @@ export default function BookmarksPage() {
     {!query.loading && items.length === 0 && <Card className="items-center p-10 text-center"><Bookmark className="size-8 text-muted-foreground" /><p className="font-medium">No bookmarks yet</p><p className="text-sm text-muted-foreground">Add a website, file or folder to get started.</p></Card>}
     {view === 'tree' ? <ul className="flex flex-col gap-2">{tree(null)}</ul> : <>{items.length > 0 && children(current).length === 0 && <p className="text-sm text-muted-foreground">This folder is empty.</p>}<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{children(current).map((item) => <Card key={item.id} className="relative gap-0 p-0 transition-colors hover:bg-muted/50"><button type="button" disabled={!folder(item) && !hasLocalScreen()} onClick={() => void open(item)} className="flex min-h-40 w-full flex-col items-start gap-3 rounded-xl p-5 pr-12 text-left disabled:cursor-not-allowed" title={folder(item) || hasLocalScreen() ? `Open ${item.name}` : 'Opening bookmarks is available on this computer'}><span className="rounded-lg border p-2">{icon(item)}</span><span className="w-full break-words text-sm font-medium">{item.name}</span>{item.description && <span className="w-full break-words text-sm text-muted-foreground">{item.description}</span>}{item.target && <span className="w-full break-all font-mono text-xs text-muted-foreground">{item.target}</span>}</button><div className="absolute top-3 right-3">{actions(item)}</div></Card>)}</div></>}
     {editing && <BookmarkDialog editor={editing} folders={folders} onClose={() => setEditing(undefined)} onSaved={() => void query.refresh()} />}
-    <ConfirmDialog open={!!deleting} title={folder(deleting) ? 'Delete folder?' : 'Delete bookmark?'} body={folder(deleting) ? `Remove “${deleting?.name}” and all bookmarks and folders inside it? Linked files and folders will not be deleted.` : `Remove “${deleting?.name ?? ''}” from bookmarks? The linked file or folder will not be deleted.`} action="Delete" onClose={() => setDeleting(undefined)} onConfirm={async () => { try { await invokeModule('bookmarks', 'remove', { id: deleting?.id }); if (deleting && (deleting.id === current || ancestors.some((a) => a.id === deleting.id))) setCurrent(null); setDeleting(undefined); setError(undefined); await query.refresh() } catch (e) { setError(message(e)); setDeleting(undefined) } }} />
+    <ConfirmDialog open={!!deleting} title={folder(deleting) ? 'Delete folder?' : 'Delete bookmark?'} body={folder(deleting) ? `Remove “${deleting?.name}” and all bookmarks and folders inside it? Linked files and folders will not be deleted.` : `Remove “${deleting?.name ?? ''}” from bookmarks? The linked file or folder will not be deleted.`} action="Delete" onClose={() => setDeleting(undefined)} onConfirm={async () => { try { if (!deleting) return; await invokeModule('bookmarks', 'remove', { id: deleting.id }); if (deleting && (deleting.id === current || ancestors.some((a) => a.id === deleting.id))) setCurrent(null); setDeleting(undefined); setError(undefined); await query.refresh() } catch (e) { setError(message(e)); setDeleting(undefined) } }} />
   </div>
 }
 function BookmarkDialog({ editor, folders, onClose, onSaved }: { editor: Editor; folders: Item[]; onClose: () => void; onSaved: () => void }) {

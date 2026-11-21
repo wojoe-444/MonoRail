@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 
 import { prefs } from '@/lib/prefs'
 import { invokeModule, isDesktop } from '@/modules/client'
-import type { SemanticProject } from '@/modules/semantic/types'
 
 import { malloyCall } from './malloyClient'
 
@@ -28,7 +27,7 @@ function saved(): SemanticEngine | undefined {
 async function guess(): Promise<SemanticEngine> {
   const status = await malloyCall('status').catch(() => undefined)
   if (status?.block !== 'not-set-up') return 'malloy'
-  const project = await invokeModule<SemanticProject>('semantic', 'getProject').catch(() => undefined)
+  const project = await invokeModule('semantic', 'getProject').catch(() => undefined)
   return project && project.block !== 'not-set-up' ? 'metricflow' : 'malloy'
 }
 

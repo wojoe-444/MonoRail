@@ -1,12 +1,10 @@
-import { invokeModule, isDesktop } from '@/modules/client'
+import { moduleClient } from '@/modules/client'
 
 import { sampleInvoke } from './sample'
 import type { PipelineState, PipelineType } from './types'
 
 /** Call the ingestion backend; in the browser dev server, the fictional sample. */
-export function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
-  return isDesktop() ? invokeModule<T>('ingestion', method, args) : sampleInvoke<T>(method)
-}
+export const call = moduleClient('ingestion', sampleInvoke)
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 

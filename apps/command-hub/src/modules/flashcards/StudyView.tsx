@@ -1,3 +1,4 @@
+import type { MethodCall } from '@/ipc/contract'
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Ban, Loader2, PartyPopper, Pencil, Undo2 } from 'lucide-react'
 
@@ -11,7 +12,7 @@ import { CardText } from './CardText'
 import { CardDialog } from './dialogs'
 import { formatSpan } from './format'
 import type { View } from './FlashcardsPage'
-import type { Card as FlashCard, DeckList, Rating, StudyState } from './types'
+import type { Card as FlashCard, Rating } from './types'
 
 const RATINGS: { rating: Rating; label: string; className: string }[] = [
   { rating: 1, label: 'Again', className: 'bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft/70' },
@@ -27,8 +28,8 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isConte
  * Enter on the answer means Good. U or Ctrl+Z undoes the last answer, E edits.
  */
 export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => void }) {
-  const { data: state, setData: setState, error: loadError } = useFlashcards<StudyState>('study', { deckId })
-  const decks = useFlashcards<DeckList>('listDecks')
+  const { data: state, setData: setState, error: loadError } = useFlashcards('study', { deckId })
+  const decks = useFlashcards('listDecks')
   const [revealed, setRevealed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -36,14 +37,15 @@ export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => voi
   const [done, setDone] = useState(0)
 
   const run = useCallback(
-    async (method: string, args: Record<string, unknown>, counts = false) => {
+    async (...request: MethodCall<'flashcards', 'answer' | 'undo'>) => {
+      const [method] = request
       setBusy(true)
       setError(undefined)
       try {
-        const next = await call<StudyState>(method, args)
+        const next = await call(...request)
         setState(next)
         setRevealed(method === 'undo')
-        if (counts) setDone((n) => n + 1)
+        if (method === 'answer') setDone((n) => n + 1)
         if (method === 'undo') setDone((n) => Math.max(0, n - 1))
       } catch (e) {
         setError(errorText(e))
@@ -55,7 +57,7 @@ export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => voi
   )
 
   const card = state?.card
-  const rate = useCallback((r: Rating) => card && !busy && run('answer', { cardId: card.id, rating: r }, true), [card, busy, run])
+  const rate = useCallback((r: Rating) => card && !busy && run('answer', { cardId: card.id, rating: r }), [card, busy, run])
   const undo = useCallback(() => state?.canUndo && !busy && run('undo', { deckId }), [state, busy, run, deckId])
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => voi
     setBusy(true)
     try {
       await call('updateCard', { id: c.id, suspended: true })
-      setState(await call<StudyState>('study', { deckId }))
+      setState(await call('study', { deckId }))
       setRevealed(false)
     } catch (e) {
       setError(errorText(e))
@@ -215,7 +217,7 @@ export function StudyView({ deckId, go }: { deckId: string; go: (v: View) => voi
           decks={decks.data?.decks ?? (deck ? [deck] : [])}
           onClose={() => setEditing(false)}
           onSaved={(saved) => {
-            if (saved.deckId !== deckId) void call<StudyState>('study', { deckId }).then(setState)
+            if (saved.deckId !== deckId) void call('study', { deckId }).then(setState)
             else setState((s) => (s ? { ...s, card: saved } : s))
           }}
         />

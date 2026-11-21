@@ -49,7 +49,7 @@ import {
   type Metric,
   type RangeKey,
 } from './transform'
-import type { SessionFact, SourceId, UsageReport } from './types'
+import type { SessionFact, SourceId } from './types'
 
 const MODULE_ID = 'claude-stats'
 
@@ -59,7 +59,7 @@ function sessionDate(iso: string): string {
 
 export default function ClaudeStatsPage() {
   const desktop = isDesktop()
-  const query = useModuleQuery<UsageReport>(MODULE_ID, 'getUsage')
+  const query = useModuleQuery(MODULE_ID, 'getUsage')
   // Subscription vs API/Enterprise decides whether Claude Code's cost is real spend.
   const claudeAccount = useClaudeAccount()
   const [useSample, setUseSample] = useState(!desktop)

@@ -40,7 +40,7 @@ export default function ConnectionsPage() {
       if (!desktop) return
       setChecking((c) => ({ ...c, [kind]: true }))
       try {
-        const s = await invokeModule<ConnectionStatus>(MODULE_ID, 'check', { kind, force })
+        const s = await invokeModule(MODULE_ID, 'check', { kind, force })
         setStatuses((all) => ({ ...all, [kind]: s }))
       } catch (e) {
         setStatuses((all) => ({ ...all, [kind]: { state: 'error', summary: message(e), details: [], added: true, checkedAt: new Date().toISOString() } }))
@@ -56,7 +56,7 @@ export default function ConnectionsPage() {
   const load = useCallback(async () => {
     if (!desktop) return undefined
     try {
-      const l = await invokeModule<ConnectionsList>(MODULE_ID, 'list')
+      const l = await invokeModule(MODULE_ID, 'list')
       setList(l)
       setLoadError(undefined)
       setJobs(Object.fromEntries(l.connections.map((c) => [c.kind, c.job])))
@@ -86,7 +86,7 @@ export default function ConnectionsPage() {
     if (!runningKinds) return
     const t = setInterval(() => {
       for (const kind of runningKinds.split(',')) {
-        invokeModule<ConnectionJob | undefined>(MODULE_ID, 'getJob', { kind }).then((job) => {
+        invokeModule(MODULE_ID, 'getJob', { kind }).then((job) => {
           setJobs((all) => ({ ...all, [kind]: job }))
           if (job && job.state !== 'running') void check(kind, true)
         }, () => {})
@@ -120,7 +120,7 @@ export default function ConnectionsPage() {
     if (!desktop) return
     signingIn.current.add(kind)
     try {
-      const job = await invokeModule<ConnectionJob>(MODULE_ID, 'runAction', { kind, action })
+      const job = await invokeModule(MODULE_ID, 'runAction', { kind, action })
       setJobs((all) => ({ ...all, [kind]: job }))
     } catch (e) {
       setJobs((all) => ({
@@ -131,7 +131,7 @@ export default function ConnectionsPage() {
   }
 
   async function cancelJob(kind: string) {
-    const job = await invokeModule<ConnectionJob>(MODULE_ID, 'cancelJob', { kind }).catch(() => undefined)
+    const job = await invokeModule(MODULE_ID, 'cancelJob', { kind }).catch(() => undefined)
     setJobs((all) => ({ ...all, [kind]: job }))
   }
 
@@ -139,7 +139,7 @@ export default function ConnectionsPage() {
     if (!desktop) return
     setChecking((c) => ({ ...c, [kind]: true }))
     try {
-      const s = await invokeModule<ConnectionStatus>(MODULE_ID, 'save', { kind })
+      const s = await invokeModule(MODULE_ID, 'save', { kind })
       setStatuses((all) => ({ ...all, [kind]: s }))
       await load()
     } catch (e) {
@@ -359,7 +359,7 @@ function SetupDialog({ connector, connection, platform, onClose, onSaved }: Setu
     setSaving(true)
     setError(undefined)
     try {
-      const s = await invokeModule<ConnectionStatus>(MODULE_ID, 'save', { kind: connector.kind, values, secrets })
+      const s = await invokeModule(MODULE_ID, 'save', { kind: connector.kind, values, secrets })
       await onSaved(s)
     } catch (err) {
       setError(message(err))

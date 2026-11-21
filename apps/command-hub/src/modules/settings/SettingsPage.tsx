@@ -1,3 +1,4 @@
+import type { MethodCall } from '@/ipc/contract'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, Info, Loader2, RefreshCw, RotateCcw, Sparkles } from 'lucide-react'
 
@@ -40,7 +41,7 @@ function formatBytes(n: number): string {
 
 export default function SettingsPage() {
   const desktop = isDesktop()
-  const query = useModuleQuery<AppStatus>(MODULE_ID, 'getStatus')
+  const query = useModuleQuery(MODULE_ID, 'getStatus')
   const [live, setLive] = useState<AppStatus>()
   const [busy, setBusy] = useState(false)
   const [callError, setCallError] = useState<string>()
@@ -52,7 +53,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!downloading) return
     const t = setInterval(() => {
-      invokeModule<AppStatus>(MODULE_ID, 'getStatus').then(setLive, () => {})
+      invokeModule(MODULE_ID, 'getStatus').then(setLive, () => {})
     }, 500)
     return () => clearInterval(t)
   }, [downloading])
@@ -65,16 +66,16 @@ export default function SettingsPage() {
     let tries = 0
     const t = setInterval(() => {
       if (++tries > 10) return clearInterval(t)
-      invokeModule<AppStatus>(MODULE_ID, 'getStatus').then(setLive, () => {})
+      invokeModule(MODULE_ID, 'getStatus').then(setLive, () => {})
     }, 3000)
     return () => clearInterval(t)
   }, [desktop, notesPending])
 
-  async function call(method: string) {
+  async function call(...request: MethodCall<'settings'>) {
     setBusy(true)
     setCallError(undefined)
     try {
-      setLive(await invokeModule<AppStatus>(MODULE_ID, method))
+      setLive(await invokeModule(MODULE_ID, ...request))
     } catch (e) {
       setCallError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -159,7 +160,7 @@ interface UpdatePanelProps {
   status: AppStatus
   busy: boolean
   callError?: string
-  onCall: (method: string) => void
+  onCall: (...request: MethodCall<'settings'>) => void
 }
 
 function UpdatePanel({ status, busy, callError, onCall }: UpdatePanelProps) {

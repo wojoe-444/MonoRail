@@ -135,7 +135,7 @@ function SetupSqlDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string>()
   const [copied, setCopied] = useState(false)
   useEffect(() => {
-    call<{ sql: string; source: string }>('bigquerySetupSql').then(setSql, (e: unknown) => setError(errorText(e)))
+    call('bigquerySetupSql').then(setSql, (e: unknown) => setError(errorText(e)))
   }, [])
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>

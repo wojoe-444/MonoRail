@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import type { MethodCall } from '@/ipc/contract'
 import { invokeModule, isDesktop } from '@/modules/client'
 
 /**
@@ -56,10 +57,13 @@ let sample: LiveSpending = {
   monthLabel: 'November',
 }
 
-async function call(method: string, args?: unknown): Promise<SpendingStatus> {
-  if (isDesktop()) return invokeModule<SpendingStatus>(MODULE, method, args)
+type SpendingCall = MethodCall<typeof MODULE, 'getSpending' | 'setSpending' | 'allowOneMoreTurn' | 'resetSpending'>
+
+async function call(...request: SpendingCall): Promise<SpendingStatus> {
+  if (isDesktop()) return invokeModule(MODULE, ...request)
+  const [method, args] = request
   if (method === 'setSpending') {
-    const s = (args as { settings: SpendingSettings }).settings
+    const s = args.settings
     sample = { ...sample, settings: s, state: s.enabled ? sample.daily.state : 'off' }
   }
   return sample
