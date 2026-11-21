@@ -1,5 +1,5 @@
 import { addDays, todayIso } from './lib'
-import type { Comment, Issue, Snapshot, Team, WorkflowState } from './types'
+import type { Comment, Issue, ProjectUpdate, Snapshot, Team, WorkflowState } from './types'
 
 /**
  * Fictional data for the browser dev server (no backend there), and a tiny
@@ -136,8 +136,10 @@ export function createSampleBackend() {
       snap = { ...snap, issues: [...snap.issues, ...deleted.filter((i) => a.ids.includes(i.id))] }
     },
     issueDetail: (a: { id: string }) => ({ comments: comments.filter((c) => c.issueId === a.id), history: [] }),
-    addProjectUpdate: (a: { projectId: string; health: 'onTrack'; body: string }) => {
-      snap = { ...snap, projectUpdates: [{ id: id('update'), name: 'u', ...a, userId: snap.meId!, createdAt: Date.now(), ...stamp }, ...snap.projectUpdates] }
+    addProjectUpdate: (a: Pick<ProjectUpdate, 'projectId' | 'health' | 'body'>) => {
+      const update = { id: id('update'), name: 'u', ...a, userId: snap.meId!, createdAt: Date.now(), ...stamp }
+      snap = { ...snap, projectUpdates: [update, ...snap.projectUpdates] }
+      return update
     },
     scheduleCycles: () => ({ created: 0, rolledOver: 0 }),
     addExample: () => {

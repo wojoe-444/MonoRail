@@ -1,4 +1,5 @@
 import type { TrackerSave } from '@/ipc/apps'
+import type { Args } from '@/ipc/contract'
 import { moduleClient } from '@/modules/client'
 
 import { createSampleBackend } from './sample'
@@ -38,7 +39,7 @@ export const trackerApi = {
   deleteIssues: (ids: string[]) => call('deleteIssues', { ids }),
   restoreIssues: (ids: string[]) => call('restoreIssues', { ids }),
   issueDetail: (id: string) => call('issueDetail', { id }),
-  addProjectUpdate: (u: { projectId: string; health: string; body: string }) => call('addProjectUpdate', u),
+  addProjectUpdate: (u: Args<'app:tracker', 'addProjectUpdate'>) => call('addProjectUpdate', u),
   scheduleCycles: (teamId: string) => call('scheduleCycles', { teamId }),
   addExample: () => call('addExample'),
   save: <K extends SaveType>(type: K, entity: Partial<SaveMap[K]> & Record<string, unknown>) => call('save', { type, entity } as TrackerSave) as Promise<SaveMap[K]>,

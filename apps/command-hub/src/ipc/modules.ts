@@ -90,7 +90,7 @@ export interface ModuleIpc {
     update: Rpc<Id, Id & UpdatedAt & { draft: SubagentDraft }>
     reset: Rpc<Id, Id & UpdatedAt>
     remove: Rpc<{ backup: string }, Id>
-    openBackups: Rpc<void>
+    openBackups: Rpc<Ok>
   }
   'prompt-templates': {
     list: Rpc<PromptTemplate[]>

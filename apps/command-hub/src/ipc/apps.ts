@@ -5,7 +5,7 @@ import type * as Git from '@/apps/github-plus/types'
 import type { JiraApi } from '@/apps/jira-plus/api'
 import type { Project } from '@/apps/jira-plus/types'
 import type { IssuePatch, NewIssue, SaveMap } from '@/apps/tracker/api'
-import type { Comment, HistoryEntry, Issue, RemoveType, SaveType, Snapshot, Team } from '@/apps/tracker/types'
+import type { Comment, HistoryEntry, Issue, ProjectUpdate, RemoveType, SaveType, Snapshot, Team } from '@/apps/tracker/types'
 import type { Rpc } from './contract'
 
 /** GitHub+ and Email adapt positional feature API parameters to IPC objects. */
@@ -109,7 +109,7 @@ export interface AppIpc {
     deleteIssues: Rpc<void, { ids: string[] }>
     restoreIssues: Rpc<void, { ids: string[] }>
     issueDetail: Rpc<{ comments: Comment[]; history: HistoryEntry[] }, { id: string }>
-    addProjectUpdate: Rpc<void, { projectId: string; health: string; body: string }>
+    addProjectUpdate: Rpc<ProjectUpdate, Pick<ProjectUpdate, 'projectId' | 'health' | 'body'>>
     scheduleCycles: Rpc<{ created: number; rolledOver: number }, { teamId: string }>
     addExample: Rpc<Snapshot>
     save: Rpc<SaveMap[SaveType], TrackerSave>
