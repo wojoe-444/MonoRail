@@ -27,6 +27,35 @@ loopback, token and origin checks, JSON requests and server-sent events.
 The `monorail-ext://` scheme needs Electron. See [Remote access](../remote-access.md)
 for the separately enabled tailnet bridge and method policy.
 
+## Self-hosted mode
+
+`npm start` (or the root `Start MonoRail.cmd`) runs MonoRail from a checkout
+in the user's own browser instead of the `.exe`; the user guide is
+[Run MonoRail without installing it](../guide/setup/run-from-source.md).
+
+- `scripts/host.cjs`, the launcher, runs `vite build` when `dist/` is missing
+  or `dist/.monorail-build.json` names another git HEAD plus uncommitted page
+  changes (`--rebuild` forces). It refuses while `MonoRail.exe` runs, since
+  both use the same data, then starts `electron .` with a random per-launch
+  `MONORAIL_HOST_KEY`. Exit code 75 asks it to start the host again with the
+  same key (Developer Mode's profile switch).
+- `main.cjs` hands over to `electron/host.cjs` only when unpackaged and the
+  key is set; electron-builder excludes that file. The host uses the real data
+  folder (`setupUserData`; `--data` picks another), takes the single-instance
+  lock so a second start opens the running copy, and deletes the key from
+  `process.env` at once: child processes and agent turns must never see it.
+- `electron/host/server.cjs` listens on 127.0.0.1 only. Host must be
+  `127.0.0.1:<port>` or `localhost:<port>` (no DNS rebinding);
+  `GET /__host/open?key=` sets an HttpOnly SameSite=Strict cookie
+  `monorail_host_<port>`; every other route needs it, and bridge invokes need
+  the server's own origin. `dist/` serving is shared with Remote access in
+  `electron/bridge/static.cjs`.
+- Pages get `window.commandHub.hosted`, so `hasLocalScreen()` is true and
+  dialogs and Explorer work (with no parent window). Extension pages need
+  `monorail-ext://` and don't load. `isHosted()` in `electron/host/mode.cjs`
+  makes Settings say updates come from `git pull`, and `profiles.restart`
+  exits 75 while the tab waits on `/__host/ping` and reloads.
+
 ## Workspace and full-screen apps
 
 Workspace apps (`placement: 'workspace'`) appear under Tools. The rail and

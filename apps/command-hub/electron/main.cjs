@@ -13,6 +13,10 @@ const { guardNavigation, isMainWindowSender } = require('./renderer-security.cjs
 // window, no app: hand stdio to the server and exit with it.
 const { isMcpLaunch, launchMcp } = require('./mcp/launch.cjs')
 if (isMcpLaunch()) launchMcp(app)
+// `npm start` (scripts/host.cjs): the self-hosted mode, no window, pages in the
+// user's browser. Started as the app folder so the name and version are
+// MonoRail's. Never in the installed app (host.cjs is not packaged).
+else if (!app.isPackaged && process.env.MONORAIL_HOST_KEY) require('./host.cjs')
 else startApp()
 
 function startApp() {

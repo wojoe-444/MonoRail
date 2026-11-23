@@ -24,6 +24,13 @@ npm run dev        # Vite browser preview with fictional data
 npm run dist:win   # builds release/MonoRail-Setup-<version>.exe
 ```
 
+To use MonoRail without installing it (for example as a test user), run
+`npm start` instead, or double-click `Start MonoRail.cmd` in this folder. It
+builds the app if needed and opens it in your browser at
+http://127.0.0.1:5180 with your real data. Keep its window open; close it to
+stop MonoRail. Update with `git pull` and start again. See
+[Run MonoRail without installing it](docs/guide/setup/run-from-source.md).
+
 Run `npm run lint`, `npm test` and `npm run build` from the same folder.
 See the [repository guide](CLAUDE.md) for commands, contribution rules and
 backend architecture.

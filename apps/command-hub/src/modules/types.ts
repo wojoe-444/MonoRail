@@ -75,6 +75,12 @@ export interface CommandHubBridge {
   /** Set by the browser dev bridge (`npm run dev:browser`): HTTP to backends on this same PC. */
   devBridge?: boolean
   /**
+   * Set by the self-hosted mode (`npm start`, electron/host.cjs): MonoRail's
+   * built pages in a browser tab on this PC, backends over HTTP. Dialogs and
+   * Explorer work; MonoRail's own window features (extension pages) do not.
+   */
+  hosted?: boolean
+  /**
    * Set when the page runs on another device (the optional Remote access mode,
    * e.g. a phone): backends are real, but this PC's screen is not in front of
    * the user, so dialogs, Explorer and terminals are not offered.

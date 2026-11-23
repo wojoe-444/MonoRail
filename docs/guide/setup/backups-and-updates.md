@@ -48,6 +48,9 @@ Close MonoRail first, then restore the file from your backup subfolder:
 
 ## Updates
 
+Running MonoRail from its code in the browser instead? It updates with
+`git pull`: see [Run it without installing](run-from-source.md#updates).
+
 Updates never reset your data. Before any local-database schema migration,
 MonoRail writes a full copy beside the original and aborts if copying fails
 ([local database details](../../local-database.md#updates-keep-your-data)).

@@ -11,6 +11,8 @@ MonoRail works immediately after install and turns nothing on without asking
 
 - **[Connect your accounts](connections.md)** — Claude, GitHub, Atlassian,
   Google Cloud, pi, Docker, OpenMetadata and more.
+- **[Run it without installing](run-from-source.md)** — start MonoRail from a
+  copy of its code in your own browser, no setup `.exe` needed.
 - **[Make it look right](appearance.md)** — color schemes, frosted backdrops,
   light/dark mode and full screen.
 - **[Backups and updates](backups-and-updates.md)** — scheduled local backups,
