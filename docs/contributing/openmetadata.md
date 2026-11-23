@@ -50,6 +50,31 @@ and BigQuery searches its mirror. Keep search independent of capped browse
 results. The status page and [Services](../ingestion.md) control ingestion
 and sync.
 
+## Table page
+
+Tables open `TableView.tsx` instead of the generic `EntityView` (`tabs/CatalogTab.tsx`
+routes on `type === 'table'`). Overview (tiles, description, a one-step lineage
+card with `endProducts` beyond it, a columns glance, ownership, data quality,
+recent changes) and Quality live there; `TableColumns.tsx` holds the Columns
+tab and the column inspector (side by side from a container width of 56rem,
+stacked below that); `table.ts` holds the plain helpers (columns flattened with
+profile, key, terms and tags; fill share and its percent text, which never
+rounds a gap to 0% or 100%; tests from `testCaseResult`; row trend; column
+lineage from `lineageDetails.columnsLineage`), tested in `table.test.ts`.
+Lineage, Relationships, Versions, Details and JSON reuse `EntityView`'s
+exported components; shared non-component helpers are in `entity.ts`.
+
+Profiles and tests come from one read method, `tableHealth({ id, fqn })`,
+returning `OmTableHealth`: `profile` (OpenMetadata's tableProfile plus its
+columns' columnProfile, checked field by field), `history` (row counts, oldest
+first, at most 30), `tests` (test cases whose `entityLink` is the table or one
+of its columns) and `errors` (a part that failed; the rest still shows). The
+server reads `GET /tables/{fqn}/tableProfile/latest`, `GET /tables/{fqn}/tableProfile`
+(30 days) and `GET /dataQuality/testCases?entityLink=&includeAllTests=true`; a
+404 means never profiled, not an error. Local and BigQuery read the
+`tableProfile` records (the SQLite profiler keeps 30) and the `testCase`
+entities from SQLite. It is a phone-allowed read in `electron/remote/policy.cjs`.
+
 ## Lineage
 
 All sources return an EntityLineage shape. The server uses

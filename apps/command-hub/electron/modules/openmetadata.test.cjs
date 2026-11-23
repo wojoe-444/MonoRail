@@ -42,7 +42,7 @@ describe('OpenMetadata backend', () => {
     const fetch = fakeFetch({})
     const svc = service(fetch, { setUp: false })
     assert.deepEqual(await svc.status({ source: 'server' }), { block: 'not-set-up', source: 'server', serverSetUp: false, bigquerySetUp: false })
-    for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'getLineage', 'setDescription']) {
+    for (const m of ['counts', 'list', 'get', 'versions', 'recent', 'getLineage', 'tableHealth', 'setDescription']) {
       await assert.rejects(svc[m]({ source: 'server', type: 'table', fqn: 'a', id: '00000000-0000-4000-8000-000000000001', description: 'x' }), /Set up OpenMetadata/)
     }
     assert.equal(fetch.calls.length, 0)
@@ -300,5 +300,82 @@ describe('OpenMetadata connector', () => {
     const d = await connector.status(conn, { fetch: down })
     assert.equal(d.state, 'error')
     assert.match(d.summary, /ECONNREFUSED/)
+  })
+})
+
+describe('Table health', () => {
+  const ID = '00000000-0000-4000-8000-000000000042'
+  const FQN = 'warehouse.acme-analytics.marts.fct_orders'
+
+  test('a server answers the latest profile, row counts over time and the tests on the table and its columns', async () => {
+    const fetch = fakeFetch({
+      'GET /tables/warehouse.acme-analytics.marts.fct_orders/tableProfile/latest': () => [200, {
+        id: ID,
+        profile: { timestamp: 3000, rowCount: 812, columnCount: 2, sizeInByte: 151552, extra: 'dropped' },
+        columns: [
+          { name: 'order_id', profile: { name: 'order_id', timestamp: 3000, valuesCount: 812, nullCount: 0, distinctCount: 812 } },
+          { name: 'address', children: [{ name: 'city', profile: { timestamp: 3000, nullProportion: 0.25, min: 'Ames', max: 'Zug', histogram: { boundaries: ['a', 'b'], frequencies: [3, 'x'] } } }] },
+          { name: 'no_profile' },
+        ],
+      }],
+      'GET /tables/warehouse.acme-analytics.marts.fct_orders/tableProfile?': () => [200, { data: [{ timestamp: 2000, rowCount: 700 }, { timestamp: 1000, rowCount: 610 }, { timestamp: 2500 }] }],
+      'GET /dataQuality/testCases?': () => [200, { data: [{ id: 't1', name: 'row_count', testCaseResult: { testCaseStatus: 'Failed' } }] }],
+    })
+    const h = await service(fetch).tableHealth({ id: ID, fqn: FQN })
+    assert.deepEqual(h.profile, {
+      timestamp: 3000, rowCount: 812, columnCount: 2, sizeInByte: 151552,
+      columns: [
+        { name: 'order_id', timestamp: 3000, valuesCount: 812, nullCount: 0, distinctCount: 812 },
+        { name: 'city', timestamp: 3000, nullProportion: 0.25, min: 'Ames', max: 'Zug' },
+      ],
+    }, 'children are read; unknown fields and a histogram with a non-number are dropped')
+    assert.deepEqual(h.history, [{ timestamp: 1000, rowCount: 610 }, { timestamp: 2000, rowCount: 700 }], 'oldest first, entries without a row count skipped')
+    assert.deepEqual(h.tests.map((t) => t.id), ['t1'])
+    assert.equal(h.errors, undefined)
+    const tests = fetch.calls.find((c) => c.rel.startsWith('/dataQuality/testCases'))
+    const params = new URL(tests.url).searchParams
+    assert.equal(params.get('entityLink'), `<#E::table::${FQN}>`)
+    assert.equal(params.get('includeAllTests'), 'true')
+    assert.equal(params.get('fields'), 'testCaseResult,testDefinition')
+  })
+
+  test('a table never profiled is not an error; other failures are named and the rest still shows', async () => {
+    const never = await service(fakeFetch({ 'GET /dataQuality/testCases?': () => [200, { data: [] }] })).tableHealth({ fqn: FQN })
+    assert.deepEqual(never, { history: [], tests: [] })
+    const broken = await service(fakeFetch({
+      'GET /tables/': () => [500, { message: 'profiler store down' }],
+      'GET /dataQuality/testCases?': () => [200, { data: [{ id: 't1' }] }],
+    })).tableHealth({ fqn: FQN })
+    assert.match(broken.errors.profile, /profiler store down/)
+    assert.deepEqual(broken.tests, [{ id: 't1' }])
+  })
+
+  test('names go into the path encoded, and bad input is refused before any request', async () => {
+    const fetch = fakeFetch({})
+    const svc = service(fetch)
+    await svc.tableHealth({ fqn: 'svc.db."a/b".t' })
+    assert.ok(fetch.calls[0].rel.startsWith('/tables/svc.db.%22a%2Fb%22.t/'), fetch.calls[0].rel)
+    const n = fetch.calls.length
+    await assert.rejects(svc.tableHealth({ id: '../x', fqn: FQN }), /entity id/)
+    await assert.rejects(svc.tableHealth({}), /table name/)
+    assert.equal(fetch.calls.length, n)
+  })
+
+  test('the local database answers from its profile records and the test cases that link to the table', async () => {
+    const { openDatabase } = require('../localdb/index.cjs')
+    const db = openDatabase(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'monorail-om-health-')))
+    const t = db.put('table', { name: 'fct_orders', fullyQualifiedName: FQN })
+    db.putRecord('tableProfile', t.id, '1', 1, { timestamp: 1, rowCount: 610, columnCount: 1, columns: [] })
+    db.putRecord('tableProfile', t.id, '2', 2, { timestamp: 2, rowCount: 812, columnCount: 1, columns: [{ name: 'order_id', valuesCount: 810, nullCount: 2, distinctCount: 800 }] })
+    db.put('testCase', { name: 'on_table', fullyQualifiedName: `${FQN}.on_table`, entityLink: `<#E::table::${FQN}>` })
+    db.put('testCase', { name: 'on_column', fullyQualifiedName: `${FQN}.order_id.on_column`, entityLink: `<#E::table::${FQN}::columns::order_id>` })
+    db.put('testCase', { name: 'other', fullyQualifiedName: `${FQN}_daily.other`, entityLink: `<#E::table::${FQN}_daily>` })
+    const fetch = fakeFetch({})
+    const h = await createService({ fetch, isSetUp: async () => false, local: () => db, bigquery: NO_BIGQUERY }).tableHealth({ source: 'local', id: t.id, fqn: FQN })
+    assert.deepEqual(h.profile, { timestamp: 2, rowCount: 812, columnCount: 1, columns: [{ name: 'order_id', valuesCount: 810, nullCount: 2, distinctCount: 800 }] })
+    assert.deepEqual(h.history, [{ timestamp: 1, rowCount: 610 }, { timestamp: 2, rowCount: 812 }])
+    assert.deepEqual(h.tests.map((x) => x.name).sort(), ['on_column', 'on_table'], 'a table whose name starts the same is not matched')
+    assert.equal(fetch.calls.length, 0)
+    await assert.rejects(createService({ fetch, isSetUp: async () => false, local: () => db, bigquery: NO_BIGQUERY }).tableHealth({ source: 'local', id: '00000000-0000-4000-8000-0000000000ff', fqn: FQN }), /not in the local database/)
   })
 })

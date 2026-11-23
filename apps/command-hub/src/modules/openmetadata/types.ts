@@ -96,6 +96,44 @@ export interface OmLineage {
   layout?: string
 }
 
+/** One column's profile: OpenMetadata's columnProfile, the fields the table page reads. */
+export interface OmColumnProfile {
+  name: string
+  timestamp?: number
+  valuesCount?: number
+  nullCount?: number
+  nullProportion?: number
+  distinctCount?: number
+  uniqueCount?: number
+  min?: number | string
+  max?: number | string
+  mean?: number
+  /** Bucket labels and how many values fall in each. */
+  histogram?: { boundaries: string[]; frequencies: number[] }
+}
+
+/** OpenMetadata's tableProfile, with its columns' latest profiles. */
+export interface OmTableProfile {
+  timestamp: number
+  rowCount?: number
+  columnCount?: number
+  sizeInByte?: number
+  columns: OmColumnProfile[]
+}
+
+/**
+ * What the table page shows about a table's health, the same from every
+ * source: its latest profile, row counts over time (oldest first) and its
+ * test cases (the table's and its columns').
+ */
+export interface OmTableHealth {
+  profile?: OmTableProfile
+  history: { timestamp: number; rowCount: number }[]
+  tests: OmEntity[]
+  /** A part that could not be read; the rest still shows. */
+  errors?: { profile?: string; tests?: string }
+}
+
 /** Count per entity type; a type the server does not have gets the error. */
 export type OmCounts = Record<string, number | { error: string }>
 

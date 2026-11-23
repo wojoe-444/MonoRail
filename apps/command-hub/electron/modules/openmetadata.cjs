@@ -299,6 +299,61 @@ function query(params) {
   return s ? `?${s}` : ''
 }
 
+// ---------- Table health: profiles and tests, the same shape from every source ----------
+
+/** Row counts kept for the table page's trend: the local profiler keeps 30 profiles; a server is asked for 30 days. */
+const HISTORY_KEPT = 30
+const HISTORY_DAYS = 30
+const DAY_MS = 86_400_000
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+const COLUMN_NUMBERS = ['timestamp', 'valuesCount', 'nullCount', 'nullProportion', 'distinctCount', 'uniqueCount', 'mean']
+
+/** One column profile (OpenMetadata's columnProfile), only the fields the page reads, checked. */
+function columnProfileOut(c) {
+  const out = { name: c.name }
+  for (const k of COLUMN_NUMBERS) if (num(c[k]) !== undefined) out[k] = c[k]
+  for (const k of ['min', 'max']) {
+    if (num(c[k]) !== undefined) out[k] = c[k]
+    else if (typeof c[k] === 'string' && c[k].length <= 200) out[k] = c[k]
+  }
+  const h = c.histogram
+  if (h && Array.isArray(h.boundaries) && Array.isArray(h.frequencies) && h.frequencies.length && h.frequencies.length <= 200 && h.frequencies.every((f) => num(f) !== undefined)) {
+    out.histogram = { boundaries: h.boundaries.slice(0, 201).map((b) => String(b).slice(0, 200)), frequencies: h.frequencies }
+  }
+  return out
+}
+
+/** Every column, children included, that carries a profile. */
+function columnsWithProfiles(columns, out = []) {
+  for (const c of Array.isArray(columns) ? columns : []) {
+    if (c?.profile && typeof c.profile === 'object') out.push({ ...c.profile, name: typeof c.profile.name === 'string' ? c.profile.name : c.name })
+    columnsWithProfiles(c?.children, out)
+  }
+  return out
+}
+
+/** OpenMetadata's tableProfile plus its columns' latest profiles; undefined without a timestamp. */
+function profileOut(p, columns) {
+  if (!p || typeof p !== 'object' || num(p.timestamp) === undefined) return undefined
+  const out = { timestamp: p.timestamp }
+  for (const k of ['rowCount', 'columnCount', 'sizeInByte']) if (num(p[k]) !== undefined) out[k] = p[k]
+  out.columns = (columns ?? p.columns ?? []).filter((c) => c && typeof c.name === 'string').map(columnProfileOut)
+  return out
+}
+
+/** Row counts over time, oldest first. */
+function rowHistory(profiles) {
+  return profiles
+    .filter((p) => p && num(p.timestamp) !== undefined && num(p.rowCount) !== undefined)
+    .map((p) => ({ timestamp: p.timestamp, rowCount: p.rowCount }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-HISTORY_KEPT)
+}
+
+/** The test cases on a table or one of its columns, by their entity link (`<#E::table::FQN>` or `<#E::table::FQN::columns::col>`). */
+const tableLink = (fqn) => `<#E::table::${fqn}`
+const testsOn = (fqn, cases) => cases.filter((t) => typeof t?.entityLink === 'string' && (t.entityLink === `${tableLink(fqn)}>` || t.entityLink.startsWith(`${tableLink(fqn)}::`)))
+
 class OmError extends Error {
   constructor(status, message) {
     super(message)
@@ -523,6 +578,38 @@ function createServerService(deps = {}) {
       return deepLineage(fetchOne, { type, id, upstreamDepth: lineageDepth(upstreamDepth), downstreamDepth: lineageDepth(downstreamDepth) })
     },
 
+    /**
+     * A table's latest profile (GET /tables/{fqn}/tableProfile/latest, with its
+     * columns' profiles), its row counts over the last 30 days
+     * (GET /tables/{fqn}/tableProfile) and its test cases, the table's and its
+     * columns' (GET /dataQuality/testCases?entityLink=&includeAllTests=true).
+     * A table never profiled answers 404: no profile, not an error. A part that
+     * fails is named in `errors` and the rest still shows.
+     */
+    async tableHealth({ id, fqn } = {}) {
+      const c = await guard()
+      if (id !== undefined) checkId(id)
+      const name = text(fqn, 'table name')
+      const at = encodeURIComponent(name)
+      const now = Date.now()
+      const [latest, series, cases] = await Promise.allSettled([
+        c.get(`/tables/${at}/tableProfile/latest${query({ includeColumnProfile: true })}`),
+        c.get(`/tables/${at}/tableProfile${query({ startTs: now - HISTORY_DAYS * DAY_MS, endTs: now })}`),
+        c.withFields('dataQuality/testCases', ['testCaseResult,testDefinition', 'testCaseResult'], (fields) =>
+          c.get(`/dataQuality/testCases${query({ entityLink: `${tableLink(name)}>`, includeAllTests: true, limit: 100, fields })}`),
+        ),
+      ])
+      const out = { history: [], tests: [] }
+      const errors = {}
+      const missing = (r) => r.status === 'rejected' && r.reason?.status === 404
+      if (latest.status === 'fulfilled') out.profile = profileOut(latest.value?.profile, columnsWithProfiles(latest.value?.columns))
+      else if (!missing(latest)) errors.profile = latest.reason.message
+      if (series.status === 'fulfilled') out.history = rowHistory(Array.isArray(series.value?.data) ? series.value.data : [])
+      if (cases.status === 'fulfilled') out.tests = Array.isArray(cases.value?.data) ? cases.value.data : []
+      else if (!missing(cases)) errors.tests = cases.reason.message
+      return Object.keys(errors).length ? { ...out, errors } : out
+    },
+
     /** Set an entity's description. The one write: OpenMetadata keeps the old text as a version. */
     async setDescription({ type, id, description } = {}) {
       const c = await guard()
@@ -599,6 +686,15 @@ function createLocalService(deps = {}, { readOnly, describe, lineageNote, legacy
       const note = lineageNote ? lineageNote(store) : undefined
       return note ? { ...out, ...note } : out
     },
+    /** A table's profiles (records 'tableProfile', newest first) and the test cases that name it, from the database. */
+    async tableHealth({ id } = {}) {
+      checkId(id)
+      const store = db()
+      const e = store.byId(id)
+      if (!e?.fullyQualifiedName) throw new Error('That table is not in the local database.')
+      const profiles = store.records('tableProfile', id, HISTORY_KEPT)
+      return { profile: profileOut(profiles[0]), history: rowHistory(profiles), tests: testsOn(e.fullyQualifiedName, store.all('testCase')) }
+    },
     async setDescription({ type, id, description } = {}) {
       if (readOnly) throw new Error(readOnly)
       collectionOf(type)
@@ -668,6 +764,7 @@ function createService(deps = {}) {
     recent: route('recent'),
     search: route('search'),
     getLineage: route('getLineage'),
+    tableHealth: route('tableHealth'),
     setDescription: route('setDescription'),
     /** Sync the BigQuery copy now (`full`: download everything again, free in BigQuery). */
     syncBigQuery: (args = {}) => bq.sync({ full: args.full === true }),
@@ -693,6 +790,7 @@ module.exports = {
     recent: (_ctx, args) => svc().recent(args),
     search: (_ctx, args) => svc().search(args),
     getLineage: (_ctx, args) => svc().getLineage(args),
+    tableHealth: (_ctx, args) => svc().tableHealth(args),
     setDescription: (_ctx, args) => svc().setDescription(args),
     syncBigQuery: (_ctx, args) => svc().syncBigQuery(args),
     bigquerySetupSql: () => svc().bigquerySetupSql(),
