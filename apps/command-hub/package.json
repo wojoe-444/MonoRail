@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prestart": "node scripts/check-deps.cjs",
+    "start": "node scripts/host.cjs",
     "predev:browser": "node scripts/check-deps.cjs",
     "dev:browser": "node scripts/dev-browser.cjs",
     "build": "tsc -b && vite build",

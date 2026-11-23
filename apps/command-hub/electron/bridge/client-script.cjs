@@ -2,16 +2,17 @@
 // The page half of the HTTP bridge (electron/bridge/server.cjs): defines
 // window.commandHub the way the Electron preload does, over fetch and
 // server-sent events. Never overrides a real preload. Used by the browser dev
-// bridge (injected by vite.config.ts) and by Remote access (served as
-// /__bridge/client.js, with remote: true so pages hide PC-only actions).
+// bridge (injected by vite.config.ts), by Remote access (served as
+// /__bridge/client.js, with remote: true so pages hide PC-only actions) and by
+// the self-hosted mode (electron/host, hosted: true: a browser tab on this PC).
 // The decoder mirrors electron/bridge/codec.cjs.
 
-/** @typedef {{ platform: string, remote?: boolean }} BridgeOptions */
+/** @typedef {{ platform: string, remote?: boolean, hosted?: boolean }} BridgeOptions */
 
 /** Runs in the page. Keep all of its dependencies inside the function.
  * @param {BridgeOptions} options
  */
-function installBridge({ platform, remote = false }) {
+function installBridge({ platform, remote = false, hosted = false }) {
   if (window.commandHub) return
   const TAG = '__monorailBridge'
   /** @param {string} s */
@@ -61,7 +62,7 @@ function installBridge({ platform, remote = false }) {
 
   window.commandHub = {
     platform,
-    ...(remote ? { remote: true } : { devBridge: true }),
+    ...(remote ? { remote: true } : hosted ? { hosted: true } : { devBridge: true }),
     invoke: (moduleId, ...[method, args]) => invoke({ moduleId, method, args }),
     invokeExtension: (extensionId, method, args) => invoke({ moduleId: `ext:${extensionId}`, method, args }),
     on(channel, cb) {

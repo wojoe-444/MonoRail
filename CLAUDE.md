@@ -42,6 +42,7 @@ Run these in `apps/command-hub/` with Node 22 as in CI.
 | `npm ci` | Install locked dependencies |
 | `npm run dev` | Vite browser preview with fictional data |
 | `npm run dev:browser` | Browser at localhost:5199 with a token-guarded Electron bridge and a separate dev data folder |
+| `npm start` | Self-hosted mode for test users: build `dist/` if needed and serve it with the real backends and data folder at 127.0.0.1:5180 ([details](docs/contributing/desktop-shell.md#self-hosted-mode)). Root `Start MonoRail.cmd` runs `npm ci` if needed, then this |
 | `npm run desktop` | Electron and Vite with hot reload |
 | `npm run desktop:prod` | Build and open the desktop app |
 | `npm run lint` | Run oxlint with warnings treated as failures |

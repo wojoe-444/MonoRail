@@ -24,12 +24,18 @@
 const { app, net } = require('electron')
 const { changesSince } = require('../release-notes.cjs')
 const inApp = require('../scheduled/in-app.cjs')
+const { isHosted } = require('../host/mode.cjs')
 
 // The repo of the "publish" block in electron-builder.json.
 const RELEASES_API = 'https://api.github.com/repos/wojoe-444/MonoRail/releases'
 
 /** Updates need the installed (NSIS) build: dev runs and the portable .exe can't self-update. */
 function updateSupport() {
+  if (isHosted())
+    return {
+      supported: false,
+      reason: 'This copy runs from its source folder (npm start), so it does not update itself. To update, stop MonoRail, run `git pull` in its folder, and start it again: it rebuilds on its own.',
+    }
   if (!app.isPackaged) return { supported: false, reason: 'Updates work in the installed app, not in development.' }
   if (process.env.PORTABLE_EXECUTABLE_DIR)
     return { supported: false, reason: 'This is the portable .exe, which cannot update itself. Install MonoRail with the setup .exe to get updates.' }

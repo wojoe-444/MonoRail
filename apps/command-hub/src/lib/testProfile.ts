@@ -47,7 +47,28 @@ export async function switchProfile(id: string): Promise<boolean> {
   if (id === NEW_USER_ID) clearProfilePrefs(NEW_USER_ID)
   setActiveProfileId(id)
   const { restarting } = await invokeModule('profiles', 'restart')
+  if (restarting && window.commandHub?.hosted) void reloadWhenBack()
   return restarting
+}
+
+/**
+ * Self-hosted (npm start): the tab outlives the restart, so wait for the old
+ * host to go away and the new one to answer, then reload into it.
+ */
+async function reloadWhenBack(): Promise<void> {
+  const ping = () =>
+    fetch('/__host/ping', { cache: 'no-store', credentials: 'same-origin' }).then(
+      (r) => r.ok,
+      () => false,
+    )
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline && (await ping())) await wait(250)
+  while (Date.now() < deadline) {
+    if (await ping()) break
+    await wait(500)
+  }
+  window.location.reload()
 }
 
 /**

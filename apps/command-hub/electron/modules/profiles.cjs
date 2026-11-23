@@ -44,6 +44,9 @@ module.exports = {
     /** Restart MonoRail so the active profile takes effect everywhere. */
     restart() {
       const { app, BrowserWindow, session } = require('electron')
+      // Self-hosted (npm start): the launcher starts the host again; the
+      // browser tab waits for it and reloads (src/lib/testProfile.ts).
+      if (require('../host/mode.cjs').restartHost()) return { restarting: true }
       // The browser dev bridge has no window to restart into.
       if (BrowserWindow.getAllWindows().length === 0) return { restarting: false }
       // Let the reply reach the page, save its local storage, then restart.

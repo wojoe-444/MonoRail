@@ -7,11 +7,10 @@
 // check, so tests run it under Node.
 
 const crypto = require('node:crypto')
-const fs = require('node:fs/promises')
 const http = require('node:http')
-const path = require('node:path')
 const { createBridgeHandler, send } = require('../bridge/server.cjs')
 const { bridgeClientScript } = require('../bridge/client-script.cjs')
+const { serveDist, TYPES } = require('../bridge/static.cjs')
 const { remoteRefusal, isQuiet } = require('./policy.cjs')
 
 const COOKIE = 'monorail_device'
@@ -19,23 +18,6 @@ const COOKIE_MAX_AGE = 400 * 24 * 60 * 60 // the most browsers keep a cookie
 const PAIR_PATH = '/__remote/pair'
 const MAX_FORM = 4 * 1024
 const TOUCH_EVERY_MS = 60_000
-
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.ico': 'image/x-icon',
-  '.json': 'application/json; charset=utf-8',
-  '.woff2': 'font/woff2',
-  '.woff': 'font/woff',
-  '.ttf': 'font/ttf',
-  '.txt': 'text/plain; charset=utf-8',
-  '.webmanifest': 'application/manifest+json',
-}
 
 const SECURITY_HEADERS = {
   'content-security-policy':
@@ -145,37 +127,14 @@ function createRemoteServer({ store, state, pairing, invoke, isDesktopOnly, dist
   // Extension events are only broadcast to the desktop and the local dev bridge.
   const bridge = createBridgeHandler({ invoke: remoteInvoke, allowedOrigins: origins })
 
-  async function serveFile(req, res, urlPath) {
-    let rel
-    try {
-      rel = decodeURIComponent(urlPath)
-    } catch {
-      return send(res, 400, { ok: false, error: { message: 'Bad path' } })
-    }
-    if (rel === '/' || rel === '') rel = '/index.html'
-    const root = path.resolve(distDir)
-    const file = path.resolve(root, `.${rel}`)
-    if (file !== root && !file.startsWith(root + path.sep)) return send(res, 404, { ok: false, error: { message: 'Not found' } })
-    let data
-    try {
-      data = await fs.readFile(file)
-    } catch {
-      if (rel === '/index.html') return sendHtml(res, 503, page('MonoRail is not built', '<p>This copy of MonoRail has no built pages to show. Run <code>npm run build</code> on the PC.</p>'))
-      return send(res, 404, { ok: false, error: { message: 'Not found' } })
-    }
-    const ext = path.extname(file).toLowerCase()
-    if (rel === '/index.html') {
-      const html = data.toString('utf8').replace(/<head>/i, '<head><script src="/__bridge/client.js"></script>')
-      res.writeHead(200, { ...SECURITY_HEADERS, 'content-type': TYPES['.html'], 'cache-control': 'no-store' })
-      return res.end(html)
-    }
-    res.writeHead(200, {
-      ...SECURITY_HEADERS,
-      'content-type': TYPES[ext] ?? 'application/octet-stream',
-      'cache-control': rel.startsWith('/assets/') ? 'private, max-age=31536000, immutable' : 'no-cache',
+  const serveFile = (req, res, urlPath) =>
+    serveDist(res, {
+      distDir,
+      urlPath,
+      headers: SECURITY_HEADERS,
+      headTag: '<script src="/__bridge/client.js"></script>',
+      notBuilt: (r) => sendHtml(r, 503, page('MonoRail is not built', '<p>This copy of MonoRail has no built pages to show. Run <code>npm run build</code> on the PC.</p>')),
     })
-    res.end(data)
-  }
 
   async function handlePair(req, res, url) {
     if (req.method === 'GET') {
