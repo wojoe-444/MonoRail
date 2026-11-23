@@ -44,7 +44,8 @@ of Bot Dashboard (`dashboard/web` in `wojoe-444/MC-Player`). The
 style. `tokens()` expands these to light and dark OKLCH CSS variables and
 `src/index.css` maps them to Tailwind with `@theme inline`. `lib/theme.ts`
 writes the chosen mode and palette to `<html>`. Use tokens in component
-styles. Defaults in CSS match Sand & Ink in light mode for first paint.
+styles. The default scheme is Winter Village (`DEFAULT_PALETTE`) in light mode;
+the values in CSS are Sand & Ink, a plain fallback for the first paint.
 Change palette definitions in `palettes.ts`.
 
 Use primary for major actions, active navigation and links, primary-soft
