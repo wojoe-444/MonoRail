@@ -28,7 +28,7 @@ export const SEARCH_ENTRIES: SearchEntry[] = [
   { label: 'Spending limit', detail: 'A daily or monthly cap on what Chat may spend', path: '/settings', anchor: 'settings-spending', keywords: 'budget cost money limit cap spend dollars' },
   { label: 'Developer Mode', detail: 'Element inspector, F12 DevTools, New User profile', path: '/settings', anchor: 'settings-developer', keywords: 'devtools inspector debug f12 test new user' },
   // Appearance
-  { label: 'Color scheme', detail: 'Sand & Ink, Botanical, Indigo Ink and more', path: '/settings/appearance', keywords: 'palette theme colour color look' },
+  { label: 'Color scheme', detail: 'Winter Village, Sand & Ink, Indigo Ink and more', path: '/settings/appearance', keywords: 'palette theme colour color look' },
   { label: 'Light or dark mode', detail: 'Appearance', path: '/settings/appearance', keywords: 'dark mode light mode night theme' },
   // Backups
   { label: 'Global backup folder', detail: 'One folder every page backs up into', path: '/settings/backups', keywords: 'backup onedrive folder copy bundle' },

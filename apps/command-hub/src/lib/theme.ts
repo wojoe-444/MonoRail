@@ -5,7 +5,7 @@ import { prefs } from '@/lib/prefs'
 
 /**
  * Appearance for the whole app, apps included: a color scheme (palette, see
- * `palettes.ts`) plus light / dark mode. Light mode and "Sand & Ink" are the
+ * `palettes.ts`) plus light / dark mode. Light mode and "Winter Village" are the
  * defaults. Both are remembered per profile (`prefs`, in localStorage inside the app's AppData
  * folder in Electron). Mode is applied as the `dark` class on <html>, which
  * the Tailwind tokens and app stylesheets key off; the palette is applied by

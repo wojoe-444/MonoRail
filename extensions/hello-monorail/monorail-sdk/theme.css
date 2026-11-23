@@ -23,7 +23,8 @@
   --radius: 0.625rem;
 
   /*
-   * Defaults: the "Sand & Ink" palette (src/lib/palettes.ts). lib/theme.ts
+   * First-paint fallback: the "Sand & Ink" palette (src/lib/palettes.ts; the
+   * default scheme is Winter Village, DEFAULT_PALETTE there). lib/theme.ts
    * overwrites these on <html> with the palette the user picked, so edit
    * palettes.ts, not these values, to change a scheme.
    */

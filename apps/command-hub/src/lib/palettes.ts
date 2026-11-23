@@ -111,7 +111,7 @@ const BACKDROPS = {
   nebula: { ...picture('nebula'), layout: 'liquid', dim: 0.08, color: 'oklch(0.2 0.08 290)' },
 } satisfies Record<string, Backdrop>
 
-export const DEFAULT_PALETTE = 'sand-ink'
+export const DEFAULT_PALETTE = 'winter-village'
 
 export const PALETTES: Palette[] = [
   { id: 'indigo-ink', name: 'Indigo Ink', blurb: 'Navy chrome, indigo primary', ph: 277, pc: 0.23, nh: 265, nc: 0.01, sidebar: 'dark' },
@@ -141,7 +141,7 @@ export const PALETTES: Palette[] = [
   { id: 'warm-stone', name: 'Warm Stone', blurb: 'Stone gray with a warm lean, muted clay accent', ph: 55, pc: 0.06, nh: 70, nc: 0.008, sidebar: 'dark', sh: 65, neutral: true },
   { id: 'sage', name: 'Sage', blurb: 'Gray-green neutrals, quiet sage accent', ph: 150, pc: 0.05, nh: 145, nc: 0.007, sidebar: 'dark', sh: 150, neutral: true },
   { id: 'true-gray', name: 'True Gray', blurb: 'Pure neutral gray, no tint at all', ph: 0, pc: 0, nh: 0, nc: 0, sidebar: 'dark', sh: 0, neutral: true },
-  { id: 'sand-ink', name: 'Sand & Ink', blurb: 'Default. Cream paper, khaki accent, light drawer', ph: 80, pc: 0.07, nh: 85, nc: 0.01, sidebar: 'light', neutral: true },
+  { id: 'sand-ink', name: 'Sand & Ink', blurb: 'Cream paper, khaki accent, light drawer', ph: 80, pc: 0.07, nh: 85, nc: 0.01, sidebar: 'light', neutral: true },
   {
     id: 'botanical',
     name: 'Botanical',
@@ -341,7 +341,7 @@ export const PALETTES: Palette[] = [
   {
     id: 'winter-village',
     name: 'Winter Village',
-    blurb: 'Snowy hills, lit cabins and pines; floating frosted glass',
+    blurb: 'Default. Snowy hills, lit cabins and pines; floating frosted glass',
     ph: 245, pc: 0.12, nh: 250, nc: 0.012, sidebar: 'dark', sh: 235,
     backdrop: BACKDROPS.winterVillage,
   },
