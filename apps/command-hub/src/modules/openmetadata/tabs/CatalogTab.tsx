@@ -15,6 +15,7 @@ import { BigQueryNote } from '../BigQueryNote'
 import { typeInfo } from '../catalog'
 import { EntityList } from '../EntityList'
 import { EntityView } from '../EntityView'
+import { TableView } from '../TableView'
 import { Overview } from '../Overview'
 import { takePendingView } from '../tabs'
 import { TypeTile } from '../parts'
@@ -78,7 +79,11 @@ export default function CatalogTab({ status, counts, source, reload }: OmTabProp
           ) : !view.type ? (
             <Overview status={status} counts={counts.data} countsError={counts.error} onOpen={setView} />
           ) : view.fqn ? (
-            <EntityView key={`${view.type}|${view.fqn}`} type={view.type} fqn={view.fqn} onOpen={setView} />
+            view.type === 'table' ? (
+              <TableView key={view.fqn} fqn={view.fqn} onOpen={setView} />
+            ) : (
+              <EntityView key={`${view.type}|${view.fqn}`} type={view.type} fqn={view.fqn} onOpen={setView} />
+            )
           ) : (
             <EntityList key={view.type} type={view.type} total={counts.data?.[view.type]} onOpen={setView} />
           )}

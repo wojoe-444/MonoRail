@@ -302,6 +302,7 @@ export interface ModuleIpc {
     recent: Rpc<(Om.OmEntity & { entityType: string })[], OmSource & { size?: number } | undefined>
     search: Rpc<Om.OmSearch, OmSource & { q: string; types?: string[]; limit?: number; deleted?: boolean }>
     getLineage: Rpc<Om.OmLineage, OmId & { upstreamDepth?: LineageDepth; downstreamDepth?: LineageDepth }>
+    tableHealth: Rpc<Om.OmTableHealth, OmSource & Id & { fqn: string }>
     setDescription: Rpc<Om.OmEntity, OmId & { description: string }>
     syncBigQuery: Rpc<Om.BqSync, { full?: boolean } | undefined>
     bigquerySetupSql: Rpc<{ sql: string; source: string }>

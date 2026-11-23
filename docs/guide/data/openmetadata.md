@@ -100,12 +100,46 @@ greyed out; pre-2.1 servers omit Ontology).
   relationships (long lists like a schema's tables have their own name filter),
   [lineage](#lineage), version history, raw JSON and standard field docs. A
   data asset's page shows its [downstream end products](#downstream-end-products)
-  right under the header.
+  right under the header. Tables get [a page of their own](#the-table-page).
+
+## The table page
+
+Opening a table shows whether you can trust it before anything else.
+
+- **Header**: where the table lives (service, database and schema, each
+  clickable), its tier, kind and source, owners, domains, when it last
+  changed, and **Copy name** for its full name.
+- **Failing tests**: when a test on the table or one of its columns failed on
+  its last run, a red banner names it; **See the tests** opens the **Quality**
+  tab.
+- **Overview** (the default): four tiles (rows with their trend, when the
+  table was last profiled, tests passing, and columns), the description, a
+  small lineage view (what the table is made from, what is made from it, and
+  the [end products](#downstream-end-products) further down), the first
+  columns with how full each is, and on the right ownership, data quality and
+  recent changes.
+- **Columns**: every column with its type, description, tags and glossary
+  terms, how many distinct values it has and how full it is. Search by name or
+  filter to keys, glossary terms, tags, tested or undocumented columns. Click
+  a column to open it beside the list: how full it is, distinct values,
+  smallest and largest value, how its values are spread (when the profile has
+  that), its tests, and which columns it comes from and feeds.
+- **Quality**: every test on the table and its columns, failing first, with
+  the last result. Click a test to open it, or its column to inspect that.
+- **Lineage**, **Relationships**, **Versions**, **Details** and **JSON** work as
+  on any other entity.
+
+Row counts and column figures come from a profile. Without a server, run a
+[profiler pipeline](services.md#add-a-pipeline) on the SQLite database; on your
+OpenMetadata server, its profiler fills them. A table that was never profiled
+says so instead of showing numbers. Tests are OpenMetadata's test cases; the
+**Data quality** tab lists every one in the catalog.
 
 ## Downstream end products
 
-Every data asset's page (tables, views, dashboards, pipelines, models...) has a
-**Downstream end products** card right below its owners and tags. It follows
+Every data asset's page (views, dashboards, pipelines, models...) has a
+**Downstream end products** card right below its owners and tags; on
+[a table's page](#the-table-page) they sit at the foot of its lineage card. It follows
 the [lineage](#lineage) downstream to the very end and lists the assets that
 nothing further is made from: usually dashboards, charts, ML models and the
 last tables in a chain. Each shows its type and how many steps away it is;

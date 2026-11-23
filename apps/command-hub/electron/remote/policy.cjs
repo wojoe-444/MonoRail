@@ -69,7 +69,7 @@ const REMOTE_METHODS = {
   notes: { phone: ['list', 'get', 'create', 'save', 'flush', 'remove', 'history', 'version'], desktop: [] },
   sqlx: { phone: ['listProjects', 'listFiles', 'readFile'], desktop: ['addProject', 'removeProject', 'saveFile'] },
   openmetadata: {
-    phone: ['status', 'counts', 'list', 'get', 'versions', 'recent', 'search', 'getLineage', 'bigquerySetupSql', 'explore'],
+    phone: ['status', 'counts', 'list', 'get', 'versions', 'recent', 'search', 'getLineage', 'tableHealth', 'bigquerySetupSql', 'explore'],
     desktop: ['setDescription', 'syncBigQuery'],
   },
   profiles: { phone: ['getProfiles'], desktop: ['rename', 'switchTo', 'restart'] },

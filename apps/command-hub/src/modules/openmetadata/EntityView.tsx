@@ -17,11 +17,12 @@ import { STANDARD, docsTarget, standardField } from '@/standard'
 
 import { call, canEdit, errorText, useCall } from './api'
 import { GROUPS, adopted, typeInfo } from './catalog'
+import { changeSummary, isObject, isRef, referencesOf, sideOf } from './entity'
 import { LineageGraph } from './lineage-graph/LineageGraph'
 import { LINEAGE_DEPTHS, depthArg, endProducts, type LineageDepth } from './lineage'
 import { Owners, Tags, TypeTile } from './parts'
 import { ago, displayName, formatTime, tierOf, type View } from './util'
-import type { OmColumn, OmEntity, OmLineage, OmLineageEdge, OmRef } from './types'
+import type { OmColumn, OmEntity, OmRef } from './types'
 
 type Tab = 'details' | 'schema' | 'relationships' | 'lineage' | 'versions' | 'json'
 
@@ -177,7 +178,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 const Muted = ({ children }: { children: ReactNode }) => <span className="text-sm text-muted-foreground">{children}</span>
 
 /** OpenMetadata descriptions are Markdown. Links and images are shown, never followed or fetched. */
-function Description({ text }: { text?: string }) {
+export function Description({ text }: { text?: string }) {
   if (!text?.trim()) return <p className="text-sm text-muted-foreground italic">No description yet.</p>
   return (
     <div className="max-w-none text-sm leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-xs [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p+p]:mt-2 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_ul]:list-disc [&_ul]:pl-5">
@@ -199,7 +200,7 @@ function Description({ text }: { text?: string }) {
 }
 
 /** Mounted only while open, so the draft starts from the current text. */
-function DescriptionDialog({ onClose, type, entity, onSaved }: { onClose: () => void; type: string; entity: OmEntity; onSaved: () => void }) {
+export function DescriptionDialog({ onClose, type, entity, onSaved }: { onClose: () => void; type: string; entity: OmEntity; onSaved: () => void }) {
   const [draft, setDraft] = useState(entity.description ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
@@ -246,8 +247,6 @@ function DescriptionDialog({ onClose, type, entity, onSaved }: { onClose: () => 
 /** Shown elsewhere on the page, so not in Details. */
 const SHOWN_ELSEWHERE = new Set(['name', 'displayName', 'description', 'fullyQualifiedName', 'tags', 'owners', 'domains', 'changeDescription', 'incrementalChangeDescription', 'extension', 'href', 'entityType', 'columns', 'fields', 'updatedAt', 'updatedBy', 'version', 'deleted'])
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-const isRef = (v: unknown): v is OmRef => isObject(v) && typeof v.id === 'string' && typeof v.type === 'string'
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) || (isObject(v) && !Object.keys(v).length)
 const isScalar = (v: unknown) => ['string', 'number', 'boolean'].includes(typeof v)
 const humanize = (key: string) => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
@@ -257,16 +256,6 @@ function formatValue(key: string, v: unknown): string {
   if (typeof v === 'number' && /(At|Date|Time|time|timestamp|Ts)$/.test(key) && v > 1e11) return formatTime(v)
   if (typeof v === 'number') return v.toLocaleString()
   return String(v)
-}
-
-/** Every top-level field holding an entity reference or a list of them. */
-function referencesOf(entity: OmEntity): [string, OmRef[]][] {
-  const out: [string, OmRef[]][] = []
-  for (const [k, v] of Object.entries(entity)) {
-    if (isRef(v)) out.push([k, [v]])
-    else if (Array.isArray(v) && v.length && v.every(isRef)) out.push([k, v])
-  }
-  return out
 }
 
 /** The columns or fields an entity has, wherever its type keeps them. */
@@ -282,7 +271,7 @@ function schemaOf(entity: OmEntity): { label: string; columns: OmColumn[]; count
 
 // ---------- Tabs ----------
 
-function Details({ type, entity }: { type: string; entity: OmEntity }) {
+export function Details({ type, entity }: { type: string; entity: OmEntity }) {
   const entries = Object.entries(entity).filter(([k, v]) => !SHOWN_ELSEWHERE.has(k) && !isEmpty(v))
   const scalars = entries.filter(([, v]) => isScalar(v))
   const structured = entries.filter(([, v]) => !isScalar(v) && !isRef(v) && !(Array.isArray(v) && v.every(isRef)))
@@ -356,7 +345,7 @@ function Details({ type, entity }: { type: string; entity: OmEntity }) {
 
 const Json = ({ value }: { value: unknown }) => <pre className="max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">{JSON.stringify(value, null, 2)}</pre>
 
-function Relationships({ refs, onOpen }: { refs: [string, OmRef[]][]; onOpen: (v: View) => void }) {
+export function Relationships({ refs, onOpen }: { refs: [string, OmRef[]][]; onOpen: (v: View) => void }) {
   if (!refs.length) return <p className="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">This entity refers to no other entity.</p>
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -401,7 +390,7 @@ function RefList({ field, list, onOpen }: { field: string; list: OmRef[]; onOpen
 }
 
 /** One referenced entity in a list; opens it when the page knows its type. */
-function RefRow({ r, onOpen, children }: { r: OmRef; onOpen: (v: View) => void; children?: ReactNode }) {
+export function RefRow({ r, onOpen, children }: { r: OmRef; onOpen: (v: View) => void; children?: ReactNode }) {
   const known = !!typeInfo(r.type)
   const body = (
     <>
@@ -540,33 +529,6 @@ const LINEAGE_SOURCE: Record<string, string> = {
   CrossDatabaseLineage: 'Cross-database',
 }
 
-/** One side of the lineage: each entity once, with how many steps away it is and the edge that reached it first. */
-function sideOf(data: OmLineage, upstream: boolean): { ref: OmRef; steps: number; edge: OmLineageEdge }[] {
-  const nodes = new Map(data.nodes.map((n) => [n.id, n]))
-  const byEnd = new Map<string, OmLineageEdge[]>()
-  for (const e of upstream ? data.upstreamEdges : data.downstreamEdges) {
-    const at = upstream ? e.toEntity : e.fromEntity
-    byEnd.set(at, [...(byEnd.get(at) ?? []), e])
-  }
-  const out: { ref: OmRef; steps: number; edge: OmLineageEdge }[] = []
-  const seen = new Set([data.entity.id])
-  let frontier = [data.entity.id]
-  for (let steps = 1; frontier.length; steps++) {
-    const next: string[] = []
-    for (const at of frontier) {
-      for (const e of byEnd.get(at) ?? []) {
-        const id = upstream ? e.fromEntity : e.toEntity
-        if (seen.has(id)) continue
-        seen.add(id)
-        next.push(id)
-        out.push({ ref: nodes.get(id) ?? { id, type: 'unknown', name: id }, steps, edge: e })
-      }
-    }
-    frontier = next
-  }
-  return out
-}
-
 /** The most rows a side of the List view draws before "Show all". */
 const LIST_SHOWN = 200
 
@@ -575,7 +537,7 @@ const LIST_SHOWN = 200
  * (downstream), from OpenMetadata's lineage edges, any number of steps
  * (a server is read 3 levels a request).
  */
-function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onOpen: (v: View) => void }) {
+export function Lineage({ type, entity, onOpen }: { type: string; entity: OmEntity; onOpen: (v: View) => void }) {
   // The graph reveals neighbours as you click, so it loads 3 steps up front.
   const [depth, setDepth] = useState<LineageDepth>('3')
   const [shape, setShape] = useState<'graph' | 'list'>('graph')
@@ -724,7 +686,7 @@ function SchemaList({ columns }: { columns: OmColumn[] }) {
   )
 }
 
-function Versions({ type, entity }: { type: string; entity: OmEntity }) {
+export function Versions({ type, entity }: { type: string; entity: OmEntity }) {
   const q = useCall('versions', { type, id: entity.id }, entity.version)
   if (q.error) return <p role="alert" className="rounded-lg bg-destructive-soft p-4 text-sm text-destructive-soft-foreground">{q.error}</p>
   if (!q.data)
@@ -738,12 +700,6 @@ function Versions({ type, entity }: { type: string; entity: OmEntity }) {
       <CardContent>
         <ol className="relative flex flex-col gap-4 border-l pl-6">
           {q.data.map((v) => {
-            const ch = v.changeDescription
-            const fields = [
-              ...(ch?.fieldsAdded ?? []).map((f) => `added ${f.name}`),
-              ...(ch?.fieldsUpdated ?? []).map((f) => `changed ${f.name}`),
-              ...(ch?.fieldsDeleted ?? []).map((f) => `removed ${f.name}`),
-            ]
             return (
               <li key={v.version} className="relative">
                 <span className="absolute top-1.5 -left-[1.9rem] size-2.5 rounded-full border-2 border-card bg-primary" aria-hidden />
@@ -754,7 +710,7 @@ function Versions({ type, entity }: { type: string; entity: OmEntity }) {
                   <span className="font-medium">{v.updatedBy}</span>
                   {v.updatedAt && <span className="text-xs text-muted-foreground">{formatTime(v.updatedAt)}</span>}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{fields.length ? fields.join(', ').replace(/\./g, ' › ') : v.version === 0.1 ? 'Created' : 'No field changes recorded'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{changeSummary(v)}</p>
               </li>
             )
           })}
@@ -764,7 +720,7 @@ function Versions({ type, entity }: { type: string; entity: OmEntity }) {
   )
 }
 
-function JsonCard({ entity }: { entity: OmEntity }) {
+export function JsonCard({ entity }: { entity: OmEntity }) {
   const [copied, setCopied] = useState(false)
   const text = JSON.stringify(entity, null, 2)
   return (

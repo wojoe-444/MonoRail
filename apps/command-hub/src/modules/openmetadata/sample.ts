@@ -2,7 +2,7 @@
 // Same shapes as OpenMetadata 2.0.8's REST API, so the page cannot tell the
 // difference. Edits last until the page reloads. Every name here is made up.
 
-import type { OmCounts, OmEntity, OmLineage, OmLineageEdge, OmPage, OmRef, OmSearch, OmStatus, OmTag } from './types'
+import type { OmColumnProfile, OmCounts, OmEntity, OmLineage, OmLineageEdge, OmPage, OmRef, OmSearch, OmStatus, OmTableHealth, OmTag } from './types'
 import { TYPES } from './catalog'
 
 const DAY = 86_400_000
@@ -237,6 +237,68 @@ const edges: { from: OmEntity; to: OmEntity; details?: OmLineageEdge['lineageDet
   { from: fct, to: daily, details: { source: 'QueryLineage', sqlQuery: 'SELECT order_date AS day, COUNT(*) AS orders, SUM(net_revenue) AS net_revenue FROM marts.fct_orders GROUP BY 1' } },
 ]
 
+// Profiles, kept apart from the tables as OpenMetadata keeps them: row counts
+// per day (oldest first) and the latest column profiles. stg_customers was
+// never profiled, so its page shows that.
+const buckets = (step: number, counts: number[]) => ({ boundaries: counts.map((_, i) => `${i * step} to ${(i + 1) * step}`), frequencies: counts })
+const profiles = new Map<string, { rows: number[]; sizeInByte: number; columns: OmColumnProfile[] }>([
+  [fct.id, {
+    rows: [610, 618, 631, 640, 655, 668, 676, 690, 712, 731, 748, 770, 792, 812],
+    sizeInByte: 151_552,
+    columns: [
+      { name: 'order_id', valuesCount: 812, nullCount: 0, distinctCount: 812, uniqueCount: 812 },
+      { name: 'customer_id', valuesCount: 812, nullCount: 0, distinctCount: 431 },
+      { name: 'order_date', valuesCount: 812, nullCount: 0, distinctCount: 14, min: '2026-11-09', max: '2026-11-22' },
+      { name: 'gross_revenue', valuesCount: 812, nullCount: 0, distinctCount: 640, min: 4.5, max: 1240, mean: 86.2, histogram: buckets(125, [62, 141, 188, 160, 112, 71, 39, 21, 11, 7]) },
+      { name: 'net_revenue', valuesCount: 809, nullCount: 3, distinctCount: 655, min: 3.8, max: 1180, mean: 82.7, histogram: buckets(120, [70, 150, 183, 154, 108, 66, 36, 19, 10, 13]) },
+    ],
+  }],
+  [stgOrders.id, {
+    rows: [610, 640, 668, 690, 731, 770, 812],
+    sizeInByte: 98_304,
+    columns: [
+      { name: 'order_id', valuesCount: 812, nullCount: 0, distinctCount: 812 },
+      { name: 'customer_id', valuesCount: 812, nullCount: 0, distinctCount: 431 },
+      { name: 'ordered_at', valuesCount: 812, nullCount: 0, distinctCount: 809 },
+      { name: 'status', valuesCount: 806, nullCount: 6, distinctCount: 4 },
+    ],
+  }],
+  [dim.id, {
+    rows: [402, 410, 418, 431],
+    sizeInByte: 61_440,
+    columns: [
+      { name: 'customer_id', valuesCount: 431, nullCount: 0, distinctCount: 431, uniqueCount: 431 },
+      { name: 'first_order_date', valuesCount: 431, nullCount: 0, distinctCount: 14 },
+      { name: 'lifetime_orders', valuesCount: 431, nullCount: 0, distinctCount: 9, min: 1, max: 11, mean: 1.9, histogram: buckets(2, [301, 88, 29, 9, 3, 1]) },
+      { name: 'address', valuesCount: 270, nullCount: 161, distinctCount: 268 },
+    ],
+  }],
+  [daily.id, {
+    rows: [8, 9, 10, 11, 12, 13, 14],
+    sizeInByte: 4_096,
+    columns: [
+      { name: 'day', valuesCount: 14, nullCount: 0, distinctCount: 14, uniqueCount: 14 },
+      { name: 'orders', valuesCount: 14, nullCount: 0, distinctCount: 13, min: 44, max: 67, mean: 58 },
+      { name: 'net_revenue', valuesCount: 14, nullCount: 0, distinctCount: 14, min: 3410.2, max: 5880.9, mean: 4790.4 },
+    ],
+  }],
+])
+
+function tableHealth(id: string): OmTableHealth {
+  const t = list('table').find((x) => x.id === id)
+  if (!t) throw new Error('Not found')
+  const link = `<#E::table::${t.fullyQualifiedName}`
+  const tests = list('testCase').filter((c) => typeof c.entityLink === 'string' && (c.entityLink === `${link}>` || c.entityLink.startsWith(`${link}::`)))
+  const p = profiles.get(t.id)
+  if (!p) return { history: [], tests }
+  const at = now - 3 * 3_600_000
+  return {
+    profile: { timestamp: at, rowCount: p.rows.at(-1), columnCount: Array.isArray(t.columns) ? t.columns.length : undefined, sizeInByte: p.sizeInByte, columns: p.columns.map((c) => ({ ...c, timestamp: at })) },
+    history: p.rows.map((rowCount, i) => ({ timestamp: at - (p.rows.length - 1 - i) * DAY, rowCount })),
+    tests,
+  }
+}
+
 function typeOfEntity(e: OmEntity): string {
   for (const [type, items] of byType) if (items.includes(e)) return type
   return 'table'
@@ -324,6 +386,7 @@ const methods: Record<string, (args: Record<string, unknown>) => unknown> = {
     const depth = (v: unknown) => (v === 'all' ? Infinity : Number(v ?? 1))
     return lineage(String(id), depth(upstreamDepth), depth(downstreamDepth))
   },
+  tableHealth: ({ id }) => tableHealth(String(id)),
   setDescription: ({ type, id, description }) => {
     const items = list(String(type))
     const i = items.findIndex((x) => x.id === id)
